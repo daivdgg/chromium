@@ -134,9 +134,8 @@ void FullscreenControllerTestWindow::ChangeWindowFullscreenState() {
 }
 
 void FullscreenControllerTestWindow::ChangeWindowFullscreenStateIfReentrant() {
-  if (reentrant_) {
+  if (reentrant_)
     ChangeWindowFullscreenState();
-  }
 }
 
 // Unit test fixture for testing Fullscreen Controller. ------------------------
