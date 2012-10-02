@@ -45,10 +45,16 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
 
   // Simulates the window changing state.
   void ChangeWindowFullscreenState();
+  // Calls ChangeWindowFullscreenState() if |reentrant_| is true.
+  void ChangeWindowFullscreenStateIfReentrant();
 
  private:
   WindowState state_;
   Browser* browser_;
+
+  // Causes reentrant calls to be made by calling
+  // browser_->WindowFullscreenStateChanged() from the BrowserWindow
+  // interface methods.
   bool reentrant_;
 };
 
@@ -61,16 +67,14 @@ void FullscreenControllerTestWindow::EnterFullscreen(
     const GURL& url, FullscreenExitBubbleType type) {
   if (!IsFullscreen()) {
     state_ = TO_FULLSCREEN;
-    if (reentrant_)
-      ChangeWindowFullscreenState();
+    ChangeWindowFullscreenStateIfReentrant();
   }
 }
 
 void FullscreenControllerTestWindow::ExitFullscreen() {
   if (IsFullscreen()) {
     state_ = TO_NORMAL;
-    if (reentrant_)
-      ChangeWindowFullscreenState();
+    ChangeWindowFullscreenStateIfReentrant();
   }
 }
 
@@ -129,6 +133,11 @@ void FullscreenControllerTestWindow::ChangeWindowFullscreenState() {
   browser_->WindowFullscreenStateChanged();
 }
 
+void FullscreenControllerTestWindow::ChangeWindowFullscreenStateIfReentrant() {
+  if (reentrant_) {
+    ChangeWindowFullscreenState();
+  }
+}
 
 // Unit test fixture for testing Fullscreen Controller. ------------------------
 class FullscreenControllerUnitTest : public BrowserWithTestWindowTest {
