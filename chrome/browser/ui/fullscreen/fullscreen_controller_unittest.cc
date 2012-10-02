@@ -158,14 +158,14 @@ class FullscreenControllerUnitTest : public BrowserWithTestWindowTest {
   enum Event {
     // FullscreenController::ToggleFullscreenMode()
     TOGGLE_FULLSCREEN,
-    // FullscreenController::ChangeWindowFullscreenState()
-    WINDOW_CHANGE,
 #if defined(OS_WIN)
     // FullscreenController::SetMetroSnapMode(true)
     METRO_SNAP_TRUE,
     // FullscreenController::SetMetroSnapMode(flase)
     METRO_SNAP_FALSE,
 #endif
+    // FullscreenController::ChangeWindowFullscreenState()
+    WINDOW_CHANGE,
     NUM_EVENTS,
     EVENT_INVALID
   };
@@ -234,27 +234,27 @@ void FullscreenControllerUnitTest::SetUp() {
   State transition_table_data[NUM_STATES][NUM_EVENTS] = {
     { // STATE_NORMAL:
       STATE_TO_BROWSER_FULLSCREEN_NO_CHROME,  // Event TOGGLE_FULLSCREEN
-      STATE_NORMAL,                           // Event WINDOW_CHANGE
       ,                                       // Event METRO_SNAP_TRUE
       ,                                       // Event METRO_SNAP_FALSE
+      STATE_NORMAL,                           // Event WINDOW_CHANGE
     },
     { // STATE_BROWSER_FULLSCREEN_NO_CHROME:
       STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN
-      STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event WINDOW_CHANGE
       ,                                       // Event METRO_SNAP_TRUE
       ,                                       // Event METRO_SNAP_FALSE
+      STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event WINDOW_CHANGE
     },
     // STATE_TO_NORMAL:
     { STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN
-      STATE_NORMAL,                           // Event WINDOW_CHANGE
       ,                                       // Event METRO_SNAP_TRUE
       ,                                       // Event METRO_SNAP_FALSE
+      STATE_NORMAL,                           // Event WINDOW_CHANGE
     },
     // STATE_TO_BROWSER_FULLSCREEN_NO_CHROME:
     { STATE_TO_BROWSER_FULLSCREEN_NO_CHROME,  // Event TOGGLE_FULLSCREEN
-      STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event WINDOW_CHANGE
       ,                                       // Event METRO_SNAP_TRUE
       ,                                       // Event METRO_SNAP_FALSE
+      STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event WINDOW_CHANGE
     },
   };
   ASSERT_EQ(sizeof(transition_table_data), sizeof(transition_table_));
