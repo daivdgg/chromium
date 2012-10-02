@@ -40,6 +40,7 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
   static const char* GetWindowStateString(WindowState state);
   WindowState state() const { return state_; }
   void set_browser(Browser* browser) { browser_ = browser; }
+  void set_reentrant(bool value) { reentrant_ = value; }
 
   // Simulates the window changing state.
   void ChangeWindowFullscreenState();
@@ -47,6 +48,7 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
  private:
   WindowState state_;
   Browser* browser_;
+  bool reentrant_;
 };
 
 FullscreenControllerTestWindow::FullscreenControllerTestWindow()
@@ -410,23 +412,36 @@ std::string FullscreenControllerUnitTest::GetAndClearDebugLog() {
 // Tests -----------------------------------------------------------------------
 
 TEST_F(FullscreenControllerUnitTest, TransitionsForEachState) {
-  for (int source_int = 0; source_int < NUM_STATES; source_int++) {
-    for (int event_int = 0; event_int < NUM_EVENTS; event_int++) {
-      State state = static_cast<State>(source_int);
-      Event event = static_cast<Event>(event_int);
+  for (int reentrant = 0; reentrant <= 1; reentrant++) {
+    debugging_log_ << "\nTesting " << ((!!reentrant) ? "with" : "without")
+        << " reentrant calls.\n";
+    window_->set_reentrant(!!reentrant);
 
-      debugging_log_ << "\nTest transition from state " << GetStateString(state)
-          << " via event " << GetEventString(event) << std::endl;
+    for (int source_int = 0; source_int < NUM_STATES; source_int++) {
+      for (int event_int = 0; event_int < NUM_EVENTS; event_int++) {
+        State state = static_cast<State>(source_int);
+        Event event = static_cast<Event>(event_int);
 
-      debugging_log_ << " First, transition to " << GetStateString(state)
-          << std::endl;
-      ASSERT_NO_FATAL_FAILURE(TransitionToState(state))
-          << GetAndClearDebugLog();
+        debugging_log_ << "\nTest transition from state "
+            << GetStateString(state)
+            << " via event " << GetEventString(event) << std::endl;
 
-      debugging_log_ << " Then, invoke " << GetEventString(event) << "\n";
-      ASSERT_TRUE(InvokeEvent(event)) << GetAndClearDebugLog();
+        debugging_log_ << " First, transition to " << GetStateString(state)
+            << std::endl;
+        ASSERT_NO_FATAL_FAILURE(TransitionToState(state))
+            << GetAndClearDebugLog();
+
+        debugging_log_ << " Then, invoke " << GetEventString(event) << "\n";
+        ASSERT_TRUE(InvokeEvent(event)) << GetAndClearDebugLog();
+      }
     }
   }
   // Progress of test can be examined via LOG(INFO) << GetAndClearDebugLog();
+
+
+
+
+
+  LOG(INFO) << GetAndClearDebugLog();
 }
 
