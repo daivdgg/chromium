@@ -41,6 +41,7 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
   WindowState state() const { return state_; }
   void set_browser(Browser* browser) { browser_ = browser; }
   void set_reentrant(bool value) { reentrant_ = value; }
+  bool reentrant() const { return reentrant_; }
 
   // Simulates the window changing state.
   void ChangeWindowFullscreenState();
@@ -58,13 +59,19 @@ FullscreenControllerTestWindow::FullscreenControllerTestWindow()
 
 void FullscreenControllerTestWindow::EnterFullscreen(
     const GURL& url, FullscreenExitBubbleType type) {
-  if (!IsFullscreen())
+  if (!IsFullscreen()) {
     state_ = TO_FULLSCREEN;
+    if (reentrant_)
+      ChangeWindowFullscreenState();
+  }
 }
 
 void FullscreenControllerTestWindow::ExitFullscreen() {
-  if (IsFullscreen())
+  if (IsFullscreen()) {
     state_ = TO_NORMAL;
+    if (reentrant_)
+      ChangeWindowFullscreenState();
+  }
 }
 
 bool FullscreenControllerTestWindow::IsFullscreen() const {
@@ -338,6 +345,11 @@ bool FullscreenControllerUnitTest::InvokeEvent(Event event) {
 
   state_ = next_state;
 
+  // When simulating reentrant window change calls, expect the next state
+  // automatically.
+  if (window_->reentrant())
+    state_ = transition_table_[state_][WINDOW_CHANGE];
+
   VerifyWindowState();
 
   debugging_log_ << "   Window state now "
@@ -418,8 +430,16 @@ TEST_F(FullscreenControllerUnitTest, TransitionsForEachState) {
     window_->set_reentrant(!!reentrant);
 
     for (int source_int = 0; source_int < NUM_STATES; source_int++) {
+      State state = static_cast<State>(source_int);
+
+      // When testing reentrancy there are states the fullscreen controller
+      // will be unable to remain in, as they will progress due to the
+      // reentrant window change call. Skip states that will be instantly
+      // exited by the reentrant call.
+      if (!!reentrant && (transition_table_[state][WINDOW_CHANGE] != state))
+        continue;
+
       for (int event_int = 0; event_int < NUM_EVENTS; event_int++) {
-        State state = static_cast<State>(source_int);
         Event event = static_cast<Event>(event_int);
 
         debugging_log_ << "\nTest transition from state "
@@ -437,11 +457,5 @@ TEST_F(FullscreenControllerUnitTest, TransitionsForEachState) {
     }
   }
   // Progress of test can be examined via LOG(INFO) << GetAndClearDebugLog();
-
-
-
-
-
-  LOG(INFO) << GetAndClearDebugLog();
 }
 
