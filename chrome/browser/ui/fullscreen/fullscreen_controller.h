@@ -182,7 +182,7 @@ class FullscreenController : public content::NotificationObserver {
 
   content::NotificationRegistrar registrar_;
 
-  // Used to verify that calls we expect to reenter by calling 
+  // Used to verify that calls we expect to reenter by calling
   // WindowFullscreenStateChanged do so.
   bool reentrant_window_state_change_call_check_;
 
