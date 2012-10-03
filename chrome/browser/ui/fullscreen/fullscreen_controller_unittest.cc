@@ -20,6 +20,8 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
   enum WindowState {
     NORMAL,
     FULLSCREEN,
+    // No TO_ state for Metro, as the windows implementation is only reentrant.
+    METRO,
     TO_NORMAL,
     TO_FULLSCREEN
   };
@@ -84,11 +86,14 @@ bool FullscreenControllerTestWindow::IsFullscreen() const {
 
 #if defined(OS_WIN)
 void FullscreenControllerTestWindow::SetMetroSnapMode(bool enable) {
-  NOTREACHED(); // TODO(scheib) Determine how to model Metro Snap.
+  if (enable && IsInMetroSnapMode())
+    state_ = METRO;
+  else if (!enable && !IsInMetroSnapMode())
+    state_ = NORMAL;
 }
 
 bool FullscreenControllerTestWindow::IsInMetroSnapMode() const {
-  return false; // TODO(scheib) Determine how to model Metro Snap.
+  return state_ == METRO;
 }
 #endif
 
@@ -100,6 +105,8 @@ const char* FullscreenControllerTestWindow::GetWindowStateString(
       return "NORMAL";
     case FULLSCREEN:
       return "FULLSCREEN";
+    case METRO:
+      return "METRO";
     case TO_FULLSCREEN:
       return "TO_FULLSCREEN";
     case TO_NORMAL:
@@ -118,6 +125,8 @@ void FullscreenControllerTestWindow::ChangeWindowFullscreenState() {
     case NORMAL:
       break;
     case FULLSCREEN:
+      break;
+    case METRO:
       break;
     case TO_FULLSCREEN:
       state_ = FULLSCREEN;
@@ -381,6 +390,14 @@ bool FullscreenControllerUnitTest::InvokeEvent(Event event) {
     case TOGGLE_FULLSCREEN:
       fullscreen_controller_->ToggleFullscreenMode();
       break;
+#if defined(OS_WIN)
+    case METRO_SNAP_TRUE:
+      fullscreen_controller_->SetMetroSnapMode(true);
+      break;
+    case METRO_SNAP_FALSE:
+      fullscreen_controller_->SetMetroSnapMode(false);
+      break;
+#endif
     case WINDOW_CHANGE:
       window_->ChangeWindowFullscreenState();
       break;
@@ -416,6 +433,11 @@ void FullscreenControllerUnitTest::VerifyWindowState() {
       EXPECT_EQ(FullscreenControllerTestWindow::FULLSCREEN,
                 window_->state()) << GetAndClearDebugLog();
       break;
+#if defined(OS_WIN)
+    case STATE_METRO_SNAP:
+      EXPECT_EQ(FullscreenControllerTestWindow::METRO,
+                window_->state()) << GetAndClearDebugLog();
+#endif
     case STATE_TO_NORMAL:
       EXPECT_EQ(FullscreenControllerTestWindow::TO_NORMAL,
                 window_->state()) << GetAndClearDebugLog();
