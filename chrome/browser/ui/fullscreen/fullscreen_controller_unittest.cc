@@ -86,9 +86,12 @@ bool FullscreenControllerTestWindow::IsFullscreen() const {
 
 #if defined(OS_WIN)
 void FullscreenControllerTestWindow::SetMetroSnapMode(bool enable) {
-  if (enable && IsInMetroSnapMode())
+  if (enable == IsInMetroSnapMode())
+    return;
+
+  if (enable)
     state_ = METRO;
-  else if (!enable && !IsInMetroSnapMode())
+  else
     state_ = NORMAL;
 }
 
@@ -318,6 +321,10 @@ const char* FullscreenControllerUnitTest::GetStateString(State state) {
       return "STATE_NORMAL";
     case STATE_BROWSER_FULLSCREEN_NO_CHROME:
       return "STATE_BROWSER_FULLSCREEN_NO_CHROME";
+#if defined(OS_WIN)
+    case STATE_METRO_SNAP:
+      return "STATE_METRO_SNAP";
+#endif
     case STATE_TO_NORMAL:
       return "STATE_TO_NORMAL";
     case STATE_TO_BROWSER_FULLSCREEN_NO_CHROME:
