@@ -93,6 +93,8 @@ void FullscreenControllerTestWindow::SetMetroSnapMode(bool enable) {
     state_ = METRO_SNAP;
   else
     state_ = NORMAL;
+
+  ChangeWindowFullscreenStateIfReentrant();
 }
 
 bool FullscreenControllerTestWindow::IsInMetroSnapMode() const {
