@@ -154,7 +154,6 @@ void FullscreenController::SetMetroSnapMode(bool enable) {
   // to WindowFullscreenStateChanged are reentrant. If that assumption is
   // invalidated, the tests must be updated to maintain coverage.
   CHECK(reentrant_window_state_change_call_check_);
-  reentrant_window_state_change_call_check_ = false;
 }
 #endif  // defined(OS_WIN)
 
