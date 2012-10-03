@@ -828,7 +828,7 @@ const CGFloat kAddButtonWidth = 128.0;
   const WebIntentPickerModel::SuggestedExtension& extension =
       model_->GetSuggestedExtensionAt([sender tag]);
 
-  picker_->OnExtensionLinkClicked(UTF16ToUTF8(extension.id),
+  picker_->OnExtensionLinkClicked(extension.id,
       event_utils::WindowOpenDispositionFromNSEvent([NSApp currentEvent]));
 }
 
@@ -840,7 +840,7 @@ const CGFloat kAddButtonWidth = 128.0;
   if (picker_) {
     [intentView_ startThrobberForRow:[sender tag]];
     [closeButton_ setEnabled:NO];
-    picker_->OnExtensionInstallRequested(UTF16ToUTF8(extension.id));
+    picker_->OnExtensionInstallRequested(extension.id);
   }
 }
 
@@ -944,7 +944,7 @@ const CGFloat kAddButtonWidth = 128.0;
     return 0;
 
   // Determine a good size for the inline disposition window.
-  gfx::Size size = WebIntentPicker::GetMinInlineDispositionSize();
+  gfx::Size size = picker_->GetMinInlineDispositionSize();
   contentFrame_ = NSMakeRect(
       WebIntentPicker::kContentAreaBorder,
       offset,

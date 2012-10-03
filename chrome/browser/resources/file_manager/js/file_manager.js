@@ -548,7 +548,7 @@ FileManager.prototype = {
     CommandUtil.registerCommand(this.rootsList_, 'unmount',
         Commands.unmountCommand, this.rootsList_, this);
 
-    CommandUtil.registerCommand(this.rootsList_, 'format',
+    CommandUtil.registerCommand(doc, 'format',
         Commands.formatCommand, this.rootsList_, this);
 
     CommandUtil.registerCommand(this.rootsList_, 'import-photos',
@@ -628,6 +628,9 @@ FileManager.prototype = {
       // Prevent opening an URL by dropping it onto the page.
       e.preventDefault();
     });
+
+    this.document_.defaultView.addEventListener('beforeunload',
+        this.onBeforeUnload_.bind(this));
 
     this.dialogDom_.addEventListener('click',
                                      this.onExternalLinkClick_.bind(this));
@@ -1631,7 +1634,7 @@ FileManager.prototype = {
       eject.className = 'root-eject';
       eject.addEventListener('click', function(event) {
         event.stopPropagation();
-        this.unmountVolume(path);
+        this.dialogDom_.querySelector('command#unmount').execute(li);
       }.bind(this));
       // Block other mouse handlers.
       eject.addEventListener('mouseup', function(e) { e.stopPropagation() });
@@ -2921,7 +2924,27 @@ FileManager.prototype = {
       this.closeOnUnmount_ = false;
     }
 
+    this.updateUnformattedDriveStatus_();
+
     this.updateTitle_();
+  };
+
+  FileManager.prototype.updateUnformattedDriveStatus_ = function() {
+    var volumeInfo = this.volumeManager_.getVolumeInfo_(
+        this.directoryModel_.getCurrentRootPath());
+
+    if (volumeInfo.error) {
+      this.dialogContainer_.setAttribute('unformatted', '');
+
+      var errorNode = this.dialogDom_.querySelector('#format-panel > .error');
+      if (volumeInfo.error == VolumeManager.Error.UNSUPPORTED_FILESYSTEM) {
+        errorNode.textContent = str('UNSUPPORTED_FILESYSTEM_WARNING');
+      } else {
+        errorNode.textContent = str('UNKNOWN_FILESYSTEM_WARNING');
+      }
+    } else {
+      this.dialogContainer_.removeAttribute('unformatted');
+    }
   };
 
   FileManager.prototype.findListItemForEvent_ = function(event) {
@@ -3784,5 +3807,16 @@ FileManager.prototype = {
         call(this.openWithCommand_, !(defaultItem && isMultiple));
     this.defaultActionMenuItem_.hidden = !defaultItem;
     defaultActionSeparator.hidden = !defaultItem;
+  };
+
+
+  /**
+   * Window beforeunload handler.
+   * @return {string} Message to show. We don't need the message.
+   * @private
+   */
+  FileManager.prototype.onBeforeUnload_ = function() {
+    this.butterBar_.forceDeleteAndHide();
+    return null;
   };
 })();

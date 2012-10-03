@@ -31,6 +31,7 @@ class AwContentsIoThreadClientImpl : public AwContentsIoThreadClient {
                         const base::android::JavaRef<jobject>& jclient);
 
   AwContentsIoThreadClientImpl(const base::android::JavaRef<jobject>& jclient);
+  virtual ~AwContentsIoThreadClientImpl() OVERRIDE;
 
   // Implementation of AwContentsIoThreadClient.
   virtual scoped_ptr<InterceptedRequestData> ShouldInterceptRequest(

@@ -755,9 +755,6 @@ const char kHostResolverParallelism[]       = "host-resolver-parallelism";
 // to disable host resolver retry attempts.
 const char kHostResolverRetryAttempts[]     = "host-resolver-retry-attempts";
 
-// These mappings only apply to the host resolver.
-const char kHostResolverRules[]             = "host-resolver-rules";
-
 // Takes the JSON-formatted HSTS specification and loads it as if it were a
 // preloaded HSTS entry. Takes precedence over both website-specified rules and
 // built-in rules. The JSON format is the same as that persisted in
@@ -1148,6 +1145,10 @@ const char kSavePageAsMHTML[] = "save-page-as-mhtml";
 // malware.
 const char kSbURLPrefix[] = "safebrowsing-url-prefix";
 
+// Enable an icon in the URL bar that tells you how many extensions are running
+// scripts on a page.
+const char kScriptBubbleEnabled[] = "script-bubble-enabled";
+
 // If present, safebrowsing only performs update when
 // SafeBrowsingProtocolManager::ForceScheduleNextUpdate() is explicitly called.
 // This is used for testing only.
@@ -1290,10 +1291,6 @@ const char kTestType[]                      = "test-type";
 // channel with the given ID.
 const char kTestingChannelID[]              = "testing-channel";
 
-// Allows for forcing socket connections to http/https to use fixed ports.
-const char kTestingFixedHttpPort[]          = "testing-fixed-http-port";
-const char kTestingFixedHttpsPort[]         = "testing-fixed-https-port";
-
 // Disables same-origin check on HTTP resources pushed via a SPDY proxy.
 // The value is the host:port of the trusted proxy.
 const char kTrustedSpdyProxy[] = "trusted-spdy-proxy";
@@ -1344,6 +1341,11 @@ const char kWindowSize[]                    = "window-size";
 // Uses WinHTTP to fetch and evaluate PAC scripts. Otherwise the default is to
 // use Chromium's network stack to fetch, and V8 to evaluate.
 const char kWinHttpProxyResolver[]          = "winhttp-proxy-resolver";
+
+#if defined(ENABLE_PLUGIN_INSTALLATION)
+// Specifies a custom URL for fetching plug-ins metadata. Used for testing.
+const char kPluginsMetadataServerURL[]      = "plugins-metadata-server-url";
+#endif
 
 #if defined(OS_ANDROID)
 // Use the tablet specific UI components when available.

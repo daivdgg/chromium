@@ -13,7 +13,6 @@
 #include "base/memory/mru_cache.h"
 #include "base/memory/scoped_ptr.h"
 #include "chrome/browser/common/cancelable_request.h"
-#include "chrome/browser/common/url_database/template_url_id.h"
 #include "chrome/browser/history/archived_database.h"
 #include "chrome/browser/history/expire_history_backend.h"
 #include "chrome/browser/history/history_database.h"
@@ -22,6 +21,7 @@
 #include "chrome/browser/history/text_database_manager.h"
 #include "chrome/browser/history/thumbnail_database.h"
 #include "chrome/browser/history/visit_tracker.h"
+#include "chrome/browser/search_engines/template_url_id.h"
 #include "sql/init_status.h"
 #include "ui/base/layout.h"
 
@@ -285,7 +285,6 @@ class HistoryBackend : public base::RefCountedThreadSafe<HistoryBackend>,
       const std::vector<ui::ScaleFactor>& desired_scale_factors);
 
   void MergeFavicon(const GURL& page_url,
-                    const GURL& icon_url,
                     IconType icon_type,
                     scoped_refptr<base::RefCountedMemory> bitmap_data,
                     const gfx::Size& pixel_size);
@@ -503,7 +502,6 @@ class HistoryBackend : public base::RefCountedThreadSafe<HistoryBackend>,
                            SetFaviconsSameFaviconURLForTwoPages);
   FRIEND_TEST_ALL_PREFIXES(HistoryBackendTest, MergeFaviconPageURLNotInDB);
   FRIEND_TEST_ALL_PREFIXES(HistoryBackendTest, MergeFaviconPageURLInDB);
-  FRIEND_TEST_ALL_PREFIXES(HistoryBackendTest, MergeFaviconIconURLInDB);
   FRIEND_TEST_ALL_PREFIXES(HistoryBackendTest, MergeFaviconMaxFaviconsPerPage);
   FRIEND_TEST_ALL_PREFIXES(HistoryBackendTest,
                            MergeFaviconMaxFaviconBitmapsPerIconURL);

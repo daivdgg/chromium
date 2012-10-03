@@ -7,7 +7,9 @@ import time
 import traceback
 import urlparse
 
+from chrome_remote_control import browser
 from chrome_remote_control import page_test
+from chrome_remote_control import replay_server
 from chrome_remote_control import util
 
 class PageRunner(object):
@@ -26,10 +28,24 @@ class PageRunner(object):
     self.Close()
 
   def Run(self, options, possible_browser, test, results):
-    with possible_browser.Create() as browser:
-      with browser.ConnectToNthTab(0) as tab:
-        for page in self.page_set:
-          self._RunPage(options, page, tab, test, results)
+    archive_path = os.path.abspath(os.path.join(os.path.dirname(
+        self.page_set.file_path), self.page_set.archive_path))
+    if browser.Browser.CanUseReplayServer(archive_path, options.record):
+      extra_browser_args = replay_server.CHROME_FLAGS
+    else:
+      extra_browser_args = []
+      logging.warning('\n' + 80 * '*' + """\n
+      Page set archive does not exist, benchmarking against live sites!
+      Results won't be repeatable or comparable. To correct this, check out the
+      archives from src-internal or create a new archive using --record.
+      \n""" + 80 * '*' + '\n')
+
+    with possible_browser.Create(extra_browser_args) as b:
+      b.credentials.SetCredentialsConfigFile(self.page_set.credentials_path)
+      with b.CreateReplayServer(archive_path, options.record):
+        with b.ConnectToNthTab(0) as tab:
+          for page in self.page_set:
+            self._RunPage(options, page, tab, test, results)
 
   def _RunPage(self, options, page, tab, test, results):
     logging.info('Running %s' % page.url)
@@ -41,7 +57,7 @@ class PageRunner(object):
                     page.url, traceback.format_exc())
       raise
     finally:
-      self.CleanUpPage()
+      self.CleanUpPage(page, tab)
 
     try:
       test.Run(options, page, tab, results)
@@ -58,7 +74,7 @@ class PageRunner(object):
                     page.url, traceback.format_exc())
       raise
     finally:
-      self.CleanUpPage()
+      self.CleanUpPage(page, tab)
 
   def Close(self):
     if self._server:
@@ -78,6 +94,9 @@ class PageRunner(object):
         self._server = tab.browser.CreateTemporaryHTTPServer(dirname)
       page.url = self._server.UrlOf(filename)
 
+    if page.credentials:
+      tab.LoginNeeded(page.credentials)
+
     tab.page.Navigate(page.url)
     # TODO(dtu): Detect HTTP redirects.
     if page.wait_time_after_navigate:
@@ -85,5 +104,6 @@ class PageRunner(object):
       time.sleep(page.wait_time_after_navigate)
     tab.WaitForDocumentReadyStateToBeInteractiveOrBetter()
 
-  def CleanUpPage(self):
-    pass
+  def CleanUpPage(self, page, tab): # pylint: disable=R0201
+    if page.credentials:
+      tab.LoginNoLongerNeeded(page.credentials)

@@ -8,11 +8,11 @@ vars = {
   "sourceforge_url": "http://%(repo)s.svn.sourceforge.net/svnroot/%(repo)s",
   "webkit_trunk": "http://svn.webkit.org/repository/webkit/trunk",
   "nacl_trunk": "http://src.chromium.org/native_client/trunk",
-  "webkit_revision": "130143",
+  "webkit_revision": "130304",
   "chromium_git": "http://git.chromium.org/git",
   "chromiumos_git": "http://git.chromium.org/chromiumos",
   "swig_revision": "69281",
-  "nacl_revision": "9883",
+  "nacl_revision": "9899",
   # After changing nacl_revision, run 'glient sync' and check native_client/DEPS
   # to update other nacl_*_revision's.
   "nacl_tools_revision": "9330",  # native_client/DEPS: tools_rev
@@ -29,11 +29,11 @@ vars = {
   "ffmpeg_hash": "3a9bce0eec65d13e2cf071e51757b7e90d082a4f",
 
   "sfntly_revision": "134",
-  "skia_revision": "5759",
+  "skia_revision": "5779",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling Skia
   # and V8 without interference from each other.
-  "v8_revision": "12643",
+  "v8_revision": "12514",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling WebRTC
   # and V8 without interference from each other.
@@ -162,7 +162,7 @@ deps = {
     (Var("googlecode_url") % "bidichecker") + "/trunk/lib@4",
 
   "src/third_party/v8-i18n":
-    (Var("googlecode_url") % "v8-i18n") + "/trunk@143",
+    (Var("googlecode_url") % "v8-i18n") + "/trunk@150",
 
   # When roll to another webgl conformance tests revision, please goto
   # chrome/test/gpu and run generate_webgl_conformance_test_list.py.
@@ -428,7 +428,6 @@ deps_os = {
     "src/chrome/test/data/perf/frame_rate/content": None,
     "src/native_client": None,
     "src/native_client/src/third_party/ppapi": None,
-    "src/native_client_sdk/src/site_scons": None,
     "src/sandbox/linux/seccomp-legacy": None,
     "src/third_party/angle": None,
     "src/third_party/bidichecker": None,

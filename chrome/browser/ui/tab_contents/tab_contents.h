@@ -21,7 +21,6 @@ class BrowserLauncherItemControllerContentsCreator;
 class BrowserTabstripTabContentsCreator;
 class ChromeWebContentsHandler;
 class ConstrainedWebDialogDelegateBase;
-class ConstrainedWindowTabHelper;
 class ExtensionTabUtil;
 class ExternalTabContainerWin;
 class GeolocationPermissionContextTests;
@@ -32,7 +31,6 @@ class OffscreenTabContentsCreator;
 class PanelHost;
 class PasswordManager;
 class PasswordManagerDelegate;
-class PrefsTabHelper;
 class Profile;
 class ShellWindow;
 class TabContentsTestHarness;
@@ -147,14 +145,9 @@ class TabContents : public content::WebContentsObserver {
 
   AutofillManager* autofill_manager() { return autofill_manager_.get(); }
 
-  ConstrainedWindowTabHelper* constrained_window_tab_helper() {
-    return constrained_window_tab_helper_.get();
-  }
-
   InfoBarTabHelper* infobar_tab_helper() { return infobar_tab_helper_.get(); }
 
   PasswordManager* password_manager() { return password_manager_.get(); }
-  PrefsTabHelper* prefs_tab_helper() { return prefs_tab_helper_.get(); }
 
   browser_sync::SyncedTabDelegate* synced_tab_delegate() {
     return synced_tab_delegate_.get();
@@ -187,15 +180,12 @@ class TabContents : public content::WebContentsObserver {
 
   scoped_refptr<AutofillManager> autofill_manager_;
   scoped_ptr<AutofillExternalDelegate> autofill_external_delegate_;
-  scoped_ptr<ConstrainedWindowTabHelper> constrained_window_tab_helper_;
   scoped_ptr<InfoBarTabHelper> infobar_tab_helper_;
 
   // PasswordManager and its delegate. The delegate must outlive the manager,
   // per documentation in password_manager.h.
   scoped_ptr<PasswordManagerDelegate> password_manager_delegate_;
   scoped_ptr<PasswordManager> password_manager_;
-
-  scoped_ptr<PrefsTabHelper> prefs_tab_helper_;
 
   scoped_ptr<browser_sync::SyncedTabDelegate> synced_tab_delegate_;
 

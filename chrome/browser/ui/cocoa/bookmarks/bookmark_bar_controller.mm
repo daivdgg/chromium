@@ -18,6 +18,8 @@
 #include "chrome/browser/profiles/profile.h"
 #import "chrome/browser/themes/theme_service.h"
 #import "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/ui/bookmarks/bookmark_ui_constants.h"
+#include "chrome/browser/ui/bookmarks/bookmark_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
@@ -1007,7 +1009,7 @@ void RecordAppLaunch(Profile* profile, GURL url) {
     AnimatableView* view = [self animatableView];
     // Height takes into account the extra height we have since the toolbar
     // only compresses when we're done.
-    [view animateToNewHeight:(bookmarks::kBookmarkBarHeight -
+    [view animateToNewHeight:(chrome::kBookmarkBarHeight -
                               kBookmarkBarOverlap)
                     duration:kBookmarkBarAnimationDuration];
   } else if ([self isAnimatingFromState:bookmarks::kShowingState
@@ -1022,7 +1024,7 @@ void RecordAppLaunch(Profile* profile, GURL url) {
     [[self backgroundGradientView] setShowsDivider:YES];
     [[self view] setHidden:NO];
     AnimatableView* view = [self animatableView];
-    [view animateToNewHeight:bookmarks::kNTPBookmarkBarHeight
+    [view animateToNewHeight:chrome::kNTPBookmarkBarHeight
                     duration:kBookmarkBarAnimationDuration];
   } else if ([self isAnimatingFromState:bookmarks::kDetachedState
                                 toState:bookmarks::kShowingState]) {
@@ -1031,7 +1033,7 @@ void RecordAppLaunch(Profile* profile, GURL url) {
     AnimatableView* view = [self animatableView];
     // Height takes into account the extra height we have since the toolbar
     // only compresses when we're done.
-    [view animateToNewHeight:(bookmarks::kBookmarkBarHeight -
+    [view animateToNewHeight:(chrome::kBookmarkBarHeight -
                               kBookmarkBarOverlap)
                     duration:kBookmarkBarAnimationDuration];
   } else {
@@ -1154,9 +1156,9 @@ void RecordAppLaunch(Profile* profile, GURL url) {
 
   switch (visualState_) {
     case bookmarks::kShowingState:
-      return bookmarks::kBookmarkBarHeight;
+      return chrome::kBookmarkBarHeight;
     case bookmarks::kDetachedState:
-      return bookmarks::kNTPBookmarkBarHeight;
+      return chrome::kNTPBookmarkBarHeight;
     case bookmarks::kHiddenState:
       return 0;
     case bookmarks::kInvalidState:
@@ -2663,10 +2665,7 @@ static BOOL ValueInRangeInclusive(CGFloat low, CGFloat value, CGFloat high) {
 - (void)openAll:(const BookmarkNode*)node
     disposition:(WindowOpenDisposition)disposition {
   [self closeFolderAndStopTrackingMenus];
-  bookmark_utils::OpenAll([[self view] window],
-                          browser_,
-                          node,
-                          disposition);
+  chrome::OpenAll([[self view] window], browser_, node, disposition);
 }
 
 - (void)addButtonForNode:(const BookmarkNode*)node

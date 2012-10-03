@@ -692,20 +692,22 @@ def BuildStepMakeAll(pepperdir, platform, directory, step_name, clean=False):
     if platform == 'win':
       # We need to modify the environment to build host on Windows.
       env = GetWindowsEnvironment()
+      make = os.path.join(make_dir, 'make.bat')
     else:
       env = os.environ
+      make = 'make'
 
-    buildbot_common.Run(['make', '-j8'],
-                        cwd=os.path.abspath(make_dir), shell=True, env=env)
+    buildbot_common.Run([make, '-j8'],
+                        cwd=os.path.abspath(make_dir), env=env)
     if clean:
       # Clean to remove temporary files but keep the built libraries.
-      buildbot_common.Run(['make', '-j8', 'clean'],
-                          cwd=os.path.abspath(make_dir), shell=True)
+      buildbot_common.Run([make, '-j8', 'clean'],
+                          cwd=os.path.abspath(make_dir))
 
 
-def BuildStepBuildLibraries(pepperdir, platform, directory):
+def BuildStepBuildLibraries(pepperdir, platform, directory, clean=True):
   BuildStepMakeAll(pepperdir, platform, directory, 'Build Libraries',
-      clean=True)
+      clean=clean)
 
 
 def BuildStepTarBundle(pepper_ver, tarfile):
@@ -865,13 +867,15 @@ def BuildStepArchiveBundle(pepper_ver, revision, tarfile):
 
 
 def BuildStepArchiveSDKTools():
-  # Only push up sdk_tools.tgz on the linux buildbot.
+  # Only push up sdk_tools.tgz and nacl_sdk.zip on the linux buildbot.
   builder_name = os.getenv('BUILDBOT_BUILDERNAME','')
   if builder_name == 'linux-sdk-multi':
     buildbot_common.BuildStep('Archive SDK Tools')
     bucket_path = 'nativeclient-mirror/nacl/nacl_sdk/%s' % (
         build_utils.ChromeVersion(),)
     buildbot_common.Archive('sdk_tools.tgz', bucket_path, OUT_DIR,
+                            step_link=False)
+    buildbot_common.Archive('nacl_sdk.zip', bucket_path, OUT_DIR,
                             step_link=False)
 
 
@@ -933,7 +937,7 @@ def main(args):
   if options.only_examples:
     BuildStepCopyExamples(pepperdir, toolchains, options.build_experimental,
                           options.clobber_examples)
-    BuildStepBuildLibraries(pepperdir, platform, 'src')
+    BuildStepBuildLibraries(pepperdir, platform, 'src', False)  # Don't clean.
     BuildStepBuildExamples(pepperdir, platform)
     BuildStepCopyTests(pepperdir, toolchains, options.build_experimental,
                        options.clobber_examples)

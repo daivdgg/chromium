@@ -204,7 +204,6 @@ extern const char kHomePage[];
 extern const char kHostRules[];
 extern const char kHostResolverParallelism[];
 extern const char kHostResolverRetryAttempts[];
-extern const char kHostResolverRules[];
 extern const char kHstsHosts[];
 extern const char kImport[];
 extern const char kImportFromFile[];
@@ -305,6 +304,7 @@ extern const char kSavePageAsMHTML[];
 extern const char kSbURLPrefix[];
 extern const char kSbDisableAutoUpdate[];
 extern const char kSbDisableDownloadProtection[];
+extern const char kScriptBubbleEnabled[];
 extern const char kSearchInOmniboxHint[];
 extern const char kServiceAccountLsid[];
 extern const char kSetToken[];
@@ -341,8 +341,6 @@ extern const char kTestNaClSandbox[];
 extern const char kTestName[];
 extern const char kTestType[];
 extern const char kTestingChannelID[];
-extern const char kTestingFixedHttpPort[];
-extern const char kTestingFixedHttpsPort[];
 extern const char kTrustedSpdyProxy[];
 extern const char kTryChromeAgain[];
 extern const char kUninstall[];
@@ -358,6 +356,10 @@ extern const char kWhitelistedExtensionID[];
 extern const char kWindowPosition[];
 extern const char kWindowSize[];
 extern const char kWinHttpProxyResolver[];
+
+#if defined(ENABLE_PLUGIN_INSTALLATION)
+extern const char kPluginsMetadataServerURL[];
+#endif
 
 #if defined(OS_ANDROID)
 extern const char kTabletUI[];

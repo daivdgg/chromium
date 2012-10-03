@@ -22,11 +22,12 @@
 #include "base/utf_string_conversions.h"
 #include "base/values.h"
 #include "base/win/scoped_bstr.h"
+#include "base/win/scoped_com_initializer.h"
 #include "base/win/scoped_comptr.h"
 #include "base/win/windows_version.h"
 #include "remoting/base/scoped_sc_handle_win.h"
 #include "remoting/host/branding.h"
-#include "remoting/host/plugin/daemon_installer_win.h"
+#include "remoting/host/setup/daemon_installer_win.h"
 #include "remoting/host/usage_stats_consent.h"
 
 // MIDL-generated declarations and definitions.
@@ -67,12 +68,15 @@ const int kUnprivilegedTimeoutSec = 60;
 class ComThread : public base::Thread {
  public:
   explicit ComThread(const char* name);
+  virtual ~ComThread();
 
   bool Start();
 
- protected:
+ private:
   virtual void Init() OVERRIDE;
   virtual void CleanUp() OVERRIDE;
+
+  scoped_ptr<base::win::ScopedCOMInitializer> com_initializer_;
 
   DISALLOW_COPY_AND_ASSIGN(ComThread);
 };
@@ -171,6 +175,10 @@ class DaemonControllerWin : public remoting::DaemonController {
 ComThread::ComThread(const char* name) : base::Thread(name) {
 }
 
+ComThread::~ComThread() {
+  Stop();
+}
+
 bool ComThread::Start() {
   // N.B. The single threaded COM apartment must be run on a UI message loop.
   base::Thread::Options thread_options(MessageLoop::TYPE_UI, 0);
@@ -178,11 +186,11 @@ bool ComThread::Start() {
 }
 
 void ComThread::Init() {
-  CoInitialize(NULL);
+  com_initializer_.reset(new base::win::ScopedCOMInitializer());
 }
 
 void ComThread::CleanUp() {
-  CoUninitialize();
+  com_initializer_.reset();
 }
 
 DaemonControllerWin::DaemonControllerWin()
