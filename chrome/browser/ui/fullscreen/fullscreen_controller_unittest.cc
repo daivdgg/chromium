@@ -398,6 +398,17 @@ bool FullscreenControllerUnitTest::InvokeEvent(Event event) {
   debugging_log_ << "  Transitioning state " << GetStateString(source_state)
       << " -> " << GetStateString(next_state) << " with event "
       << GetEventString(event) << std::endl;
+  state_ = next_state;
+
+  // When simulating reentrant window change calls, expect the next state
+  // automatically.
+  if (window_->reentrant()) {
+    next_state = transition_table_[state_][WINDOW_CHANGE];
+    debugging_log_ << "  Transitioning state " << GetStateString(source_state)
+        << " -> " << GetStateString(next_state) << " by reentrant event "
+        << GetEventString(WINDOW_CHANGE) << std::endl;
+    state_ = next_state;
+  }
 
   switch (event) {
     case TOGGLE_FULLSCREEN:
@@ -419,13 +430,6 @@ bool FullscreenControllerUnitTest::InvokeEvent(Event event) {
           << GetEventString(event) << GetAndClearDebugLog();
       return false;
   }
-
-  state_ = next_state;
-
-  // When simulating reentrant window change calls, expect the next state
-  // automatically.
-  if (window_->reentrant())
-    state_ = transition_table_[state_][WINDOW_CHANGE];
 
   VerifyWindowState();
 
