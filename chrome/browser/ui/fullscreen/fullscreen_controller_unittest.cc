@@ -269,7 +269,7 @@ void FullscreenControllerUnitTest::SetUp() {
     { // STATE_METRO_SNAP:
       STATE_METRO_SNAP,                       // Event TOGGLE_FULLSCREEN
       STATE_METRO_SNAP,                       // Event METRO_SNAP_TRUE
-      STATE_TO_NORMAL,                        // Event METRO_SNAP_FALSE
+      STATE_NORMAL,                           // Event METRO_SNAP_FALSE
       STATE_METRO_SNAP,                       // Event WINDOW_CHANGE
     },
 #endif
