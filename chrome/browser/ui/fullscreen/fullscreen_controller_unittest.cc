@@ -448,7 +448,7 @@ void FullscreenControllerUnitTest::VerifyWindowState() {
       break;
 #if defined(OS_WIN)
     case STATE_METRO_SNAP:
-      EXPECT_EQ(FullscreenControllerTestWindow::METRO,
+      EXPECT_EQ(FullscreenControllerTestWindow::METRO_SNAP,
                 window_->state()) << GetAndClearDebugLog();
       break;
 #endif
