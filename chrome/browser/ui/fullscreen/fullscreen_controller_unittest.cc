@@ -395,20 +395,16 @@ bool FullscreenControllerUnitTest::InvokeEvent(Event event) {
   State source_state = state_;
   State next_state = transition_table_[source_state][event];
 
+  // When simulating reentrant window change calls, expect the next state
+  // automatically.
+  if (window_->reentrant())
+    next_state = transition_table_[next_state][WINDOW_CHANGE];
+
   debugging_log_ << "  Transitioning state " << GetStateString(source_state)
       << " -> " << GetStateString(next_state) << " with event "
       << GetEventString(event) << std::endl;
-  state_ = next_state;
 
-  // When simulating reentrant window change calls, expect the next state
-  // automatically.
-  if (window_->reentrant()) {
-    next_state = transition_table_[state_][WINDOW_CHANGE];
-    debugging_log_ << "  Transitioning state " << GetStateString(source_state)
-        << " -> " << GetStateString(next_state) << " by reentrant event "
-        << GetEventString(WINDOW_CHANGE) << std::endl;
-    state_ = next_state;
-  }
+  state_ = next_state;
 
   switch (event) {
     case TOGGLE_FULLSCREEN:
