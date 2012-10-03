@@ -508,6 +508,12 @@ std::string FullscreenControllerUnitTest::GetAndClearDebugLog() {
 
 TEST_F(FullscreenControllerUnitTest, TransitionsForEachState) {
   for (int reentrant = 0; reentrant <= 1; reentrant++) {
+#if defined(OS_WIN)
+    // FullscreenController verifies that WindowFullscreenStateChanged is
+    // always reentrant on Windows. It will fail if we mock asynchronous calls.
+    reentrant = 1;
+#endif
+
     debugging_log_ << "\nTesting " << ((!!reentrant) ? "with" : "without")
         << " reentrant calls.\n";
     window_->set_reentrant(!!reentrant);
