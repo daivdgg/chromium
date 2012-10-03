@@ -512,8 +512,8 @@ TEST_F(FullscreenControllerUnitTest, TransitionsForEachState) {
         Event event = static_cast<Event>(event_int);
 
         debugging_log_ << "\nTest transition from state "
-            << GetStateString(state)
-            << " via event " << GetEventString(event) << std::endl;
+            << GetStateString(state) << " via event "
+            << GetEventString(event) << std::endl;
 
         debugging_log_ << " First, transition to " << GetStateString(state)
             << std::endl;
