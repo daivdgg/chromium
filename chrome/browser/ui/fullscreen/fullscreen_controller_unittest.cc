@@ -335,6 +335,12 @@ const char* FullscreenControllerUnitTest::GetEventString(Event event) {
   switch (event) {
     case TOGGLE_FULLSCREEN:
       return "TOGGLE_FULLSCREEN";
+#if defined(OS_WIN)
+    case METRO_SNAP_TRUE:
+      return "METRO_SNAP_TRUE";
+    case METRO_SNAP_FALSE:
+      return "METRO_SNAP_FALSE";
+#endif
     case WINDOW_CHANGE:
       return "WINDOW_CHANGE";
     case EVENT_INVALID:
