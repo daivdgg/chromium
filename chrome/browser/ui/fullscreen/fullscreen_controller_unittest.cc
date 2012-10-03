@@ -427,11 +427,6 @@ bool FullscreenControllerUnitTest::InvokeEvent(Event event) {
       return false;
   }
 
-  // When simulating reentrant window change calls, expect the next state
-  // automatically.
-  if (window_->reentrant())
-    state_ = transition_table_[state_][WINDOW_CHANGE];
-
   VerifyWindowState();
 
   debugging_log_ << "   Window state now "
