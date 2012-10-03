@@ -20,8 +20,8 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
   enum WindowState {
     NORMAL,
     FULLSCREEN,
-    // No TO_ state for Metro, as the windows implementation is only reentrant.
-    METRO,
+    // No TO_ state for METRO_SNAP, the windows implementation is synchronous.
+    METRO_SNAP,
     TO_NORMAL,
     TO_FULLSCREEN
   };
@@ -90,13 +90,13 @@ void FullscreenControllerTestWindow::SetMetroSnapMode(bool enable) {
     return;
 
   if (enable)
-    state_ = METRO;
+    state_ = METRO_SNAP;
   else
     state_ = NORMAL;
 }
 
 bool FullscreenControllerTestWindow::IsInMetroSnapMode() const {
-  return state_ == METRO;
+  return state_ == METRO_SNAP;
 }
 #endif
 
@@ -108,8 +108,8 @@ const char* FullscreenControllerTestWindow::GetWindowStateString(
       return "NORMAL";
     case FULLSCREEN:
       return "FULLSCREEN";
-    case METRO:
-      return "METRO";
+    case METRO_SNAP:
+      return "METRO_SNAP";
     case TO_FULLSCREEN:
       return "TO_FULLSCREEN";
     case TO_NORMAL:
@@ -129,7 +129,7 @@ void FullscreenControllerTestWindow::ChangeWindowFullscreenState() {
       break;
     case FULLSCREEN:
       break;
-    case METRO:
+    case METRO_SNAP:
       break;
     case TO_FULLSCREEN:
       state_ = FULLSCREEN;
