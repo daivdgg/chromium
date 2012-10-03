@@ -39,7 +39,8 @@ FullscreenController::FullscreenController(Browser* browser)
       tab_fullscreen_accepted_(false),
       toggled_into_fullscreen_(false),
       mouse_lock_tab_(NULL),
-      mouse_lock_state_(MOUSELOCK_NOT_REQUESTED) {
+      mouse_lock_state_(MOUSELOCK_NOT_REQUESTED),
+      reentrant_window_state_change_call_check_(false) {
   DCHECK(window_);
   DCHECK(profile_);
 }
@@ -144,8 +145,13 @@ bool FullscreenController::IsInMetroSnapMode() {
 }
 
 void FullscreenController::SetMetroSnapMode(bool enable) {
+  reentrant_window_state_change_call_check_ = false;
+
   toggled_into_fullscreen_ = false;
   window_->SetMetroSnapMode(enable);
+
+  CHECK(reentrant_window_state_change_call_check_);
+  reentrant_window_state_change_call_check_ = false;
 }
 #endif  // defined(OS_WIN)
 
@@ -238,6 +244,8 @@ void FullscreenController::OnTabClosing(WebContents* web_contents) {
 }
 
 void FullscreenController::WindowFullscreenStateChanged() {
+  reentrant_window_state_change_call_check_ = true;
+
   bool exiting_fullscreen;
 #if defined(OS_MACOSX)
   exiting_fullscreen = !window_->InPresentationMode();
