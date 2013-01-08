@@ -126,11 +126,10 @@ fprintf(stderr, "%s %s %s %s\n",
 #else
         ToggleFullscreenModeInternal(true);
 #endif
-#if defined(OS_MACOSX)
-      } else if (toggled_into_fullscreen_) {
-        TogglePresentationModeInternal(true);
-#endif
       } else {
+#if defined(OS_MACOSX)
+        window_->ExitPresentationMode();
+#endif
         // If currently there is a tab in "tab fullscreen" mode and fullscreen
         // was not caused by it (i.e., previously it was in "browser fullscreen"
         // mode), we need to switch back to "browser fullscreen" mode. In this
@@ -140,6 +139,7 @@ fprintf(stderr, "%s %s %s %s\n",
 
         // This is only a change between Browser and Tab fullscreen. We generate
         // a fullscreen notification now because there is no window change.
+        // TODO ?
         PostFullscreenChangeNotification(true);
       }
     }
