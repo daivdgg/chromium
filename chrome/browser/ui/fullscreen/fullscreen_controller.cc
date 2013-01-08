@@ -99,7 +99,7 @@ fprintf(stderr, "%s:%s:%d 11\n", __FILE__, __FUNCTION__, __LINE__);
       ToggleFullscreenModeInternal(true);
 #endif
 #if defined(OS_MACOSX)
-    } else if (window_->InPresentationMode()) {
+    } else if (window_->IsFullscreen() && !window_->InPresentationMode()) {
 fprintf(stderr, "%s:%s:%d 22\n", __FILE__, __FUNCTION__, __LINE__);
       TogglePresentationModeInternal(true);
 #endif
