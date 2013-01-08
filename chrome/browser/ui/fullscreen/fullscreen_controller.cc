@@ -91,20 +91,15 @@ fprintf(stderr, "%s %s\n", window_->InPresentationMode() ? "presentation" : "", 
   if (enter_fullscreen) {
     SetFullscreenedTab(web_contents);
     if (!in_browser_or_tab_fullscreen_mode) {
-fprintf(stderr, "%s:%s:%d 11\n", __FILE__, __FUNCTION__, __LINE__);
       tab_caused_fullscreen_ = true;
 #if defined(OS_MACOSX)
+      TogglePresentationModeInternal(true);
+    } else if (window_->IsFullscreen() && !window_->InPresentationMode()) {
       TogglePresentationModeInternal(true);
 #else
       ToggleFullscreenModeInternal(true);
 #endif
-#if defined(OS_MACOSX)
-    } else if (window_->IsFullscreen() && !window_->InPresentationMode()) {
-fprintf(stderr, "%s:%s:%d 22\n", __FILE__, __FUNCTION__, __LINE__);
-      TogglePresentationModeInternal(true);
-#endif
     } else {
-fprintf(stderr, "%s:%s:%d 33\n", __FILE__, __FUNCTION__, __LINE__);
       // We need to update the fullscreen exit bubble, e.g., going from browser
       // fullscreen to tab fullscreen will need to show different content.
       const GURL& url = web_contents->GetURL();
@@ -120,13 +115,16 @@ fprintf(stderr, "%s:%s:%d 33\n", __FILE__, __FUNCTION__, __LINE__);
     }
   } else {
     if (in_browser_or_tab_fullscreen_mode) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
       if (tab_caused_fullscreen_) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
 #if defined(OS_MACOSX)
         TogglePresentationModeInternal(true);
 #else
         ToggleFullscreenModeInternal(true);
 #endif
       } else {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
         // If currently there is a tab in "tab fullscreen" mode and fullscreen
         // was not caused by it (i.e., previously it was in "browser fullscreen"
         // mode), we need to switch back to "browser fullscreen" mode. In this
