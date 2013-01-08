@@ -52,6 +52,7 @@ bool FullscreenController::IsFullscreenForBrowser() const {
 }
 
 void FullscreenController::ToggleFullscreenMode() {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   extension_caused_fullscreen_ = GURL();
   ToggleFullscreenModeInternal(false);
 }
@@ -86,7 +87,11 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
 #if defined(OS_MACOSX)
   in_browser_or_tab_fullscreen_mode |= window_->InPresentationMode();
 #endif
-fprintf(stderr, "%s %s\n", window_->InPresentationMode() ? "presentation" : "", window_->IsFullscreen() ? "fullscreen" : "");
+fprintf(stderr, "%s %s %s %s\n",
+        enter_fullscreen ? "enter" : "exit ",
+        window_->InPresentationMode() ? "presentation" : "            ",
+        window_->IsFullscreen() ? "fullscreen" : "          ",
+        toggled_into_fullscreen_ ? "toggled_into_fullscreen_" : "                        ");
 
   if (enter_fullscreen) {
     SetFullscreenedTab(web_contents);
@@ -115,16 +120,17 @@ fprintf(stderr, "%s %s\n", window_->InPresentationMode() ? "presentation" : "", 
     }
   } else {
     if (in_browser_or_tab_fullscreen_mode) {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
       if (tab_caused_fullscreen_) {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
 #if defined(OS_MACOSX)
         TogglePresentationModeInternal(true);
 #else
         ToggleFullscreenModeInternal(true);
 #endif
+#if defined(OS_MACOSX)
+      } else if (toggled_into_fullscreen_) {
+        TogglePresentationModeInternal(true);
+#endif
       } else {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
         // If currently there is a tab in "tab fullscreen" mode and fullscreen
         // was not caused by it (i.e., previously it was in "browser fullscreen"
         // mode), we need to switch back to "browser fullscreen" mode. In this
@@ -172,6 +178,7 @@ void FullscreenController::SetMetroSnapMode(bool enable) {
 
 #if defined(OS_MACOSX)
 void FullscreenController::TogglePresentationMode() {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   TogglePresentationModeInternal(false);
 }
 #endif
