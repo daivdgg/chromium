@@ -86,11 +86,12 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
 #if defined(OS_MACOSX)
   in_browser_or_tab_fullscreen_mode |= window_->InPresentationMode();
 #endif
+fprintf(stderr, "%s %s\n", window_->InPresentationMode() ? "presentation" : "", window_->IsFullscreen() ? "fullscreen" : "");
 
   if (enter_fullscreen) {
     SetFullscreenedTab(web_contents);
     if (!in_browser_or_tab_fullscreen_mode) {
-fprintf(stderr, "%s:%s:%d\n 11", __FILE__, __FUNCTION__, __LINE__);
+fprintf(stderr, "%s:%s:%d 11\n", __FILE__, __FUNCTION__, __LINE__);
       tab_caused_fullscreen_ = true;
 #if defined(OS_MACOSX)
       TogglePresentationModeInternal(true);
@@ -98,7 +99,7 @@ fprintf(stderr, "%s:%s:%d\n 11", __FILE__, __FUNCTION__, __LINE__);
       ToggleFullscreenModeInternal(true);
 #endif
 #if defined(OS_MACOSX)
-    } else if (window_->IsFullscreen()) {
+    } else if (window_->InPresentationMode()) {
 fprintf(stderr, "%s:%s:%d 22\n", __FILE__, __FUNCTION__, __LINE__);
       TogglePresentationModeInternal(true);
 #endif
