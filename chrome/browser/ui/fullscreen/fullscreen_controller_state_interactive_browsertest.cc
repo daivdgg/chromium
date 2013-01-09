@@ -230,6 +230,22 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerStateInteractiveTest,
   message_loop->Run();
 }
 
+// Used manually to determine what happens on a platform.
+IN_PROC_BROWSER_TEST_F(FullscreenControllerStateInteractiveTest,
+                       DISABLED_ManualTest2) {
+  // A tab is needed for tab fullscreen.
+  AddTabAtIndex(0, GURL(kAboutBlankURL), PAGE_TRANSITION_TYPED);
+  ASSERT_TRUE(InvokeEvent(TOGGLE_FULLSCREEN)) << GetAndClearDebugLog();
+  ASSERT_TRUE(InvokeEvent(WINDOW_CHANGE)) << GetAndClearDebugLog();
+  ASSERT_TRUE(InvokeEvent(TAB_FULLSCREEN_TRUE)) << GetAndClearDebugLog();
+  GetBrowser()->window()->ExitPresentationMode();
+
+  // Wait, allowing human operator to observe the result.
+  scoped_refptr<content::MessageLoopRunner> message_loop;
+  message_loop = new content::MessageLoopRunner();
+  message_loop->Run();
+}
+
 // Soak tests:
 
 // Tests all states with all permutations of multiple events to detect lingering
