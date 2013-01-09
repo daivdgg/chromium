@@ -130,16 +130,21 @@ fprintf(stderr, "%s %s %s %s\n",
       PostFullscreenChangeNotification(true);
     }
   } else {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     if (in_browser_or_tab_fullscreen_mode) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
       if (IsFullscreenCausedByTab()) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
 #if defined(OS_MACOSX)
         TogglePresentationModeInternal(true);
 #else
         ToggleFullscreenModeInternal(true);
 #endif
       } else {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
 #if defined(OS_MACOSX)
         if (tab_previous_fullscreen_state_ ==
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
             STATE_BROWSER_FULLSCREEN_WITH_CHROME) {
           window_->ExitPresentationMode();
         }
