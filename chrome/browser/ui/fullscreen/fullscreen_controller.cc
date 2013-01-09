@@ -144,8 +144,8 @@ fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
 fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
 #if defined(OS_MACOSX)
         if (tab_previous_fullscreen_state_ ==
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
             STATE_BROWSER_FULLSCREEN_WITH_CHROME) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
           window_->ExitPresentationMode();
         }
 #endif
