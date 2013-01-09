@@ -137,9 +137,11 @@ bool FullscreenControllerTestWindow::IsInMetroSnapMode() const {
 void FullscreenControllerTestWindow::EnterPresentationMode(
     const GURL& url,
     FullscreenExitBubbleType bubble_type) {
-  mac_presentation_mode_ = true;
-  mac_presentation_mode_was_already_fullscreen_ = IsFullscreen();
-  EnterFullscreen();
+  if (!mac_presentation_mode_) {
+    mac_presentation_mode_ = true;
+    mac_presentation_mode_was_already_fullscreen_ = IsFullscreen();
+    EnterFullscreen();
+  }
 }
 
 void FullscreenControllerTestWindow::ExitPresentationMode() {
