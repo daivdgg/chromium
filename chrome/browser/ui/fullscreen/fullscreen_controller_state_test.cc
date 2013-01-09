@@ -394,7 +394,7 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       break;
     case STATE_TAB_BROWSER_FULLSCREEN:
 #if defined(OS_MACOSX)
-      EXPECT_FALSE(GetBrowser()->window()->InPresentationMode())
+      EXPECT_TRUE(GetBrowser()->window()->InPresentationMode())
           << GetAndClearDebugLog();
 #endif
       EXPECT_TRUE(GetFullscreenController()->IsFullscreenForBrowser())
