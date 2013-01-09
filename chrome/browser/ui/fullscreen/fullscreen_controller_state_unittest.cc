@@ -142,7 +142,6 @@ void FullscreenControllerTestWindow::EnterPresentationMode(
 void FullscreenControllerTestWindow::ExitPresentationMode() {
   if (InPresentationMode()) {
     mac_presentation_mode_ = false;
-    ExitFullscreen();
   }
 }
 
