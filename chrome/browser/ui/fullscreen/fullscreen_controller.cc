@@ -560,10 +560,16 @@ void FullscreenController::ToggleFullscreenModeInternal(bool for_tab) {
     NotifyTabOfExitIfNecessary();
 
     if (window_->InPresentationMode() && !for_tab)
+    {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
       window_->ExitPresentationMode();
+    }
     else
 #endif
-      window_->ExitFullscreen();
+    {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
+       window_->ExitFullscreen();
+    }
     extension_caused_fullscreen_ = GURL();
   }
   UpdateFullscreenExitBubbleContent();
