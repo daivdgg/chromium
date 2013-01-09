@@ -77,6 +77,8 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
                                                       bool enter_fullscreen) {
   if (web_contents != chrome::GetActiveWebContents(browser_))
     return;
+  if (IsFullscreenForTabOrPending() == enter_fullscreen)
+    return;
 
 #if defined(OS_WIN)
   // For now, avoid breaking when initiating full screen tab mode while in
@@ -91,11 +93,13 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
 #if defined(OS_MACOSX)
   in_browser_or_tab_fullscreen_mode |= window_->InPresentationMode();
 #endif
+#if defined(OS_MACOSX)
 fprintf(stderr, "%s %s %s %s\n",
         enter_fullscreen ? "enter" : "exit ",
         window_->InPresentationMode() ? "presentation" : "            ",
         window_->IsFullscreen() ? "fullscreen" : "          ",
         toggled_into_fullscreen_ ? "toggled_into_fullscreen_" : "                        ");
+#endif
 
   if (enter_fullscreen) {
     SetFullscreenedTab(web_contents);
