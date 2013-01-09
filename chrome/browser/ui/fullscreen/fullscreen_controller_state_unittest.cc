@@ -72,6 +72,7 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
  private:
   WindowState state_;
   bool mac_presentation_mode_;
+  bool mac_presentation_mode_was_already_fullscreen_;
   Browser* browser_;
 
   // Causes reentrant calls to be made by calling
@@ -83,6 +84,7 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
 FullscreenControllerTestWindow::FullscreenControllerTestWindow()
     : state_(NORMAL),
       mac_presentation_mode_(false),
+      mac_presentation_mode_was_already_fullscreen_(false),
       browser_(NULL),
       reentrant_(false) {
 }
@@ -136,12 +138,15 @@ void FullscreenControllerTestWindow::EnterPresentationMode(
     const GURL& url,
     FullscreenExitBubbleType bubble_type) {
   mac_presentation_mode_ = true;
+  mac_presentation_mode_was_already_fullscreen_ = IsFullscreen();
   EnterFullscreen();
 }
 
 void FullscreenControllerTestWindow::ExitPresentationMode() {
   if (InPresentationMode()) {
     mac_presentation_mode_ = false;
+    if (!mac_presentation_mode_was_already_fullscreen_)
+      ExitFullscreen();
   }
 }
 
