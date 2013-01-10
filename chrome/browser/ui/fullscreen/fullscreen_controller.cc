@@ -51,7 +51,7 @@ bool FullscreenController::IsFullscreenForBrowser() const {
   return window_->IsFullscreen() && !tab_caused_fullscreen_;
 }
 
-void FullscreenController::ToggleFullscreenMode() {
+void FullscreenController::ToggleFullscreenWithoutChrome() {
   extension_caused_fullscreen_ = GURL();
   ToggleFullscreenModeInternal(false);
 }
@@ -165,7 +165,7 @@ void FullscreenController::SetMetroSnapMode(bool enable) {
 #endif  // defined(OS_WIN)
 
 #if defined(OS_MACOSX)
-void FullscreenController::TogglePresentationMode() {
+void FullscreenController::ToggleFullscreenWithChrome() {
   TogglePresentationModeInternal(false);
 }
 #endif
