@@ -422,6 +422,7 @@ void BrowserCommandController::ExecuteCommandWithDisposition(
       ConvertPopupToTabbedBrowser(browser_);
       break;
     case IDC_FULLSCREEN:
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
       chrome::ToggleFullscreenMode(browser_);
       break;
 
@@ -451,6 +452,7 @@ void BrowserCommandController::ExecuteCommandWithDisposition(
 
 #if defined(OS_MACOSX)
     case IDC_PRESENTATION_MODE:
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
       browser_->TogglePresentationMode();
       break;
 #endif
