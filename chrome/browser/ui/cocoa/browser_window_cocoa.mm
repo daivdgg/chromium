@@ -333,12 +333,19 @@ void BrowserWindowCocoa::Restore() {
 
 void BrowserWindowCocoa::EnterFullscreen(
       const GURL& url, FullscreenExitBubbleType bubble_type) {
+/* 
   [controller_ enterFullscreenForURL:url
                           bubbleType:bubble_type];
+*/ 
+  [controller_ enterPresentationModeForURL:url
+                                bubbleType:bubble_type];
 }
 
 void BrowserWindowCocoa::ExitFullscreen() {
+/*
   [controller_ exitFullscreen];
+*/
+  [controller_ exitPresentationMode];
 }
 
 void BrowserWindowCocoa::UpdateFullscreenExitBubbleContent(
@@ -584,19 +591,32 @@ void BrowserWindowCocoa::OpenTabpose() {
   [controller_ openTabpose];
 }
 
-void BrowserWindowCocoa::EnterPresentationMode(
+void BrowserWindowCocoa::EnterFullscreenWithChrome(
       const GURL& url,
       FullscreenExitBubbleType bubble_type) {
+/*
   [controller_ enterPresentationModeForURL:url
                                 bubbleType:bubble_type];
+*/
+  [controller_ enterFullscreenForURL:url
+                          bubbleType:bubble_type];
 }
 
+/*
 void BrowserWindowCocoa::ExitPresentationMode() {
   [controller_ exitPresentationMode];
 }
+*/
 
-bool BrowserWindowCocoa::InPresentationMode() {
+bool BrowserWindowCocoa::InFullscreenWithChrome() {
+/*
   return [controller_ inPresentationMode];
+*/
+  return IsFullscreen() && ![controller_ inPresentationMode];
+}
+
+bool BrowserWindowCocoa::InFullscreenWithoutChrome() {
+  return IsFullscreen() && [controller_ inPresentationMode];
 }
 
 gfx::Rect BrowserWindowCocoa::GetInstantBounds() {

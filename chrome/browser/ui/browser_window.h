@@ -304,13 +304,14 @@ class BrowserWindow : public BaseWindow {
   // Opens the tabpose view.
   virtual void OpenTabpose() = 0;
 
-  // Sets the presentation mode for the window.  If the window is not already in
-  // fullscreen, also enters fullscreen mode.
-  virtual void EnterPresentationMode(
+  // Enters Mac specific fullscreen mode with chrome displayed (e.g. omnibox).
+  // Enter either from non fullscreen, or from fullscreen without chrome.
+  // Exit to normal fullscreen with EnterFullscreen().
+  virtual void EnterFullscreenWithChrome(
       const GURL& url,
       FullscreenExitBubbleType bubble_type) = 0;
-  virtual void ExitPresentationMode() = 0;
-  virtual bool InPresentationMode() = 0;
+  virtual bool InFullscreenWithChrome() = 0;
+  virtual bool InFullscreenWithoutChrome() = 0;
 #endif
 
   // Returns the desired bounds for Instant in screen coordinates. Note that if
