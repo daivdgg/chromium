@@ -539,7 +539,7 @@ void FullscreenController::ToggleFullscreenModeInternal(bool for_tab) {
 
 #if defined(OS_MACOSX)
 void FullscreenController::TogglePresentationModeInternal(bool for_tab) {
-  toggled_into_fullscreen_ = !window_->InPresentationMode();
+  toggled_into_fullscreen_ = !window_->InFullscreenWithoutChrome();
   GURL url;
   if (for_tab) {
     url = chrome::GetActiveWebContents(browser_)->GetURL();
