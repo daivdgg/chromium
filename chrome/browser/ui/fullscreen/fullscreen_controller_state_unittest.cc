@@ -51,11 +51,11 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
   virtual bool IsInMetroSnapMode() const OVERRIDE;
 #endif
 #if defined(OS_MACOSX)
-  virtual void EnterPresentationMode(
+  virtual void EnterFullscreenWithChrome(
       const GURL& url,
       FullscreenExitBubbleType bubble_type) OVERRIDE;
-  virtual void ExitPresentationMode() OVERRIDE;
-  virtual bool InPresentationMode() OVERRIDE;
+  virtual bool InFullscreenWithChrome() OVERRIDE;
+  virtual bool InFullscreenWithoutChrome() OVERRIDE;
 #endif
 
   static const char* GetWindowStateString(WindowState state);
@@ -71,7 +71,7 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
 
  private:
   WindowState state_;
-  bool mac_presentation_mode_;
+  bool mac_with_chrome_mode_;
   Browser* browser_;
 
   // Causes reentrant calls to be made by calling
@@ -82,7 +82,7 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
 
 FullscreenControllerTestWindow::FullscreenControllerTestWindow()
     : state_(NORMAL),
-      mac_presentation_mode_(false),
+      mac_with_chrome_mode_(false),
       browser_(NULL),
       reentrant_(false) {
 }
@@ -93,6 +93,7 @@ void FullscreenControllerTestWindow::EnterFullscreen(
 }
 
 void FullscreenControllerTestWindow::EnterFullscreen() {
+  mac_with_chrome_mode_ = false;
   if (!IsFullscreen()) {
     state_ = TO_FULLSCREEN;
     ChangeWindowFullscreenStateIfReentrant();
@@ -102,7 +103,7 @@ void FullscreenControllerTestWindow::EnterFullscreen() {
 void FullscreenControllerTestWindow::ExitFullscreen() {
   if (IsFullscreen()) {
     state_ = TO_NORMAL;
-    mac_presentation_mode_ = false;
+    mac_with_chrome_mode_ = false;
     ChangeWindowFullscreenStateIfReentrant();
   }
 }
@@ -132,22 +133,19 @@ bool FullscreenControllerTestWindow::IsInMetroSnapMode() const {
 #endif
 
 #if defined(OS_MACOSX)
-void FullscreenControllerTestWindow::EnterPresentationMode(
+void FullscreenControllerTestWindow::EnterFullscreenWithChrome(
     const GURL& url,
     FullscreenExitBubbleType bubble_type) {
-  mac_presentation_mode_ = true;
   EnterFullscreen();
+  mac_with_chrome_mode_ = true;
 }
 
-void FullscreenControllerTestWindow::ExitPresentationMode() {
-  if (InPresentationMode()) {
-    mac_presentation_mode_ = false;
-    ExitFullscreen();
-  }
+bool FullscreenControllerTestWindow::InFullscreenWithChrome() {
+  return IsFullscreen() && mac_with_chrome_mode_;
 }
 
-bool FullscreenControllerTestWindow::InPresentationMode() {
-  return mac_presentation_mode_;
+bool FullscreenControllerTestWindow::InFullscreenWithoutChrome() {
+  return IsFullscreen() && !mac_with_chrome_mode_;
 }
 #endif
 

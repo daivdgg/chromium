@@ -355,6 +355,8 @@ void BrowserWindowCocoa::UpdateFullscreenExitBubbleContent(
 }
 
 bool BrowserWindowCocoa::IsFullscreen() const {
+  if ([controller_ inPresentationMode])
+    CHECK([controller_ isFullscreen]); // Presentation mode must be fullscreen.
   return [controller_ isFullscreen];
 }
 

@@ -83,9 +83,6 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
 #endif
 
   bool in_browser_or_tab_fullscreen_mode = window_->IsFullscreen();
-#if defined(OS_MACOSX)
-  in_browser_or_tab_fullscreen_mode |= window_->InPresentationMode();
-#endif
 
   if (enter_fullscreen) {
     SetFullscreenedTab(web_contents);
@@ -252,9 +249,7 @@ void FullscreenController::WindowFullscreenStateChanged() {
   reentrant_window_state_change_call_check_ = true;
 
   bool exiting_fullscreen = !window_->IsFullscreen();
-#if defined(OS_MACOSX)
-  exiting_fullscreen &= !window_->InPresentationMode();
-#endif
+
   PostFullscreenChangeNotification(!exiting_fullscreen);
   if (exiting_fullscreen)
     NotifyTabOfExitIfNecessary();
@@ -519,19 +514,19 @@ void FullscreenController::ToggleFullscreenModeInternal(bool for_tab) {
     content::RecordAction(UserMetricsAction("ToggleFullscreen"));
   }
   if (toggled_into_fullscreen_) {
+#if defined(OS_MACOSX)
+    window_->EnterFullscreenWithChrome(url, GetFullscreenExitBubbleType());
+#else
     window_->EnterFullscreen(url, GetFullscreenExitBubbleType());
+#endif
   } else {
 #if defined(OS_MACOSX)
     // Mac windows report a state change instantly, and so we must also clear
     // tab_caused_fullscreen_ to match them else other logic using
     // tab_caused_fullscreen_ will be incorrect.
     NotifyTabOfExitIfNecessary();
-
-    if (window_->InPresentationMode() && !for_tab)
-      window_->ExitPresentationMode();
-    else
 #endif
-      window_->ExitFullscreen();
+    window_->ExitFullscreen();
     extension_caused_fullscreen_ = GURL();
   }
   UpdateFullscreenExitBubbleContent();
@@ -551,8 +546,8 @@ void FullscreenController::TogglePresentationModeInternal(bool for_tab) {
     tab_fullscreen_accepted_ = toggled_into_fullscreen_ &&
         GetFullscreenSetting(url) == CONTENT_SETTING_ALLOW;
   }
-  if (!window_->InPresentationMode()) {
-    window_->EnterPresentationMode(url, GetFullscreenExitBubbleType());
+  if (!window_->InFullscreenWithoutChrome()) {
+    window_->EnterFullscreen(url, GetFullscreenExitBubbleType());
   } else {
     window_->ExitFullscreen();
 
