@@ -250,7 +250,7 @@
 - (NSNumber*)presenting {
   BOOL presentingValue = NO;
   if (browser_->window())
-    presentingValue = browser_->window()->InPresentationMode();
+    presentingValue = browser_->window()->InFullscreenWithoutChrome();
   return [NSNumber numberWithBool:presentingValue];
 }
 
