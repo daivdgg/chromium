@@ -497,7 +497,7 @@ void FullscreenController::ToggleFullscreenModeInternal(bool for_tab) {
 
   toggled_into_fullscreen_ = !window_->IsFullscreen();
 #if defined(OS_MACOSX)
-  toggled_into_fullscreen_ |= window->InFullscreenWithoutChrome();
+  toggled_into_fullscreen_ |= window_->InFullscreenWithoutChrome();
 #endif
 fprintf(stderr, "%s:%s:%d %s %s\n", __FILE__, __FUNCTION__, __LINE__, window_->IsFullscreen() ? " window_->IsFullscreen()":"!window_->IsFullscreen()", toggled_into_fullscreen_ ? " toggled_into_fullscreen_":"!toggled_into_fullscreen_");
 
