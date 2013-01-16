@@ -333,19 +333,14 @@ void BrowserWindowCocoa::Restore() {
 
 void BrowserWindowCocoa::EnterFullscreen(
       const GURL& url, FullscreenExitBubbleType bubble_type) {
-/* 
-  [controller_ enterFullscreenForURL:url
-                          bubbleType:bubble_type];
-*/ 
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   [controller_ enterPresentationModeForURL:url
                                 bubbleType:bubble_type];
 }
 
 void BrowserWindowCocoa::ExitFullscreen() {
-/*
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   [controller_ exitFullscreen];
-*/
-  [controller_ exitPresentationMode];
 }
 
 void BrowserWindowCocoa::UpdateFullscreenExitBubbleContent(
@@ -596,24 +591,12 @@ void BrowserWindowCocoa::OpenTabpose() {
 void BrowserWindowCocoa::EnterFullscreenWithChrome(
       const GURL& url,
       FullscreenExitBubbleType bubble_type) {
-/*
-  [controller_ enterPresentationModeForURL:url
-                                bubbleType:bubble_type];
-*/
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   [controller_ enterFullscreenForURL:url
                           bubbleType:bubble_type];
 }
 
-/*
-void BrowserWindowCocoa::ExitPresentationMode() {
-  [controller_ exitPresentationMode];
-}
-*/
-
 bool BrowserWindowCocoa::InFullscreenWithChrome() {
-/*
-  return [controller_ inPresentationMode];
-*/
   return IsFullscreen() && ![controller_ inPresentationMode];
 }
 

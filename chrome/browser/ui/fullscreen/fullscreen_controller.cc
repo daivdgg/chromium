@@ -496,6 +496,7 @@ void FullscreenController::ToggleFullscreenModeInternal(bool for_tab) {
 #endif
 
   toggled_into_fullscreen_ = !window_->IsFullscreen();
+fprintf(stderr, "%s:%s:%d %s\n", __FILE__, __FUNCTION__, __LINE__, window_->IsFullscreen() ? " window_->IsFullscreen()":"!window_->IsFullscreen()");
 
   // In kiosk mode, we always want to be fullscreen. When the browser first
   // starts we're not yet fullscreen, so let the initial toggle go through.
