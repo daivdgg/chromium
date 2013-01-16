@@ -593,7 +593,7 @@ void BrowserWindowCocoa::EnterFullscreenWithChrome(
       FullscreenExitBubbleType bubble_type) {
   if ([controller_ inPresentationMode]) {
 fprintf(stderr, "%s:%s:%d exitPresentationMode\n", __FILE__, __FUNCTION__, __LINE__);
-    [controller_ exitPresentationMode]
+    [controller_ exitPresentationMode];
   } else {
 fprintf(stderr, "%s:%s:%d enterFullscreenForURL\n", __FILE__, __FUNCTION__, __LINE__);
     [controller_ enterFullscreenForURL:url
