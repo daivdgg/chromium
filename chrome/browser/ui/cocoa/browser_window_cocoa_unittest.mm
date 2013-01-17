@@ -63,6 +63,9 @@ TEST_F(BrowserWindowCocoaTest, TestBookmarkBarVisible) {
 - (BOOL)isFullscreen {
   return fullscreen_;
 }
+- (BOOL)inPresentationMode {
+  return false;
+}
 @end
 
 TEST_F(BrowserWindowCocoaTest, TestFullscreen) {
