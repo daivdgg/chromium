@@ -368,11 +368,13 @@ IN_PROC_BROWSER_TEST_F(
   {
     FullscreenNotificationObserver fullscreen_observer;
     EXPECT_FALSE(browser()->window()->IsFullscreen());
-    EXPECT_FALSE(browser()->window()->InPresentationMode());
+    EXPECT_FALSE(browser()->window()->IsFullscreenWithChrome());
+    EXPECT_FALSE(browser()->window()->IsFullscreenWithoutChrome());
     browser()->ToggleFullscreenModeForTab(tab, true);
     fullscreen_observer.Wait();
     ASSERT_TRUE(browser()->window()->IsFullscreen());
-    ASSERT_TRUE(browser()->window()->InPresentationMode());
+    ASSERT_FALSE(browser()->window()->IsFullscreenWithChrome());
+    ASSERT_TRUE(browser()->window()->IsFullscreenWithoutChrome());
   }
 
   {
@@ -380,7 +382,8 @@ IN_PROC_BROWSER_TEST_F(
     browser()->TogglePresentationMode();
     fullscreen_observer.Wait();
     ASSERT_FALSE(browser()->window()->IsFullscreen());
-    ASSERT_FALSE(browser()->window()->InPresentationMode());
+    ASSERT_FALSE(browser()->window()->IsFullscreenWithChrome());
+    ASSERT_FALSE(browser()->window()->IsFullscreenWithoutChrome());
   }
 
   if (base::mac::IsOSLionOrLater()) {
@@ -390,7 +393,8 @@ IN_PROC_BROWSER_TEST_F(
     chrome::ToggleFullscreenMode(browser());
     fullscreen_observer.Wait();
     ASSERT_TRUE(browser()->window()->IsFullscreen());
-    ASSERT_FALSE(browser()->window()->InPresentationMode());
+    ASSERT_TRUE(browser()->window()->IsFullscreenWithChrome());
+    ASSERT_FALSE(browser()->window()->IsFullscreenWithoutChrome());
   }
 }
 #endif

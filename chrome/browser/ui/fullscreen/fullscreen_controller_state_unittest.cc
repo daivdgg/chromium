@@ -54,8 +54,8 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
   virtual void EnterFullscreenWithChrome(
       const GURL& url,
       FullscreenExitBubbleType bubble_type) OVERRIDE;
-  virtual bool InFullscreenWithChrome() OVERRIDE;
-  virtual bool InFullscreenWithoutChrome() OVERRIDE;
+  virtual bool IsFullscreenWithChrome() OVERRIDE;
+  virtual bool IsFullscreenWithoutChrome() OVERRIDE;
 #endif
 
   static const char* GetWindowStateString(WindowState state);
@@ -140,11 +140,11 @@ void FullscreenControllerTestWindow::EnterFullscreenWithChrome(
   mac_with_chrome_mode_ = true;
 }
 
-bool FullscreenControllerTestWindow::InFullscreenWithChrome() {
+bool FullscreenControllerTestWindow::IsFullscreenWithChrome() {
   return IsFullscreen() && mac_with_chrome_mode_;
 }
 
-bool FullscreenControllerTestWindow::InFullscreenWithoutChrome() {
+bool FullscreenControllerTestWindow::IsFullscreenWithoutChrome() {
   return IsFullscreen() && !mac_with_chrome_mode_;
 }
 #endif

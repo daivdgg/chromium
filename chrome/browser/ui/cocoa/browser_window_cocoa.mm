@@ -601,11 +601,11 @@ fprintf(stderr, "%s:%s:%d enterFullscreenForURL\n", __FILE__, __FUNCTION__, __LI
   }
 }
 
-bool BrowserWindowCocoa::InFullscreenWithChrome() {
+bool BrowserWindowCocoa::IsFullscreenWithChrome() {
   return IsFullscreen() && ![controller_ inPresentationMode];
 }
 
-bool BrowserWindowCocoa::InFullscreenWithoutChrome() {
+bool BrowserWindowCocoa::IsFullscreenWithoutChrome() {
   return IsFullscreen() && [controller_ inPresentationMode];
 }
 

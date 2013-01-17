@@ -111,11 +111,11 @@ int TestBrowserWindow::GetExtraRenderViewHeight() const {
 }
 
 #if defined(OS_MACOSX)
-bool TestBrowserWindow::InFullscreenWithChrome() {
+bool TestBrowserWindow::IsFullscreenWithChrome() {
   return false;
 }
 
-bool TestBrowserWindow::InFullscreenWithoutChrome() {
+bool TestBrowserWindow::IsFullscreenWithoutChrome() {
   return false;
 }
 #endif

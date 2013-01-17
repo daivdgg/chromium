@@ -127,8 +127,8 @@ class TestBrowserWindow : public BrowserWindow {
   virtual void EnterFullscreenWithChrome(
       const GURL& url,
       FullscreenExitBubbleType bubble_type) OVERRIDE {}
-  virtual bool InFullscreenWithChrome() OVERRIDE;
-  virtual bool InFullscreenWithoutChrome() OVERRIDE;
+  virtual bool IsFullscreenWithChrome() OVERRIDE;
+  virtual bool IsFullscreenWithoutChrome() OVERRIDE;
 #endif
 
   virtual gfx::Rect GetInstantBounds() OVERRIDE;

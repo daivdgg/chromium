@@ -132,8 +132,8 @@ class BrowserWindowCocoa :
   virtual void EnterFullscreenWithChrome(
       const GURL& url,
       FullscreenExitBubbleType bubble_type) OVERRIDE;
-  virtual bool InFullscreenWithChrome() OVERRIDE;
-  virtual bool InFullscreenWithoutChrome() OVERRIDE;
+  virtual bool IsFullscreenWithChrome() OVERRIDE;
+  virtual bool IsFullscreenWithoutChrome() OVERRIDE;
   virtual gfx::Rect GetInstantBounds() OVERRIDE;
   virtual bool IsInstantTabShowing() OVERRIDE;
   virtual WindowOpenDisposition GetDispositionForPopupBounds(

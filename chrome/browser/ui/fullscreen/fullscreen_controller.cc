@@ -497,7 +497,7 @@ void FullscreenController::ToggleFullscreenModeInternal(bool for_tab) {
 
   toggled_into_fullscreen_ = !window_->IsFullscreen();
 #if defined(OS_MACOSX)
-  toggled_into_fullscreen_ |= window_->InFullscreenWithoutChrome();
+  toggled_into_fullscreen_ |= window_->IsFullscreenWithoutChrome();
 #endif
 fprintf(stderr, "%s:%s:%d %s %s\n", __FILE__, __FUNCTION__, __LINE__, window_->IsFullscreen() ? " window_->IsFullscreen()":"!window_->IsFullscreen()", toggled_into_fullscreen_ ? " toggled_into_fullscreen_":"!toggled_into_fullscreen_");
 
@@ -543,14 +543,14 @@ fprintf(stderr, "%s:%s:%d %s %s\n", __FILE__, __FUNCTION__, __LINE__, window_->I
 
 #if defined(OS_MACOSX)
 void FullscreenController::TogglePresentationModeInternal(bool for_tab) {
-  toggled_into_fullscreen_ = !window_->InFullscreenWithoutChrome();
+  toggled_into_fullscreen_ = !window_->IsFullscreenWithoutChrome();
   GURL url;
   if (for_tab) {
     url = chrome::GetActiveWebContents(browser_)->GetURL();
     tab_fullscreen_accepted_ = toggled_into_fullscreen_ &&
         GetFullscreenSetting(url) == CONTENT_SETTING_ALLOW;
   }
-  if (!window_->InFullscreenWithoutChrome()) {
+  if (!window_->IsFullscreenWithoutChrome()) {
     window_->EnterFullscreen(url, GetFullscreenExitBubbleType());
   } else {
     window_->ExitFullscreen();

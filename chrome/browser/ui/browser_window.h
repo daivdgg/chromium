@@ -310,8 +310,8 @@ class BrowserWindow : public BaseWindow {
   virtual void EnterFullscreenWithChrome(
       const GURL& url,
       FullscreenExitBubbleType bubble_type) = 0;
-  virtual bool InFullscreenWithChrome() = 0;
-  virtual bool InFullscreenWithoutChrome() = 0;
+  virtual bool IsFullscreenWithChrome() = 0;
+  virtual bool IsFullscreenWithoutChrome() = 0;
 #endif
 
   // Returns the desired bounds for Instant in screen coordinates. Note that if
