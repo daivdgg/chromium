@@ -329,6 +329,24 @@ Browser* FullscreenControllerStateUnitTest::GetBrowser() {
     TEST_EVENT_INNER(state, event, false, ); \
     TEST_EVENT_INNER(state, event, true, _Reentrant);
 
+// Soak tests:
+
+// Tests all states with all permutations of multiple events to detect lingering
+// state issues that would bleed over to other states.
+// I.E. for each state test all combinations of events E1, E2, E3.
+//
+// This produces coverage for event sequences that may happen normally but
+// would not be exposed by traversing to each state via TransitionToState().
+// TransitionToState() always takes the same path even when multiple paths
+// exist.
+TEST_F(FullscreenControllerStateUnitTest, TransitionsForEachState) {
+  // A tab is needed for tab fullscreen.
+  AddTab(browser(), GURL(chrome::kAboutBlankURL));
+  TestTransitionsForEachState();
+  // Progress of test can be examined via LOG(INFO) << GetAndClearDebugLog();
+}
+
+
 // Individual tests for each pair of state and event:
 
 TEST_EVENT(STATE_NORMAL, TOGGLE_FULLSCREEN);
@@ -458,29 +476,5 @@ TEST_F(FullscreenControllerStateUnitTest, DISABLED_ToggleTabWhenPendingTab) {
   ASSERT_TRUE(InvokeEvent(TAB_FULLSCREEN_FALSE)) << GetAndClearDebugLog();
   ASSERT_TRUE(InvokeEvent(WINDOW_CHANGE)) << GetAndClearDebugLog();
 #endif
-}
-
-// Soak tests:
-
-// Tests all states with all permutations of multiple events to detect lingering
-// state issues that would bleed over to other states.
-// I.E. for each state test all combinations of events E1, E2, E3.
-//
-// This produces coverage for event sequences that may happen normally but
-// would not be exposed by traversing to each state via TransitionToState().
-// TransitionToState() always takes the same path even when multiple paths
-// exist.
-TEST_F(FullscreenControllerStateUnitTest, 
-
-
-
-
-
-
-       DISABLED_TransitionsForEachState) {
-  // A tab is needed for tab fullscreen.
-  AddTab(browser(), GURL(chrome::kAboutBlankURL));
-  TestTransitionsForEachState();
-  // Progress of test can be examined via LOG(INFO) << GetAndClearDebugLog();
 }
 
