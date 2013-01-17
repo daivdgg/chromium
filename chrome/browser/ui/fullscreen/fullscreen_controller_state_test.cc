@@ -357,9 +357,13 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       break;
     case STATE_BROWSER_FULLSCREEN_NO_CHROME:
 #if defined(OS_MACOSX)
-      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithChrome())
+      // http://crbug.com/169138 - Fullscreen controller currently transitions
+      // Mac into fullscreen with and without chrome differently than other
+      // platforms, and the result is a name mismatch between the named
+      // state_ and the window()->IsFullscreenWith...() methods.
+      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithChrome())
           << GetAndClearDebugLog();
-      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithoutChrome())
+      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithoutChrome())
           << GetAndClearDebugLog();
 #endif
       EXPECT_TRUE(GetFullscreenController()->IsFullscreenForBrowser())
@@ -371,6 +375,7 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       break;
 #if defined(OS_WIN)
     case STATE_METRO_SNAP:
+      // http://crbug.com/169138
       // No expectation for IsFullscreenWithChrome() or
       // IsFullscreenWithoutChrome()
 
@@ -427,9 +432,13 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       break;
     case STATE_TO_BROWSER_FULLSCREEN_NO_CHROME:
 #if defined(OS_MACOSX)
-      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithChrome())
+      // http://crbug.com/169138 - Fullscreen controller currently transitions
+      // Mac into fullscreen with and without chrome differently than other
+      // platforms, and the result is a name mismatch between the named
+      // state_ and the window()->IsFullscreenWith...() methods.
+      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithChrome())
           << GetAndClearDebugLog();
-      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithoutChrome())
+      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithoutChrome())
           << GetAndClearDebugLog();
       EXPECT_TRUE(GetFullscreenController()->IsFullscreenForBrowser())
           << GetAndClearDebugLog();
