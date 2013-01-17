@@ -324,6 +324,7 @@ void FullscreenController::OnAcceptFullscreenPermission() {
 }
 
 void FullscreenController::OnDenyFullscreenPermission() {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   if (!fullscreened_tab_ && !mouse_lock_tab_)
     return;
 
@@ -341,8 +342,12 @@ void FullscreenController::OnDenyFullscreenPermission() {
       UpdateFullscreenExitBubbleContent();
   }
 
-  if (IsFullscreenForTabOrPending())
+  if (IsFullscreenForTabOrPending()) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     ExitTabFullscreenOrMouseLockIfNecessary();
+  } else
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
+
 }
 
 void FullscreenController::LostMouseLock() {
