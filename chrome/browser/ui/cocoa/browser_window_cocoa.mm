@@ -598,8 +598,7 @@ void BrowserWindowCocoa::EnterFullscreenWithChrome() {
   if ([controller_ inPresentationMode])
     [controller_ exitPresentationMode];
   else
-    [controller_ enterFullscreenForURL:GURL()
-                            bubbleType:FEB_TYPE_NONE];
+    [controller_ enterFullscreen];
 }
 
 bool BrowserWindowCocoa::IsFullscreenWithChrome() {

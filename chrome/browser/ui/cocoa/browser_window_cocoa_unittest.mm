@@ -53,8 +53,7 @@ TEST_F(BrowserWindowCocoaTest, TestBookmarkBarVisible) {
 @end
 
 @implementation FakeController
-- (void)enterFullscreenForURL:(const GURL&)url
-                   bubbleType:(FullscreenExitBubbleType)bubbleType {
+- (void)enterFullscreen {
   fullscreen_ = YES;
 }
 - (void)exitFullscreen {
@@ -64,7 +63,7 @@ TEST_F(BrowserWindowCocoaTest, TestBookmarkBarVisible) {
   return fullscreen_;
 }
 - (BOOL)inPresentationMode {
-  return false;
+  return NO;
 }
 @end
 

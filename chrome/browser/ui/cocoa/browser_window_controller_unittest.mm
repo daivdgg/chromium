@@ -679,8 +679,7 @@ TEST_F(BrowserWindowFullScreenControllerTest, TestFullscreen) {
   [controller_ showWindow:nil];
   EXPECT_FALSE([controller_ isFullscreen]);
 
-  [controller_ enterFullscreenForURL:GURL()
-                       bubbleType:FEB_TYPE_BROWSER_FULLSCREEN_EXIT_INSTRUCTION];
+  [controller_ enterFullscreen];
   WaitForFullScreenTransition();
   EXPECT_TRUE([controller_ isFullscreen]);
 
@@ -701,8 +700,7 @@ TEST_F(BrowserWindowFullScreenControllerTest, TestActivate) {
   [controller_ activate];
   EXPECT_TRUE(IsFrontWindow([controller_ window]));
 
-  [controller_ enterFullscreenForURL:GURL()
-                       bubbleType:FEB_TYPE_BROWSER_FULLSCREEN_EXIT_INSTRUCTION];
+  [controller_ enterFullscreen];
   WaitForFullScreenTransition();
   [controller_ activate];
 
