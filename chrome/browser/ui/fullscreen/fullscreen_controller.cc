@@ -324,7 +324,6 @@ void FullscreenController::OnAcceptFullscreenPermission() {
 }
 
 void FullscreenController::OnDenyFullscreenPermission() {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   if (!fullscreened_tab_ && !mouse_lock_tab_)
     return;
 
@@ -342,12 +341,8 @@ fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
       UpdateFullscreenExitBubbleContent();
   }
 
-  if (IsFullscreenForTabOrPending()) {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
+  if (IsFullscreenForTabOrPending())
     ExitTabFullscreenOrMouseLockIfNecessary();
-  } else
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
-
 }
 
 void FullscreenController::LostMouseLock() {
@@ -494,7 +489,6 @@ void FullscreenController::NotifyMouseLockChange() {
 
 // TODO(koz): Change |for_tab| to an enum.
 void FullscreenController::ToggleFullscreenModeInternal(bool for_tab) {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
 #if defined(OS_WIN)
   // When in Metro snap mode, toggling in and out of fullscreen is prevented.
   if (IsInMetroSnapMode())
@@ -508,7 +502,6 @@ fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   if (!IsFullscreenForTabOrPending())
     toggled_into_fullscreen_ |= window_->IsFullscreenWithoutChrome();
 #endif
-fprintf(stderr, "%s:%s:%d %s %s\n", __FILE__, __FUNCTION__, __LINE__, window_->IsFullscreen() ? " window_->IsFullscreen()":"!window_->IsFullscreen()", toggled_into_fullscreen_ ? " toggled_into_fullscreen_":"!toggled_into_fullscreen_");
 
   // In kiosk mode, we always want to be fullscreen. When the browser first
   // starts we're not yet fullscreen, so let the initial toggle go through.
