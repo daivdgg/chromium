@@ -594,7 +594,7 @@ void BrowserWindowCocoa::OpenTabpose() {
 }
 
 void BrowserWindowCocoa::EnterFullscreenWithChrome() {
-  CHECK(base::IsOSLionOrLater());
+  CHECK(base::mac::IsOSLionOrLater());
   if ([controller_ inPresentationMode])
     [controller_ exitPresentationMode];
   else
