@@ -76,14 +76,12 @@ TEST_F(BrowserWindowCocoaTest, TestFullscreen) {
   scoped_ptr<BrowserWindowCocoa> bwc(new BrowserWindowCocoa(
       browser(), static_cast<BrowserWindowController*>(fake_controller.get())));
 
+  EXPECT_FALSE(bwc->IsFullscreen());
+  bwc->EnterFullscreen(GURL(), FEB_TYPE_BROWSER_FULLSCREEN_EXIT_INSTRUCTION);
   EXPECT_FALSE(bwc->IsFullscreenWithChrome());
-  EXPECT_FALSE(bwc->IsFullscreenWithoutChrome());
-  bwc->EnterFullscreenWithChrome();
-  EXPECT_TRUE(bwc->IsFullscreenWithChrome());
-  EXPECT_FALSE(bwc->IsFullscreenWithoutChrome());
+  EXPECT_TRUE(bwc->IsFullscreenWithoutChrome());
   bwc->ExitFullscreen();
-  EXPECT_FALSE(bwc->IsFullscreenWithChrome());
-  EXPECT_FALSE(bwc->IsFullscreenWithoutChrome());
+  EXPECT_FALSE(bwc->IsFullscreen());
   [fake_controller close];
 }
 
