@@ -593,9 +593,8 @@ void BrowserWindowCocoa::OpenTabpose() {
   [controller_ openTabpose];
 }
 
-void BrowserWindowCocoa::EnterFullscreenWithChrome(
-      const GURL& url,
-      FullscreenExitBubbleType bubble_type) {
+void BrowserWindowCocoa::EnterFullscreenWithChrome() {
+  CHECK(IsOSLionOrLater());
   if ([controller_ inPresentationMode])
     [controller_ exitPresentationMode];
   else

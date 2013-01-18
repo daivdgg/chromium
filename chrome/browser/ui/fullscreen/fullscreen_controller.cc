@@ -521,7 +521,9 @@ void FullscreenController::ToggleFullscreenModeInternal(bool for_tab) {
   }
   if (toggled_into_fullscreen_) {
 #if defined(OS_MACOSX)
-    window_->EnterFullscreenWithChrome(url, GetFullscreenExitBubbleType());
+    CHECK(!for_tab);  // EnterFullscreenWithChrome invalid for tab fullscreen.
+    CHECK(IsOSLionOrLater());  // EnterFullscreenWithChrome valid only on Lion+.
+    window_->EnterFullscreenWithChrome();
 #else
     window_->EnterFullscreen(url, GetFullscreenExitBubbleType());
 #endif

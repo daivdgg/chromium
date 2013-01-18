@@ -305,13 +305,11 @@ class BrowserWindow : public BaseWindow {
   virtual void OpenTabpose() = 0;
 
   // Enters Mac specific fullscreen mode with chrome displayed (e.g. omnibox)
-  // on OSX 10.7+, a.k.a. Lion Fullscreen mode. Earlier OSX versions will only
-  // enter fullscreen without chrome being displayed.
+  // on OSX 10.7+, a.k.a. Lion Fullscreen mode.
+  // Invalid to call on OSX earlier than 10.7.
   // Enters either from non fullscreen, or from fullscreen without chrome.
   // Exit to normal fullscreen with EnterFullscreen().
-  virtual void EnterFullscreenWithChrome(
-      const GURL& url,
-      FullscreenExitBubbleType bubble_type) = 0;
+  virtual void EnterFullscreenWithChrome() = 0;
   virtual bool IsFullscreenWithChrome() = 0;
   virtual bool IsFullscreenWithoutChrome() = 0;
 #endif

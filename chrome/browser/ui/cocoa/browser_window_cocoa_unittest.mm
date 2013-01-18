@@ -79,8 +79,7 @@ TEST_F(BrowserWindowCocoaTest, TestFullscreen) {
 
   EXPECT_FALSE(bwc->IsFullscreenWithChrome());
   EXPECT_FALSE(bwc->IsFullscreenWithoutChrome());
-  bwc->EnterFullscreenWithChrome(GURL(),
-                                 FEB_TYPE_BROWSER_FULLSCREEN_EXIT_INSTRUCTION);
+  bwc->EnterFullscreenWithChrome();
   EXPECT_TRUE(bwc->IsFullscreenWithChrome());
   EXPECT_FALSE(bwc->IsFullscreenWithoutChrome());
   bwc->ExitFullscreen();
