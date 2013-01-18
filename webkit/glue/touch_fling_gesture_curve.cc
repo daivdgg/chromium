@@ -8,11 +8,11 @@
 
 #include "base/debug/trace_event.h"
 #include "base/logging.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebFloatPoint.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebGestureCurve.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebGestureCurveTarget.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebFloatPoint.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebPoint.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebSize.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebPoint.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebSize.h"
 
 using WebKit::WebGestureCurve;
 using WebKit::WebGestureCurveTarget;
@@ -165,6 +165,8 @@ bool TouchFlingGestureCurve::apply(double time, WebGestureCurveTarget* target) {
   cumulative_scroll_ = WebSize(scroll.x, scroll.y);
 
   if (time + time_offset_ < curve_duration_ || scroll_increment != WebPoint()) {
+    // scrollBy() could delete this curve if the animation is over, so don't
+    // touch any member variables after making that call.
     target->scrollBy(scroll_increment);
     return true;
   }

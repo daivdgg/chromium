@@ -35,17 +35,20 @@ void NotificationList::SetMessageCenterVisible(bool visible) {
   if (message_center_visible_ == visible)
     return;
   message_center_visible_ = visible;
-  if (!visible) {
-    // When the list is hidden, clear the unread count, and mark all
-    // notifications as read and shown.
+  // When the center appears, mark all notifications as shown, and
+  // when the center is hidden, clear the unread count, and mark all
+  // notifications as read.
+  if (!visible)
     unread_count_ = 0;
-    for (NotificationMap::iterator mapiter = notifications_.begin();
-         mapiter != notifications_.end(); ++mapiter) {
-      for (Notifications::iterator iter = mapiter->second.begin();
-           iter != mapiter->second.end(); ++iter) {
-        iter->is_read = true;
+
+  for (NotificationMap::iterator mapiter = notifications_.begin();
+       mapiter != notifications_.end(); ++mapiter) {
+    for (Notifications::iterator iter = mapiter->second.begin();
+         iter != mapiter->second.end(); ++iter) {
+      if (visible)
         iter->shown_as_popup = true;
-      }
+      else
+        iter->is_read = true;
     }
   }
 }
@@ -201,6 +204,15 @@ bool NotificationList::SetNotificationSecondaryIcon(
   return true;
 }
 
+bool NotificationList::SetNotificationImage(const std::string& id,
+                                            const gfx::ImageSkia& image) {
+  Notifications::iterator iter;
+  if (!GetNotification(id, &iter))
+    return false;
+  iter->image = image;
+  return true;
+}
+
 bool NotificationList::HasNotification(const std::string& id) {
   Notifications::iterator dummy;
   return GetNotification(id, &dummy);
@@ -225,7 +237,7 @@ void NotificationList::GetPopupNotifications(
   for (int i = ui::notifications::DEFAULT_PRIORITY;
        i <= ui::notifications::MAX_PRIORITY; ++i) {
     Notifications::iterator first, last;
-    GetPopupIterators(i, first, last);
+    GetPopupIterators(i, &first, &last);
     if (first != last)
       iters.push_back(make_pair(first, last));
   }
@@ -247,9 +259,41 @@ void NotificationList::GetPopupNotifications(
 
 void NotificationList::MarkPopupsAsShown(int priority) {
   Notifications::iterator first, last;
-  GetPopupIterators(priority, first, last);
+  GetPopupIterators(priority, &first, &last);
   for (Notifications::iterator iter = first; iter != last; ++iter)
     iter->shown_as_popup = true;
+}
+
+void NotificationList::MarkSinglePopupAsShown(
+    const std::string& id, bool mark_notification_as_read) {
+  Notifications::iterator iter;
+  if (!GetNotification(id, &iter))
+    return;
+
+  if (iter->shown_as_popup)
+    return;
+
+   // Moves the item to the beginning of the already-shown items.
+  Notification notification = *iter;
+  notification.shown_as_popup = true;
+  if (mark_notification_as_read) {
+    --unread_count_;
+    notification.is_read = true;
+  }
+
+  notifications_[notification.priority].erase(iter);
+  for (Notifications::iterator iter2 =
+           notifications_[notification.priority].begin();
+       iter2 != notifications_[notification.priority].end(); iter2++) {
+    if (iter2->shown_as_popup) {
+      notifications_[notification.priority].insert(iter2, notification);
+      return;
+    }
+  }
+
+  // No notifications are already shown as popup, so just re-adding at the end
+  // of the list.
+  notifications_[notification.priority].push_back(notification);
 }
 
 void NotificationList::SetQuietMode(bool quiet_mode) {
@@ -358,28 +402,32 @@ void NotificationList::PushNotification(Notification& notification) {
 }
 
 void NotificationList::GetPopupIterators(int priority,
-                                         Notifications::iterator& first,
-                                         Notifications::iterator& last) {
+                                         Notifications::iterator* first,
+                                         Notifications::iterator* last) {
   Notifications& notifications = notifications_[priority];
   // No popups for LOW/MIN priority.
   if (priority < ui::notifications::DEFAULT_PRIORITY) {
-    first = notifications.end();
-    last = notifications.end();
+    *first = notifications.end();
+    *last = notifications.end();
     return;
   }
 
   size_t popup_count = 0;
-  first = notifications.begin();
-  last = first;
-  while (last != notifications.end()) {
-    if (last->shown_as_popup)
+  *first = notifications.begin();
+  *last = *first;
+  while (*last != notifications.end()) {
+    if ((*last)->shown_as_popup)
       break;
-    ++last;
-    popup_count++;
-    // No limits for HIGH/MAX priority.
+    ++(*last);
+
+    // Checking limits. No limits for HIGH/MAX priority. DEFAULT priority
+    // will return at most kMaxVisiblePopupNotifications entries. If the
+    // popup entries are more, older entries are used. see crbug.com/165768
     if (priority == ui::notifications::DEFAULT_PRIORITY &&
         popup_count >= kMaxVisiblePopupNotifications) {
-      break;
+      ++(*first);
+    } else {
+      ++popup_count;
     }
   }
 }

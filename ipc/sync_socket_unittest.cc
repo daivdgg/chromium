@@ -14,15 +14,14 @@
 #include "base/threading/thread.h"
 #include "ipc/ipc_channel_proxy.h"
 #include "ipc/ipc_multiprocess_test.h"
-#include "ipc/ipc_tests.h"
+#include "ipc/ipc_test_base.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "testing/multiprocess_func_list.h"
 
 #if defined(OS_POSIX)
 #include "base/file_descriptor_posix.h"
 #endif
 
-// IPC messages for testing ---------------------------------------------------
+// IPC messages for testing ----------------------------------------------------
 
 #define IPC_MESSAGE_IMPL
 #include "ipc/ipc_message_macros.h"
@@ -44,12 +43,12 @@ IPC_MESSAGE_CONTROL1(MsgClassResponse, std::string)
 // Message class to tell the server to shut down.
 IPC_MESSAGE_CONTROL0(MsgClassShutdown)
 
-// ----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 namespace {
+
 const char kHelloString[] = "Hello, SyncSocket Client";
 const size_t kHelloStringLength = arraysize(kHelloString);
-}  // namespace
 
 // The SyncSocket server listener class processes two sorts of
 // messages from the client.
@@ -164,7 +163,7 @@ class SyncSocketClientListener : public IPC::Listener {
   DISALLOW_COPY_AND_ASSIGN(SyncSocketClientListener);
 };
 
-class SyncSocketTest : public IPCChannelTest {
+class SyncSocketTest : public IPCTestBase {
 };
 
 TEST_F(SyncSocketTest, SanityTest) {
@@ -308,3 +307,5 @@ TEST_F(SyncSocketTest, NonBlockingWriteTest) {
   // Should be able to write more data to the buffer now.
   EXPECT_EQ(kHelloStringLength, pair[0].Send(kHelloString, kHelloStringLength));
 }
+
+}  // namespace

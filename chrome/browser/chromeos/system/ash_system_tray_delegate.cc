@@ -175,6 +175,10 @@ void BluetoothDeviceDisconnectError() {
   // TODO(sad): Do something?
 }
 
+void BluetoothSetDiscoveringError() {
+  LOG(ERROR) << "BluetoothSetDiscovering failed.";
+}
+
 void BluetoothDeviceConnectError(
     device::BluetoothDevice::ConnectErrorCode error_code) {
   // TODO(sad): Do something?
@@ -266,7 +270,15 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
     network_icon_->SetResourceColorTheme(NetworkMenuIcon::COLOR_LIGHT);
     network_icon_dark_->SetResourceColorTheme(NetworkMenuIcon::COLOR_DARK);
 
-    bluetooth_adapter_ = device::BluetoothAdapterFactory::DefaultAdapter();
+    device::BluetoothAdapterFactory::RunCallbackOnAdapterReady(
+        base::Bind(&SystemTrayDelegate::InitializeOnAdapterReady,
+                   ui_weak_ptr_factory_->GetWeakPtr()));
+  }
+
+  void InitializeOnAdapterReady(
+      scoped_refptr<device::BluetoothAdapter> adapter) {
+    bluetooth_adapter_ = adapter;
+    CHECK(bluetooth_adapter_);
     bluetooth_adapter_->AddObserver(this);
 
     local_state_registrar_.Init(g_browser_process->local_state());
@@ -477,14 +489,20 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
         bluetooth_adapter_->GetDevices();
     for (size_t i = 0; i < devices.size(); ++i) {
       device::BluetoothDevice* device = devices[i];
-      if (!device->IsPaired())
-        continue;
       ash::BluetoothDeviceInfo info;
       info.address = device->address();
       info.display_name = device->GetName();
       info.connected = device->IsConnected();
+      info.paired = device->IsPaired();
+      info.visible = device->IsVisible();
       list->push_back(info);
     }
+  }
+
+  virtual void BluetoothSetDiscovering(bool value) OVERRIDE {
+    bluetooth_adapter_->SetDiscovering(value,
+        base::Bind(&base::DoNothing),
+        base::Bind(&BluetoothSetDiscoveringError));
   }
 
   virtual void ToggleBluetoothConnection(const std::string& address) OVERRIDE {
@@ -831,6 +849,10 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
     return CrosLibrary::Get()->GetNetworkLibrary()->wifi_scanning();
   }
 
+  virtual bool GetCellularInitializing() OVERRIDE {
+    return CrosLibrary::Get()->GetNetworkLibrary()->cellular_initializing();
+  }
+
   virtual void ShowCellularURL(const std::string& url) OVERRIDE {
     chrome::ShowSingletonTab(GetAppropriateBrowser(), GURL(url));
   }
@@ -1068,9 +1090,14 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
     GetSystemTrayNotifier()->NotifyPowerStatusChanged(power_status);
   }
 
+  // Overridden from PowerManagerClient::Observer:
+  virtual void SystemResumed(const base::TimeDelta& sleep_duration) OVERRIDE {
+    GetSystemTrayNotifier()->NotifyRefreshClock();
+  }
+
   // Overridden from RootPowerManagerObserver:
   virtual void OnResume(const base::TimeDelta& sleep_duration) OVERRIDE {
-    GetSystemTrayNotifier()->NotifyRefreshClock();
+    SystemResumed(sleep_duration);
   }
 
   // Overridden from SessionManagerClient::Observer.
@@ -1354,7 +1381,7 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
     }
   }
 
-  // Oberridden from CloudPolicyStore::Observer
+  // Overridden from CloudPolicyStore::Observer
   virtual void OnStoreLoaded(policy::CloudPolicyStore* store) OVERRIDE {
     UpdateEnterpriseDomain();
   }

@@ -22,6 +22,10 @@
 #include "content/renderer/renderer_webkitplatformsupport_impl.h"
 #include "ipc/ipc_sync_message.h"
 #include "skia/ext/platform_canvas.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebPoint.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebRect.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebSize.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebCursorInfo.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebHelperPlugin.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebPagePopup.h"
@@ -29,10 +33,6 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebPopupMenuInfo.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebRange.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebScreenInfo.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebPoint.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebRect.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebSize.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
 #include "third_party/skia/include/core/SkShader.h"
 #include "ui/base/ui_base_switches.h"
 #include "ui/gfx/rect_conversions.h"
@@ -73,6 +73,51 @@ using WebKit::WebTouchEvent;
 using WebKit::WebVector;
 using WebKit::WebWidget;
 
+namespace {
+const char* GetEventName(WebInputEvent::Type type) {
+#define CASE_TYPE(t) case WebInputEvent::t:  return #t
+  switch(type) {
+    CASE_TYPE(Undefined);
+    CASE_TYPE(MouseDown);
+    CASE_TYPE(MouseUp);
+    CASE_TYPE(MouseMove);
+    CASE_TYPE(MouseEnter);
+    CASE_TYPE(MouseLeave);
+    CASE_TYPE(ContextMenu);
+    CASE_TYPE(MouseWheel);
+    CASE_TYPE(RawKeyDown);
+    CASE_TYPE(KeyDown);
+    CASE_TYPE(KeyUp);
+    CASE_TYPE(Char);
+    CASE_TYPE(GestureScrollBegin);
+    CASE_TYPE(GestureScrollEnd);
+    CASE_TYPE(GestureScrollUpdate);
+    CASE_TYPE(GestureFlingStart);
+    CASE_TYPE(GestureFlingCancel);
+    CASE_TYPE(GestureTap);
+    CASE_TYPE(GestureTapDown);
+    CASE_TYPE(GestureTapCancel);
+    CASE_TYPE(GestureDoubleTap);
+    CASE_TYPE(GestureTwoFingerTap);
+    CASE_TYPE(GestureLongPress);
+    CASE_TYPE(GestureLongTap);
+    CASE_TYPE(GesturePinchBegin);
+    CASE_TYPE(GesturePinchEnd);
+    CASE_TYPE(GesturePinchUpdate);
+    CASE_TYPE(TouchStart);
+    CASE_TYPE(TouchMove);
+    CASE_TYPE(TouchEnd);
+    CASE_TYPE(TouchCancel);
+    default:
+      // Must include default to let WebKit::WebInputEvent add new event types
+      // before they're added here.
+      DLOG(WARNING) << "Unhandled WebInputEvent type in GetEventName.\n";
+      break;
+  }
+#undef CASE_TYPE
+  return "";
+}
+}
 namespace content {
 
 RenderWidget::RenderWidget(WebKit::WebPopupType popup_type,
@@ -555,6 +600,25 @@ void RenderWidget::OnHandleInputEvent(const WebKit::WebInputEvent* input_event,
     return;
   }
 
+  base::TimeDelta now = base::TimeDelta::FromInternalValue(
+      base::TimeTicks::Now().ToInternalValue());
+
+  int64 delta = static_cast<int64>(
+      (now.InSecondsF() - input_event->timeStampSeconds) *
+          base::Time::kMicrosecondsPerSecond);
+  UMA_HISTOGRAM_CUSTOM_COUNTS("Event.Latency.Renderer", delta, 0, 1000000, 100);
+  std::string name_for_event =
+      base::StringPrintf("Event.Latency.Renderer.%s",
+                         GetEventName(input_event->type));
+  base::Histogram* counter_for_type =
+      base::Histogram::FactoryTimeGet(
+          name_for_event,
+          base::TimeDelta::FromMilliseconds(0),
+          base::TimeDelta::FromMilliseconds(1000000),
+          100,
+          base::Histogram::kUmaTargetedHistogramFlag);
+  counter_for_type->AddTime(base::TimeDelta::FromMicroseconds(delta));
+
   bool prevent_default = false;
   if (WebInputEvent::isMouseEventType(input_event->type)) {
     const WebMouseEvent& mouse_event =
@@ -569,6 +633,10 @@ void RenderWidget::OnHandleInputEvent(const WebKit::WebInputEvent* input_event,
         *static_cast<const WebGestureEvent*>(input_event);
     prevent_default = prevent_default || WillHandleGestureEvent(gesture_event);
   }
+
+  if (input_event->type == WebInputEvent::GestureTap ||
+      input_event->type == WebInputEvent::GestureLongPress)
+    resetInputMethod();
 
   bool processed = prevent_default;
   if (input_event->type != WebInputEvent::Char || !suppress_next_char_events_) {
@@ -665,9 +733,6 @@ void RenderWidget::PaintRect(const gfx::Rect& rect,
   const bool kEnableGpuBenchmarking =
       CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kEnableGpuBenchmarking);
-  base::TimeTicks rasterize_begin_ticks;
-  if (kEnableGpuBenchmarking)
-    rasterize_begin_ticks = base::TimeTicks::HighResNow();
   canvas->save();
 
   // Bring the canvas into the coordinate system of the paint rect.
@@ -737,7 +802,7 @@ void RenderWidget::PaintRect(const gfx::Rect& rect,
       base::TimeDelta paint_time =
           base::TimeTicks::HighResNow() - paint_begin_ticks;
       if (!is_accelerated_compositing_active_)
-        software_stats_.totalPaintTimeInSeconds += paint_time.InSecondsF();
+        software_stats_.totalPaintTime += paint_time;
     }
   } else {
     // Normal painting case.
@@ -751,7 +816,7 @@ void RenderWidget::PaintRect(const gfx::Rect& rect,
       base::TimeDelta paint_time =
           base::TimeTicks::HighResNow() - paint_begin_ticks;
       if (!is_accelerated_compositing_active_)
-        software_stats_.totalPaintTimeInSeconds += paint_time.InSecondsF();
+        software_stats_.totalPaintTime += paint_time;
     }
 
     // Flush to underlying bitmap.  TODO(darin): is this needed?
@@ -762,10 +827,6 @@ void RenderWidget::PaintRect(const gfx::Rect& rect,
   canvas->restore();
 
   if (kEnableGpuBenchmarking) {
-    base::TimeDelta rasterize_time =
-        base::TimeTicks::HighResNow() - rasterize_begin_ticks;
-    software_stats_.totalRasterizeTimeInSeconds += rasterize_time.InSecondsF();
-
     int64 num_pixels_processed = rect.width() * rect.height();
     software_stats_.totalPixelsPainted += num_pixels_processed;
     software_stats_.totalPixelsRasterized += num_pixels_processed;
@@ -902,7 +963,7 @@ void RenderWidget::DoDeferredUpdate() {
   }
 
   // Suppress updating when we are hidden.
-  if (is_hidden_ || size_.IsEmpty()) {
+  if (is_hidden_ || size_.IsEmpty() || is_swapped_out_) {
     paint_aggregator_.ClearPendingUpdate();
     needs_repainting_on_restore_ = true;
     TRACE_EVENT0("renderer", "EarlyOut_NotVisible");
@@ -1236,7 +1297,9 @@ void RenderWidget::willBeginCompositorFrame() {
   // The following two can result in further layout and possibly
   // enable GPU acceleration so they need to be called before any painting
   // is done.
+#if !defined(OS_ANDROID)
   UpdateTextInputState(DO_NOT_SHOW_IME);
+#endif  // OS_ANDROID
   UpdateSelectionBounds();
 
   WillInitiatePaint();
@@ -1933,12 +1996,12 @@ void RenderWidget::GetRenderingStats(
       software_stats_.numAnimationFrames;
   stats.rendering_stats.numFramesSentToScreen +=
       software_stats_.numFramesSentToScreen;
-  stats.rendering_stats.totalPaintTimeInSeconds +=
-      software_stats_.totalPaintTimeInSeconds;
+  stats.rendering_stats.totalPaintTime +=
+      software_stats_.totalPaintTime;
   stats.rendering_stats.totalPixelsPainted +=
       software_stats_.totalPixelsPainted;
-  stats.rendering_stats.totalRasterizeTimeInSeconds +=
-      software_stats_.totalRasterizeTimeInSeconds;
+  stats.rendering_stats.totalRasterizeTime +=
+      software_stats_.totalRasterizeTime;
   stats.rendering_stats.totalPixelsRasterized +=
       software_stats_.totalPixelsRasterized;
 }

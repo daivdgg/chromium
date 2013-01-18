@@ -11,18 +11,21 @@
 #include "chrome/browser/net/dns_probe_service.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/net/net_error_info.h"
 #include "chrome/common/pref_names.h"
+#include "chrome/common/render_messages.h"
 #include "content/public/browser/browser_thread.h"
 #include "net/base/net_errors.h"
 
 using base::FieldTrialList;
+using chrome_common_net::DnsProbeResult;
 using content::BrowserContext;
 using content::BrowserThread;
 using content::RenderViewHost;
 using content::WebContents;
 using content::WebContentsObserver;
 
-DEFINE_WEB_CONTENTS_USER_DATA_KEY(chrome_browser_net::NetErrorTabHelper)
+DEFINE_WEB_CONTENTS_USER_DATA_KEY(chrome_browser_net::NetErrorTabHelper);
 
 namespace chrome_browser_net {
 
@@ -48,7 +51,7 @@ bool GetEnabledByTrial() {
 
 void DnsProbeCallback(
     base::WeakPtr<NetErrorTabHelper> tab_helper,
-    DnsProbeService::Result result) {
+    DnsProbeResult result) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::IO));
 
   BrowserThread::PostTask(
@@ -126,12 +129,12 @@ void NetErrorTabHelper::OnMainFrameDnsError() {
   set_dns_probe_running(true);
 }
 
-void NetErrorTabHelper::OnDnsProbeFinished(
-    DnsProbeService::Result result) {
+void NetErrorTabHelper::OnDnsProbeFinished(DnsProbeResult result) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(dns_probe_running_);
 
-  // TODO(ttuttle): Notify renderer of probe results.
+  // Notify renderer of DNS probe results.
+  Send(new ChromeViewMsg_NetErrorInfo(routing_id(), result));
 
   set_dns_probe_running(false);
 }

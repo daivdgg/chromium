@@ -21,11 +21,8 @@ class RendererWebIDBTransactionImpl : public WebKit::WebIDBTransaction {
   explicit RendererWebIDBTransactionImpl(int32 ipc_transaction_id);
   virtual ~RendererWebIDBTransactionImpl();
 
-  virtual WebKit::WebIDBObjectStore* objectStore(long long object_store_id,
-                                                 WebKit::WebExceptionCode&);
   virtual void commit();
   virtual void abort();
-  virtual void didCompleteTaskEvents();
   virtual void setCallbacks(WebKit::WebIDBTransactionCallbacks*);
 
   int ipc_id() const { return ipc_transaction_id_; }

@@ -14,7 +14,7 @@
 #include "base/string_split.h"
 #include "base/utf_string_conversions.h"
 #include "content/renderer/browser_plugin/browser_plugin.h"
-#include "third_party/npapi/bindings/npapi.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebBindings.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDocument.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDOMMessageEvent.h"
@@ -22,7 +22,7 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebFrame.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebNode.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebPluginContainer.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
+#include "third_party/npapi/bindings/npapi.h"
 #include "v8/include/v8.h"
 
 using WebKit::WebBindings;
@@ -54,6 +54,7 @@ const char kAttributeMaxHeight[] = "maxHeight";
 const char kAttributeMaxWidth[] = "maxWidth";
 const char kAttributeMinHeight[] = "minHeight";
 const char kAttributeMinWidth[] = "minWidth";
+const char kAttributeName[] = "name";
 const char kAttributePartition[] = "partition";
 const char kAttributeSrc[] = "src";
 
@@ -576,6 +577,33 @@ class BrowserPluginPropertyBindingMinWidth
   DISALLOW_COPY_AND_ASSIGN(BrowserPluginPropertyBindingMinWidth);
 };
 
+class BrowserPluginPropertyBindingName
+    : public BrowserPluginPropertyBinding {
+ public:
+  BrowserPluginPropertyBindingName() :
+      BrowserPluginPropertyBinding(kAttributeName) {
+  }
+  virtual bool GetProperty(BrowserPluginBindings* bindings,
+                           NPVariant* result) OVERRIDE {
+    std::string name = bindings->instance()->name_attribute();
+    return StringToNPVariant(name, result);
+    return true;
+  }
+  virtual bool SetProperty(BrowserPluginBindings* bindings,
+                           NPObject* np_obj,
+                           const NPVariant* variant) OVERRIDE {
+    std::string name = StringFromNPVariant(*variant);
+    bindings->instance()->SetNameAttribute(name);
+    return true;
+  }
+  virtual std::string GetDOMAttributeValue(
+      BrowserPlugin* browser_plugin) OVERRIDE {
+    return browser_plugin->name_attribute();
+  }
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BrowserPluginPropertyBindingName);
+};
+
 class BrowserPluginPropertyBindingPartition
     : public BrowserPluginPropertyBinding {
  public:
@@ -672,6 +700,7 @@ BrowserPluginBindings::BrowserPluginBindings(BrowserPlugin* instance)
   property_bindings_.push_back(new BrowserPluginPropertyBindingMaxWidth);
   property_bindings_.push_back(new BrowserPluginPropertyBindingMinHeight);
   property_bindings_.push_back(new BrowserPluginPropertyBindingMinWidth);
+  property_bindings_.push_back(new BrowserPluginPropertyBindingName);
   property_bindings_.push_back(new BrowserPluginPropertyBindingPartition);
   property_bindings_.push_back(new BrowserPluginPropertyBindingSrc);
 }

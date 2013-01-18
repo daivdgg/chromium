@@ -45,6 +45,9 @@ const int kReadBufferSize = 8 * 1024;
 const int kDefaultConnectionAtRiskOfLossSeconds = 10;
 const int kHungIntervalSeconds = 10;
 
+// Always start at 1 for the first stream id.
+const SpdyStreamId kFirstStreamId = 1;
+
 // Minimum seconds that unclaimed pushed streams will be kept in memory.
 const int kMinPushedStreamLifetimeSeconds = 300;
 
@@ -231,7 +234,7 @@ SpdySession::SpdySession(const HostPortProxyPair& host_port_proxy_pair,
       connection_(new ClientSocketHandle),
       read_buffer_(new IOBuffer(kReadBufferSize)),
       read_pending_(false),
-      stream_hi_water_mark_(1),  // Always start at 1 for the first stream id.
+      stream_hi_water_mark_(kFirstStreamId),
       write_pending_(false),
       delayed_write_pending_(false),
       is_secure_(false),
@@ -1105,6 +1108,12 @@ bool SpdySession::IsReused() const {
   return buffered_spdy_framer_->frames_received() > 0;
 }
 
+bool SpdySession::GetLoadTimingInfo(SpdyStreamId stream_id,
+                                    LoadTimingInfo* load_timing_info) const {
+  return connection_->GetLoadTimingInfo(stream_id != kFirstStreamId,
+                                        load_timing_info);
+}
+
 int SpdySession::GetPeerAddress(IPEndPoint* address) const {
   if (!connection_->socket())
     return ERR_SOCKET_NOT_CONNECTED;
@@ -1485,7 +1494,6 @@ void SpdySession::OnSynReply(SpdyStreamId stream_id,
 
   if (!IsStreamActive(stream_id)) {
     // NOTE:  it may just be that the stream was cancelled.
-    LOG(WARNING) << "Received SYN_REPLY for invalid stream " << stream_id;
     return;
   }
 

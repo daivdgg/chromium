@@ -21,8 +21,12 @@
 #include "chrome/common/content_settings_pattern.h"
 #include "chrome/common/extensions/extension.h"
 #include "chrome/common/extensions/extension_constants.h"
+#include "chrome/common/extensions/extension_manifest_constants.h"
 #include "chrome/common/extensions/extension_process_policy.h"
 #include "chrome/common/extensions/extension_set.h"
+#include "chrome/common/extensions/manifest_handler.h"
+#include "chrome/common/extensions/manifest_url_handler.h"
+#include "chrome/common/extensions/web_accessible_resources_handler.h"
 #include "chrome/common/external_ipc_fuzzer.h"
 #include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/localized_error.h"
@@ -75,9 +79,9 @@
 #include "grit/renderer_resources.h"
 #include "ipc/ipc_sync_channel.h"
 #include "net/base/net_errors.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURL.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURLError.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURLRequest.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURL.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLError.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLRequest.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebCache.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDataSource.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDocument.h"
@@ -116,6 +120,17 @@ using WebKit::WebURLResponse;
 using WebKit::WebVector;
 
 namespace {
+
+// Explicitly register all extension ManifestHandlers needed to parse
+// fields used in the renderer.
+void RegisterExtensionManifestHandlers() {
+  extensions::ManifestHandler::Register(
+      extension_manifest_keys::kDevToolsPage,
+      new extensions::DevToolsPageHandler);
+  extensions::ManifestHandler::Register(
+      extension_manifest_keys::kWebAccessibleResources,
+      new extensions::WebAccessibleResourcesHandler);
+}
 
 static void AppendParams(const std::vector<string16>& additional_names,
                          const std::vector<string16>& additional_values,
@@ -258,6 +273,8 @@ void ChromeContentRendererClient::RenderThreadStarted() {
       extension_scheme);
   WebSecurityPolicy::registerURLSchemeAsBypassingContentSecurityPolicy(
       extension_resource_scheme);
+
+  RegisterExtensionManifestHandlers();
 }
 
 void ChromeContentRendererClient::RenderViewCreated(

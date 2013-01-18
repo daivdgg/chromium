@@ -12,6 +12,7 @@
 #include "cc/hash_pair.h"
 #include "cc/region.h"
 #include "cc/tile.h"
+#include "cc/tile_priority.h"
 #include "cc/tiling_data.h"
 #include "ui/gfx/rect.h"
 
@@ -38,6 +39,8 @@ class CC_EXPORT PictureLayerTiling {
   void Invalidate(const Region& layer_invalidation);
 
   void SetClient(PictureLayerTilingClient* client);
+  void set_resolution(TileResolution resolution) { resolution_ = resolution; }
+  TileResolution resolution() const { return resolution_; }
 
   gfx::Rect ContentRect() const;
   float contents_scale() const { return contents_scale_; }
@@ -49,7 +52,10 @@ class CC_EXPORT PictureLayerTiling {
   class CC_EXPORT Iterator {
    public:
     Iterator();
-    Iterator(PictureLayerTiling* tiling, float dest_scale, gfx::Rect rect);
+    Iterator(
+        const PictureLayerTiling* tiling,
+        float dest_scale,
+        gfx::Rect rect);
     ~Iterator();
 
     // Visible rect (no borders), always in the space of content_rect,
@@ -66,7 +72,7 @@ class CC_EXPORT PictureLayerTiling {
     operator bool() const { return tile_j_ <= bottom_; }
 
    private:
-    PictureLayerTiling* tiling_;
+    const PictureLayerTiling* tiling_;
     gfx::Rect dest_rect_;
     float dest_to_content_scale_;
 
@@ -89,11 +95,13 @@ class CC_EXPORT PictureLayerTiling {
   void UpdateTilePriorities(
       WhichTree tree,
       const gfx::Size& device_viewport,
-      float layer_content_scale_x,
-      float layer_content_scale_y,
+      float last_contents_scale,
+      float current_contents_scale,
       const gfx::Transform& last_screen_transform,
       const gfx::Transform& current_screen_transform,
       double time_delta);
+
+  void MoveTilePriorities(WhichTree src_tree, WhichTree dst_tree);
 
  protected:
   typedef std::pair<int, int> TileMapKey;
@@ -108,6 +116,7 @@ class CC_EXPORT PictureLayerTiling {
   gfx::Size layer_bounds_;
   TileMap tiles_;
   TilingData tiling_data_;
+  TileResolution resolution_;
 
   friend class Iterator;
 };

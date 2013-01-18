@@ -33,8 +33,9 @@
 #include "chrome/browser/extensions/api/app_runtime/app_runtime_api.h"
 #include "chrome/browser/extensions/api/declarative/rules_registry_service.h"
 #include "chrome/browser/extensions/api/extension_action/extension_actions_api.h"
-#include "chrome/browser/extensions/api/push_messaging/push_messaging_api_factory.h"
+#include "chrome/browser/extensions/api/profile_keyed_api_factory.h"
 #include "chrome/browser/extensions/api/runtime/runtime_api.h"
+#include "chrome/browser/extensions/api/storage/settings_frontend.h"
 #include "chrome/browser/extensions/app_notification_manager.h"
 #include "chrome/browser/extensions/app_sync_data.h"
 #include "chrome/browser/extensions/browser_event_router.h"
@@ -51,7 +52,6 @@
 #include "chrome/browser/extensions/extension_special_storage_policy.h"
 #include "chrome/browser/extensions/extension_sync_data.h"
 #include "chrome/browser/extensions/extension_system.h"
-#include "chrome/browser/extensions/extension_web_ui.h"
 #include "chrome/browser/extensions/external_install_ui.h"
 #include "chrome/browser/extensions/external_provider_impl.h"
 #include "chrome/browser/extensions/external_provider_interface.h"
@@ -61,7 +61,6 @@
 #include "chrome/browser/extensions/pending_extension_manager.h"
 #include "chrome/browser/extensions/permissions_updater.h"
 #include "chrome/browser/extensions/platform_app_launcher.h"
-#include "chrome/browser/extensions/settings/settings_frontend.h"
 #include "chrome/browser/extensions/shell_window_registry.h"
 #include "chrome/browser/extensions/unpacked_installer.h"
 #include "chrome/browser/extensions/updater/extension_updater.h"
@@ -89,6 +88,7 @@
 #include "chrome/common/extensions/feature_switch.h"
 #include "chrome/common/extensions/features/feature.h"
 #include "chrome/common/extensions/manifest.h"
+#include "chrome/common/extensions/manifest_url_handler.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/browser_thread.h"
@@ -111,10 +111,7 @@
 #include "webkit/database/database_util.h"
 
 #if defined(OS_CHROMEOS)
-#include "chrome/browser/chromeos/cros/cros_library.h"
-#include "chrome/browser/chromeos/extensions/media_player_event_router.h"
-#include "chrome/browser/chromeos/input_method/input_method_manager.h"
-#include "content/public/browser/storage_partition.h"
+#include "chrome/browser/chromeos/extensions/install_limiter.h"
 #include "webkit/fileapi/file_system_context.h"
 #include "webkit/fileapi/file_system_mount_point_provider.h"
 #endif
@@ -359,6 +356,7 @@ ExtensionService::ExtensionService(Profile* profile,
       browser_terminating_(false),
       installs_delayed_(false),
       wipeout_is_active_(false),
+      wipeout_count_(0u),
       app_sync_bundle_(ALLOW_THIS_IN_INITIALIZER_LIST(this)),
       extension_sync_bundle_(ALLOW_THIS_IN_INITIALIZER_LIST(this)),
       app_shortcut_manager_(profile) {
@@ -520,13 +518,6 @@ void ExtensionService::InitEventRouters() {
 
 #if defined(ENABLE_EXTENSIONS)
   browser_event_router_.reset(new extensions::BrowserEventRouter(profile_));
-
-  extensions::PushMessagingAPIFactory::GetForProfile(profile_);
-
-#if defined(OS_CHROMEOS)
-
-  ExtensionMediaPlayerEventRouter::GetInstance()->Init(profile_);
-#endif  // defined(OS_CHROMEOS)
 #endif  // defined(ENABLE_EXTENSIONS)
   event_routers_initialized_ = true;
 }
@@ -613,6 +604,8 @@ void ExtensionService::Init() {
   if (wipeout_is_active_) {
     extension_prefs_->SetSideloadWipeoutDone();
     wipeout_is_active_ = false;  // Wipeout is only on during load.
+    UMA_HISTOGRAM_BOOLEAN("DisabledExtension.SideloadWipeoutNeeded",
+                          wipeout_count_ > 0u);
   }
 
   if (extension_prefs_->NeedsStorageGarbageCollection()) {
@@ -709,8 +702,7 @@ void ExtensionService::ReloadExtension(const std::string& extension_id) {
 }
 
 void ExtensionService::RestartExtension(const std::string& extension_id) {
-  int events = HasShellWindows(extension_id) ? EVENT_RESTARTED : EVENT_NONE;
-  ReloadExtensionWithEvents(extension_id, events);
+  ReloadExtensionWithEvents(extension_id, EVENT_RESTARTED);
 }
 
 void ExtensionService::ReloadExtensionWithEvents(
@@ -1069,9 +1061,6 @@ void ExtensionService::NotifyExtensionLoaded(const Extension* extension) {
 
   UpdateActiveExtensionsInCrashReporter();
 
-  ExtensionWebUI::RegisterChromeURLOverrides(
-      profile_, extension->GetChromeURLOverrides());
-
   // If the extension has permission to load chrome://favicon/ resources we need
   // to make sure that the FaviconSource is registered with the
   // ChromeURLDataManager.
@@ -1092,8 +1081,7 @@ void ExtensionService::NotifyExtensionLoaded(const Extension* extension) {
   // Same for chrome://thumb/ resources.
   if (extension->HasHostPermission(GURL(chrome::kChromeUIThumbnailURL))) {
     ThumbnailSource* thumbnail_source = new ThumbnailSource(profile_);
-    ChromeURLDataManagerFactory::GetForProfile(profile_)->
-        AddDataSource(thumbnail_source);
+    ChromeURLDataManager::AddDataSource(profile_, thumbnail_source);
   }
 
 #if defined(ENABLE_PLUGINS)
@@ -1163,13 +1151,14 @@ void ExtensionService::NotifyExtensionUnloaded(
   profile_->GetExtensionSpecialStoragePolicy()->
       RevokeRightsForExtension(extension);
 
-  ExtensionWebUI::UnregisterChromeURLOverrides(
-      profile_, extension->GetChromeURLOverrides());
-
 #if defined(OS_CHROMEOS)
-  // Revoke external file access to third party extensions.
+  // Revoke external file access for the extension from its file system context.
+  // It is safe to access the extension's storage partition at this point. The
+  // storage partition may get destroyed only after the extension gets unloaded.
+  GURL site = extensions::ExtensionSystem::Get(profile_)->extension_service()->
+      GetSiteForExtensionId(extension->id());
   fileapi::FileSystemContext* filesystem_context =
-      BrowserContext::GetDefaultStoragePartition(profile_)->
+      BrowserContext::GetStoragePartitionForSite(profile_, site)->
           GetFileSystemContext();
   if (filesystem_context && filesystem_context->external_provider()) {
     filesystem_context->external_provider()->
@@ -1842,14 +1831,6 @@ bool ExtensionService::PopulateExtensionErrorUI(
         needs_alert = true;
       }
     }
-
-    // Orphaned extensions.
-    if (extension_prefs_->IsExtensionOrphaned(e->id())) {
-      if (!extension_prefs_->IsOrphanedExtensionAcknowledged(e->id())) {
-        extension_error_ui->AddOrphanedExtension(e->id());
-        needs_alert = true;
-      }
-    }
   }
 
   return needs_alert;
@@ -1865,11 +1846,6 @@ void ExtensionService::HandleExtensionAlertAccept() {
   for (ExtensionIdSet::const_iterator iter = extension_ids->begin();
        iter != extension_ids->end(); ++iter) {
     extension_prefs_->AcknowledgeBlacklistedExtension(*iter);
-  }
-  extension_ids = extension_error_ui_->get_orphaned_extension_ids();
-  for (ExtensionIdSet::const_iterator iter = extension_ids->begin();
-       iter != extension_ids->end(); ++iter) {
-    extension_prefs_->AcknowledgeOrphanedExtension(*iter);
   }
 }
 
@@ -2321,6 +2297,7 @@ void ExtensionService::MaybeWipeout(
         static_cast<Extension::DisableReason>(
         Extension::DISABLE_SIDELOAD_WIPEOUT));
     UMA_HISTOGRAM_BOOLEAN("DisabledExtension.ExtensionWipedStatus", true);
+    wipeout_count_++;
   }
 }
 
@@ -2352,7 +2329,8 @@ void ExtensionService::OnExtensionInstalled(
 
       LOG(WARNING) << "ShouldAllowInstall() returned false for "
                    << id << " of type " << extension->GetType()
-                   << " and update URL " << extension->update_url().spec()
+                   << " and update URL "
+                   << extensions::ManifestURL::GetUpdateURL(extension).spec()
                    << "; not installing";
 
       content::NotificationService::current()->Notify(
@@ -2626,7 +2604,11 @@ bool ExtensionService::OnExternalExtensionFileFound(
   installer->set_expected_version(*version);
   installer->set_install_cause(extension_misc::INSTALL_CAUSE_EXTERNAL_FILE);
   installer->set_creation_flags(creation_flags);
+#if defined(OS_CHROMEOS)
+  extensions::InstallLimiter::Get(profile_)->Add(installer, path);
+#else
   installer->InstallCrx(path);
+#endif
 
   // Depending on the source, a new external extension might not need a user
   // notification on installation. For such extensions, mark them acknowledged

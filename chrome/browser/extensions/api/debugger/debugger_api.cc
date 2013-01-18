@@ -59,22 +59,29 @@ class ExtensionDevToolsClientHost;
 
 class ExtensionDevToolsInfoBarDelegate : public ConfirmInfoBarDelegate {
  public:
-  ExtensionDevToolsInfoBarDelegate(
+  // Creates an extension dev tools delegate and adds it to |infobar_service|.
+  // Returns a pointer to the delegate if it was successfully added.
+  static ExtensionDevToolsInfoBarDelegate* Create(
       InfoBarService* infobar_service,
       const std::string& client_name,
       ExtensionDevToolsClientHost* client_host);
-  virtual ~ExtensionDevToolsInfoBarDelegate();
 
   // Notifies infobar delegate that associated DevToolsClientHost will be
   // destroyed.
   void DiscardClientHost();
 
  private:
+  ExtensionDevToolsInfoBarDelegate(
+      InfoBarService* infobar_service,
+      const std::string& client_name,
+      ExtensionDevToolsClientHost* client_host);
+  virtual ~ExtensionDevToolsInfoBarDelegate();
+
   // ConfirmInfoBarDelegate:
-  virtual bool ShouldExpire(
-      const content::LoadCommittedDetails& details) const OVERRIDE;
   virtual int GetButtons() const OVERRIDE;
   virtual Type GetInfoBarType() const OVERRIDE;
+  virtual bool ShouldExpireInternal(
+      const content::LoadCommittedDetails& details) const OVERRIDE;
   virtual string16 GetMessageText() const OVERRIDE;
   virtual void InfoBarDismissed() OVERRIDE;
   virtual bool Cancel() OVERRIDE;
@@ -97,7 +104,7 @@ class ExtensionDevToolsClientHost : public DevToolsClientHost,
   bool MatchesContentsAndExtensionId(WebContents* web_contents,
                                      const std::string& extension_id);
   void Close();
-  void SendMessageToBackend(SendCommandDebuggerFunction* function,
+  void SendMessageToBackend(DebuggerSendCommandFunction* function,
                             const std::string& method,
                             SendCommand::Params::CommandParams* command_params);
 
@@ -122,7 +129,7 @@ class ExtensionDevToolsClientHost : public DevToolsClientHost,
   int tab_id_;
   content::NotificationRegistrar registrar_;
   int last_request_id_;
-  typedef std::map<int, scoped_refptr<SendCommandDebuggerFunction> >
+  typedef std::map<int, scoped_refptr<DebuggerSendCommandFunction> >
       PendingRequests;
   PendingRequests pending_requests_;
   ExtensionDevToolsInfoBarDelegate* infobar_delegate_;
@@ -196,14 +203,12 @@ ExtensionDevToolsClientHost::ExtensionDevToolsClientHost(
 
   InfoBarService* infobar_service =
       InfoBarService::FromWebContents(web_contents_);
-  infobar_delegate_ = new ExtensionDevToolsInfoBarDelegate(infobar_service,
-                                                           extension_name,
-                                                           this);
-  if (infobar_service->AddInfoBar(infobar_delegate_)) {
+  infobar_delegate_ = ExtensionDevToolsInfoBarDelegate::Create(infobar_service,
+                                                               extension_name,
+                                                               this);
+  if (infobar_delegate_) {
     registrar_.Add(this, chrome::NOTIFICATION_TAB_CONTENTS_INFOBAR_REMOVED,
                    content::Source<InfoBarService>(infobar_service));
-  } else {
-    infobar_delegate_ = NULL;
   }
 }
 
@@ -244,7 +249,7 @@ void ExtensionDevToolsClientHost::Close() {
 }
 
 void ExtensionDevToolsClientHost::SendMessageToBackend(
-    SendCommandDebuggerFunction* function,
+    DebuggerSendCommandFunction* function,
     const std::string& method,
     SendCommand::Params::CommandParams* command_params) {
   DictionaryValue protocol_request;
@@ -338,13 +343,28 @@ void ExtensionDevToolsClientHost::DispatchOnInspectorFrontend(
     extensions::ExtensionSystem::Get(profile)->event_router()->
         DispatchEventToExtension(extension_id_, event.Pass());
   } else {
-    SendCommandDebuggerFunction* function = pending_requests_[id];
+    DebuggerSendCommandFunction* function = pending_requests_[id];
     if (!function)
       return;
 
     function->SendResponseBody(dictionary);
     pending_requests_.erase(id);
   }
+}
+
+// static
+ExtensionDevToolsInfoBarDelegate* ExtensionDevToolsInfoBarDelegate::Create(
+    InfoBarService* infobar_service,
+    const std::string& client_name,
+    ExtensionDevToolsClientHost* client_host) {
+  return static_cast<ExtensionDevToolsInfoBarDelegate*>(
+      infobar_service->AddInfoBar(scoped_ptr<InfoBarDelegate>(
+          new ExtensionDevToolsInfoBarDelegate(infobar_service, client_name,
+                                               client_host))));
+}
+
+void ExtensionDevToolsInfoBarDelegate::DiscardClientHost() {
+  client_host_ = NULL;
 }
 
 ExtensionDevToolsInfoBarDelegate::ExtensionDevToolsInfoBarDelegate(
@@ -359,21 +379,17 @@ ExtensionDevToolsInfoBarDelegate::ExtensionDevToolsInfoBarDelegate(
 ExtensionDevToolsInfoBarDelegate::~ExtensionDevToolsInfoBarDelegate() {
 }
 
-void ExtensionDevToolsInfoBarDelegate::DiscardClientHost() {
-  client_host_ = NULL;
-}
-
-bool ExtensionDevToolsInfoBarDelegate::ShouldExpire(
-    const content::LoadCommittedDetails& details) const {
-  return false;
-}
-
 int ExtensionDevToolsInfoBarDelegate::GetButtons() const {
   return BUTTON_CANCEL;
 }
 
 InfoBarDelegate::Type ExtensionDevToolsInfoBarDelegate::GetInfoBarType() const {
   return WARNING_TYPE;
+}
+
+bool ExtensionDevToolsInfoBarDelegate::ShouldExpireInternal(
+    const content::LoadCommittedDetails& details) const {
+  return false;
 }
 
 string16 ExtensionDevToolsInfoBarDelegate::GetMessageText() const {
@@ -441,11 +457,11 @@ bool DebuggerFunction::InitClientHost() {
   return true;
 }
 
-AttachDebuggerFunction::AttachDebuggerFunction() {}
+DebuggerAttachFunction::DebuggerAttachFunction() {}
 
-AttachDebuggerFunction::~AttachDebuggerFunction() {}
+DebuggerAttachFunction::~DebuggerAttachFunction() {}
 
-bool AttachDebuggerFunction::RunImpl() {
+bool DebuggerAttachFunction::RunImpl() {
   scoped_ptr<Attach::Params> params(Attach::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
 
@@ -481,11 +497,11 @@ bool AttachDebuggerFunction::RunImpl() {
   return true;
 }
 
-DetachDebuggerFunction::DetachDebuggerFunction() {}
+DebuggerDetachFunction::DebuggerDetachFunction() {}
 
-DetachDebuggerFunction::~DetachDebuggerFunction() {}
+DebuggerDetachFunction::~DebuggerDetachFunction() {}
 
-bool DetachDebuggerFunction::RunImpl() {
+bool DebuggerDetachFunction::RunImpl() {
   scoped_ptr<Detach::Params> params(Detach::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
 
@@ -498,11 +514,11 @@ bool DetachDebuggerFunction::RunImpl() {
   return true;
 }
 
-SendCommandDebuggerFunction::SendCommandDebuggerFunction() {}
+DebuggerSendCommandFunction::DebuggerSendCommandFunction() {}
 
-SendCommandDebuggerFunction::~SendCommandDebuggerFunction() {}
+DebuggerSendCommandFunction::~DebuggerSendCommandFunction() {}
 
-bool SendCommandDebuggerFunction::RunImpl() {
+bool DebuggerSendCommandFunction::RunImpl() {
   scoped_ptr<SendCommand::Params> params(SendCommand::Params::Create(*args_));
   EXTENSION_FUNCTION_VALIDATE(params.get());
 
@@ -515,7 +531,7 @@ bool SendCommandDebuggerFunction::RunImpl() {
   return true;
 }
 
-void SendCommandDebuggerFunction::SendResponseBody(
+void DebuggerSendCommandFunction::SendResponseBody(
     DictionaryValue* response) {
   Value* error_body;
   if (response->Get("error", &error_body)) {

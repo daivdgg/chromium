@@ -37,6 +37,11 @@ const char kAshDebugShortcuts[] = "ash-debug-shortcuts";
 const char kAshDisableAutoWindowPlacement[] =
     "ash-enable-auto-window-placement";
 
+// Disables the limitter to throttle how quickly a user
+// can change display settings.
+const char kAshDisableDisplayChangeLimiter[] =
+    "ash-disable-display-change-limiter";
+
 // Disables boot animation v2, go back to v1.
 const char kAshDisableBootAnimation2[] = "ash-disable-boot-animation2";
 
@@ -45,6 +50,10 @@ const char kAshDisablePanelFitting[] = "ash-disable-panel-fitting";
 
 // Enable advanced gestures (e.g. for window management).
 const char kAshEnableAdvancedGestures[] = "ash-enable-advanced-gestures";
+
+// Always enable brightness control. Used by machines that don't report their
+// main monitor as internal.
+const char kAshEnableBrightnessControl[] = "ash-enable-brightness-control";
 
 // Enable workspace switching via a three finger vertical scroll.
 const char kAshEnableWorkspaceScrubbing[] = "ash-enable-workspace-scrubbing";

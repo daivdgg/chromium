@@ -388,7 +388,10 @@ bool OSExchangeDataProviderWin::GetURLAndTitle(GURL* url,
     GURL test_url(url_str);
     if (test_url.is_valid()) {
       *url = test_url;
+      *title = net::GetSuggestedFilename(*url, "", "", "", "", std::string());
       return true;
+    } else {
+      *title = l10n_util::GetStringUTF16(IDS_APP_UNTITLED_SHORTCUT_FILE_NAME);
     }
   } else if (GetPlainTextURL(source_object_, url)) {
     title->clear();
@@ -498,6 +501,25 @@ void OSExchangeDataProviderWin::SetDownloadFileInfo(
   info->downloader = download.downloader;
   data_->contents_.push_back(info);
 }
+
+#if defined(USE_AURA)
+
+void OSExchangeDataProviderWin::SetDragImage(
+    const gfx::ImageSkia& image,
+    const gfx::Vector2d& cursor_offset) {
+  drag_image_ = image;
+  drag_image_offset_ = cursor_offset;
+}
+
+const gfx::ImageSkia& OSExchangeDataProviderWin::GetDragImage() const {
+  return drag_image_;
+}
+
+const gfx::Vector2d& OSExchangeDataProviderWin::GetDragImageOffset() const {
+  return drag_image_offset_;
+}
+
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // DataObjectImpl, IDataObject implementation:
@@ -945,10 +967,8 @@ static STGMEDIUM* GetStorageForFileDescriptor(
   FILEGROUPDESCRIPTOR* descriptor = locked_mem.get();
   descriptor->cItems = 1;
   descriptor->fgd[0].dwFlags = FD_LINKUI;
-  wcsncpy_s(descriptor->fgd[0].cFileName,
-            MAX_PATH,
-            file_name.c_str(),
-            std::min(file_name.size(), MAX_PATH - 1u));
+  wcsncpy_s(descriptor->fgd[0].cFileName, MAX_PATH, file_name.c_str(),
+            std::min(file_name.size(), static_cast<size_t>(MAX_PATH - 1u)));
 
   STGMEDIUM* storage = new STGMEDIUM;
   storage->tymed = TYMED_HGLOBAL;

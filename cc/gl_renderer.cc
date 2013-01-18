@@ -29,6 +29,7 @@
 #include "cc/stream_video_draw_quad.h"
 #include "cc/texture_draw_quad.h"
 #include "cc/video_layer_impl.h"
+#include "gpu/GLES2/gl2extchromium.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebGraphicsContext3D.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebSharedGraphicsContext3D.h"
 #include "third_party/khronos/GLES2/gl2.h"
@@ -518,13 +519,14 @@ void GLRenderer::drawRenderPassQuad(DrawingFrame& frame, const RenderPassDrawQua
 
     gfx::Transform quadRectMatrix;
     quadRectTransform(&quadRectMatrix, quad->quadTransform(), quad->rect);
-    gfx::Transform contentsDeviceTransform = MathUtil::to2dTransform(frame.windowMatrix * frame.projectionMatrix * quadRectMatrix);
+    gfx::Transform contentsDeviceTransform = frame.windowMatrix * frame.projectionMatrix * quadRectMatrix;
+    contentsDeviceTransform.FlattenTo2d();
 
     // Can only draw surface if device matrix is invertible.
-    if (!contentsDeviceTransform.IsInvertible())
+    gfx::Transform contentsDeviceTransformInverse(gfx::Transform::kSkipInitialization);
+    if (!contentsDeviceTransform.GetInverse(&contentsDeviceTransformInverse))
         return;
 
-    gfx::Transform contentsDeviceTransformInverse = MathUtil::inverse(contentsDeviceTransform);
     scoped_ptr<ScopedResource> backgroundTexture = drawBackgroundFilters(
         frame, quad, contentsDeviceTransform, contentsDeviceTransformInverse);
 
@@ -664,7 +666,7 @@ void GLRenderer::drawRenderPassQuad(DrawingFrame& frame, const RenderPassDrawQua
         GLC(context(), context()->uniform3fv(shaderEdgeLocation, 8, edge));
     }
 
-    // Map device space quad to surface space. contentsDeviceTransform has no 3d component since it was generated with to2dTransform() so we don't need to project.
+    // Map device space quad to surface space. contentsDeviceTransform has no 3d component since it was flattened, so we don't need to project.
     gfx::QuadF surfaceQuad = MathUtil::mapQuad(contentsDeviceTransformInverse, deviceLayerEdges.ToQuadF(), clipped);
     DCHECK(!clipped);
 
@@ -769,7 +771,8 @@ void GLRenderer::drawTileQuad(const DrawingFrame& frame, const TileDrawQuad* qua
 
 
     gfx::QuadF localQuad;
-    gfx::Transform deviceTransform = MathUtil::to2dTransform(frame.windowMatrix * frame.projectionMatrix * quad->quadTransform());
+    gfx::Transform deviceTransform = frame.windowMatrix * frame.projectionMatrix * quad->quadTransform();
+    deviceTransform.FlattenTo2d();
     if (!deviceTransform.IsInvertible())
         return;
 
@@ -860,9 +863,12 @@ void GLRenderer::drawTileQuad(const DrawingFrame& frame, const TileDrawQuad* qua
         // Create device space quad.
         LayerQuad deviceQuad(leftEdge, topEdge, rightEdge, bottomEdge);
 
-        // Map device space quad to local space. deviceTransform has no 3d component since it was generated with to2dTransform() so we don't need to project.
-        gfx::Transform deviceTransformInverse = MathUtil::inverse(deviceTransform);
-        localQuad = MathUtil::mapQuad(deviceTransformInverse, deviceQuad.ToQuadF(), clipped);
+        // Map device space quad to local space. deviceTransform has no 3d component since it was flattened, so we don't need to project.
+        // We should have already checked that the transform was uninvertible above.
+        gfx::Transform inverseDeviceTransform(gfx::Transform::kSkipInitialization);
+        bool didInvert = deviceTransform.GetInverse(&inverseDeviceTransform);
+        DCHECK(didInvert);
+        localQuad = MathUtil::mapQuad(inverseDeviceTransform, deviceQuad.ToQuadF(), clipped);
 
         // We should not DCHECK(!clipped) here, because anti-aliasing inflation may cause deviceQuad to become
         // clipped. To our knowledge this scenario does not need to be handled differently than the unclipped case.
@@ -1171,7 +1177,7 @@ void GLRenderer::finishDrawingFrame(DrawingFrame& frame)
         compositor_frame.metadata = m_client->makeCompositorFrameMetadata();
         compositor_frame.gl_frame_data.reset(new GLFrameData());
         // FIXME: Fill in GLFrameData when we implement swapping with it.
-        m_outputSurface->SendFrameToParentCompositor(compositor_frame);
+        m_outputSurface->SendFrameToParentCompositor(&compositor_frame);
     }
 }
 

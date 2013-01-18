@@ -17,7 +17,7 @@ class GURL;
 namespace content {
 
 enum DownloadType {
-  SRC_NEW_DOWNLOAD,
+  SRC_ACTIVE_DOWNLOAD,
   SRC_HISTORY_IMPORT,
   SRC_SAVE_PAGE_AS
 };
@@ -32,7 +32,6 @@ base::Value* ItemActivatedNetLogCallback(
 // Returns NetLog parameters when a DownloadItem is checked for danger.
 base::Value* ItemCheckedNetLogCallback(
     DownloadDangerType danger_type,
-    DownloadItem::SafetyState safety_state,
     net::NetLog::LogLevel log_level);
 
 // Returns NetLog parameters when a DownloadItem is renamed.
@@ -45,6 +44,13 @@ base::Value* ItemInterruptedNetLogCallback(DownloadInterruptReason reason,
                                            int64 bytes_so_far,
                                            const std::string* hash_state,
                                            net::NetLog::LogLevel log_level);
+
+// Returns NetLog parameters when a DownloadItem is resumed.
+base::Value* ItemResumingNetLogCallback(bool user_initiated,
+                                        DownloadInterruptReason reason,
+                                        int64 bytes_so_far,
+                                        const std::string* hash_state,
+                                        net::NetLog::LogLevel log_level);
 
 // Returns NetLog parameters when a DownloadItem is completing.
 base::Value* ItemCompletingNetLogCallback(int64 bytes_so_far,

@@ -68,11 +68,11 @@ static int GetRoutingID(PP_Instance instance) {
 // Launch NaCl's sel_ldr process.
 PP_NaClResult LaunchSelLdr(PP_Instance instance,
                            const char* alleged_url,
+                           PP_Bool uses_irt,
                            PP_Bool uses_ppapi,
                            PP_Bool enable_ppapi_dev,
-                           int socket_count,
-                           void* imc_handles) {
-  std::vector<nacl::FileDescriptor> sockets;
+                           void* imc_handle) {
+  nacl::FileDescriptor result_socket;
   IPC::Sender* sender = content::RenderThread::Get();
   if (sender == NULL)
     sender = g_background_thread_sender.Pointer()->get();
@@ -101,10 +101,11 @@ PP_NaClResult LaunchSelLdr(PP_Instance instance,
       ppapi::PpapiPermissions::GetForCommandLine(perm_bits);
 
   if (!sender->Send(new ChromeViewHostMsg_LaunchNaCl(
-          instance_info.url,
-          routing_id,
-          perm_bits,
-          socket_count, &sockets,
+          nacl::NaClLaunchParams(instance_info.url.spec(),
+                                 routing_id,
+                                 perm_bits,
+                                 PP_ToBool(uses_irt)),
+          &result_socket,
           &instance_info.channel_handle,
           &instance_info.plugin_pid,
           &instance_info.plugin_child_id))) {
@@ -120,11 +121,8 @@ PP_NaClResult LaunchSelLdr(PP_Instance instance,
   if (!invalid_handle)
     g_instance_info.Get()[instance] = instance_info;
 
-  CHECK(static_cast<int>(sockets.size()) == socket_count);
-  for (int i = 0; i < socket_count; i++) {
-    static_cast<nacl::Handle*>(imc_handles)[i] =
-        nacl::ToNativeHandle(sockets[i]);
-  }
+  *(static_cast<nacl::Handle*>(imc_handle)) =
+      nacl::ToNativeHandle(result_socket);
 
   return PP_NACL_OK;
 }

@@ -8,9 +8,10 @@
 #include "cc/layer.h"
 #include "cc/layer_animation_controller.h"
 #include "cc/layer_impl.h"
+#include "cc/transform_operations.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebTransformOperations.h"
 
-using cc::ActiveAnimation;
+using cc::Animation;
 using cc::AnimationCurve;
 using cc::EaseTimingFunction;
 using cc::FloatKeyframe;
@@ -37,7 +38,7 @@ int addOpacityTransition(Target& target, double duration, float startOpacity, fl
 
     int id = nextAnimationId++;
 
-    scoped_ptr<ActiveAnimation> animation(ActiveAnimation::create(curve.PassAs<AnimationCurve>(), id, 0, ActiveAnimation::Opacity));
+    scoped_ptr<Animation> animation(Animation::create(curve.PassAs<AnimationCurve>(), id, 0, Animation::Opacity));
     animation->setNeedsSynchronizedStartTime(true);
 
     target.addAnimation(animation.Pass());
@@ -49,6 +50,16 @@ int addAnimatedTransform(Target& target, double duration, int deltaX, int deltaY
 {
     scoped_ptr<KeyframedTransformAnimationCurve> curve(KeyframedTransformAnimationCurve::create());
 
+#if WEB_TRANSFORM_OPERATIONS_IS_VIRTUAL
+    if (duration > 0) {
+        TransformOperations startOperations;
+        startOperations.AppendTranslate(deltaX, deltaY, 0);
+        curve->addKeyframe(TransformKeyframe::create(0, startOperations, scoped_ptr<cc::TimingFunction>()));
+    }
+
+    TransformOperations operations;
+    operations.AppendTranslate(deltaX, deltaY, 0);
+#else
     if (duration > 0) {
         WebKit::WebTransformOperations startOperations;
         startOperations.appendTranslate(deltaX, deltaY, 0);
@@ -57,11 +68,12 @@ int addAnimatedTransform(Target& target, double duration, int deltaX, int deltaY
 
     WebKit::WebTransformOperations operations;
     operations.appendTranslate(deltaX, deltaY, 0);
+#endif
     curve->addKeyframe(TransformKeyframe::create(duration, operations, scoped_ptr<cc::TimingFunction>()));
 
     int id = nextAnimationId++;
 
-    scoped_ptr<ActiveAnimation> animation(ActiveAnimation::create(curve.PassAs<AnimationCurve>(), id, 0, ActiveAnimation::Transform));
+    scoped_ptr<Animation> animation(Animation::create(curve.PassAs<AnimationCurve>(), id, 0, Animation::Transform));
     animation->setNeedsSynchronizedStartTime(true);
 
     target.addAnimation(animation.Pass());
@@ -163,6 +175,11 @@ void FakeLayerAnimationValueObserver::OnOpacityAnimated(float opacity)
 void FakeLayerAnimationValueObserver::OnTransformAnimated(const gfx::Transform& transform)
 {
     m_transform = transform;
+}
+
+bool FakeLayerAnimationValueObserver::IsActive() const
+{
+    return true;
 }
 
 scoped_ptr<cc::AnimationCurve> FakeFloatTransition::clone() const

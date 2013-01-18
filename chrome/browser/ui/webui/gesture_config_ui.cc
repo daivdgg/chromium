@@ -45,7 +45,7 @@ GestureConfigUI::GestureConfigUI(content::WebUI* web_ui)
   html_source->set_default_resource(IDR_GESTURE_CONFIG_HTML);
 
   Profile* profile = Profile::FromWebUI(web_ui);
-  ChromeURLDataManager::AddDataSource(profile, html_source);
+  ChromeURLDataManager::AddDataSourceImpl(profile, html_source);
 }
 
 GestureConfigUI::~GestureConfigUI() {
@@ -108,6 +108,17 @@ void GestureConfigUI::SetPreferenceValue(const base::ListValue* args) {
   Profile* profile = Profile::FromWebUI(web_ui());
   PrefService* prefs = profile->GetPrefs();
 
-  prefs->SetDouble(pref_name.c_str(), value);
+  const PrefService::Preference* pref =
+      prefs->FindPreference(pref_name.c_str());
+  switch (pref->GetType()) {
+    case base::Value::TYPE_INTEGER:
+      prefs->SetInteger(pref_name.c_str(), static_cast<int>(value));
+      break;
+    case base::Value::TYPE_DOUBLE:
+      prefs->SetDouble(pref_name.c_str(), value);
+      break;
+    default:
+      NOTREACHED();
+  }
 }
 

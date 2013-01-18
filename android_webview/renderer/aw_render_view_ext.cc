@@ -16,8 +16,8 @@
 #include "content/public/renderer/document_state.h"
 #include "content/public/renderer/render_view.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebSize.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURL.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebVector.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURL.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebVector.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDataSource.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDocument.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebElement.h"
@@ -200,8 +200,7 @@ void AwRenderViewExt::OnEnableCapturePictureCallback(bool enable) {
   //    content::RenderView::CapturePictureCallback());
 }
 
-void AwRenderViewExt::OnPictureUpdate(
-    scoped_refptr<cc::PicturePileImpl> picture) {
+void AwRenderViewExt::OnPictureUpdate(skia::RefPtr<SkPicture> picture) {
   RendererPictureMap::GetInstance()->SetRendererPicture(routing_id(), picture);
   Send(new AwViewHostMsg_PictureUpdated(routing_id()));
 }

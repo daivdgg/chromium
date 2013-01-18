@@ -272,7 +272,7 @@ MenuItemView* MenuController::Run(Widget* parent,
                                   const gfx::Rect& bounds,
                                   MenuItemView::AnchorPosition position,
                                   bool context_menu,
-                                  int* result_mouse_event_flags) {
+                                  int* result_event_flags) {
   exit_type_ = EXIT_NONE;
   possible_drag_ = false;
   drag_in_progress_ = false;
@@ -351,8 +351,8 @@ MenuItemView* MenuController::Run(Widget* parent,
   // In case we're nested, reset result_.
   result_ = NULL;
 
-  if (result_mouse_event_flags)
-    *result_mouse_event_flags = result_mouse_event_flags_;
+  if (result_event_flags)
+    *result_event_flags = accept_event_flags_;
 
   if (exit_type_ == EXIT_OUTERMOST) {
     SetExitType(EXIT_NONE);
@@ -524,7 +524,7 @@ void MenuController::OnGestureEvent(SubmenuView* source,
         !(part.menu->HasSubmenu())) {
       if (part.menu->GetDelegate()->IsTriggerableEvent(
           part.menu, *event)) {
-        Accept(part.menu, 0);
+        Accept(part.menu, event->flags());
       }
       event->StopPropagation();
     } else if (part.type == MenuPart::MENU_ITEM) {
@@ -533,7 +533,17 @@ void MenuController::OnGestureEvent(SubmenuView* source,
                    SELECTION_OPEN_SUBMENU | SELECTION_UPDATE_IMMEDIATELY);
       event->StopPropagation();
     }
+  } else if (event->type() == ui::ET_GESTURE_TAP_CANCEL &&
+             part.menu &&
+             part.type == MenuPart::MENU_ITEM) {
+    // Move the selection to the parent menu so that the selection in the
+    // current menu is unset. Make sure the submenu remains open by sending the
+    // appropriate SetSelectionTypes flags.
+    SetSelection(part.menu->GetParentMenuItem(),
+        SELECTION_OPEN_SUBMENU | SELECTION_UPDATE_IMMEDIATELY);
+    event->StopPropagation();
   }
+
   if (event->stopped_propagation())
       return;
 
@@ -743,8 +753,7 @@ void MenuController::SetSelection(MenuItemView* menu_item,
   if (menu_item && menu_item->GetDelegate())
     menu_item->GetDelegate()->SelectionChanged(menu_item);
 
-  // TODO(sky): convert back to DCHECK when figure out 93471.
-  CHECK(menu_item || (selection_types & SELECTION_EXIT) != 0);
+  DCHECK(menu_item || (selection_types & SELECTION_EXIT) != 0);
 
   pending_state_.item = menu_item;
   pending_state_.submenu_open = (selection_types & SELECTION_OPEN_SUBMENU) != 0;
@@ -932,33 +941,12 @@ bool MenuController::Dispatch(const base::NativeEvent& event) {
     aura::Env::GetInstance()->GetDispatcher()->Dispatch(event);
     return false;
   }
-  // We exit the menu and its message loop on control and alt keypress.
-  // So that accelerators such as control-n don't run with a nested
-  // message loop we exit on any modifier that might be used for an
-  // accelerator.
-  // If the user presses control-n, the menu disappears already when
-  // the control key is down. When "n" (while control is still down)
-  // is pressed the shortcut is handled normally after the nested loop
-  // has ended and the context menu has disappeared.
-  // We don't exit the menu on the release of modifiers as the menu
-  // may have been shown by way of an accelerator, eg alt-f. So that
-  // if we exited menus on the release of modifiers the menu would
-  // first appear and then immediately disappear.
-  const ui::EventType event_type = ui::EventTypeFromNative(event);
-  if (event_type == ui::ET_KEY_PRESSED ) {
-    const ui::KeyboardCode key_code = ui::KeyboardCodeFromNative(event);
-    if (key_code == ui::VKEY_LCONTROL || key_code == ui::VKEY_CONTROL ||
-        key_code == ui::VKEY_RCONTROL || key_code == ui::VKEY_MENU ) {
-      Cancel(EXIT_ALL);
-      return false;
-    }
-  }
   // Activates mnemonics only when it it pressed without modifiers except for
   // caps and shift.
   int flags = ui::EventFlagsFromNative(event) &
       ~ui::EF_CAPS_LOCK_DOWN & ~ui::EF_SHIFT_DOWN;
   if (flags == ui::EF_NONE) {
-    switch (event_type) {
+    switch (ui::EventTypeFromNative(event)) {
       case ui::ET_KEY_PRESSED:
         if (!OnKeyDown(ui::KeyboardCodeFromNative(event)))
           return false;
@@ -1057,7 +1045,7 @@ MenuController::MenuController(ui::NativeTheme* theme,
       exit_type_(EXIT_NONE),
       did_capture_(false),
       result_(NULL),
-      result_mouse_event_flags_(0),
+      accept_event_flags_(0),
       drop_target_(NULL),
       drop_position_(MenuDelegate::DROP_UNKNOWN),
       owner_(NULL),
@@ -1136,7 +1124,7 @@ void MenuController::UpdateInitialLocation(
 #endif
 }
 
-void MenuController::Accept(MenuItemView* item, int mouse_event_flags) {
+void MenuController::Accept(MenuItemView* item, int event_flags) {
   DCHECK(IsBlockingRun());
   result_ = item;
   if (item && !menu_stack_.empty() &&
@@ -1145,7 +1133,7 @@ void MenuController::Accept(MenuItemView* item, int mouse_event_flags) {
   } else {
     SetExitType(EXIT_ALL);
   }
-  result_mouse_event_flags_ = mouse_event_flags;
+  accept_event_flags_ = event_flags;
 }
 
 bool MenuController::ShowSiblingMenu(SubmenuView* source,
@@ -1532,9 +1520,9 @@ void MenuController::BuildMenuItemPath(MenuItemView* item,
 }
 
 void MenuController::StartShowTimer() {
-    show_timer_.Start(FROM_HERE,
-                      TimeDelta::FromMilliseconds(menu_config_.show_delay),
-                      this, &MenuController::CommitPendingSelection);
+  show_timer_.Start(FROM_HERE,
+                    TimeDelta::FromMilliseconds(menu_config_.show_delay),
+                    this, &MenuController::CommitPendingSelection);
 }
 
 void MenuController::StopShowTimer() {

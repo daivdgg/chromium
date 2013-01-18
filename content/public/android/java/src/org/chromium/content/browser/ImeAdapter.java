@@ -21,34 +21,36 @@ import android.view.inputmethod.InputMethodManager;
 import org.chromium.base.CalledByNative;
 import org.chromium.base.JNINamespace;
 
-// We have to adapt and plumb android IME service and chrome text input API.
-// ImeAdapter provides an interface in both ways native <-> java:
-// 1. InputConnectionAdapter notifies native code of text composition state and
-//    dispatch key events from java -> WebKit.
-// 2. Native ImeAdapter notifies java side to clear composition text.
-//
-// The basic flow is:
-// 1. Intercept dispatchKeyEventPreIme() to record the current key event, but do
-//    nothing else.
-// 2. When InputConnectionAdapter gets called with composition or result text:
-//    a) If a key event has been recorded in dispatchKeyEventPreIme() and we
-//       receive a result text with single character, then we probably need to
-//       send the result text as a Char event rather than a ConfirmComposition
-//       event. So we need to dispatch the recorded key event followed by a
-//       synthetic Char event.
-//    b) If we receive a composition text or a result text with more than one
-//       characters, then no matter if we recorded a key event or not in
-//       dispatchKeyEventPreIme(), we just need to dispatch a synthetic key
-//       event with special keycode 229, and then dispatch the composition or
-//       result text.
-// 3. Intercept dispatchKeyEvent() method for key events not handled by IME, we
-//    need to dispatch them to webkit and check webkit's reply. Then inject a
-//    new key event for further processing if webkit didn't handle it.
+/**
+ We have to adapt and plumb android IME service and chrome text input API.
+ ImeAdapter provides an interface in both ways native <-> java:
+ 1. InputConnectionAdapter notifies native code of text composition state and
+    dispatch key events from java -> WebKit.
+ 2. Native ImeAdapter notifies java side to clear composition text.
+
+ The basic flow is:
+ 1. Intercept dispatchKeyEventPreIme() to record the current key event, but do
+    nothing else.
+ 2. When InputConnectionAdapter gets called with composition or result text:
+    a) If a key event has been recorded in dispatchKeyEventPreIme() and we
+       receive a result text with single character, then we probably need to
+       send the result text as a Char event rather than a ConfirmComposition
+       event. So we need to dispatch the recorded key event followed by a
+       synthetic Char event.
+    b) If we receive a composition text or a result text with more than one
+       characters, then no matter if we recorded a key event or not in
+       dispatchKeyEventPreIme(), we just need to dispatch a synthetic key
+       event with special keycode 229, and then dispatch the composition or
+       result text.
+ 3. Intercept dispatchKeyEvent() method for key events not handled by IME, we
+    need to dispatch them to WebKit and check webkit's reply. Then inject a
+    new key event for further processing if WebKit didn't handle it.
+*/
 @JNINamespace("content")
 class ImeAdapter {
     interface ViewEmbedder {
         /**
-         * @param isFinish whether the event is occuring because input is finished.
+         * @param isFinish whether the event is occurring because input is finished.
          */
         public void onImeEvent(boolean isFinish);
         public void onSetFieldValue();
@@ -111,8 +113,6 @@ class ImeAdapter {
         sTextInputTypeNumber = textInputTypeNumber;
         sTextInputTypeWeek = textInputTypeWeek;
         sTextInputTypeContentEditable = textInputTypeContentEditable;
-        InputDialogContainer.initializeInputTypes(textInputTypeDate, textInputTypeDateTime,
-                textInputTypeDateTimeLocal, textInputTypeMonth, textInputTypeTime);
     }
 
     private int mNativeImeAdapterAndroid;
@@ -125,7 +125,6 @@ class ImeAdapter {
     private AdapterInputConnection mInputConnection;
     private ViewEmbedder mViewEmbedder;
     private Handler mHandler;
-    private InputDialogContainer mInputDialogContainer;
 
     private class DelayedDismissInput implements Runnable {
         private int mNativeImeAdapter;
@@ -158,20 +157,6 @@ class ImeAdapter {
         mInsertionHandleController = insertionHandleController;
         mViewEmbedder = embedder;
         mHandler = new Handler();
-        mInputDialogContainer = new InputDialogContainer(context,
-                new InputDialogContainer.InputActionDelegate() {
-
-                    @Override
-                    public void replaceDateTime(String text) {
-                        mViewEmbedder.onSetFieldValue();
-                        nativeReplaceDateTime(mNativeImeAdapterAndroid, text);
-                    }
-
-                    @Override
-                    public void cancelDateTimeDialog() {
-                        nativeCancelDialog(mNativeImeAdapterAndroid);
-                    }
-                });
     }
 
     boolean isFor(int nativeImeAdapter, int textInputType) {
@@ -204,30 +189,12 @@ class ImeAdapter {
             InputMethodManager manager = (InputMethodManager)
                     mContext.getSystemService(Context.INPUT_METHOD_SERVICE);
 
-            if (hasTextInputType()) {
-                manager.restartInput(mViewEmbedder.getAttachedView());
-                // If type has changed from dialog to text, show even if showIfNeeded is not true.
-                if (showIfNeeded || mInputDialogContainer.isDialogShowing()) {
-                    showKeyboard();
-                }
-            } else if (hasDialogInputType()) {
-                // If type has changed from text to dialog, show even if showIfNeeded is not true.
-                if (showIfNeeded || isTextInputType(previousType)) {
-                    // Make sure the keyboard is dismissed before displaying the dialog.
-                    dismissInput(false);
-                    mInsertionHandleController.hideAndDisallowAutomaticShowing();
-                    mInputDialogContainer.showDialog(text, textInputType);
-                }
+            manager.restartInput(mViewEmbedder.getAttachedView());
+            if (showIfNeeded) {
+                showKeyboard();
             }
         } else if (hasInputType()) {
-            if (!mInputDialogContainer.isDialogShowing() && showIfNeeded) {
-                if (hasDialogInputType()) {
-                    mInsertionHandleController.hideAndDisallowAutomaticShowing();
-                    mInputDialogContainer.showDialog(text, textInputType);
-                } else {
-                    showKeyboard();
-                }
-            }
+            showKeyboard();
         }
     }
 
@@ -258,7 +225,6 @@ class ImeAdapter {
     }
 
     private void showKeyboard() {
-        mInputDialogContainer.dismissDialog();
         InputMethodManager manager = (InputMethodManager)
                 mContext.getSystemService(Context.INPUT_METHOD_SERVICE);
         manager.showSoftInput(mViewEmbedder.getAttachedView(), 0,
@@ -298,10 +264,6 @@ class ImeAdapter {
         return isTextInputType(mTextInputType);
     }
 
-    boolean hasDialogInputType() {
-        return InputDialogContainer.isDialogInputType(mTextInputType);
-    }
-
     void dispatchKeyEventPreIme(KeyEvent event) {
         // We only register that a key was pressed, but we don't actually intercept
         // it.
@@ -324,7 +286,7 @@ class ImeAdapter {
     @CalledByNative
     private void cancelComposition() {
         if (mInputConnection != null) {
-            mInputConnection.cancelComposition();
+            mInputConnection.restartInput();
         }
     }
 
@@ -546,13 +508,6 @@ class ImeAdapter {
                 return;
             }
 
-            // When a programmatic change has been made to the editable field, both the start
-            // and end positions for the composition will equal zero. In this case we cancel the
-            // active composition in the editor as this no longer is relevant.
-            if (textUnchanged && compositionStart == 0 && compositionEnd == 0) {
-                cancelComposition();
-            }
-
             if (!textUnchanged) {
                 editable.replace(0, editable.length(), text);
             }
@@ -565,6 +520,13 @@ class ImeAdapter {
                 // e.g. backspace to undo autocorrection will not work with the default OSK.
                 getInputMethodManager().updateSelection(mInternalView,
                         selectionStart, selectionEnd, compositionStart, compositionEnd);
+            }
+
+            // When WebKit changes the editable field, both the start and the end positions for
+            // the composition will be set to -1. In this case we have to call restart input
+            // for the IME to update its state.
+            if (textUnchanged && compositionStart == -1 && compositionEnd == -1) {
+                restartInput();
             }
         }
 
@@ -586,7 +548,7 @@ class ImeAdapter {
         public boolean performEditorAction(int actionCode) {
             switch (actionCode) {
                 case EditorInfo.IME_ACTION_NEXT:
-                    cancelComposition();
+                    restartInput();
                     // Send TAB key event
                     long timeStampMs = System.currentTimeMillis();
                     mImeAdapter.sendSyntheticKeyEvent(
@@ -687,11 +649,10 @@ class ImeAdapter {
         }
 
         /**
-         * Informs the InputMethodManager and InputMethodSession (i.e. the IME) that there
-         * is no longer a current composition. Note this differs from finishComposingText, which
-         * is called by the IME when it wants to end a composition.
+         * Informs the InputMethodManager and InputMethodSession (i.e. the IME) that the text
+         * state is no longer what the IME has and that it needs to be updated.
          */
-        void cancelComposition() {
+        void restartInput() {
             getInputMethodManager().restartInput(mInternalView);
         }
 
@@ -778,10 +739,6 @@ class ImeAdapter {
     private native void nativeCommitText(int nativeImeAdapterAndroid, String text);
 
     private native void nativeAttachImeAdapter(int nativeImeAdapterAndroid);
-
-    private native void nativeReplaceDateTime(int nativeImeAdapterAndroid, String text);
-
-    private native void nativeCancelDialog(int nativeImeAdapterAndroid);
 
     private native void nativeSetEditableSelectionOffsets(int nativeImeAdapterAndroid,
             int start, int end);

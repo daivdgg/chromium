@@ -38,13 +38,13 @@
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/find_bar/find_notification_details.h"
 #include "chrome/browser/ui/find_bar/find_tab_helper.h"
 #include "chrome/browser/ui/host_desktop.h"
 #include "chrome/browser/ui/omnibox/location_bar.h"
 #include "chrome/browser/ui/omnibox/omnibox_view.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/pref_names.h"
@@ -73,7 +73,6 @@
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/gfx/size.h"
 #include "ui/snapshot/snapshot.h"
-#include "ui/ui_controls/ui_controls.h"
 
 #if defined(USE_AURA)
 #include "ash/shell.h"
@@ -179,7 +178,8 @@ FilePath GetSnapshotFileName(const FilePath& snapshot_directory) {
 }  // namespace
 
 bool GetCurrentTabTitle(const Browser* browser, string16* title) {
-  WebContents* web_contents = chrome::GetActiveWebContents(browser);
+  WebContents* web_contents =
+      browser->tab_strip_model()->GetActiveWebContents();
   if (!web_contents)
     return false;
   NavigationEntry* last_entry = web_contents->GetController().GetActiveEntry();
@@ -200,13 +200,6 @@ void WaitForNavigations(NavigationController* controller,
       content::GetQuitTaskForRunLoop(&run_loop));
 }
 
-void WaitForNewTab(Browser* browser) {
-  content::WindowedNotificationObserver observer(
-      chrome::NOTIFICATION_TAB_ADDED,
-      content::Source<content::WebContentsDelegate>(browser));
-  observer.Wait();
-}
-
 Browser* WaitForBrowserNotInSet(std::set<Browser*> excluded_browsers) {
   Browser* new_browser = GetBrowserNotInSet(excluded_browsers);
   if (new_browser == NULL) {
@@ -220,12 +213,13 @@ Browser* WaitForBrowserNotInSet(std::set<Browser*> excluded_browsers) {
 
 Browser* OpenURLOffTheRecord(Profile* profile, const GURL& url) {
   chrome::OpenURLOffTheRecord(profile, url, chrome::HOST_DESKTOP_TYPE_NATIVE);
-  Browser* browser = browser::FindTabbedBrowser(
+  Browser* browser = chrome::FindTabbedBrowser(
       profile->GetOffTheRecordProfile(),
       false,
       chrome::HOST_DESKTOP_TYPE_NATIVE);
-  WaitForNavigations(&chrome::GetActiveWebContents(browser)->GetController(),
-                     1);
+  WaitForNavigations(
+      &browser->tab_strip_model()->GetActiveWebContents()->GetController(),
+      1);
   return browser;
 }
 
@@ -254,11 +248,12 @@ static void NavigateToURLWithDispositionBlockUntilNavigationsComplete(
     int number_of_navigations,
     WindowOpenDisposition disposition,
     int browser_test_flags) {
-  if (disposition == CURRENT_TAB && chrome::GetActiveWebContents(browser))
-      content::WaitForLoadStop(chrome::GetActiveWebContents(browser));
+  TabStripModel* tab_strip = browser->tab_strip_model();
+  if (disposition == CURRENT_TAB && tab_strip->GetActiveWebContents())
+      content::WaitForLoadStop(tab_strip->GetActiveWebContents());
   NavigationController* controller =
-      chrome::GetActiveWebContents(browser) ?
-      &chrome::GetActiveWebContents(browser)->GetController() : NULL;
+      tab_strip->GetActiveWebContents() ?
+      &tab_strip->GetActiveWebContents()->GetController() : NULL;
   content::TestNavigationObserver same_tab_observer(
       content::Source<NavigationController>(controller),
       NULL,
@@ -288,8 +283,8 @@ static void NavigateToURLWithDispositionBlockUntilNavigationsComplete(
   WebContents* web_contents = NULL;
   if (disposition == NEW_BACKGROUND_TAB) {
     // We've opened up a new tab, but not selected it.
-    web_contents =
-        chrome::GetWebContentsAt(browser, browser->active_index() + 1);
+    TabStripModel* tab_strip = browser->tab_strip_model();
+    web_contents = tab_strip->GetWebContentsAt(tab_strip->active_index() + 1);
     EXPECT_TRUE(web_contents != NULL)
         << " Unable to wait for navigation to \"" << url.spec()
         << "\" because the new tab is not available yet";
@@ -299,7 +294,7 @@ static void NavigateToURLWithDispositionBlockUntilNavigationsComplete(
       (disposition == NEW_FOREGROUND_TAB) ||
       (disposition == SINGLETON_TAB)) {
     // The currently selected tab is the right one.
-    web_contents = chrome::GetActiveWebContents(browser);
+    web_contents = browser->tab_strip_model()->GetActiveWebContents();
   }
   if (disposition == CURRENT_TAB) {
     base::RunLoop run_loop;
@@ -670,19 +665,6 @@ void OverrideGeolocation(double latitude, double longitude) {
   content::OverrideLocationForTesting(position, runner->QuitClosure());
   runner->Run();
 }
-
-namespace internal {
-
-void ClickTask(ui_controls::MouseButton button,
-               int state,
-               const base::Closure& followup) {
-  if (!followup.is_null())
-    ui_controls::SendMouseEventsNotifyWhenDone(button, state, followup);
-  else
-    ui_controls::SendMouseEvents(button, state);
-}
-
-}  // namespace internal
 
 HistoryEnumerator::HistoryEnumerator(Profile* profile) {
   scoped_refptr<content::MessageLoopRunner> message_loop_runner =

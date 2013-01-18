@@ -18,12 +18,16 @@
 namespace aura {
 class Window;
 class WindowDelegate;
-}
+
+namespace test {
+class EventGenerator;
+}  // namespace test
+}  // namespace aura
 
 namespace ash {
 namespace internal {
 class DisplayManager;
-}  // internal
+}  // namespace internal
 
 namespace test {
 
@@ -56,6 +60,11 @@ class AshTestBase : public testing::Test {
   // See ash::test::DisplayManagerTestApi::UpdateDisplay for more details.
   void UpdateDisplay(const std::string& display_specs);
 
+  // Returns a RootWindow. Usually this is the active RootWindow, but that
+  // method can return NULL sometimes, and in those cases, we fall back on the
+  // primary RootWindow.
+  aura::RootWindow* CurrentContext();
+
   // Versions of the functions in aura::test:: that go through our shell
   // StackingController instead of taking a parent.
   aura::Window* CreateTestWindowInShellWithId(int id);
@@ -76,6 +85,11 @@ class AshTestBase : public testing::Test {
   // Attach |window| to the current shell's root window.
   void SetDefaultParentByPrimaryRootWindow(aura::Window* window);
 
+  // Returns the EventGenerator that uses screen coordinates and works
+  // across multiple displays. It createse a new generator if it
+  // hasn't been created yet.
+  aura::test::EventGenerator& GetEventGenerator();
+
  protected:
   void RunAllPendingInMessageLoop();
 
@@ -89,6 +103,8 @@ class AshTestBase : public testing::Test {
   MessageLoopForUI message_loop_;
 
   TestShellDelegate* test_shell_delegate_;
+
+  scoped_ptr<aura::test::EventGenerator> event_generator_;
 
   DISALLOW_COPY_AND_ASSIGN(AshTestBase);
 };

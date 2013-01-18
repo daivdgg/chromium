@@ -51,6 +51,7 @@
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/common/url_pattern.h"
+#include "grit/ash_resources.h"
 #include "grit/chromium_strings.h"
 #include "grit/generated_resources.h"
 #include "grit/theme_resources.h"
@@ -434,13 +435,14 @@ void ChromeLauncherControllerPerApp::ActivateApp(const std::string& app_id,
 
   // If there is an existing non-shortcut controller for this app, open it.
   ash::LauncherID id = GetLauncherIDForAppID(app_id);
-
-  // Only pinned applications will be handled.
-  if (!id)
+  if (id) {
+    LauncherItemController* controller = id_to_item_controller_map_[id];
+    controller->Activate();
     return;
+  }
 
-  LauncherItemController* controller = id_to_item_controller_map_[id];
-  controller->Activate();
+  // Otherwise launch the app.
+  LaunchApp(app_id, event_flags);
 }
 
 extensions::ExtensionPrefs::LaunchType
@@ -744,7 +746,7 @@ void ChromeLauncherControllerPerApp::OnBrowserShortcutClicked(
     return;
   }
 
-  Browser* last_browser = browser::FindTabbedBrowser(
+  Browser* last_browser = chrome::FindTabbedBrowser(
       GetProfileForNewWindows(), true, chrome::HOST_DESKTOP_TYPE_ASH);
 
   if (!last_browser) {
@@ -872,6 +874,8 @@ void ChromeLauncherControllerPerApp::OnShelfAlignmentChanged(
     case ash::SHELF_ALIGNMENT_RIGHT:
       pref_value = ash::kShelfAlignmentRight;
       break;
+    case ash::SHELF_ALIGNMENT_TOP:
+      pref_value = ash::kShelfAlignmentTop;
   }
 
   UpdatePerDisplayPref(
@@ -950,6 +954,19 @@ bool ChromeLauncherControllerPerApp::IsWebContentHandledByApplication(
   return ((web_contents_to_app_id_.find(web_contents) !=
            web_contents_to_app_id_.end()) &&
           (web_contents_to_app_id_[web_contents] == app_id));
+}
+
+gfx::Image ChromeLauncherControllerPerApp::GetAppListIcon(
+    content::WebContents* web_contents) const {
+  const Profile* profile =
+      Profile::FromBrowserContext(web_contents->GetBrowserContext());
+  if (profile->IsOffTheRecord() && !profile->IsGuestSession()) {
+    ResourceBundle& rb = ResourceBundle::GetSharedInstance();
+    return rb.GetImageNamed(IDR_AURA_LAUNCHER_INCOGNITO_BROWSER);
+  }
+  FaviconTabHelper* favicon_tab_helper =
+      FaviconTabHelper::FromWebContents(web_contents);
+  return favicon_tab_helper->GetFavicon();
 }
 
 ash::LauncherID ChromeLauncherControllerPerApp::CreateAppShortcutLauncherItem(
@@ -1153,6 +1170,8 @@ void ChromeLauncherControllerPerApp::SetShelfAlignmentFromPrefs() {
       alignment = ash::SHELF_ALIGNMENT_LEFT;
     else if (alignment_value == ash::kShelfAlignmentRight)
       alignment = ash::SHELF_ALIGNMENT_RIGHT;
+    else if (alignment_value == ash::kShelfAlignmentTop)
+      alignment = ash::SHELF_ALIGNMENT_TOP;
     ash::Shell::GetInstance()->SetShelfAlignment(alignment, *iter);
   }
 }
@@ -1228,12 +1247,11 @@ ChromeLauncherControllerPerApp::GetBrowserApplicationList() {
   for (BrowserList::const_reverse_iterator it =
            BrowserList::begin_last_active();
        it != BrowserList::end_last_active(); ++it, ++index) {
-    Browser *browser = *it;
-    WebContents* web_contents = browser->tab_strip_model()->GetWebContentsAt(
-        browser->active_index());
-    FaviconTabHelper* favicon_tab_helper =
-        FaviconTabHelper::FromWebContents(web_contents);
-    gfx::Image app_icon = favicon_tab_helper->GetFavicon();
+    Browser* browser = *it;
+    TabStripModel* tab_strip = browser->tab_strip_model();
+    WebContents* web_contents =
+        tab_strip->GetWebContentsAt(tab_strip->active_index());
+    gfx::Image app_icon = GetAppListIcon(web_contents);
     items->push_back(new ChromeLauncherAppMenuItemBrowser(
                              web_contents->GetTitle(),
                              app_icon.IsEmpty() ? NULL : &app_icon,

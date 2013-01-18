@@ -17,6 +17,8 @@ LayerTreeImpl::LayerTreeImpl(LayerTreeHostImpl* layer_tree_host_impl)
     , hud_layer_(0)
     , root_scroll_layer_(0)
     , currently_scrolling_layer_(0)
+    , background_color_(0)
+    , has_transparent_background_(false)
     , scrolling_layer_id_from_previous_tree_(0) {
 }
 
@@ -45,8 +47,14 @@ static LayerImpl* findRootScrollLayer(LayerImpl* layer)
 
 void LayerTreeImpl::SetRootLayer(scoped_ptr<LayerImpl> layer) {
   root_layer_ = layer.Pass();
+  root_scroll_layer_ = NULL;
+  currently_scrolling_layer_ = NULL;
+
+  layer_tree_host_impl_->OnCanDrawStateChangedForTree(this);
+}
+
+void LayerTreeImpl::FindRootScrollLayer() {
   root_scroll_layer_ = findRootScrollLayer(root_layer_.get());
-  currently_scrolling_layer_ = 0;
 
   if (root_layer_ && scrolling_layer_id_from_previous_tree_) {
     currently_scrolling_layer_ = LayerTreeHostCommon::findLayerInSubtree(
@@ -55,8 +63,6 @@ void LayerTreeImpl::SetRootLayer(scoped_ptr<LayerImpl> layer) {
   }
 
   scrolling_layer_id_from_previous_tree_ = 0;
-
-  layer_tree_host_impl_->OnCanDrawStateChangedForTree(this);
 }
 
 scoped_ptr<LayerImpl> LayerTreeImpl::DetachLayerTree() {
@@ -91,11 +97,11 @@ void LayerTreeImpl::UpdateMaxScrollOffset() {
     // Pinch with pageScale scrolls entirely in layout space.  ContentSize
     // returns the bounds including the page scale factor, so calculate the
     // pre page-scale layout size here.
-    float page_scale_factor = pinch_zoom_viewport().pageScaleFactor();
+    float page_scale_factor = pinch_zoom_viewport().page_scale_factor();
     content_bounds.set_width(content_bounds.width() / page_scale_factor);
     content_bounds.set_height(content_bounds.height() / page_scale_factor);
   } else {
-    view_bounds.Scale(1 / pinch_zoom_viewport().pageScaleDelta());
+    view_bounds.Scale(1 / pinch_zoom_viewport().page_scale_delta());
   }
 
   gfx::Vector2dF max_scroll = gfx::Rect(content_bounds).bottom_right() -
@@ -125,7 +131,7 @@ void LayerTreeImpl::UpdateDrawProperties() {
         RootLayer(),
         device_viewport_size(),
         device_scale_factor(),
-        pinch_zoom_viewport().pageScaleFactor(),
+        pinch_zoom_viewport().page_scale_factor(),
         MaxTextureSize(),
         settings().canUseLCDText,
         render_surface_layer_list_);
@@ -146,6 +152,23 @@ void LayerTreeImpl::ClearRenderSurfaces() {
   SetNeedsUpdateDrawProperties();
 }
 
+bool LayerTreeImpl::AreVisibleResourcesReady() const {
+  TRACE_EVENT0("cc", "LayerTreeImpl::AreVisibleResourcesReady");
+
+  typedef LayerIterator<LayerImpl,
+                        std::vector<LayerImpl*>,
+                        RenderSurfaceImpl,
+                        LayerIteratorActions::BackToFront> LayerIteratorType;
+  LayerIteratorType end = LayerIteratorType::end(&render_surface_layer_list_);
+  for (LayerIteratorType it = LayerIteratorType::begin(
+           &render_surface_layer_list_); it != end; ++it) {
+    if (it.representsItself() && !(*it)->areVisibleResourcesReady())
+      return false;
+  }
+
+  return true;
+}
+
 const LayerTreeImpl::LayerList& LayerTreeImpl::RenderSurfaceLayerList() const {
   // If this assert triggers, then the list is dirty.
   DCHECK(!layer_tree_host_impl_->needsUpdateDrawProperties());
@@ -155,7 +178,7 @@ const LayerTreeImpl::LayerList& LayerTreeImpl::RenderSurfaceLayerList() const {
 gfx::Size LayerTreeImpl::ContentSize() const {
   // TODO(aelias): Hardcoding the first child here is weird. Think of
   // a cleaner way to get the contentBounds on the Impl side.
-  if (!root_scroll_layer() || root_scroll_layer()->children().isEmpty())
+  if (!root_scroll_layer() || root_scroll_layer()->children().empty())
     return gfx::Size();
   return root_scroll_layer()->children()[0]->contentBounds();
 }
@@ -173,6 +196,23 @@ void LayerTreeImpl::RegisterLayer(LayerImpl* layer) {
 void LayerTreeImpl::UnregisterLayer(LayerImpl* layer) {
   DCHECK(LayerById(layer->id()));
   layer_id_map_.erase(layer->id());
+}
+
+void LayerTreeImpl::PushPersistedState(LayerTreeImpl* pendingTree) {
+  int id = currently_scrolling_layer_ ? currently_scrolling_layer_->id() : 0;
+  pendingTree->set_currently_scrolling_layer(
+      LayerTreeHostCommon::findLayerInSubtree(pendingTree->RootLayer(), id));
+}
+
+static void DidBecomeActiveRecursive(LayerImpl* layer) {
+  layer->didBecomeActive();
+  for (size_t i = 0; i < layer->children().size(); ++i)
+    DidBecomeActiveRecursive(layer->children()[i]);
+}
+
+void LayerTreeImpl::DidBecomeActive() {
+  if (RootLayer())
+    DidBecomeActiveRecursive(RootLayer());
 }
 
 const LayerTreeSettings& LayerTreeImpl::settings() const {
@@ -219,6 +259,10 @@ LayerImpl* LayerTreeImpl::FindPendingTreeLayerById(int id) {
 
 int LayerTreeImpl::MaxTextureSize() const {
   return layer_tree_host_impl_->rendererCapabilities().maxTextureSize;
+}
+
+bool LayerTreeImpl::PinchGestureActive() const {
+  return layer_tree_host_impl_->pinchGestureActive();
 }
 
 void LayerTreeImpl::SetNeedsRedraw() {

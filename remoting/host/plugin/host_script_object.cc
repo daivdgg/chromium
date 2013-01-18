@@ -17,9 +17,9 @@
 #include "net/base/net_util.h"
 #include "remoting/base/auth_token_util.h"
 #include "remoting/base/auto_thread.h"
+#include "remoting/host/basic_desktop_environment.h"
 #include "remoting/host/chromoting_host.h"
 #include "remoting/host/chromoting_host_context.h"
-#include "remoting/host/desktop_environment_factory.h"
 #include "remoting/host/host_config.h"
 #include "remoting/host/host_event_logger.h"
 #include "remoting/host/host_key_pair.h"
@@ -86,15 +86,15 @@ class HostNPScriptObject::It2MeImpl
   It2MeImpl(
       scoped_ptr<ChromotingHostContext> context,
       scoped_refptr<base::SingleThreadTaskRunner> plugin_task_runner,
-      base::WeakPtr<HostNPScriptObject> script_object,
-      const UiStrings& ui_strings);
+      base::WeakPtr<HostNPScriptObject> script_object);
 
   // Methods called by the script object, from the plugin thread.
 
   // Creates It2Me host structures and starts the host.
   void Connect(const std::string& uid,
                const std::string& auth_token,
-               const std::string& auth_service);
+               const std::string& auth_service,
+               const UiStrings& ui_strings);
 
   // Disconnects the host, ready for tear-down.
   // Also called internally, from the network thread.
@@ -148,7 +148,6 @@ class HostNPScriptObject::It2MeImpl
   scoped_ptr<ChromotingHostContext> host_context_;
   scoped_refptr<base::SingleThreadTaskRunner> plugin_task_runner_;
   base::WeakPtr<HostNPScriptObject> script_object_;
-  UiStrings ui_strings_;
 
   State state_;
 
@@ -188,12 +187,10 @@ class HostNPScriptObject::It2MeImpl
 HostNPScriptObject::It2MeImpl::It2MeImpl(
     scoped_ptr<ChromotingHostContext> host_context,
     scoped_refptr<base::SingleThreadTaskRunner> plugin_task_runner,
-    base::WeakPtr<HostNPScriptObject> script_object,
-    const UiStrings& ui_strings)
+    base::WeakPtr<HostNPScriptObject> script_object)
   : host_context_(host_context.Pass()),
     plugin_task_runner_(plugin_task_runner),
     script_object_(script_object),
-    ui_strings_(ui_strings),
     state_(kDisconnected),
     failed_login_attempts_(0),
     nat_traversal_enabled_(false),
@@ -204,18 +201,19 @@ HostNPScriptObject::It2MeImpl::It2MeImpl(
 void HostNPScriptObject::It2MeImpl::Connect(
     const std::string& uid,
     const std::string& auth_token,
-    const std::string& auth_service) {
+    const std::string& auth_service,
+    const UiStrings& ui_strings) {
   if (!host_context_->ui_task_runner()->BelongsToCurrentThread()) {
     DCHECK(plugin_task_runner_->BelongsToCurrentThread());
     host_context_->ui_task_runner()->PostTask(
         FROM_HERE,
-        base::Bind(&It2MeImpl::Connect, this, uid, auth_token, auth_service));
+        base::Bind(&It2MeImpl::Connect, this, uid, auth_token, auth_service,
+                   ui_strings));
     return;
   }
 
   // Create the desktop environment factory.
-  desktop_environment_factory_.reset(new DesktopEnvironmentFactory(
-      host_context_->input_task_runner(), host_context_->ui_task_runner()));
+  desktop_environment_factory_.reset(new BasicDesktopEnvironmentFactory());
 
   // Start monitoring configured policies.
   policy_watcher_.reset(
@@ -226,7 +224,7 @@ void HostNPScriptObject::It2MeImpl::Connect(
   // The UserInterface object needs to be created on the UI thread.
   it2me_host_user_interface_.reset(
       new It2MeHostUserInterface(host_context_->network_task_runner(),
-                                 host_context_->ui_task_runner()));
+                                 host_context_->ui_task_runner(), ui_strings));
   it2me_host_user_interface_->Init();
 
   // Switch to the network thread to start the actual connection.
@@ -366,9 +364,11 @@ void HostNPScriptObject::It2MeImpl::FinishConnect(
       CreateHostSessionManager(network_settings,
                                host_context_->url_request_context_getter()),
       host_context_->audio_task_runner(),
+      host_context_->input_task_runner(),
       host_context_->video_capture_task_runner(),
       host_context_->video_encode_task_runner(),
-      host_context_->network_task_runner());
+      host_context_->network_task_runner(),
+      host_context_->ui_task_runner());
   host_->AddStatusObserver(this);
   log_to_server_.reset(
       new LogToServer(host_, ServerLogEntry::IT2ME, signal_strategy_.get()));
@@ -379,9 +379,6 @@ void HostNPScriptObject::It2MeImpl::FinishConnect(
       protocol::CandidateSessionConfig::CreateDefault();
   protocol::CandidateSessionConfig::DisableAudioChannel(protocol_config.get());
   host_->set_protocol_config(protocol_config.Pass());
-
-  // Provide localization strings to the host.
-  host_->SetUiStrings(ui_strings_);
 
   // Create user interface.
   it2me_host_user_interface_->Start(host_.get(),
@@ -953,8 +950,8 @@ bool HostNPScriptObject::Connect(const NPVariant* args,
 
   // Create the It2Me host implementation and start connecting.
   it2me_impl_ = new It2MeImpl(
-      host_context.Pass(), plugin_task_runner_, weak_ptr_, ui_strings_);
-  it2me_impl_->Connect(uid, auth_token, auth_service);
+      host_context.Pass(), plugin_task_runner_, weak_ptr_);
+  it2me_impl_->Connect(uid, auth_token, auth_service, ui_strings_);
 
   return true;
 }

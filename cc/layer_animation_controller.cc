@@ -4,10 +4,13 @@
 
 #include "cc/layer_animation_controller.h"
 
-#include "cc/active_animation.h"
+#include <algorithm>
+
+#include "cc/animation.h"
 #include "cc/animation_registrar.h"
 #include "cc/keyframed_animation_curve.h"
 #include "cc/layer_animation_value_observer.h"
+#include "cc/scoped_ptr_algorithm.h"
 #include "ui/gfx/transform.h"
 
 namespace {
@@ -59,29 +62,36 @@ void LayerAnimationController::pauseAnimation(int animationId, double timeOffset
 {
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
         if (m_activeAnimations[i]->id() == animationId)
-            m_activeAnimations[i]->setRunState(ActiveAnimation::Paused, timeOffset + m_activeAnimations[i]->startTime());
+            m_activeAnimations[i]->setRunState(Animation::Paused, timeOffset + m_activeAnimations[i]->startTime());
     }
 }
+
+struct HasAnimationId {
+    HasAnimationId(int id) : m_id(id) { }
+    bool operator()(Animation* animation) const { return animation->id() == m_id; }
+private:
+    int m_id;
+};
 
 void LayerAnimationController::removeAnimation(int animationId)
 {
-    for (size_t i = 0; i < m_activeAnimations.size();) {
-        if (m_activeAnimations[i]->id() == animationId)
-            m_activeAnimations.remove(i);
-        else
-            i++;
-    }
+    ScopedPtrVector<Animation>& animations = m_activeAnimations;
+    animations.erase(cc::remove_if(animations, animations.begin(), animations.end(), HasAnimationId(animationId)), animations.end());
     updateActivation();
 }
 
-void LayerAnimationController::removeAnimation(int animationId, ActiveAnimation::TargetProperty targetProperty)
+struct HasAnimationIdAndProperty {
+    HasAnimationIdAndProperty(int id, Animation::TargetProperty targetProperty) : m_id(id), m_targetProperty(targetProperty) { }
+    bool operator()(Animation* animation) const { return animation->id() == m_id && animation->targetProperty() == m_targetProperty; }
+private:
+    int m_id;
+    Animation::TargetProperty m_targetProperty;
+};
+
+void LayerAnimationController::removeAnimation(int animationId, Animation::TargetProperty targetProperty)
 {
-    for (size_t i = 0; i < m_activeAnimations.size();) {
-        if (m_activeAnimations[i]->id() == animationId && m_activeAnimations[i]->targetProperty() == targetProperty)
-            m_activeAnimations.remove(i);
-        else
-            i++;
-    }
+    ScopedPtrVector<Animation>& animations = m_activeAnimations;
+    animations.erase(cc::remove_if(animations, animations.begin(), animations.end(), HasAnimationIdAndProperty(animationId, targetProperty)), animations.end());
     updateActivation();
 }
 
@@ -90,7 +100,7 @@ void LayerAnimationController::suspendAnimations(double monotonicTime)
 {
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
         if (!m_activeAnimations[i]->isFinished())
-            m_activeAnimations[i]->setRunState(ActiveAnimation::Paused, monotonicTime);
+            m_activeAnimations[i]->setRunState(Animation::Paused, monotonicTime);
     }
 }
 
@@ -98,8 +108,8 @@ void LayerAnimationController::suspendAnimations(double monotonicTime)
 void LayerAnimationController::resumeAnimations(double monotonicTime)
 {
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
-        if (m_activeAnimations[i]->runState() == ActiveAnimation::Paused)
-            m_activeAnimations[i]->setRunState(ActiveAnimation::Running, monotonicTime);
+        if (m_activeAnimations[i]->runState() == Animation::Paused)
+            m_activeAnimations[i]->setRunState(Animation::Running, monotonicTime);
     }
 }
 
@@ -127,6 +137,9 @@ void LayerAnimationController::pushAnimationUpdatesTo(LayerAnimationController* 
 
 void LayerAnimationController::animate(double monotonicTime, AnimationEventsVector* events)
 {
+    if (!hasActiveObserver())
+        return;
+
     startAnimationsWaitingForNextTick(monotonicTime, events);
     startAnimationsWaitingForStartTime(monotonicTime, events);
     startAnimationsWaitingForTargetAvailability(monotonicTime, events);
@@ -138,13 +151,13 @@ void LayerAnimationController::animate(double monotonicTime, AnimationEventsVect
     updateActivation();
 }
 
-void LayerAnimationController::addAnimation(scoped_ptr<ActiveAnimation> animation)
+void LayerAnimationController::addAnimation(scoped_ptr<Animation> animation)
 {
-    m_activeAnimations.append(animation.Pass());
+    m_activeAnimations.push_back(animation.Pass());
     updateActivation();
 }
 
-ActiveAnimation* LayerAnimationController::getActiveAnimation(int groupId, ActiveAnimation::TargetProperty targetProperty) const
+Animation* LayerAnimationController::getAnimation(int groupId, Animation::TargetProperty targetProperty) const
 {
     for (size_t i = 0; i < m_activeAnimations.size(); ++i)
         if (m_activeAnimations[i]->group() == groupId && m_activeAnimations[i]->targetProperty() == targetProperty)
@@ -152,7 +165,7 @@ ActiveAnimation* LayerAnimationController::getActiveAnimation(int groupId, Activ
     return 0;
 }
 
-ActiveAnimation* LayerAnimationController::getActiveAnimation(ActiveAnimation::TargetProperty targetProperty) const
+Animation* LayerAnimationController::getAnimation(Animation::TargetProperty targetProperty) const
 {
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
         size_t index = m_activeAnimations.size() - i - 1;
@@ -171,10 +184,10 @@ bool LayerAnimationController::hasActiveAnimation() const
     return false;
 }
 
-bool LayerAnimationController::isAnimatingProperty(ActiveAnimation::TargetProperty targetProperty) const
+bool LayerAnimationController::isAnimatingProperty(Animation::TargetProperty targetProperty) const
 {
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
-        if (m_activeAnimations[i]->runState() != ActiveAnimation::Finished && m_activeAnimations[i]->runState() != ActiveAnimation::Aborted && m_activeAnimations[i]->targetProperty() == targetProperty)
+        if (m_activeAnimations[i]->runState() != Animation::Finished && m_activeAnimations[i]->runState() != Animation::Aborted && m_activeAnimations[i]->targetProperty() == targetProperty)
             return true;
     }
     return false;
@@ -223,7 +236,7 @@ void LayerAnimationController::pushNewAnimationsToImplThread(LayerAnimationContr
     // Any new animations owned by the main thread's controller are cloned and adde to the impl thread's controller.
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
         // If the animation is already running on the impl thread, there is no need to copy it over.
-        if (controllerImpl->getActiveAnimation(m_activeAnimations[i]->group(), m_activeAnimations[i]->targetProperty()))
+        if (controllerImpl->getAnimation(m_activeAnimations[i]->group(), m_activeAnimations[i]->targetProperty()))
             continue;
 
         // If the animation is not running on the impl thread, it does not necessarily mean that it needs
@@ -234,32 +247,34 @@ void LayerAnimationController::pushNewAnimationsToImplThread(LayerAnimationContr
             continue;
 
         // The new animation should be set to run as soon as possible.
-        ActiveAnimation::RunState initialRunState = ActiveAnimation::WaitingForTargetAvailability;
+        Animation::RunState initialRunState = Animation::WaitingForTargetAvailability;
         double startTime = 0;
-        scoped_ptr<ActiveAnimation> toAdd(m_activeAnimations[i]->cloneAndInitialize(ActiveAnimation::ControllingInstance, initialRunState, startTime));
+        scoped_ptr<Animation> toAdd(m_activeAnimations[i]->cloneAndInitialize(Animation::ControllingInstance, initialRunState, startTime));
         DCHECK(!toAdd->needsSynchronizedStartTime());
         controllerImpl->addAnimation(toAdd.Pass());
     }
 }
+
+struct IsCompleted {
+    IsCompleted(const LayerAnimationController& mainThreadController) : m_mainThreadController(mainThreadController) { }
+    bool operator()(Animation* animation) const { return !m_mainThreadController.getAnimation(animation->group(), animation->targetProperty()); }
+private:
+    const LayerAnimationController& m_mainThreadController;
+};
 
 void LayerAnimationController::removeAnimationsCompletedOnMainThread(LayerAnimationController* controllerImpl) const
 {
     // Delete all impl thread animations for which there is no corresponding main thread animation.
     // Each iteration, controller->m_activeAnimations.size() is decremented or i is incremented
     // guaranteeing progress towards loop termination.
-    for (size_t i = 0; i < controllerImpl->m_activeAnimations.size();) {
-        ActiveAnimation* current = getActiveAnimation(controllerImpl->m_activeAnimations[i]->group(), controllerImpl->m_activeAnimations[i]->targetProperty());
-        if (!current)
-            controllerImpl->m_activeAnimations.remove(i);
-        else
-            i++;
-    }
+    ScopedPtrVector<Animation>& animations = controllerImpl->m_activeAnimations;
+    animations.erase(cc::remove_if(animations, animations.begin(), animations.end(), IsCompleted(*this)), animations.end());
 }
 
 void LayerAnimationController::pushPropertiesToImplThread(LayerAnimationController* controllerImpl) const
 {
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
-        ActiveAnimation* currentImpl = controllerImpl->getActiveAnimation(m_activeAnimations[i]->group(), m_activeAnimations[i]->targetProperty());
+        Animation* currentImpl = controllerImpl->getAnimation(m_activeAnimations[i]->group(), m_activeAnimations[i]->targetProperty());
         if (currentImpl)
             m_activeAnimations[i]->pushPropertiesTo(currentImpl);
     }
@@ -268,8 +283,8 @@ void LayerAnimationController::pushPropertiesToImplThread(LayerAnimationControll
 void LayerAnimationController::startAnimationsWaitingForNextTick(double monotonicTime, AnimationEventsVector* events)
 {
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
-        if (m_activeAnimations[i]->runState() == ActiveAnimation::WaitingForNextTick) {
-            m_activeAnimations[i]->setRunState(ActiveAnimation::Running, monotonicTime);
+        if (m_activeAnimations[i]->runState() == Animation::WaitingForNextTick) {
+            m_activeAnimations[i]->setRunState(Animation::Running, monotonicTime);
             if (!m_activeAnimations[i]->hasSetStartTime())
                 m_activeAnimations[i]->setStartTime(monotonicTime);
             if (events)
@@ -281,8 +296,8 @@ void LayerAnimationController::startAnimationsWaitingForNextTick(double monotoni
 void LayerAnimationController::startAnimationsWaitingForStartTime(double monotonicTime, AnimationEventsVector* events)
 {
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
-        if (m_activeAnimations[i]->runState() == ActiveAnimation::WaitingForStartTime && m_activeAnimations[i]->startTime() <= monotonicTime) {
-            m_activeAnimations[i]->setRunState(ActiveAnimation::Running, monotonicTime);
+        if (m_activeAnimations[i]->runState() == Animation::WaitingForStartTime && m_activeAnimations[i]->startTime() <= monotonicTime) {
+            m_activeAnimations[i]->setRunState(Animation::Running, monotonicTime);
             if (events)
                 events->push_back(AnimationEvent(AnimationEvent::Started, m_id, m_activeAnimations[i]->group(), m_activeAnimations[i]->targetProperty(), monotonicTime));
         }
@@ -294,12 +309,12 @@ void LayerAnimationController::startAnimationsWaitingForTargetAvailability(doubl
     // First collect running properties.
     TargetProperties blockedProperties;
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
-        if (m_activeAnimations[i]->runState() == ActiveAnimation::Running || m_activeAnimations[i]->runState() == ActiveAnimation::Finished)
+        if (m_activeAnimations[i]->runState() == Animation::Running || m_activeAnimations[i]->runState() == Animation::Finished)
             blockedProperties.insert(m_activeAnimations[i]->targetProperty());
     }
 
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
-        if (m_activeAnimations[i]->runState() == ActiveAnimation::WaitingForTargetAvailability) {
+        if (m_activeAnimations[i]->runState() == Animation::WaitingForTargetAvailability) {
             // Collect all properties for animations with the same group id (they should all also be in the list of animations).
             TargetProperties enqueuedProperties;
             enqueuedProperties.insert(m_activeAnimations[i]->targetProperty());
@@ -319,14 +334,14 @@ void LayerAnimationController::startAnimationsWaitingForTargetAvailability(doubl
 
             // If the intersection is null, then we are free to start the animations in the group.
             if (nullIntersection) {
-                m_activeAnimations[i]->setRunState(ActiveAnimation::Running, monotonicTime);
+                m_activeAnimations[i]->setRunState(Animation::Running, monotonicTime);
                 if (!m_activeAnimations[i]->hasSetStartTime())
                     m_activeAnimations[i]->setStartTime(monotonicTime);
                 if (events)
                     events->push_back(AnimationEvent(AnimationEvent::Started, m_id, m_activeAnimations[i]->group(), m_activeAnimations[i]->targetProperty(), monotonicTime));
                 for (size_t j = i + 1; j < m_activeAnimations.size(); ++j) {
                     if (m_activeAnimations[i]->group() == m_activeAnimations[j]->group()) {
-                        m_activeAnimations[j]->setRunState(ActiveAnimation::Running, monotonicTime);
+                        m_activeAnimations[j]->setRunState(Animation::Running, monotonicTime);
                         if (!m_activeAnimations[j]->hasSetStartTime())
                             m_activeAnimations[j]->setStartTime(monotonicTime);
                     }
@@ -344,13 +359,13 @@ void LayerAnimationController::resolveConflicts(double monotonicTime)
     // (2) has an equal start time, but was added to the queue earlier, i.e.,
     // has a lower index in m_activeAnimations).
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
-        if (m_activeAnimations[i]->runState() == ActiveAnimation::Running) {
+        if (m_activeAnimations[i]->runState() == Animation::Running) {
             for (size_t j = i + 1; j < m_activeAnimations.size(); ++j) {
-                if (m_activeAnimations[j]->runState() == ActiveAnimation::Running && m_activeAnimations[i]->targetProperty() == m_activeAnimations[j]->targetProperty()) {
+                if (m_activeAnimations[j]->runState() == Animation::Running && m_activeAnimations[i]->targetProperty() == m_activeAnimations[j]->targetProperty()) {
                     if (m_activeAnimations[i]->startTime() > m_activeAnimations[j]->startTime())
-                        m_activeAnimations[j]->setRunState(ActiveAnimation::Aborted, monotonicTime);
+                        m_activeAnimations[j]->setRunState(Animation::Aborted, monotonicTime);
                     else
-                        m_activeAnimations[i]->setRunState(ActiveAnimation::Aborted, monotonicTime);
+                        m_activeAnimations[i]->setRunState(Animation::Aborted, monotonicTime);
                 }
             }
         }
@@ -380,36 +395,34 @@ void LayerAnimationController::markAnimationsForDeletion(double monotonicTime, A
                 if (groupId == m_activeAnimations[j]->group()) {
                     if (events)
                         events->push_back(AnimationEvent(AnimationEvent::Finished, m_id, m_activeAnimations[j]->group(), m_activeAnimations[j]->targetProperty(), monotonicTime));
-                    m_activeAnimations[j]->setRunState(ActiveAnimation::WaitingForDeletion, monotonicTime);
+                    m_activeAnimations[j]->setRunState(Animation::WaitingForDeletion, monotonicTime);
                 }
             }
         }
     }
 }
 
+static bool isWaitingForDeletion(Animation* animation) { return animation->runState() == Animation::WaitingForDeletion; }
+
 void LayerAnimationController::purgeAnimationsMarkedForDeletion()
 {
-    for (size_t i = 0; i < m_activeAnimations.size();) {
-        if (m_activeAnimations[i]->runState() == ActiveAnimation::WaitingForDeletion)
-            m_activeAnimations.remove(i);
-        else
-            i++;
-    }
+    ScopedPtrVector<Animation>& animations = m_activeAnimations;
+    animations.erase(cc::remove_if(animations, animations.begin(), animations.end(), isWaitingForDeletion), animations.end());
 }
 
 void LayerAnimationController::replaceImplThreadAnimations(LayerAnimationController* controllerImpl) const
 {
     controllerImpl->m_activeAnimations.clear();
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
-        scoped_ptr<ActiveAnimation> toAdd;
+        scoped_ptr<Animation> toAdd;
         if (m_activeAnimations[i]->needsSynchronizedStartTime()) {
             // We haven't received an animation started notification yet, so it
             // is important that we add it in a 'waiting' and not 'running' state.
-            ActiveAnimation::RunState initialRunState = ActiveAnimation::WaitingForTargetAvailability;
+            Animation::RunState initialRunState = Animation::WaitingForTargetAvailability;
             double startTime = 0;
-            toAdd = m_activeAnimations[i]->cloneAndInitialize(ActiveAnimation::ControllingInstance, initialRunState, startTime).Pass();
+            toAdd = m_activeAnimations[i]->cloneAndInitialize(Animation::ControllingInstance, initialRunState, startTime).Pass();
         } else
-            toAdd = m_activeAnimations[i]->clone(ActiveAnimation::ControllingInstance).Pass();
+            toAdd = m_activeAnimations[i]->clone(Animation::ControllingInstance).Pass();
 
         controllerImpl->addAnimation(toAdd.Pass());
     }
@@ -418,7 +431,7 @@ void LayerAnimationController::replaceImplThreadAnimations(LayerAnimationControl
 void LayerAnimationController::tickAnimations(double monotonicTime)
 {
     for (size_t i = 0; i < m_activeAnimations.size(); ++i) {
-        if (m_activeAnimations[i]->runState() == ActiveAnimation::Running || m_activeAnimations[i]->runState() == ActiveAnimation::Paused) {
+        if (m_activeAnimations[i]->runState() == Animation::Running || m_activeAnimations[i]->runState() == Animation::Paused) {
             double trimmed = m_activeAnimations[i]->trimTimeToCurrentIteration(monotonicTime);
 
             // Animation assumes its initial value until it gets the synchronized start time
@@ -428,28 +441,28 @@ void LayerAnimationController::tickAnimations(double monotonicTime)
 
             switch (m_activeAnimations[i]->targetProperty()) {
 
-            case ActiveAnimation::Transform: {
+            case Animation::Transform: {
                 const TransformAnimationCurve* transformAnimationCurve = m_activeAnimations[i]->curve()->toTransformAnimationCurve();
                 const gfx::Transform transform = convertWebTransformationMatrixToTransform(transformAnimationCurve->getValue(trimmed));
                 if (m_activeAnimations[i]->isFinishedAt(monotonicTime))
-                    m_activeAnimations[i]->setRunState(ActiveAnimation::Finished, monotonicTime);
+                    m_activeAnimations[i]->setRunState(Animation::Finished, monotonicTime);
 
                 notifyObserversTransformAnimated(transform);
                 break;
             }
 
-            case ActiveAnimation::Opacity: {
+            case Animation::Opacity: {
                 const FloatAnimationCurve* floatAnimationCurve = m_activeAnimations[i]->curve()->toFloatAnimationCurve();
                 const float opacity = floatAnimationCurve->getValue(trimmed);
                 if (m_activeAnimations[i]->isFinishedAt(monotonicTime))
-                    m_activeAnimations[i]->setRunState(ActiveAnimation::Finished, monotonicTime);
+                    m_activeAnimations[i]->setRunState(Animation::Finished, monotonicTime);
 
                 notifyObserversOpacityAnimated(opacity);
                 break;
             }
 
             // Do nothing for sentinel value.
-            case ActiveAnimation::TargetPropertyEnumSize:
+            case Animation::TargetPropertyEnumSize:
                 NOTREACHED();
             }
         }
@@ -459,11 +472,11 @@ void LayerAnimationController::tickAnimations(double monotonicTime)
 void LayerAnimationController::updateActivation(bool force)
 {
     if (m_registrar) {
-        if (!m_activeAnimations.isEmpty() && (!m_isActive || force))
+        if (!m_activeAnimations.empty() && (!m_isActive || force))
             m_registrar->DidActivateAnimationController(this);
-        else if (m_activeAnimations.isEmpty() && (m_isActive || force))
+        else if (m_activeAnimations.empty() && (m_isActive || force))
             m_registrar->DidDeactivateAnimationController(this);
-        m_isActive = !m_activeAnimations.isEmpty();
+        m_isActive = !m_activeAnimations.empty();
     }
 }
 
@@ -479,6 +492,18 @@ void LayerAnimationController::notifyObserversTransformAnimated(const gfx::Trans
     FOR_EACH_OBSERVER(LayerAnimationValueObserver,
                       m_observers,
                       OnTransformAnimated(transform));
+}
+
+bool LayerAnimationController::hasActiveObserver()
+{
+    if (m_observers.might_have_observers()) {
+        ObserverListBase<LayerAnimationValueObserver>::Iterator it(m_observers);
+        LayerAnimationValueObserver* obs;
+        while ((obs = it.GetNext()) != NULL)
+            if (obs->IsActive())
+                return true;
+    }
+    return false;
 }
 
 }  // namespace cc

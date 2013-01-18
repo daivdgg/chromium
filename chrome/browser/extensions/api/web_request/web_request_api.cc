@@ -19,7 +19,6 @@
 #include "chrome/browser/chrome_content_browser_client.h"
 #include "chrome/browser/extensions/api/declarative_webrequest/request_stage.h"
 #include "chrome/browser/extensions/api/declarative_webrequest/webrequest_constants.h"
-#include "chrome/browser/extensions/api/declarative_webrequest/webrequest_rule.h"
 #include "chrome/browser/extensions/api/declarative_webrequest/webrequest_rules_registry.h"
 #include "chrome/browser/extensions/api/web_navigation/web_navigation_api_helpers.h"
 #include "chrome/browser/extensions/api/web_request/upload_data_presenter.h"
@@ -1648,7 +1647,7 @@ bool ExtensionWebRequestEventRouter::ProcessDeclarativeRules(
     helpers::EventResponseDeltas result =
         rules_registry->CreateDeltas(
             extension_info_map,
-            extensions::WebRequestRule::RequestData(
+            extensions::DeclarativeWebRequestData(
                 request, request_stage, original_response_headers),
             i->second);
 
@@ -1706,7 +1705,7 @@ void ExtensionWebRequestEventRouter::ClearSignaled(uint64 request_id,
   iter->second &= ~event_type;
 }
 
-// Special QuotaLimitHeuristic for WebRequestHandlerBehaviorChanged.
+// Special QuotaLimitHeuristic for WebRequestHandlerBehaviorChangedFunction.
 //
 // Each call of webRequest.handlerBehaviorChanged() clears the in-memory cache
 // of WebKit at the time of the next page load (top level navigation event).
@@ -1955,7 +1954,7 @@ bool WebRequestEventHandled::RunImpl() {
   return true;
 }
 
-void WebRequestHandlerBehaviorChanged::GetQuotaLimitHeuristics(
+void WebRequestHandlerBehaviorChangedFunction::GetQuotaLimitHeuristics(
     QuotaLimitHeuristics* heuristics) const {
   QuotaLimitHeuristic::Config config = {
     // See web_request.json for current value.
@@ -1969,7 +1968,7 @@ void WebRequestHandlerBehaviorChanged::GetQuotaLimitHeuristics(
   heuristics->push_back(heuristic);
 }
 
-void WebRequestHandlerBehaviorChanged::OnQuotaExceeded(
+void WebRequestHandlerBehaviorChangedFunction::OnQuotaExceeded(
     const std::string& violation_error) {
   // Post warning message.
   ExtensionWarningSet warnings;
@@ -1985,7 +1984,7 @@ void WebRequestHandlerBehaviorChanged::OnQuotaExceeded(
   Run();
 }
 
-bool WebRequestHandlerBehaviorChanged::RunImpl() {
+bool WebRequestHandlerBehaviorChangedFunction::RunImpl() {
   helpers::ClearCacheOnNavigation();
   return true;
 }

@@ -23,10 +23,6 @@ class GDataWapiUrlGenerator {
   // The base URL for communicating with the WAPI server for production.
   static const char kBaseUrlForProduction[];
 
-  // Gets the base URL for communicating with the local test server for
-  // testing, running at the specified port number.
-  static GURL GetBaseUrlForTesting(int port);
-
   // Adds additional parameters for API version, output content type and to
   // show folders in the feed are added to document feed URLs.
   static GURL AddStandardUrlParams(const GURL& url);
@@ -45,6 +41,14 @@ class GDataWapiUrlGenerator {
                                const std::string& search_string);
 
   // Generates a URL for getting the resource list feed.
+  //
+  // The parameters other than |search_string| are mutually exclusive.
+  // If |override_url| is non-empty, other parameters are ignored. Or if
+  // |override_url| is empty and |shared_with_me| is true, others are not used.
+  // Besides, |search_string| cannot be set together with |start_changestamp|.
+  //
+  // TODO(kinaba,haruki): http://crbug.com/160932
+  // This is really hard to follow. We should split to multiple functions.
   //
   // override_url:
   //   By default, a hard-coded base URL of the WAPI server is used.

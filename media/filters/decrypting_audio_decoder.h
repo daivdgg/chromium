@@ -24,13 +24,15 @@ class Decryptor;
 // encrypted audio buffers and return decrypted and decompressed audio frames.
 // All public APIs and callbacks are trampolined to the |message_loop_| so
 // that no locks are required for thread safety.
-//
-// TODO(xhwang): For now, DecryptingAudioDecoder relies on the decryptor to do
-// both decryption and audio decoding. Add the path to use the decryptor for
-// decryption only and use other AudioDecoder implementations within
-// DecryptingAudioDecoder for audio decoding.
 class MEDIA_EXPORT DecryptingAudioDecoder : public AudioDecoder {
  public:
+  // We do not currently have a way to let the Decryptor choose the output
+  // audio sample format and notify us of its choice. Therefore, we require all
+  // Decryptor implementations to decode audio into a fixed integer sample
+  // format designated by kSupportedBitsPerChannel.
+  // TODO(xhwang): Remove this restriction after http://crbug.com/169105 fixed.
+  static const int kSupportedBitsPerChannel;
+
   DecryptingAudioDecoder(
       const scoped_refptr<base::MessageLoopProxy>& message_loop,
       const SetDecryptorReadyCB& set_decryptor_ready_cb);
@@ -58,6 +60,7 @@ class MEDIA_EXPORT DecryptingAudioDecoder : public AudioDecoder {
     kDecryptorRequested,
     kPendingDecoderInit,
     kIdle,
+    kPendingConfigChange,
     kPendingDemuxerRead,
     kPendingDecode,
     kWaitingForKey,
@@ -72,8 +75,11 @@ class MEDIA_EXPORT DecryptingAudioDecoder : public AudioDecoder {
   // Callback for DecryptorHost::RequestDecryptor().
   void SetDecryptor(Decryptor* decryptor);
 
-  // Callback for Decryptor::InitializeAudioDecoder().
+  // Callback for Decryptor::InitializeAudioDecoder() during initialization.
   void FinishInitialization(bool success);
+
+  // Callback for Decryptor::InitializeAudioDecoder() during config change.
+  void FinishConfigChange(bool success);
 
   // Carries out the buffer reading operation scheduled by Read().
   void DoRead(const ReadCB& read_cb);
@@ -102,6 +108,10 @@ class MEDIA_EXPORT DecryptingAudioDecoder : public AudioDecoder {
 
   // Resets decoder and calls |reset_cb_|.
   void DoReset();
+
+  // Updates audio configs from |demuxer_stream_| and resets
+  // |output_timestamp_base_| and |total_samples_decoded_|.
+  void UpdateDecoderConfig();
 
   // Sets timestamp and duration for |queued_audio_frames_| to make sure the
   // renderer always receives continuous frames without gaps and overlaps.

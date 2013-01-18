@@ -5,6 +5,7 @@
 #include "cc/tree_synchronizer.h"
 
 #include "base/debug/trace_event.h"
+#include "base/logging.h"
 #include "cc/layer.h"
 #include "cc/layer_impl.h"
 #include "cc/scrollbar_animation_controller.h"
@@ -36,8 +37,8 @@ void TreeSynchronizer::collectExistingLayerImplRecursive(ScopedPtrLayerImplMap& 
         return;
 
     ScopedPtrVector<LayerImpl>& children = layerImpl->m_children;
-    for (size_t i = 0; i < children.size(); ++i)
-        collectExistingLayerImplRecursive(oldLayers, children.take(i));
+    for (ScopedPtrVector<LayerImpl>::iterator it = children.begin(); it != children.end(); ++it)
+        collectExistingLayerImplRecursive(oldLayers, children.take(it));
 
     collectExistingLayerImplRecursive(oldLayers, layerImpl->takeMaskLayer());
     collectExistingLayerImplRecursive(oldLayers, layerImpl->takeReplicaLayer());
@@ -71,8 +72,6 @@ scoped_ptr<LayerImpl> TreeSynchronizer::synchronizeTreeRecursive(RawPtrLayerImpl
 
     layerImpl->setMaskLayer(synchronizeTreeRecursive(newLayers, oldLayers, layer->maskLayer(), treeImpl));
     layerImpl->setReplicaLayer(synchronizeTreeRecursive(newLayers, oldLayers, layer->replicaLayer(), treeImpl));
-
-    layer->pushPropertiesTo(layerImpl.get());
 
     // Remove all dangling pointers. The pointers will be setup later in updateScrollbarLayerPointersRecursive phase
     if (ScrollbarAnimationController* scrollbarController = layerImpl->scrollbarAnimationController()) {
@@ -108,6 +107,28 @@ void TreeSynchronizer::updateScrollbarLayerPointersRecursive(const RawPtrLayerIm
         scrollLayerImpl->setHorizontalScrollbarLayer(scrollbarLayerImpl);
     else
         scrollLayerImpl->setVerticalScrollbarLayer(scrollbarLayerImpl);
+}
+
+void TreeSynchronizer::pushProperties(Layer* layer, LayerImpl* layerImpl)
+{
+    if (!layer) {
+        DCHECK(!layerImpl);
+        return;
+    }
+
+    DCHECK_EQ(layer->id(), layerImpl->id());
+    layer->pushPropertiesTo(layerImpl);
+
+    pushProperties(layer->maskLayer(), layerImpl->maskLayer());
+    pushProperties(layer->replicaLayer(), layerImpl->replicaLayer());
+
+    const std::vector<scoped_refptr<Layer> >& children = layer->children();
+    const ScopedPtrVector<LayerImpl>& implChildren = layerImpl->children();
+    DCHECK_EQ(children.size(), implChildren.size());
+
+    for (size_t i = 0; i < children.size(); ++i) {
+        pushProperties(children[i].get(), implChildren[i]);
+    }
 }
 
 }  // namespace cc

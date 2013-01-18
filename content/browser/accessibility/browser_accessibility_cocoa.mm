@@ -15,7 +15,7 @@
 #include "content/browser/accessibility/browser_accessibility_manager.h"
 #include "content/public/common/content_client.h"
 #include "grit/webkit_strings.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebRect.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebRect.h"
 
 // See http://openradar.appspot.com/9896491. This SPI has been tested on 10.5,
 // 10.6, and 10.7. It allows accessibility clients to observe events posted on
@@ -299,6 +299,7 @@ NSDictionary* attributeToMethodNameMap = nil;
     { @"AXARIABusy", @"ariaBusy" },
     { @"AXARIALive", @"ariaLive" },
     { @"AXARIARelevant", @"ariaRelevant" },
+    { @"AXInvalid", @"invalid" },
     { @"AXLoaded", @"loaded" },
     { @"AXLoadingProgress", @"loadingProgress" },
     { @"AXRequired", @"required" },
@@ -481,6 +482,18 @@ NSDictionary* attributeToMethodNameMap = nil;
 // accessibility tree.
 - (BOOL)isIgnored {
   return [[self role] isEqualToString:NSAccessibilityUnknownRole];
+}
+
+- (NSString*)invalid {
+  string16 invalidUTF;
+  if (!browserAccessibility_->GetHtmlAttribute("aria-invalid", &invalidUTF))
+    return NULL;
+  NSString* invalid = base::SysUTF16ToNSString(invalidUTF);
+  if ([invalid isEqualToString:@"false"] ||
+      [invalid isEqualToString:@""]) {
+    return @"false";
+  }
+  return invalid;
 }
 
 - (NSNumber*)loaded {

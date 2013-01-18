@@ -8,6 +8,7 @@
 
 #include "base/debug/trace_event.h"
 #include "base/metrics/histogram.h"
+#include "cc/draw_quad.h"
 #include "cc/math_util.h"
 #include "ui/gfx/rect_conversions.h"
 #include "ui/gfx/transform.h"
@@ -162,7 +163,7 @@ void DirectRenderer::drawFrame(RenderPassList& renderPassesInDrawOrder)
     TRACE_EVENT0("cc", "DirectRenderer::drawFrame");
     HISTOGRAM_COUNTS("Renderer4.renderPassCount", renderPassesInDrawOrder.size());
 
-    const RenderPass* rootRenderPass = renderPassesInDrawOrder.last();
+    const RenderPass* rootRenderPass = renderPassesInDrawOrder.back();
     DCHECK(rootRenderPass);
 
     DrawingFrame frame;
@@ -185,9 +186,12 @@ gfx::RectF DirectRenderer::computeScissorRectForRenderPass(const DrawingFrame& f
     if (frame.rootDamageRect == frame.rootRenderPass->output_rect)
         return renderPassScissor;
 
-    gfx::Transform inverseTransform = MathUtil::inverse(frame.currentRenderPass->transform_to_root_target);
-    gfx::RectF damageRectInRenderPassSpace = MathUtil::projectClippedRect(inverseTransform, frame.rootDamageRect);
-    renderPassScissor.Intersect(damageRectInRenderPassSpace);
+    gfx::Transform inverseTransform(gfx::Transform::kSkipInitialization);
+    if (frame.currentRenderPass->transform_to_root_target.GetInverse(&inverseTransform)) {
+        // Only intersect inverse-projected damage if the transform is invertible.
+        gfx::RectF damageRectInRenderPassSpace = MathUtil::projectClippedRect(inverseTransform, frame.rootDamageRect);
+        renderPassScissor.Intersect(damageRectInRenderPassSpace);
+    }
 
     return renderPassScissor;
 }

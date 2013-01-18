@@ -211,13 +211,18 @@ void OmniboxEditModel::SetInstantSuggestion(
       view_->SetInstantSuggestion(suggestion.text);
       break;
 
-    case INSTANT_COMPLETE_REPLACE:
+    case INSTANT_COMPLETE_REPLACE: {
+      const bool save_original_selection = !has_temporary_text_;
       view_->SetInstantSuggestion(string16());
       has_temporary_text_ = true;
       is_temporary_text_set_by_instant_ = true;
-      view_->SetWindowTextAndCaretPos(suggestion.text, suggestion.text.size(),
-                                      false, false);
+      // Instant suggestions are never a keyword.
+      keyword_ = string16();
+      is_keyword_hint_ = false;
+      view_->OnTemporaryTextMaybeChanged(suggestion.text,
+                                         save_original_selection);
       break;
+    }
   }
 }
 
@@ -272,25 +277,22 @@ void OmniboxEditModel::OnChanged() {
                             AutocompleteActionPredictor::LAST_PREDICT_ACTION);
 
   if (!DoInstant(current_match)) {
-    switch (recommended_action) {
-      case AutocompleteActionPredictor::ACTION_PRERENDER:
-        DoPrerender(current_match);
-        break;
-      case AutocompleteActionPredictor::ACTION_PRECONNECT:
-        DoPreconnect(current_match);
-        break;
-      case AutocompleteActionPredictor::ACTION_NONE:
-        break;
-      default:
-        NOTREACHED() << "Unexpected recommended action: " << recommended_action;
-        break;
-    }
-
     // Hide any suggestions we might be showing.
     view_->SetInstantSuggestion(string16());
 
     // No need to wait any longer for Instant.
     FinalizeInstantQuery(string16(), InstantSuggestion(), false);
+  }
+
+  switch (recommended_action) {
+    case AutocompleteActionPredictor::ACTION_PRERENDER:
+      DoPrerender(current_match);
+      break;
+    case AutocompleteActionPredictor::ACTION_PRECONNECT:
+      DoPreconnect(current_match);
+      break;
+    case AutocompleteActionPredictor::ACTION_NONE:
+      break;
   }
 
   controller_->OnChanged();
@@ -793,7 +795,7 @@ void OmniboxEditModel::OnKillFocus() {
 }
 
 bool OmniboxEditModel::OnEscapeKeyPressed() {
-  if (has_temporary_text_) {
+  if (has_temporary_text_ && !is_temporary_text_set_by_instant_) {
     AutocompleteMatch match;
     InfoForCurrentSelection(&match, NULL);
     if (match.destination_url != original_url_) {

@@ -29,7 +29,8 @@ ExtensionBluetoothEventRouter::ExtensionBluetoothEventRouter(Profile* profile)
       profile_(profile),
       adapter_(NULL),
       num_event_listeners_(0),
-      next_socket_id_(1) {
+      next_socket_id_(1),
+      ALLOW_THIS_IN_INITIALIZER_LIST(weak_ptr_factory_(this)) {
   DCHECK(profile_);
 }
 
@@ -41,17 +42,19 @@ ExtensionBluetoothEventRouter::~ExtensionBluetoothEventRouter() {
   }
 }
 
-scoped_refptr<const device::BluetoothAdapter>
-ExtensionBluetoothEventRouter::adapter() {
-  return GetMutableAdapter();
+bool ExtensionBluetoothEventRouter::IsBluetoothSupported() const {
+  return adapter_ ||
+         device::BluetoothAdapterFactory::IsBluetoothAdapterAvailable();
 }
 
-scoped_refptr<device::BluetoothAdapter>
-ExtensionBluetoothEventRouter::GetMutableAdapter() {
-  if (adapter_)
-    return adapter_;
+void ExtensionBluetoothEventRouter::RunCallbackOnAdapterReady(
+    const device::BluetoothAdapter::AdapterCallback& callback) {
+  if (adapter_) {
+    callback.Run(scoped_refptr<device::BluetoothAdapter>(adapter_));
+    return;
+  }
 
-  return device::BluetoothAdapterFactory::DefaultAdapter();
+  device::BluetoothAdapterFactory::RunCallbackOnAdapterReady(callback);
 }
 
 void ExtensionBluetoothEventRouter::OnListenerAdded() {
@@ -183,9 +186,17 @@ void ExtensionBluetoothEventRouter::DeviceAdded(
 
 void ExtensionBluetoothEventRouter::InitializeAdapterIfNeeded() {
   if (!adapter_) {
-    adapter_ = GetMutableAdapter();
-    adapter_->AddObserver(this);
+    RunCallbackOnAdapterReady(
+        base::Bind(&ExtensionBluetoothEventRouter::InitializeAdapter,
+                   weak_ptr_factory_.GetWeakPtr()));
   }
+}
+
+void ExtensionBluetoothEventRouter::InitializeAdapter(
+    scoped_refptr<device::BluetoothAdapter> adapter) {
+  adapter_ = adapter;
+  if (adapter_)
+    adapter_->AddObserver(this);
 }
 
 void ExtensionBluetoothEventRouter::MaybeReleaseAdapter() {

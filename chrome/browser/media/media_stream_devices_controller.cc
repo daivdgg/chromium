@@ -41,16 +41,15 @@ const char kVideoKey[] = "video";
 
 MediaStreamDevicesController::MediaStreamDevicesController(
     Profile* profile,
-    const content::MediaStreamRequest* request,
+    const content::MediaStreamRequest& request,
     const content::MediaResponseCallback& callback)
     : profile_(profile),
-      request_(*request),
+      request_(request),
       callback_(callback),
-      has_audio_(content::IsAudioMediaType(request->audio_type) &&
+      has_audio_(content::IsAudioMediaType(request.audio_type) &&
                  !IsAudioDeviceBlockedByPolicy()),
-      has_video_(content::IsVideoMediaType(request->video_type) &&
+      has_video_(content::IsVideoMediaType(request.video_type) &&
                  !IsVideoDeviceBlockedByPolicy()) {
-  DCHECK(request);
 }
 
 MediaStreamDevicesController::~MediaStreamDevicesController() {}
@@ -121,15 +120,31 @@ const std::string& MediaStreamDevicesController::GetSecurityOriginSpec() const {
 }
 
 void MediaStreamDevicesController::Accept(bool update_content_setting) {
-  // Get the default devices for the request.
   content::MediaStreamDevices devices;
-  media::GetDefaultDevicesForProfile(profile_,
-                                     has_audio_,
-                                     has_video_,
-                                     &devices);
+  if (has_audio_ || has_video_) {
+    switch (request_.request_type) {
+      case content::MEDIA_OPEN_DEVICE:
+        // For open device request pick the desired device or fall back to the
+        // first available of the given type.
+        media::GetRequestedDevice(request_.requested_device_id,
+                                  has_audio_,
+                                  has_video_,
+                                  &devices);
+        break;
+      case content::MEDIA_DEVICE_ACCESS:
+      case content::MEDIA_GENERATE_STREAM:
+      case content::MEDIA_ENUMERATE_DEVICES:
+        // Get the default devices for the request.
+        media::GetDefaultDevicesForProfile(profile_,
+                                           has_audio_,
+                                           has_video_,
+                                           &devices);
+        break;
+    }
 
-  if (update_content_setting && IsSchemeSecure() && !devices.empty())
-    SetPermission(true);
+    if (update_content_setting && IsSchemeSecure() && !devices.empty())
+      SetPermission(true);
+  }
 
   callback_.Run(devices);
 }
@@ -225,11 +240,11 @@ void MediaStreamDevicesController::HandleTapMediaRequest() {
 
     if (request_.audio_type == content::MEDIA_TAB_AUDIO_CAPTURE) {
       devices.push_back(content::MediaStreamDevice(
-          content::MEDIA_TAB_VIDEO_CAPTURE, "", ""));
+          content::MEDIA_TAB_AUDIO_CAPTURE, "", ""));
     }
     if (request_.video_type == content::MEDIA_TAB_VIDEO_CAPTURE) {
       devices.push_back(content::MediaStreamDevice(
-          content::MEDIA_TAB_AUDIO_CAPTURE, "", ""));
+          content::MEDIA_TAB_VIDEO_CAPTURE, "", ""));
     }
 
     callback_.Run(devices);

@@ -189,6 +189,7 @@ class DelayLoadStartAndExecuteJavascript
       bool is_main_frame,
       const GURL& validated_url,
       bool is_error_page,
+      bool is_iframe_srcdoc,
       content::RenderViewHost* render_view_host) OVERRIDE {
     if (validated_url != delay_url_ || !rvh_)
       return;
@@ -441,6 +442,11 @@ IN_PROC_BROWSER_TEST_F(WebNavigationApiTest, ForwardBack) {
 IN_PROC_BROWSER_TEST_F(WebNavigationApiTest, IFrame) {
   ASSERT_TRUE(
       RunExtensionSubtest("webnavigation", "test_iframe.html")) << message_;
+}
+
+IN_PROC_BROWSER_TEST_F(WebNavigationApiTest, SrcDoc) {
+  ASSERT_TRUE(
+      RunExtensionSubtest("webnavigation", "test_srcdoc.html")) << message_;
 }
 
 IN_PROC_BROWSER_TEST_F(WebNavigationApiTest, OpenTab) {

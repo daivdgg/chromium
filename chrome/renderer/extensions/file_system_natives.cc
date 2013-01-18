@@ -12,8 +12,8 @@
 #include "chrome/renderer/extensions/user_script_slave.h"
 #include "extensions/common/constants.h"
 #include "grit/renderer_resources.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebFileSystem.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebFileSystem.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebFrame.h"
 #include "webkit/fileapi/file_system_types.h"
 #include "webkit/fileapi/file_system_util.h"
@@ -35,20 +35,18 @@ static v8::Handle<v8::Value> GetIsolatedFileSystem(
   std::string name(fileapi::GetIsolatedFileSystemName(context_url.GetOrigin(),
                                                       file_system_id));
 
-  std::string root(fileapi::GetFileSystemRootURI(
-          context_url.GetOrigin(),
-          fileapi::kFileSystemTypeIsolated).spec());
-  root.append(file_system_id);
-  root.append("/");
-
   // The optional second argument is the subfolder within the isolated file
   // system at which to root the DOMFileSystem we're returning to the caller.
+  std::string optional_root_name;
   if (args.Length() == 2) {
     DCHECK(args[1]->IsString());
-    name = *v8::String::Utf8Value(args[1]);
-    root.append(name);
-    root.append("/");
+    optional_root_name = *v8::String::Utf8Value(args[1]);
   }
+
+  std::string root(fileapi::GetIsolatedFileSystemRootURIString(
+      context_url.GetOrigin(),
+      file_system_id,
+      optional_root_name));
 
   return webframe->createFileSystem(
       WebKit::WebFileSystem::TypeIsolated,

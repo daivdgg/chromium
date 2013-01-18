@@ -2,23 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "web_layer_impl.h"
+#include "webkit/compositor_bindings/web_layer_impl.h"
 
-#include "SkMatrix44.h"
-#ifdef LOG
-#undef LOG
-#endif
 #include "base/string_util.h"
-#include "cc/active_animation.h"
+#include "cc/animation.h"
 #include "cc/layer.h"
 #include "cc/region.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebFloatPoint.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebFloatRect.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebSize.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebTransformationMatrix.h"
-#include "web_animation_impl.h"
+#include "third_party/skia/include/utils/SkMatrix44.h"
+#include "webkit/compositor_bindings/web_animation_impl.h"
 
-using cc::ActiveAnimation;
+using cc::Animation;
 using cc::Layer;
 
 namespace {
@@ -289,7 +286,7 @@ void WebLayerImpl::removeAnimation(int animationId)
 
 void WebLayerImpl::removeAnimation(int animationId, WebAnimation::TargetProperty targetProperty)
 {
-    m_layer->layerAnimationController()->removeAnimation(animationId, static_cast<ActiveAnimation::TargetProperty>(targetProperty));
+    m_layer->layerAnimationController()->removeAnimation(animationId, static_cast<Animation::TargetProperty>(targetProperty));
 }
 
 void WebLayerImpl::pauseAnimation(int animationId, double timeOffset)

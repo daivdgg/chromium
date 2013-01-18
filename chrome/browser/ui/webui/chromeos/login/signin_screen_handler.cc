@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,8 +58,6 @@ using content::RenderViewHost;
 
 namespace {
 
-const char kDefaultDomain[] = "@gmail.com";
-
 // Start page of GAIA authentication extension.
 const char kGaiaExtStartPage[] =
     "chrome-extension://mfffpogegjflfpflabcdkioaeobkgjik/main.html";
@@ -74,6 +72,7 @@ const char kKeyEmailAddress[] = "emailAddress";
 const char kKeyEnterpriseDomain[] = "enterpriseDomain";
 const char kKeyNameTooltip[] = "nameTooltip";
 const char kKeyPublicAccount[] = "publicAccount";
+const char kKeyLocallyManagedUser[] = "locallyManagedUser";
 const char kKeySignedIn[] = "signedIn";
 const char kKeyCanRemove[] = "canRemove";
 const char kKeyOauthTokenStatus[] = "oauthTokenStatus";
@@ -119,6 +118,16 @@ void UpdateAuthParamsFromSettings(DictionaryValue* params,
   // Account creation depends on Guest sign-in (http://crosbug.com/24570).
   params->SetBoolean("createAccount", allow_new_user && allow_guest);
   params->SetBoolean("guestSignin", allow_guest);
+  // TODO(nkostylev): Allow locally managed user creation only if:
+  // 1. Enterprise managed device > is allowed by policy.
+  // 2. Consumer device > owner exists.
+  // g_browser_process->browser_policy_connector()->IsEnterpriseManaged()
+  // const UserList& users = delegate_->GetUsers();
+  // bool single_user = users.size() == 1;
+  // chromeos::CrosSettings::Get()->GetString(chromeos::kDeviceOwner, &owner);
+  const CommandLine* command_line = CommandLine::ForCurrentProcess();
+  params->SetBoolean("createLocallyManagedUser",
+                     command_line->HasSwitch(switches::kEnableManagedUsers));
 }
 
 bool IsProxyError(const std::string& reason) {
@@ -157,12 +166,23 @@ SigninScreenHandler::SigninScreenHandler(
       error_screen_actor_(error_screen_actor),
       is_first_update_state_call_(true),
       offline_login_active_(false),
-      last_network_state_(NetworkStateInformer::UNKNOWN) {
+      last_network_state_(NetworkStateInformer::UNKNOWN),
+      has_pending_auth_ui_(false) {
   DCHECK(network_state_informer_);
   DCHECK(error_screen_actor_);
   network_state_informer_->AddObserver(this);
   CrosSettings::Get()->AddSettingsObserver(kAccountsPrefAllowNewUser, this);
   CrosSettings::Get()->AddSettingsObserver(kAccountsPrefAllowGuest, this);
+
+  registrar_.Add(this,
+                 chrome::NOTIFICATION_AUTH_NEEDED,
+                 content::NotificationService::AllSources());
+  registrar_.Add(this,
+                 chrome::NOTIFICATION_AUTH_SUPPLIED,
+                 content::NotificationService::AllSources());
+  registrar_.Add(this,
+                 chrome::NOTIFICATION_AUTH_CANCELLED,
+                 content::NotificationService::AllSources());
 }
 
 SigninScreenHandler::~SigninScreenHandler() {
@@ -215,6 +235,8 @@ void SigninScreenHandler::GetLocalizedStrings(
       l10n_util::GetStringUTF16(IDS_CREATE_ACCOUNT_HTML));
   localized_strings->SetString("guestSignin",
       l10n_util::GetStringUTF16(IDS_BROWSE_WITHOUT_SIGNING_IN_HTML));
+  localized_strings->SetString("createLocallyManagedUser",
+      l10n_util::GetStringUTF16(IDS_CREATE_LOCALLY_MANAGED_USER_HTML));
   localized_strings->SetString("offlineLogin",
       l10n_util::GetStringUTF16(IDS_OFFLINE_LOGIN_HTML));
   localized_strings->SetString("removeUser",
@@ -582,6 +604,9 @@ void SigninScreenHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback("createAccount",
       base::Bind(&SigninScreenHandler::HandleCreateAccount,
                  base::Unretained(this)));
+  web_ui()->RegisterMessageCallback("createLocallyManagedUser",
+      base::Bind(&SigninScreenHandler::HandleCreateLocallyManagedUser,
+                 base::Unretained(this)));
   web_ui()->RegisterMessageCallback("accountPickerReady",
       base::Bind(&SigninScreenHandler::HandleAccountPickerReady,
                  base::Unretained(this)));
@@ -758,11 +783,27 @@ void SigninScreenHandler::OnCapsLockChange(bool enabled) {
 void SigninScreenHandler::Observe(int type,
                                   const content::NotificationSource& source,
                                   const content::NotificationDetails& details) {
-  if (type == chrome::NOTIFICATION_SYSTEM_SETTING_CHANGED) {
-    UpdateAuthExtension();
-    UpdateAddButtonStatus();
-  } else {
-    NOTREACHED() << "Unexpected notification " << type;
+  switch (type) {
+    case chrome::NOTIFICATION_SYSTEM_SETTING_CHANGED: {
+      UpdateAuthExtension();
+      UpdateAddButtonStatus();
+      break;
+    }
+    case chrome::NOTIFICATION_AUTH_NEEDED: {
+      has_pending_auth_ui_ = true;
+      break;
+    }
+    case chrome::NOTIFICATION_AUTH_SUPPLIED:
+    case chrome::NOTIFICATION_AUTH_CANCELLED: {
+      has_pending_auth_ui_ = false;
+
+      // Schedules reload after auth ui is dismissed when gaia is shown.
+      if (ui_state_ == UI_STATE_GAIA_SIGNIN)
+        ScheduleGaiaFrameReload();
+      break;
+    }
+    default:
+      NOTREACHED() << "Unexpected notification " << type;
   }
 }
 
@@ -840,6 +881,10 @@ void SigninScreenHandler::LoadAuthExtension(
         l10n_util::GetStringUTF16(IDS_LOGIN_OFFLINE_PASSWORD));
     localized_strings->SetString("stringSignIn",
         l10n_util::GetStringUTF16(IDS_LOGIN_OFFLINE_SIGNIN));
+    localized_strings->SetString("stringEmptyEmail",
+        l10n_util::GetStringUTF16(IDS_LOGIN_OFFLINE_EMPTY_EMAIL));
+    localized_strings->SetString("stringEmptyPassword",
+        l10n_util::GetStringUTF16(IDS_LOGIN_OFFLINE_EMPTY_PASSWORD));
     localized_strings->SetString("stringError",
         l10n_util::GetStringUTF16(IDS_LOGIN_OFFLINE_ERROR));
     params.Set("localizedStrings", localized_strings);
@@ -1051,7 +1096,10 @@ void SigninScreenHandler::SendUserList(bool animated) {
     std::string owner;
     chromeos::CrosSettings::Get()->GetString(chromeos::kDeviceOwner, &owner);
     bool is_owner = (email == owner);
-    bool public_account = ((*it)->GetType() == User::USER_TYPE_PUBLIC_ACCOUNT);
+    bool is_public_account =
+        ((*it)->GetType() == User::USER_TYPE_PUBLIC_ACCOUNT);
+    bool is_locally_managed_user =
+        ((*it)->GetType() == User::USER_TYPE_LOCALLY_MANAGED);
     bool signed_in = *it == UserManager::Get()->GetLoggedInUser();
 
     if (non_owner_count < max_non_owner_users || is_owner) {
@@ -1060,11 +1108,12 @@ void SigninScreenHandler::SendUserList(bool animated) {
       user_dict->SetString(kKeyEmailAddress, (*it)->display_email());
       user_dict->SetString(kKeyDisplayName, (*it)->GetDisplayName());
       user_dict->SetString(kKeyNameTooltip, (*it)->display_email());
-      user_dict->SetBoolean(kKeyPublicAccount, public_account);
+      user_dict->SetBoolean(kKeyPublicAccount, is_public_account);
+      user_dict->SetBoolean(kKeyLocallyManagedUser, is_locally_managed_user);
       user_dict->SetInteger(kKeyOauthTokenStatus, (*it)->oauth_token_status());
       user_dict->SetBoolean(kKeySignedIn, signed_in);
 
-      if (public_account) {
+      if (is_public_account) {
         policy::BrowserPolicyConnector* policy_connector =
             g_browser_process->browser_policy_connector();
 
@@ -1081,7 +1130,7 @@ void SigninScreenHandler::SendUserList(bool animated) {
                             !single_user &&
                             !email.empty() &&
                             !is_owner &&
-                            !public_account &&
+                            !is_public_account &&
                             !signed_in);
 
       users_list.Append(user_dict);
@@ -1208,6 +1257,17 @@ void SigninScreenHandler::HandleCreateAccount(const base::ListValue* args) {
     delegate_->CreateAccount();
 }
 
+void SigninScreenHandler::HandleCreateLocallyManagedUser(
+    const base::ListValue* args) {
+  // TODO(nkostylev): This should launch UI flow to set up
+  // locally managed user display name and password.
+  // TODO(nkostylev): Check that locally managed user display name is unique.
+  // TODO(nkostylev): Generate unique ID for each locally managed user.
+  //                  Display name will be defined in Local State only.
+  if (delegate_)
+    delegate_->CreateLocallyManagedUser("John Smith");
+}
+
 void SigninScreenHandler::HandleOpenProxySettings(const base::ListValue* args) {
   BaseLoginDisplayHost::default_host()->OpenProxySettings();
 }
@@ -1314,8 +1374,10 @@ void SigninScreenHandler::HandleShowGaiaFrameError(
                         reason,
                         network_state_informer_->last_network_type(),
                         false);
-    // Schedules a reload of the Gaia frame.
-    ScheduleGaiaFrameReload();
+
+    // Schedules a reload of the Gaia frame if there is no pending auth ui.
+    if (!has_pending_auth_ui_)
+      ScheduleGaiaFrameReload();
   }
 }
 

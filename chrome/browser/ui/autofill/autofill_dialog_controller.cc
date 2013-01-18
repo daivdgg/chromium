@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ui/autofill/autofill_dialog_controller.h"
 
+#include <string>
+
 #include "base/logging.h"
 #include "base/string_split.h"
 #include "base/string_util.h"
@@ -13,9 +15,15 @@
 #include "chrome/browser/autofill/autofill_type.h"
 #include "chrome/browser/autofill/personal_data_manager.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
+#include "chrome/browser/autofill/wallet/wallet_service_url.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/autofill/autofill_dialog_view.h"
 #include "chrome/common/form_data.h"
+#include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_details.h"
+#include "content/public/browser/navigation_entry.h"
+#include "content/public/browser/notification_service.h"
+#include "content/public/browser/notification_types.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
 #include "googleurl/src/gurl.h"
@@ -119,9 +127,18 @@ AutofillDialogController::AutofillDialogController(
       source_url_(source_url),
       ssl_status_(ssl_status),
       callback_(callback),
-      popup_controller_(NULL) {
+      ALLOW_THIS_IN_INITIALIZER_LIST(suggested_email_(this)),
+      ALLOW_THIS_IN_INITIALIZER_LIST(suggested_cc_(this)),
+      ALLOW_THIS_IN_INITIALIZER_LIST(suggested_billing_(this)),
+      ALLOW_THIS_IN_INITIALIZER_LIST(suggested_shipping_(this)),
+      popup_controller_(NULL),
+      section_showing_popup_(SECTION_BILLING) {
   // TODO(estade): |this| should observe PersonalDataManager.
   // TODO(estade): remove duplicates from |form|?
+
+  content::NavigationEntry* entry = contents->GetController().GetActiveEntry();
+  const GURL& active_url = entry ? entry->GetURL() : web_contents()->GetURL();
+  invoked_from_same_origin_ = active_url.GetOrigin() == source_url_.GetOrigin();
 }
 
 AutofillDialogController::~AutofillDialogController() {
@@ -192,7 +209,7 @@ void AutofillDialogController::Show() {
                arraysize(kShippingInputs),
                &requested_shipping_fields_);
 
-  GenerateComboboxModels();
+  GenerateSuggestionsModels();
 
   // TODO(estade): don't show the dialog if the site didn't specify the right
   // fields. First we must figure out what the "right" fields are.
@@ -204,31 +221,21 @@ string16 AutofillDialogController::DialogTitle() const {
   return l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_TITLE);
 }
 
-string16 AutofillDialogController::SecurityWarning() const {
-  return ShouldShowSecurityWarning() ?
-      l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_SECURITY_WARNING) :
-      string16();
-}
+DialogNotification AutofillDialogController::Notification() const {
+  if (RequestingCreditCardInfo() && !TransmissionWillBeSecure()) {
+    return DialogNotification(
+        DialogNotification::SECURITY_WARNING,
+        l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_SECURITY_WARNING));
+  }
 
-string16 AutofillDialogController::SiteLabel() const {
-  return UTF8ToUTF16(source_url_.host());
-}
+  if (!invoked_from_same_origin_) {
+    return DialogNotification(
+        DialogNotification::SECURITY_WARNING,
+        l10n_util::GetStringFUTF16(
+            IDS_AUTOFILL_DIALOG_SITE_WARNING, UTF8ToUTF16(source_url_.host())));
+  }
 
-string16 AutofillDialogController::IntroText() const {
-  return l10n_util::GetStringFUTF16(IDS_AUTOFILL_DIALOG_SITE_WARNING,
-                                    SiteLabel());
-}
-
-std::pair<string16, string16>
-    AutofillDialogController::GetIntroTextParts() const {
-  const char16 kFakeSite = '$';
-  std::vector<string16> pieces;
-  base::SplitStringDontTrim(
-      l10n_util::GetStringFUTF16(IDS_AUTOFILL_DIALOG_SITE_WARNING,
-                                 string16(1, kFakeSite)),
-      kFakeSite,
-      &pieces);
-  return std::make_pair(pieces[0], pieces[1]);
+  return DialogNotification();
 }
 
 string16 AutofillDialogController::LabelForSection(DialogSection section)
@@ -236,6 +243,8 @@ string16 AutofillDialogController::LabelForSection(DialogSection section)
   switch (section) {
     case SECTION_EMAIL:
       return l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_SECTION_EMAIL);
+    case SECTION_CC:
+      return l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_SECTION_CC);
     case SECTION_BILLING:
       return l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_SECTION_BILLING);
     case SECTION_SHIPPING:
@@ -264,6 +273,16 @@ string16 AutofillDialogController::ConfirmButtonText() const {
   return l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_SUBMIT_BUTTON);
 }
 
+string16 AutofillDialogController::SignInText() const {
+  // TODO(abodenha): real strings and l10n.
+  return string16(ASCIIToUTF16("Sign in to use Google Wallet"));
+}
+
+string16 AutofillDialogController::CancelSignInText() const {
+  // TODO(abodenha): real strings and l10n.
+  return string16(ASCIIToUTF16("Don't sign in."));
+}
+
 bool AutofillDialogController::ConfirmButtonEnabled() const {
   // TODO(estade): implement.
   return true;
@@ -282,11 +301,10 @@ bool AutofillDialogController::RequestingCreditCardInfo() const {
   return false;
 }
 
-bool AutofillDialogController::ShouldShowSecurityWarning() const {
-  return RequestingCreditCardInfo() &&
-         (!source_url_.SchemeIs(chrome::kHttpsScheme) ||
-          net::IsCertStatusError(ssl_status_.cert_status) ||
-          net::IsCertStatusMinorError(ssl_status_.cert_status));
+bool AutofillDialogController::TransmissionWillBeSecure() const {
+  return source_url_.SchemeIs(chrome::kHttpsScheme) &&
+         !net::IsCertStatusError(ssl_status_.cert_status) &&
+         !net::IsCertStatusMinorError(ssl_status_.cert_status);
 }
 
 const DetailInputs& AutofillDialogController::RequestedFieldsForSection(
@@ -303,7 +321,7 @@ const DetailInputs& AutofillDialogController::RequestedFieldsForSection(
   }
 
   NOTREACHED();
-  return requested_shipping_fields_;
+  return requested_billing_fields_;
 }
 
 ui::ComboboxModel* AutofillDialogController::ComboboxModelForAutofillType(
@@ -320,9 +338,42 @@ ui::ComboboxModel* AutofillDialogController::ComboboxModelForAutofillType(
   }
 }
 
-ui::ComboboxModel* AutofillDialogController::ComboboxModelForSection(
+ui::MenuModel* AutofillDialogController::MenuModelForSection(
     DialogSection section) {
-  return SuggestionsModelForSection(section);
+  return SuggestionsMenuModelForSection(section);
+}
+
+string16 AutofillDialogController::SuggestionTextForSection(
+    DialogSection section) {
+  SuggestionsMenuModel* model = SuggestionsMenuModelForSection(section);
+  std::string item_key = model->GetItemKeyAt(model->checked_item());
+  if (item_key.empty())
+    return string16();
+
+  if (section == SECTION_EMAIL)
+    return model->GetLabelAt(model->checked_item());
+
+  if (section == SECTION_CC) {
+    CreditCard* card = GetManager()->GetCreditCardByGUID(item_key);
+    if (card)
+      return card->Label();
+  } else {
+    // TODO(estade): This doesn't display as much info as it should (for
+    // example, it should show full addresses rather than just a summary).
+    AutofillProfile* profile = GetManager()->GetProfileByGUID(item_key);
+    if (profile)
+      return profile->Label();
+  }
+
+  // TODO(estade): The FormGroup was likely deleted while menu was showing. We
+  // should not let this happen.
+  return string16();
+}
+
+bool AutofillDialogController::InputIsValid(const DetailInput* input,
+                                            const string16& value) {
+  // TODO(estade): do more complicated checks.
+  return !value.empty();
 }
 
 void AutofillDialogController::ViewClosed(DialogAction action) {
@@ -348,28 +399,80 @@ void AutofillDialogController::ViewClosed(DialogAction action) {
   delete this;
 }
 
-void AutofillDialogController::UserEditedInput(
+void AutofillDialogController::Observe(
+    int type,
+    const content::NotificationSource& source,
+    const content::NotificationDetails& details) {
+  DCHECK_EQ(type, content::NOTIFICATION_NAV_ENTRY_COMMITTED);
+  content::LoadCommittedDetails* load_details =
+      content::Details<content::LoadCommittedDetails>(details).ptr();
+  if (wallet::IsSignInContinueUrl(load_details->entry->GetVirtualURL()))
+    EndSignInFlow();
+}
+
+void AutofillDialogController::StartSignInFlow() {
+  DCHECK(registrar_.IsEmpty());
+
+  content::Source<content::NavigationController> source(
+      &view_->ShowSignIn());
+  registrar_.Add(this, content::NOTIFICATION_NAV_ENTRY_COMMITTED, source);
+}
+
+void AutofillDialogController::EndSignInFlow() {
+  DCHECK(!registrar_.IsEmpty());
+  registrar_.RemoveAll();
+  view_->HideSignIn();
+}
+
+void AutofillDialogController::UserEditedOrActivatedInput(
     const DetailInput* input,
-    gfx::NativeView view,
+    DialogSection section,
+    gfx::NativeView parent_view,
     const gfx::Rect& content_bounds,
-    const string16& field_contents) {
-  // TODO(estade): support all sections, not just billing.
-  std::vector<string16> popup_values, popup_labels, popup_icons;
-  std::vector<AutofillFieldType> field_types;
-  const DetailInputs& inputs = RequestedFieldsForSection(SECTION_BILLING);
-  field_types.reserve(inputs.size());
-  for (DetailInputs::const_iterator iter = inputs.begin();
-       iter != inputs.end(); ++iter) {
-    field_types.push_back(iter->type);
+    const string16& field_contents,
+    bool was_edit) {
+  // If the field is edited down to empty, don't show a popup.
+  if (was_edit && field_contents.empty()) {
+    HidePopup();
+    return;
   }
-  GetManager()->GetProfileSuggestions(input->type,
-                                      field_contents,
-                                      false,
-                                      field_types,
-                                      &popup_values,
-                                      &popup_labels,
-                                      &popup_icons,
-                                      &popup_guids_);
+
+  // If the user clicks while the popup is already showing, be sure to hide
+  // it.
+  if (!was_edit && popup_controller_) {
+    HidePopup();
+    return;
+  }
+
+  std::vector<string16> popup_values, popup_labels, popup_icons;
+  if (section == SECTION_CC) {
+    GetManager()->GetCreditCardSuggestions(input->type,
+                                           field_contents,
+                                           &popup_values,
+                                           &popup_labels,
+                                           &popup_icons,
+                                           &popup_guids_);
+  } else {
+    // TODO(estade): add field types from email section?
+    const DetailInputs& inputs = RequestedFieldsForSection(section);
+    std::vector<AutofillFieldType> field_types;
+    field_types.reserve(inputs.size());
+    for (DetailInputs::const_iterator iter = inputs.begin();
+         iter != inputs.end(); ++iter) {
+      field_types.push_back(iter->type);
+    }
+    GetManager()->GetProfileSuggestions(input->type,
+                                        field_contents,
+                                        false,
+                                        field_types,
+                                        &popup_values,
+                                        &popup_labels,
+                                        &popup_icons,
+                                        &popup_guids_);
+  }
+
+  if (popup_values.empty())
+    return;
 
   // TODO(estade): do we need separators and control rows like 'Clear
   // Form'?
@@ -379,18 +482,16 @@ void AutofillDialogController::UserEditedInput(
   }
 
   popup_controller_ = AutofillPopupControllerImpl::GetOrCreate(
-      popup_controller_, this, view, content_bounds);
+      popup_controller_, this, parent_view, content_bounds);
   popup_controller_->Show(popup_values,
                           popup_labels,
                           popup_icons,
                           popup_ids);
+  section_showing_popup_ = section;
 }
 
 void AutofillDialogController::FocusMoved() {
-  if (popup_controller_) {
-    popup_controller_->Hide();
-    ControllerDestroyed();
-  }
+  HidePopup();
 }
 
 void AutofillDialogController::DidSelectSuggestion(int identifier) {
@@ -400,19 +501,23 @@ void AutofillDialogController::DidSelectSuggestion(int identifier) {
 void AutofillDialogController::DidAcceptSuggestion(const string16& value,
                                                    int identifier) {
   const PersonalDataManager::GUIDPair& pair = popup_guids_[identifier];
-  // TODO(estade): need to use the variant, |pair.second|.
-  AutofillProfile* profile = GetManager()->GetProfileByGUID(pair.first);
+
+  FormGroup* form_group = section_showing_popup_ == SECTION_CC ?
+      static_cast<FormGroup*>(GetManager()->GetCreditCardByGUID(pair.first)) :
+      // TODO(estade): need to use the variant, |pair.second|.
+      static_cast<FormGroup*>(GetManager()->GetProfileByGUID(pair.first));
+
   // TODO(estade): we shouldn't let this happen.
-  if (!profile)
+  if (!form_group)
     return;
 
-  // TODO(estade): implement for all sections.
-  FillInputFromFormGroup(profile, &requested_billing_fields_);
-  view_->UpdateSection(SECTION_BILLING);
+  FillInputFromFormGroup(
+      form_group,
+      MutableRequestedFieldsForSection(section_showing_popup_));
+  view_->UpdateSection(section_showing_popup_);
 
   // TODO(estade): not sure why it's necessary to do this explicitly.
-  popup_controller_->Hide();
-  ControllerDestroyed();
+  HidePopup();
 }
 
 void AutofillDialogController::RemoveSuggestion(const string16& value,
@@ -428,32 +533,53 @@ void AutofillDialogController::ControllerDestroyed() {
   popup_controller_ = NULL;
 }
 
-void AutofillDialogController::GenerateComboboxModels() {
+void AutofillDialogController::SuggestionItemSelected(
+    const SuggestionsMenuModel& model) {
+  view_->UpdateSection(SectionForSuggestionsMenuModel(model));
+}
+
+bool AutofillDialogController::HandleKeyPressEvent(
+    const content::NativeWebKeyboardEvent& event) {
+  if (popup_controller_)
+    return popup_controller_->HandleKeyPressEvent(event);
+
+  return false;
+}
+
+void AutofillDialogController::GenerateSuggestionsModels() {
   PersonalDataManager* manager = GetManager();
   const std::vector<CreditCard*>& cards = manager->credit_cards();
   for (size_t i = 0; i < cards.size(); ++i) {
-    suggested_cc_.AddItem(cards[i]->guid(), cards[i]->Label());
+    suggested_cc_.AddKeyedItem(cards[i]->guid(), cards[i]->Label());
   }
-  suggested_cc_.AddItem("", ASCIIToUTF16("Enter new card"));
+  // TODO(estade): real strings and i18n.
+  suggested_cc_.AddKeyedItem("", ASCIIToUTF16("Enter new card"));
 
   const std::vector<AutofillProfile*>& profiles = manager->GetProfiles();
   const std::string app_locale = AutofillCountry::ApplicationLocale();
   for (size_t i = 0; i < profiles.size(); ++i) {
-    // TODO(estade): deal with variants.
     if (!IsCompleteProfile(*profiles[i]))
       continue;
 
-    string16 email = profiles[i]->GetInfo(EMAIL_ADDRESS, app_locale);
-    if (!email.empty())
-      suggested_email_.AddItem(profiles[i]->guid(), email);
-    suggested_billing_.AddItem(profiles[i]->guid(), profiles[i]->Label());
-    suggested_shipping_.AddItem(profiles[i]->guid(), profiles[i]->Label());
-  }
-  suggested_billing_.AddItem("", ASCIIToUTF16("Enter new billing"));
-  suggested_email_.AddItem("", ASCIIToUTF16("Enter new email"));
-  suggested_shipping_.AddItem("", ASCIIToUTF16("Enter new shipping"));
-}
+    // Add all email addresses.
+    std::vector<string16> values;
+    profiles[i]->GetMultiInfo(EMAIL_ADDRESS, app_locale, &values);
+    for (size_t j = 0; j < values.size(); ++j) {
+      if (!values[j].empty())
+        suggested_email_.AddKeyedItem(profiles[i]->guid(), values[j]);
+    }
 
+    // Don't add variants for addresses: the email variants are handled above,
+    // name is part of credit card and we'll just ignore phone number variants.
+    suggested_billing_.AddKeyedItem(profiles[i]->guid(), profiles[i]->Label());
+    suggested_shipping_.AddKeyedItem(profiles[i]->guid(), profiles[i]->Label());
+  }
+
+  // TODO(estade): real strings and i18n.
+  suggested_billing_.AddKeyedItem("", ASCIIToUTF16("Enter new billing"));
+  suggested_email_.AddKeyedItem("", ASCIIToUTF16("Enter new email"));
+  suggested_shipping_.AddKeyedItem("", ASCIIToUTF16("Enter new shipping"));
+}
 
 bool AutofillDialogController::IsCompleteProfile(
     const AutofillProfile& profile) {
@@ -470,11 +596,10 @@ bool AutofillDialogController::IsCompleteProfile(
 
 void AutofillDialogController::FillOutputForSectionWithComparator(
     DialogSection section, const InputFieldComparator& compare) {
-  int suggestion_selection = view_->GetSuggestionSelection(section);
-  SuggestionsComboboxModel* model = SuggestionsModelForSection(section);
+  SuggestionsMenuModel* model = SuggestionsMenuModelForSection(section);
+  std::string guid = model->GetItemKeyAt(model->checked_item());
   PersonalDataManager* manager = GetManager();
-  if (suggestion_selection < model->GetItemCount() - 1) {
-    std::string guid = model->GetItemKeyAt(suggestion_selection);
+  if (!guid.empty()) {
     FormGroup* form_group = section == SECTION_CC ?
         static_cast<FormGroup*>(manager->GetCreditCardByGUID(guid)) :
         static_cast<FormGroup*>(manager->GetProfileByGUID(guid));
@@ -482,7 +607,17 @@ void AutofillDialogController::FillOutputForSectionWithComparator(
     if (!form_group)
       return;
 
-    FillFormStructureForSection(*form_group, section, compare);
+    // Calculate the variant by looking at how many items come from the same
+    // FormGroup. TODO(estade): add a test for this.
+    size_t variant = 0;
+    for (int i = model->checked_item() - 1; i >= 0; --i) {
+      if (model->GetItemKeyAt(i) == guid)
+        variant++;
+      else
+        break;
+    }
+
+    FillFormStructureForSection(*form_group, variant, section, compare);
   } else {
     // The user manually input data.
     DetailOutputMap output;
@@ -493,7 +628,7 @@ void AutofillDialogController::FillOutputForSectionWithComparator(
       CreditCard card;
       FillFormGroupFromOutputs(output, &card);
       manager->SaveImportedCreditCard(card);
-      FillFormStructureForSection(card, section, compare);
+      FillFormStructureForSection(card, 0, section, compare);
 
       // CVC needs special-casing because the CreditCard class doesn't store
       // or handle them. Fill it in directly from |output|.
@@ -514,7 +649,7 @@ void AutofillDialogController::FillOutputForSectionWithComparator(
       AutofillProfile profile;
       FillFormGroupFromOutputs(output, &profile);
       manager->SaveImportedProfile(profile);
-      FillFormStructureForSection(profile, section, compare);
+      FillFormStructureForSection(profile, 0, section, compare);
     }
   }
 }
@@ -526,6 +661,7 @@ void AutofillDialogController::FillOutputForSection(DialogSection section) {
 
 void AutofillDialogController::FillFormStructureForSection(
     const FormGroup& form_group,
+    size_t variant,
     DialogSection section,
     const InputFieldComparator& compare) {
   for (size_t i = 0; i < form_structure_.field_count(); ++i) {
@@ -534,14 +670,14 @@ void AutofillDialogController::FillFormStructureForSection(
     const DetailInputs& inputs = RequestedFieldsForSection(section);
     for (size_t j = 0; j < inputs.size(); ++j) {
       if (compare.Run(inputs[j], *field)) {
-        form_group.FillFormField(*field, 0, field);
+        form_group.FillFormField(*field, variant, field);
         break;
       }
     }
   }
 }
 
-SuggestionsComboboxModel* AutofillDialogController::SuggestionsModelForSection(
+SuggestionsMenuModel* AutofillDialogController::SuggestionsMenuModelForSection(
     DialogSection section) {
   switch (section) {
     case SECTION_EMAIL:
@@ -558,8 +694,35 @@ SuggestionsComboboxModel* AutofillDialogController::SuggestionsModelForSection(
   return NULL;
 }
 
+DialogSection AutofillDialogController::SectionForSuggestionsMenuModel(
+    const SuggestionsMenuModel& model) {
+  if (&model == &suggested_email_)
+    return SECTION_EMAIL;
+
+  if (&model == &suggested_cc_)
+    return SECTION_CC;
+
+  if (&model == &suggested_billing_)
+    return SECTION_BILLING;
+
+  DCHECK_EQ(&model, &suggested_shipping_);
+  return SECTION_SHIPPING;
+}
+
 PersonalDataManager* AutofillDialogController::GetManager() {
   return PersonalDataManagerFactory::GetForProfile(profile_);
+}
+
+DetailInputs* AutofillDialogController::MutableRequestedFieldsForSection(
+    DialogSection section) {
+  return const_cast<DetailInputs*>(&RequestedFieldsForSection(section));
+}
+
+void AutofillDialogController::HidePopup() {
+  if (popup_controller_) {
+    popup_controller_->Hide();
+    ControllerDestroyed();
+  }
 }
 
 }  // namespace autofill

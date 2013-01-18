@@ -7,7 +7,9 @@
 #include <string>
 
 #include "ash/desktop_background/user_wallpaper_delegate.h"
+#include "ash/root_window_controller.h"
 #include "ash/shell.h"
+#include "ash/wm/property_util.h"
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "chrome/browser/extensions/context_menu_matcher.h"
@@ -67,10 +69,8 @@ void LauncherContextMenu::Init() {
   if (is_valid_item()) {
     if (item_.type == ash::TYPE_APP_SHORTCUT) {
       DCHECK(controller_->IsPinned(item_.id));
-      // Everything can be started as many times as needed through the menu,
-      // except for V2 apps - there should be only one instance of it.
-      if  (!controller_->IsPlatformApp(item_.id) ||
-           !controller_->IsOpen(item_.id)) {
+      // V1 apps can be started from the menu - but V2 apps should not.
+      if  (!controller_->IsPlatformApp(item_.id)) {
         AddItem(MENU_OPEN_NEW, string16());
         AddSeparator(ui::NORMAL_SEPARATOR);
       }
@@ -128,8 +128,16 @@ void LauncherContextMenu::Init() {
       }
     }
   }
-  AddCheckItemWithStringId(
-      MENU_AUTO_HIDE, IDS_AURA_LAUNCHER_CONTEXT_MENU_AUTO_HIDE);
+  // Don't show the auto-hide menu item while in immersive mode because the
+  // launcher always auto-hides in this mode and it's confusing when the
+  // preference appears not to apply.
+  ash::internal::RootWindowController* root_window_controller =
+      ash::GetRootWindowController(root_window_);
+  if (root_window_controller != NULL &&
+      !root_window_controller->IsImmersiveMode()) {
+    AddCheckItemWithStringId(
+        MENU_AUTO_HIDE, IDS_AURA_LAUNCHER_CONTEXT_MENU_AUTO_HIDE);
+  }
   if (CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kShowLauncherAlignmentMenu)) {
     AddSubMenuWithStringId(MENU_ALIGNMENT_MENU,

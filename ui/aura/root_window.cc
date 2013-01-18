@@ -665,10 +665,11 @@ void RootWindow::OnWindowHidden(Window* invisible,
         invisible, this, reason == WINDOW_DESTROYED);
   }
 
-  // Do not clear the capture, and the dispatch targets if the window is moving
-  // across root windows, because the target itself is actually still visible
-  // and clearing them stops further event processing, which can cause
-  // unexpected behaviors. See crbug.com/157583
+  // Do not clear the capture, and the |event_dispatch_target_| if the
+  // window is moving across root windows, because the target itself
+  // is actually still visible and clearing them stops further event
+  // processing, which can cause unexpected behaviors. See
+  // crbug.com/157583
   if (reason != WINDOW_MOVING) {
     Window* capture_window = aura::client::GetCaptureWindow(this);
     // If the ancestor of the capture window is hidden,
@@ -676,17 +677,18 @@ void RootWindow::OnWindowHidden(Window* invisible,
     if (invisible->Contains(capture_window) && invisible != this)
       capture_window->ReleaseCapture();
 
-    // If the ancestor of any event handler windows are invisible, release the
-    // pointer to those windows.
-    if (invisible->Contains(mouse_pressed_handler_))
-      mouse_pressed_handler_ = NULL;
-    if (invisible->Contains(mouse_moved_handler_))
-      mouse_moved_handler_ = NULL;
-    if (invisible->Contains(mouse_event_dispatch_target_))
-      mouse_event_dispatch_target_ = NULL;
     if (invisible->Contains(event_dispatch_target_))
       event_dispatch_target_ = NULL;
   }
+
+  // If the ancestor of any event handler windows are invisible, release the
+  // pointer to those windows.
+  if (invisible->Contains(mouse_pressed_handler_))
+    mouse_pressed_handler_ = NULL;
+  if (invisible->Contains(mouse_moved_handler_))
+    mouse_moved_handler_ = NULL;
+  if (invisible->Contains(mouse_event_dispatch_target_))
+    mouse_event_dispatch_target_ = NULL;
 
   CleanupGestureRecognizerState(invisible);
 }
@@ -742,7 +744,7 @@ bool RootWindow::OnHostKeyEvent(ui::KeyEvent* event) {
   client::EventClient* client = client::GetEventClient(GetRootWindow());
   Window* focused_window = client::GetFocusClient(this)->GetFocusedWindow();
   if (client && !client->CanProcessEventsWithinSubtree(focused_window)) {
-    client::GetFocusClient(this)->FocusWindow(NULL, NULL);
+    client::GetFocusClient(this)->FocusWindow(NULL);
     return false;
   }
   ProcessEvent(focused_window ? focused_window : this, event);
@@ -803,7 +805,11 @@ bool RootWindow::OnHostTouchEvent(ui::TouchEvent* event) {
       Env::GetInstance()->set_touch_down(touch_ids_down_ != 0);
       break;
 
-    // Don't handle ET_TOUCH_CANCELLED since we always get a ET_TOUCH_RELEASED.
+    // Handle ET_TOUCH_CANCELLED only if it has a native event.
+    case ui::ET_TOUCH_CANCELLED:
+      if (!event->HasNativeEvent())
+        break;
+      // fallthrough
     case ui::ET_TOUCH_RELEASED:
       touch_ids_down_ = (touch_ids_down_ | (1 << event->touch_id())) ^
                         (1 << event->touch_id());
@@ -830,7 +836,6 @@ bool RootWindow::OnHostTouchEvent(ui::TouchEvent* event) {
     // If the initial touch is outside the root window, target the root.
     target = this;
     ProcessEvent(target ? target : NULL, event);
-    CHECK_EQ(ui::ER_UNHANDLED, event->result());
     result = event->result();
   } else {
     // We only come here when the first contact was within the root window.

@@ -50,6 +50,7 @@ class NaClProcessHost : public content::BrowserChildProcessHostDelegate {
   NaClProcessHost(const GURL& manifest_url,
                   int render_view_id,
                   uint32 permission_bits,
+                  bool uses_irt,
                   bool off_the_record);
   virtual ~NaClProcessHost();
 
@@ -59,7 +60,6 @@ class NaClProcessHost : public content::BrowserChildProcessHostDelegate {
   // Initialize the new NaCl process. Result is returned by sending ipc
   // message reply_msg.
   void Launch(ChromeRenderMessageFilter* chrome_render_message_filter,
-              int socket_count,
               IPC::Message* reply_msg,
               scoped_refptr<ExtensionInfoMap> extension_info_map);
 
@@ -194,6 +194,8 @@ class NaClProcessHost : public content::BrowserChildProcessHostDelegate {
 
   bool enable_exception_handling_;
   bool enable_debug_stub_;
+
+  bool uses_irt_;
 
   bool off_the_record_;
 

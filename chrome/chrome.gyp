@@ -1069,9 +1069,10 @@
           'type': 'none',
           'dependencies': [
             '../base/base.gyp:base',
+            '../components/components.gyp:web_contents_delegate_android_java',
             '../content/content.gyp:content_java',
             '../content/content.gyp:navigation_interception_java',
-            '../content/content.gyp:web_contents_delegate_android_java',
+            '../sync/sync.gyp:sync_java',
             '../third_party/guava/guava.gyp:guava_javalib',
             '../ui/ui.gyp:ui_java',
           ],
@@ -1081,6 +1082,7 @@
             'has_java_resources': 1,
             'R_package': 'org.chromium.chrome',
             'R_package_relpath': 'org/chromium/chrome',
+            'java_strings_grd': 'android_chrome_strings.grd',
           },
           'includes': [
             '../build/java.gypi',

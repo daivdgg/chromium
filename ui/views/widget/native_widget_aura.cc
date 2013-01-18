@@ -594,7 +594,7 @@ void NativeWidgetAura::SetCursor(gfx::NativeCursor cursor) {
 void NativeWidgetAura::ClearNativeFocus() {
   aura::client::FocusClient* client = aura::client::GetFocusClient(window_);
   if (window_ && client && window_->Contains(client->GetFocusedWindow()))
-    client->FocusWindow(window_, NULL);
+    client->ResetFocusWithinActiveWindow(window_);
 }
 
 gfx::Rect NativeWidgetAura::GetWorkAreaBoundsInScreen() const {
@@ -799,18 +799,6 @@ void NativeWidgetAura::OnMouseEvent(ui::MouseEvent* event) {
 }
 
 void NativeWidgetAura::OnScrollEvent(ui::ScrollEvent* event) {
-  if (event->type() == ui::ET_SCROLL) {
-    delegate_->OnScrollEvent(event);
-    if (event->handled())
-      return;
-
-    // Convert unprocessed scroll events into wheel events.
-    ui::MouseWheelEvent mwe(*static_cast<ui::ScrollEvent*>(event));
-    delegate_->OnMouseEvent(&mwe);
-    if (mwe.handled())
-      event->SetHandled();
-    return;
-  }
   delegate_->OnScrollEvent(event);
 }
 

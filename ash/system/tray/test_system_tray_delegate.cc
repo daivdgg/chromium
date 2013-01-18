@@ -168,6 +168,9 @@ void TestSystemTrayDelegate::GetAvailableBluetoothDevices(
     BluetoothDeviceList* list) {
 }
 
+void TestSystemTrayDelegate::BluetoothSetDiscovering(bool value) {
+}
+
 void TestSystemTrayDelegate::ToggleBluetoothConnection(
     const std::string& address) {
 }
@@ -295,6 +298,10 @@ bool TestSystemTrayDelegate::GetCellularCarrierInfo(std::string* carrier_id,
 }
 
 bool TestSystemTrayDelegate::GetWifiScanning() {
+  return false;
+}
+
+bool TestSystemTrayDelegate::GetCellularInitializing() {
   return false;
 }
 

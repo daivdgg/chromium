@@ -66,8 +66,10 @@
 #include "content/browser/renderer_host/gamepad_browser_message_filter.h"
 #include "content/browser/renderer_host/gpu_message_filter.h"
 #include "content/browser/renderer_host/media/audio_input_renderer_host.h"
+#include "content/browser/renderer_host/media/audio_mirroring_manager.h"
 #include "content/browser/renderer_host/media/audio_renderer_host.h"
 #include "content/browser/renderer_host/media/media_stream_dispatcher_host.h"
+#include "content/browser/renderer_host/media/peer_connection_tracker_host.h"
 #include "content/browser/renderer_host/media/video_capture_host.h"
 #include "content/browser/renderer_host/p2p/socket_dispatcher_host.h"
 #include "content/browser/renderer_host/pepper/pepper_message_filter.h"
@@ -512,6 +514,7 @@ void RenderProcessHostImpl::CreateMessageFilters() {
       GetID(), PROCESS_TYPE_RENDERER, resource_context,
       storage_partition_impl_->GetAppCacheService(),
       ChromeBlobStorageContext::GetFor(browser_context),
+      storage_partition_impl_->GetFileSystemContext(),
       new RendererURLRequestContextSelector(browser_context, GetID()));
 
   channel_->AddFilter(resource_message_filter);
@@ -520,7 +523,9 @@ void RenderProcessHostImpl::CreateMessageFilters() {
       BrowserMainLoop::GetMediaStreamManager();
   channel_->AddFilter(new AudioInputRendererHost(audio_manager,
                                                  media_stream_manager));
-  channel_->AddFilter(new AudioRendererHost(audio_manager, media_observer));
+  channel_->AddFilter(new AudioRendererHost(
+      GetID(), audio_manager, BrowserMainLoop::GetAudioMirroringManager(),
+      media_observer));
   channel_->AddFilter(new VideoCaptureHost());
   channel_->AddFilter(new AppCacheDispatcherHost(
       storage_partition_impl_->GetAppCacheService(),
@@ -539,6 +544,8 @@ void RenderProcessHostImpl::CreateMessageFilters() {
   gpu_message_filter_ = new GpuMessageFilter(GetID(), widget_helper_.get());
   channel_->AddFilter(gpu_message_filter_);
 #if defined(ENABLE_WEBRTC)
+  peer_connection_tracker_host_ = new PeerConnectionTrackerHost();
+  channel_->AddFilter(peer_connection_tracker_host_);
   channel_->AddFilter(new MediaStreamDispatcherHost(GetID()));
 #endif
 #if defined(ENABLE_PLUGINS)
@@ -762,6 +769,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kEnableAccessibilityLogging,
     switches::kEnableBrowserPluginCompositing,
     switches::kEnableBrowserPluginForAllViewTypes,
+    switches::kEnableCssTransformPinch,
     switches::kEnableDCHECK,
     switches::kEnableDataChannels,
     switches::kEnableEncryptedMedia,
@@ -811,6 +819,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kInProcessWebGL,
     switches::kJavaScriptFlags,
     switches::kLoggingLevel,
+    switches::kMemoryMetrics,
 #if defined(OS_ANDROID)
     switches::kMediaPlayerInRenderProcess,
     switches::kNetworkCountryIso,
@@ -844,6 +853,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     cc::switches::kEnableCompositorFrameMessage,
     cc::switches::kEnableImplSidePainting,
     cc::switches::kEnablePartialSwap,
+    cc::switches::kEnableTopControlsPositionCalculation,
     cc::switches::kNumRasterThreads,
     cc::switches::kShowPropertyChangedRects,
     cc::switches::kShowSurfaceDamageRects,
@@ -852,6 +862,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     cc::switches::kShowNonOccludingRects,
     cc::switches::kShowOccludingRects,
     cc::switches::kTraceOverdraw,
+    cc::switches::kTopControlsHeight,
   };
   renderer_cmd->CopySwitchesFrom(browser_cmd, kSwitchNames,
                                  arraysize(kSwitchNames));
@@ -864,6 +875,11 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     renderer_cmd->AppendSwitch(switches::kDisableMediaHistoryLogging);
 #endif
   }
+
+  // Enforce the extra command line flags for impl-side painting.
+  if (browser_cmd.HasSwitch(cc::switches::kEnableImplSidePainting) &&
+      !browser_cmd.HasSwitch(switches::kEnableDeferredImageDecoding))
+    renderer_cmd->AppendSwitch(switches::kEnableDeferredImageDecoding);
 }
 
 base::ProcessHandle RenderProcessHostImpl::GetHandle() {

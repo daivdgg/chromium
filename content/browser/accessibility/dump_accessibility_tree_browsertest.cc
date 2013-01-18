@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "base/file_util.h"
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/string_split.h"
@@ -35,6 +36,8 @@ namespace {
 } // namespace
 
 namespace content {
+
+typedef DumpAccessibilityTreeHelper::Filter Filter;
 
 // This test takes a snapshot of the platform BrowserAccessibility tree and
 // tests it against an expected baseline.
@@ -74,15 +77,13 @@ class DumpAccessibilityTreeTest : public ContentBrowserTest {
     return diff_lines;
   }
 
-  void AddDefaultFilters(std::set<string16>* allow_filters,
-                         std::set<string16>* deny_filters) {
-    allow_filters->insert(ASCIIToUTF16("FOCUSABLE"));
-    allow_filters->insert(ASCIIToUTF16("READONLY"));
+  void AddDefaultFilters(std::vector<Filter>* filters) {
+    filters->push_back(Filter(ASCIIToUTF16("FOCUSABLE"), Filter::ALLOW));
+    filters->push_back(Filter(ASCIIToUTF16("READONLY"), Filter::ALLOW));
   }
 
   void ParseFilters(const std::string& test_html,
-                    std::set<string16>* allow_filters,
-                    std::set<string16>* deny_filters) {
+                    std::vector<Filter>* filters) {
     std::vector<std::string> lines;
     base::SplitString(test_html, '\n', &lines);
     for (std::vector<std::string>::const_iterator iter = lines.begin();
@@ -91,10 +92,13 @@ class DumpAccessibilityTreeTest : public ContentBrowserTest {
       const std::string& line = *iter;
       const std::string& allow_str = helper_.GetAllowString();
       const std::string& deny_str = helper_.GetDenyString();
-      if (StartsWithASCII(line, allow_str, true))
-        allow_filters->insert(UTF8ToUTF16(line.substr(allow_str.size())));
-      else if (StartsWithASCII(line, deny_str, true))
-        deny_filters->insert(UTF8ToUTF16(line.substr(deny_str.size())));
+      if (StartsWithASCII(line, allow_str, true)) {
+        filters->push_back(Filter(UTF8ToUTF16(line.substr(allow_str.size())),
+                                  Filter::ALLOW));
+      } else if (StartsWithASCII(line, deny_str, true)) {
+        filters->push_back(Filter(UTF8ToUTF16(line.substr(deny_str.size())),
+                                  Filter::DENY));
+      }
     }
   }
 
@@ -115,9 +119,9 @@ void DumpAccessibilityTreeTest::RunTest(const FilePath::CharType* file_path) {
 
   // Setup test paths.
   FilePath dir_test_data;
-  EXPECT_TRUE(PathService::Get(DIR_TEST_DATA, &dir_test_data));
+  ASSERT_TRUE(PathService::Get(DIR_TEST_DATA, &dir_test_data));
   FilePath test_path(dir_test_data.Append(FILE_PATH_LITERAL("accessibility")));
-  EXPECT_TRUE(file_util::PathExists(test_path))
+  ASSERT_TRUE(file_util::PathExists(test_path))
       << test_path.LossyDisplayName();
 
   FilePath html_file = test_path.Append(FilePath(file_path));
@@ -129,11 +133,10 @@ void DumpAccessibilityTreeTest::RunTest(const FilePath::CharType* file_path) {
   file_util::ReadFileToString(html_file, &html_contents);
 
   // Parse filters in the test file.
-  std::set<string16> allow_filters;
-  std::set<string16> deny_filters;
-  AddDefaultFilters(&allow_filters, &deny_filters);
-  ParseFilters(html_contents, &allow_filters, &deny_filters);
-  helper_.SetFilters(allow_filters, deny_filters);
+  std::vector<Filter> filters;
+  AddDefaultFilters(&filters);
+  ParseFilters(html_contents, &filters);
+  helper_.SetFilters(filters);
 
   // Read the expected file.
   std::string expected_contents_raw;
@@ -223,6 +226,10 @@ IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityA) {
   RunTest(FILE_PATH_LITERAL("a.html"));
 }
 
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityAddress) {
+  RunTest(FILE_PATH_LITERAL("address.html"));
+}
+
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityAName) {
   RunTest(FILE_PATH_LITERAL("a-name.html"));
 }
@@ -236,29 +243,55 @@ IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest,
   RunTest(FILE_PATH_LITERAL("aria-application.html"));
 }
 
-// Broken by http://trac.webkit.org/137512
-// Tracked in http://crbug.com/165838
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest,
-                       DISABLED_AccessibilityAriaCombobox) {
+                       AccessibilityAriaAutocomplete) {
+  RunTest(FILE_PATH_LITERAL("aria-autocomplete.html"));
+}
+
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityAriaCombobox) {
   RunTest(FILE_PATH_LITERAL("aria-combobox.html"));
+}
+
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityAriaInvalid) {
+  RunTest(FILE_PATH_LITERAL("aria-invalid.html"));
 }
 
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityAriaMenu) {
   RunTest(FILE_PATH_LITERAL("aria-menu.html"));
 }
 
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest,
+                       AccessibilityAriaMenuitemradio) {
+  RunTest(FILE_PATH_LITERAL("aria-menuitemradio.html"));
+}
+
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest,
+                       AccessibilityAriaProgressbar) {
+  RunTest(FILE_PATH_LITERAL("aria-progressbar.html"));
+}
+
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest,
+                       AccessibilityAriaToolbar) {
+  RunTest(FILE_PATH_LITERAL("toolbar.html"));
+}
+
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityAWithImg) {
   RunTest(FILE_PATH_LITERAL("a-with-img.html"));
+}
+
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityBdo) {
+  RunTest(FILE_PATH_LITERAL("bdo.html"));
+}
+
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityBR) {
+  RunTest(FILE_PATH_LITERAL("br.html"));
 }
 
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityButtonNameCalc) {
   RunTest(FILE_PATH_LITERAL("button-name-calc.html"));
 }
 
-// TODO(dmazzoni): rebaseline and enable after this WebKit change is rolled:
-// https://bugs.webkit.org/show_bug.cgi?id=96323
-IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest,
-                       DISABLED_AccessibilityCanvas) {
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityCanvas) {
   RunTest(FILE_PATH_LITERAL("canvas.html"));
 }
 
@@ -267,21 +300,12 @@ IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest,
   RunTest(FILE_PATH_LITERAL("checkbox-name-calc.html"));
 }
 
-// TODO(dimich): Started to fail in Chrome r149732 (crbug 140397)
-#if defined(OS_WIN)
-#define MAYBE_AccessibilityContenteditableDescendants \
-    DISABLED_AccessibilityContenteditableDescendants
-#else
-#define MAYBE_AccessibilityContenteditableDescendants \
-    AccessibilityContenteditableDescendants
-#endif
-
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityDiv) {
   RunTest(FILE_PATH_LITERAL("div.html"));
 }
 
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest,
-                       MAYBE_AccessibilityContenteditableDescendants) {
+                       AccessibilityContenteditableDescendants) {
   RunTest(FILE_PATH_LITERAL("contenteditable-descendants.html"));
 }
 
@@ -295,6 +319,16 @@ IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityForm) {
 
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityHR) {
   RunTest(FILE_PATH_LITERAL("hr.html"));
+}
+
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest,
+                       AccessibilityInputButtonInMenu) {
+  RunTest(FILE_PATH_LITERAL("input-button-in-menu.html"));
+}
+
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest,
+                       AccessibilityInputImageButtonInMenu) {
+  RunTest(FILE_PATH_LITERAL("input-image-button-in-menu.html"));
 }
 
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityInputRange) {
@@ -318,19 +352,25 @@ IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityP) {
   RunTest(FILE_PATH_LITERAL("p.html"));
 }
 
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilitySelect) {
+  RunTest(FILE_PATH_LITERAL("select.html"));
+}
+
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilitySpinButton) {
   RunTest(FILE_PATH_LITERAL("spinbutton.html"));
 }
 
-// TODO(dmazzoni): rebaseline and enable after this WebKit change is rolled:
-// https://bugs.webkit.org/show_bug.cgi?id=96323
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest,
-                       DISABLED_AccessibilityToggleButton) {
+                       AccessibilityToggleButton) {
   RunTest(FILE_PATH_LITERAL("togglebutton.html"));
 }
 
 IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityUl) {
   RunTest(FILE_PATH_LITERAL("ul.html"));
+}
+
+IN_PROC_BROWSER_TEST_F(DumpAccessibilityTreeTest, AccessibilityWbr) {
+  RunTest(FILE_PATH_LITERAL("wbr.html"));
 }
 
 }  // namespace content

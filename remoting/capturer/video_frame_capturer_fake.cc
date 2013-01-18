@@ -12,8 +12,8 @@ namespace remoting {
 // VideoFrameCapturerFake generates a white picture of size kWidth x kHeight
 // with a rectangle of size kBoxWidth x kBoxHeight. The rectangle moves kSpeed
 // pixels per frame along both axes, and bounces off the sides of the screen.
-static const int kWidth = 800;
-static const int kHeight = 600;
+static const int kWidth = VideoFrameCapturerFake::kWidth;
+static const int kHeight = VideoFrameCapturerFake::kHeight;
 static const int kBoxWidth = 140;
 static const int kBoxHeight = 140;
 static const int kSpeed = 20;
@@ -68,10 +68,6 @@ void VideoFrameCapturerFake::CaptureFrame() {
   capture_data->set_capture_time_ms(
       (base::Time::Now() - capture_start_time).InMillisecondsRoundedUp());
   delegate_->OnCaptureCompleted(capture_data);
-}
-
-const SkISize& VideoFrameCapturerFake::size_most_recent() const {
-  return helper_.size_most_recent();
 }
 
 void VideoFrameCapturerFake::GenerateImage() {

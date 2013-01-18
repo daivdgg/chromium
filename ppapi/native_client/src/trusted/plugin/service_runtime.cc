@@ -344,11 +344,10 @@ void PluginReverseInterface::OpenManifestEntry_MainThreadContinuation(
                                             cache_identity,
                                             translate_callback));
     } else {
-      // TODO(jvoung): Separate the error codes?
       nacl::MutexLocker take(&mu_);
       *p->op_complete_ptr = true;  // done...
       *p->out_desc = -1;       // but failed.
-      p->error_info->SetReport(ERROR_MANIFEST_OPEN,
+      p->error_info->SetReport(ERROR_PNACL_NOT_ENABLED,
                                "ServiceRuntime: GetPnaclFd failed -- pnacl not "
                                "enabled with --enable-pnacl.");
       NaClXCondVarBroadcast(&cv_);
@@ -712,6 +711,7 @@ bool ServiceRuntime::InitCommunication(nacl::DescWrapper* nacl_desc,
 bool ServiceRuntime::Start(nacl::DescWrapper* nacl_desc,
                            ErrorInfo* error_info,
                            const nacl::string& url,
+                           bool uses_irt,
                            bool uses_ppapi,
                            bool enable_ppapi_dev,
                            pp::CompletionCallback crash_cb) {
@@ -728,6 +728,7 @@ bool ServiceRuntime::Start(nacl::DescWrapper* nacl_desc,
   }
   bool started = tmp_subprocess->Start(plugin_->pp_instance(),
                                        url.c_str(),
+                                       uses_irt,
                                        uses_ppapi,
                                        enable_ppapi_dev);
   if (!started) {

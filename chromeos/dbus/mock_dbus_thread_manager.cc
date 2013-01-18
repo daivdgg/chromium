@@ -17,7 +17,6 @@
 #include "chromeos/dbus/mock_shill_device_client.h"
 #include "chromeos/dbus/mock_shill_ipconfig_client.h"
 #include "chromeos/dbus/mock_shill_manager_client.h"
-#include "chromeos/dbus/mock_shill_network_client.h"
 #include "chromeos/dbus/mock_shill_profile_client.h"
 #include "chromeos/dbus/mock_shill_service_client.h"
 #include "chromeos/dbus/mock_gsm_sms_client.h"
@@ -52,7 +51,6 @@ MockDBusThreadManager::MockDBusThreadManager()
       mock_shill_device_client_(new MockShillDeviceClient),
       mock_shill_ipconfig_client_(new MockShillIPConfigClient),
       mock_shill_manager_client_(new MockShillManagerClient),
-      mock_shill_network_client_(new MockShillNetworkClient),
       mock_shill_profile_client_(new MockShillProfileClient),
       mock_shill_service_client_(new MockShillServiceClient),
       mock_gsm_sms_client_(new MockGsmSMSClient),
@@ -90,8 +88,6 @@ MockDBusThreadManager::MockDBusThreadManager()
       .WillRepeatedly(Return(mock_shill_ipconfig_client()));
   EXPECT_CALL(*this, GetShillManagerClient())
       .WillRepeatedly(Return(mock_shill_manager_client()));
-  EXPECT_CALL(*this, GetShillNetworkClient())
-      .WillRepeatedly(Return(mock_shill_network_client()));
   EXPECT_CALL(*this, GetShillProfileClient())
       .WillRepeatedly(Return(mock_shill_profile_client()));
   EXPECT_CALL(*this, GetShillServiceClient())
@@ -171,9 +167,9 @@ MockDBusThreadManager::MockDBusThreadManager()
       .Times(AnyNumber());
 
   // Called from AsyncMethodCaller ctor and dtor.
-  EXPECT_CALL(*mock_cryptohome_client_.get(), SetAsyncCallStatusHandler(_))
+  EXPECT_CALL(*mock_cryptohome_client_.get(), SetAsyncCallStatusHandlers(_, _))
       .Times(AnyNumber());
-  EXPECT_CALL(*mock_cryptohome_client_.get(), ResetAsyncCallStatusHandler())
+  EXPECT_CALL(*mock_cryptohome_client_.get(), ResetAsyncCallStatusHandlers())
       .Times(AnyNumber());
 
   // Called from BrightnessController::GetBrightnessPercent as part of ash tray

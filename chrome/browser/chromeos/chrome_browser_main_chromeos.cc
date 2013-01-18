@@ -12,6 +12,7 @@
 #include "base/callback.h"
 #include "base/chromeos/chromeos_version.h"
 #include "base/command_line.h"
+#include "base/file_util.h"
 #include "base/lazy_instance.h"
 #include "base/linux_util.h"
 #include "base/message_loop.h"
@@ -45,6 +46,7 @@
 #include "chrome/browser/chromeos/login/wizard_controller.h"
 #include "chrome/browser/chromeos/memory/low_memory_observer.h"
 #include "chrome/browser/chromeos/memory/oom_priority_manager.h"
+#include "chrome/browser/chromeos/net/connectivity_state_helper.h"
 #include "chrome/browser/chromeos/net/cros_network_change_notifier_factory.h"
 #include "chrome/browser/chromeos/net/network_change_notifier_network_library.h"
 #include "chrome/browser/chromeos/net/network_portal_detector.h"
@@ -85,9 +87,11 @@
 #include "chromeos/dbus/session_manager_client.h"
 #include "chromeos/disks/disk_mount_manager.h"
 #include "chromeos/display/output_configurator.h"
+#include "chromeos/network/geolocation_handler.h"
 #include "chromeos/network/network_change_notifier_chromeos.h"
 #include "chromeos/network/network_change_notifier_factory_chromeos.h"
 #include "chromeos/network/network_configuration_handler.h"
+#include "chromeos/network/network_device_handler.h"
 #include "chromeos/network/network_event_log.h"
 #include "chromeos/network/network_state_handler.h"
 #include "chromeos/power/power_state_override.h"
@@ -160,7 +164,6 @@ class StubLogin : public LoginStatusConsumer,
       LoginUtils::Get()->PrepareProfile(username,
                                         std::string(),
                                         password,
-                                        pending_requests,
                                         using_oauth,
                                         false,
                                         this);
@@ -285,17 +288,23 @@ class DBusServices {
   // longer required. (Switch is set in about_flags.cc and not applied until
   // after DBusServices() is called).
   void InitializeNetworkHandlers() {
-    if (!CommandLine::ForCurrentProcess()->HasSwitch(
-            chromeos::switches::kEnableNewNetworkHandlers))
-      return;
-    chromeos::network_event_log::Initialize();
-    chromeos::NetworkStateHandler::Initialize();
-    chromeos::NetworkConfigurationHandler::Initialize();
     network_handlers_initialized_ = true;
-    // TODO(gauravsh): This needs re-factoring. NetworkChangeNotifier choice
-    // needs to be made before about:flags are processed.
-    if (use_new_network_change_notifier_)
-      NetworkChangeNotifierFactoryChromeos::GetInstance()->Initialize();
+
+    // Always initialize these handlers which should not conflict with
+    // NetworkLibrary.
+    chromeos::network_event_log::Initialize();
+    chromeos::GeolocationHandler::Initialize();
+
+    if (CommandLine::ForCurrentProcess()->HasSwitch(
+            chromeos::switches::kEnableNewNetworkHandlers)) {
+      chromeos::NetworkDeviceHandler::Initialize();
+      chromeos::NetworkStateHandler::Initialize();
+      chromeos::NetworkConfigurationHandler::Initialize();
+      // TODO(gauravsh): This needs re-factoring. NetworkChangeNotifier choice
+      // needs to be made before about:flags are processed.
+      if (use_new_network_change_notifier_)
+        NetworkChangeNotifierFactoryChromeos::GetInstance()->Initialize();
+    }
   }
 
   ~DBusServices() {
@@ -307,9 +316,16 @@ class DBusServices {
     if (cros_initialized_ && CrosLibrary::Get())
       CrosLibrary::Shutdown();
 
+    chromeos::ConnectivityStateHelper::Shutdown();
     if (network_handlers_initialized_) {
-      chromeos::NetworkStateHandler::Shutdown();
-      chromeos::NetworkConfigurationHandler::Shutdown();
+      if (CommandLine::ForCurrentProcess()->HasSwitch(
+              chromeos::switches::kEnableNewNetworkHandlers)) {
+        chromeos::NetworkDeviceHandler::Shutdown();
+        chromeos::NetworkStateHandler::Shutdown();
+        chromeos::NetworkConfigurationHandler::Shutdown();
+      }
+
+      chromeos::GeolocationHandler::Shutdown();
       chromeos::network_event_log::Shutdown();
     }
 
@@ -424,6 +440,7 @@ void ChromeBrowserMainPartsChromeos::PostMainMessageLoopStart() {
 void ChromeBrowserMainPartsChromeos::PreMainMessageLoopRun() {
   // Must be called after about_flags settings are applied (see note above).
   dbus_services_->InitializeNetworkHandlers();
+  chromeos::ConnectivityStateHelper::Initialize();
 
   AudioHandler::Initialize();
   imageburner::BurnManager::Initialize();
@@ -503,6 +520,12 @@ void ChromeBrowserMainPartsChromeos::PreProfileInit() {
     // Load the default app order synchronously for restarting case.
     app_order_loader_.reset(
         new default_app_order::ExternalLoader(false /* async */));
+
+  // TODO(antrim): SessionStarted notification should be moved to
+  // PostProfileInit at some point, as NOTIFICATION_SESSION_STARTED should
+  // go after NOTIFICATION_LOGIN_USER_PROFILE_PREPARED, which requires
+  // loaded profile (and, thus, should be fired in PostProfileInit, as
+  // synchronous profile loading does not emit it).
 
     user_manager->SessionStarted();
   }
@@ -625,6 +648,11 @@ void ChromeBrowserMainPartsChromeos::PreBrowserStart() {
 }
 
 void ChromeBrowserMainPartsChromeos::PostBrowserStart() {
+  // Start loading the machine statistics. Note: if we start loading machine
+  // statistics early in PreEarlyInitialization() then the crossystem tool
+  // sometimes hangs for unknown reasons, see http://crbug.com/167671.
+  system::StatisticsProvider::GetInstance()->StartLoadingMachineStatistics();
+
   // These are dependent on the ash::Shell singleton already having been
   // initialized.
   power_button_observer_.reset(new PowerButtonObserver);
@@ -712,6 +740,7 @@ void ChromeBrowserMainPartsChromeos::PostMainMessageLoopRun() {
 
 void ChromeBrowserMainPartsChromeos::SetupPlatformFieldTrials() {
   SetupLowMemoryHeadroomFieldTrial();
+  SetupZramFieldTrial();
 }
 
 void ChromeBrowserMainPartsChromeos::SetupLowMemoryHeadroomFieldTrial() {
@@ -758,6 +787,49 @@ void ChromeBrowserMainPartsChromeos::SetupLowMemoryHeadroomFieldTrial() {
       LOG(WARNING) << "low_mem: Part of 'default' experiment";
     }
   }
+}
+
+
+void ChromeBrowserMainPartsChromeos::SetupZramFieldTrial() {
+  // The dice for this experiment have been thrown at boot.  The selected group
+  // number is stored in a file.
+  const FilePath kZramGroupPath("/home/chronos/.swap_exp_enrolled");
+  std::string zram_file_content;
+  // If the file does not exist, the experiment has not started.
+  if (!file_util::ReadFileToString(kZramGroupPath, &zram_file_content))
+    return;
+  // The file contains a single significant character, possibly followed by
+  // newline.  "x" means the user has opted out.  "0" through "8" are the valid
+  // group names.  (See src/platform/init/swap-exp.conf in chromiumos repo for
+  // group meanings.)
+  if (zram_file_content.empty()) {
+    LOG(WARNING) << "zram field trial: " << kZramGroupPath.value()
+                 << " is empty";
+    return;
+  }
+  char zram_group = zram_file_content[0];
+  if (zram_group == 'x')
+    return;
+  if (zram_group < '0' || zram_group > '8') {
+    LOG(WARNING) << "zram field trial: invalid group \"" << zram_group << "\"";
+    return;
+  }
+  LOG(WARNING) << "zram field trial: group " << zram_group;
+  const base::FieldTrial::Probability kDivisor = 1;  // on/off only
+  scoped_refptr<base::FieldTrial> trial =
+      base::FieldTrialList::FactoryGetFieldTrial(
+          "ZRAM", kDivisor, "default", 2013, 12, 31, NULL);
+  // Assign probability of 1 to the group Chrome OS has picked.  Assign 0 to
+  // all other choices.
+  trial->AppendGroup("2GB_RAM_no_swap", zram_group == '0' ? 1 : 0);
+  trial->AppendGroup("2GB_RAM_2GB_swap", zram_group == '1' ? 1 : 0);
+  trial->AppendGroup("2GB_RAM_3GB_swap", zram_group == '2' ? 1 : 0);
+  trial->AppendGroup("4GB_RAM_no_swap", zram_group == '3' ? 1 : 0);
+  trial->AppendGroup("4GB_RAM_4GB_swap", zram_group == '4' ? 1 : 0);
+  trial->AppendGroup("4GB_RAM_6GB_swap", zram_group == '5' ? 1 : 0);
+  trial->AppendGroup("snow_no_swap", zram_group == '6' ? 1 : 0);
+  trial->AppendGroup("snow_1GB_swap", zram_group == '7' ? 1 : 0);
+  trial->AppendGroup("snow_2GB_swap", zram_group == '8' ? 1 : 0);
 }
 
 }  //  namespace chromeos

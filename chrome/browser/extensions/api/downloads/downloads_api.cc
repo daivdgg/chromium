@@ -92,11 +92,13 @@ const char kDangerFile[] = "file";
 const char kDangerKey[] = "danger";
 const char kDangerSafe[] = "safe";
 const char kDangerUncommon[] = "uncommon";
+const char kDangerAccepted[] = "accepted";
 const char kDangerUrl[] = "url";
 const char kEndTimeKey[] = "endTime";
 const char kEndedAfterKey[] = "endedAfter";
 const char kEndedBeforeKey[] = "endedBefore";
 const char kErrorKey[] = "error";
+const char kExistsKey[] = "exists";
 const char kFileSizeKey[] = "fileSize";
 const char kFilenameKey[] = "filename";
 const char kFilenameRegexKey[] = "filenameRegex";
@@ -127,6 +129,7 @@ const char* kDangerStrings[] = {
   kDangerContent,
   kDangerSafe,
   kDangerUncommon,
+  kDangerAccepted,
 };
 COMPILE_ASSERT(arraysize(kDangerStrings) == content::DOWNLOAD_DANGER_TYPE_MAX,
                download_danger_type_enum_changed);
@@ -201,6 +204,7 @@ scoped_ptr<base::DictionaryValue> DownloadItemToJSON(
     DownloadItem* download_item,
     bool incognito) {
   base::DictionaryValue* json = new base::DictionaryValue();
+  json->SetBoolean(kExistsKey, !download_item->GetFileExternallyRemoved());
   json->SetInteger(kIdKey, download_item->GetId());
   json->SetString(kUrlKey, download_item->GetOriginalUrl().spec());
   json->SetString(
@@ -209,8 +213,8 @@ scoped_ptr<base::DictionaryValue> DownloadItemToJSON(
   if (download_item->GetDangerType() !=
       content::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS)
     json->SetBoolean(kDangerAcceptedKey,
-        download_item->GetSafetyState() ==
-        DownloadItem::DANGEROUS_BUT_VALIDATED);
+                     download_item->GetDangerType() ==
+                     content::DOWNLOAD_DANGER_TYPE_USER_VALIDATED);
   json->SetString(kStateKey, StateString(download_item->GetState()));
   json->SetBoolean(kPausedKey, download_item->IsPaused());
   json->SetString(kMimeKey, download_item->GetMimeType());
@@ -289,6 +293,7 @@ typedef base::hash_map<std::string, DownloadQuery::FilterType> FilterTypeMap;
 void InitFilterTypeMap(FilterTypeMap& filter_types) {
   filter_types[kBytesReceivedKey] = DownloadQuery::FILTER_BYTES_RECEIVED;
   filter_types[kDangerAcceptedKey] = DownloadQuery::FILTER_DANGER_ACCEPTED;
+  filter_types[kExistsKey] = DownloadQuery::FILTER_EXISTS;
   filter_types[kFilenameKey] = DownloadQuery::FILTER_FILENAME;
   filter_types[kFilenameRegexKey] = DownloadQuery::FILTER_FILENAME_REGEX;
   filter_types[kMimeKey] = DownloadQuery::FILTER_MIME;
@@ -315,6 +320,7 @@ void InitSortTypeMap(SortTypeMap& sorter_types) {
   sorter_types[kDangerKey] = DownloadQuery::SORT_DANGER;
   sorter_types[kDangerAcceptedKey] = DownloadQuery::SORT_DANGER_ACCEPTED;
   sorter_types[kEndTimeKey] = DownloadQuery::SORT_END_TIME;
+  sorter_types[kExistsKey] = DownloadQuery::SORT_EXISTS;
   sorter_types[kFilenameKey] = DownloadQuery::SORT_FILENAME;
   sorter_types[kMimeKey] = DownloadQuery::SORT_MIME;
   sorter_types[kPausedKey] = DownloadQuery::SORT_PAUSED;
@@ -568,6 +574,62 @@ class ExtensionDownloadsEventRouterData : public base::SupportsUserData::Data {
 const char ExtensionDownloadsEventRouterData::kKey[] =
   "DownloadItem ExtensionDownloadsEventRouterData";
 
+class ManagerDestructionObserver : public DownloadManager::Observer {
+ public:
+  static void CheckForHistoryFilesRemoval(DownloadManager* manager) {
+    if (!manager)
+      return;
+    if (!manager_file_existence_last_checked_)
+      manager_file_existence_last_checked_ =
+        new std::map<DownloadManager*, ManagerDestructionObserver*>();
+    if (!(*manager_file_existence_last_checked_)[manager])
+      (*manager_file_existence_last_checked_)[manager] =
+        new ManagerDestructionObserver(manager);
+    (*manager_file_existence_last_checked_)[manager]
+      ->CheckForHistoryFilesRemovalInternal();
+  }
+
+ private:
+  static const int kFileExistenceRateLimitSeconds = 10;
+
+  explicit ManagerDestructionObserver(DownloadManager* manager)
+      : manager_(manager) {
+    manager_->AddObserver(this);
+  }
+
+  virtual ~ManagerDestructionObserver() {
+    manager_->RemoveObserver(this);
+  }
+
+  virtual void ManagerGoingDown(DownloadManager* manager) OVERRIDE {
+    manager_file_existence_last_checked_->erase(manager);
+    if (manager_file_existence_last_checked_->size() == 0) {
+      delete manager_file_existence_last_checked_;
+      manager_file_existence_last_checked_ = NULL;
+    }
+  }
+
+  void CheckForHistoryFilesRemovalInternal() {
+    base::Time now(base::Time::Now());
+    int delta = now.ToTimeT() - last_checked_.ToTimeT();
+    if (delta > kFileExistenceRateLimitSeconds) {
+      last_checked_ = now;
+      manager_->CheckForHistoryFilesRemoval();
+    }
+  }
+
+  static std::map<DownloadManager*, ManagerDestructionObserver*>*
+    manager_file_existence_last_checked_;
+
+  DownloadManager* manager_;
+  base::Time last_checked_;
+
+  DISALLOW_COPY_AND_ASSIGN(ManagerDestructionObserver);
+};
+
+std::map<DownloadManager*, ManagerDestructionObserver*>*
+  ManagerDestructionObserver::manager_file_existence_last_checked_ = NULL;
+
 }  // namespace
 
 DownloadsDownloadFunction::DownloadsDownloadFunction() {}
@@ -676,6 +738,8 @@ bool DownloadsSearchFunction::RunImpl() {
   DownloadManager* manager = NULL;
   DownloadManager* incognito_manager = NULL;
   GetManagers(profile(), include_incognito(), &manager, &incognito_manager);
+  ManagerDestructionObserver::CheckForHistoryFilesRemoval(manager);
+  ManagerDestructionObserver::CheckForHistoryFilesRemoval(incognito_manager);
   DownloadQuery::DownloadVector results;
   RunDownloadQuery(params->query,
                    manager,
@@ -714,9 +778,10 @@ bool DownloadsPauseFunction::RunImpl() {
     // This could be due to an invalid download ID, or it could be due to the
     // download not being currently active.
     error_ = download_extension_errors::kInvalidOperationError;
-  } else if (!download_item->IsPaused()) {
-    // If download_item->IsPaused() already then we treat it as a success.
-    download_item->TogglePause();
+  } else {
+    // If the item is already paused, this is a no-op and the
+    // operation will silently succeed.
+    download_item->Pause();
   }
   if (error_.empty())
     RecordApiFunctions(DOWNLOADS_FUNCTION_PAUSE);
@@ -736,9 +801,10 @@ bool DownloadsResumeFunction::RunImpl() {
     // This could be due to an invalid download ID, or it could be due to the
     // download not being currently active.
     error_ = download_extension_errors::kInvalidOperationError;
-  } else if (download_item->IsPaused()) {
-    // If !download_item->IsPaused() already, then we treat it as a success.
-    download_item->TogglePause();
+  } else {
+    // Note that if the item isn't paused, this will be a no-op, and
+    // we will silently treat the extension call as a success.
+    download_item->Resume();
   }
   if (error_.empty())
     RecordApiFunctions(DOWNLOADS_FUNCTION_RESUME);

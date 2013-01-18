@@ -5,7 +5,12 @@
 #ifndef CC_RESOURCE_PROVIDER_H_
 #define CC_RESOURCE_PROVIDER_H_
 
+#include <deque>
+#include <string>
+#include <vector>
+
 #include "base/basictypes.h"
+#include "base/callback.h"
 #include "base/hash_tables.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/threading/thread_checker.h"
@@ -17,8 +22,6 @@
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "ui/gfx/size.h"
-#include <deque>
-#include <vector>
 
 namespace WebKit {
 class WebGraphicsContext3D;
@@ -81,6 +84,9 @@ public:
     ResourceId createBitmap(const gfx::Size&);
     // Wraps an external texture into a GL resource.
     ResourceId createResourceFromExternalTexture(unsigned textureId);
+
+    // Wraps an external texture mailbox into a GL resource.
+    ResourceId createResourceFromTextureMailbox(const std::string& mailboxName, const base::Callback<void(unsigned)>& releaseCallback);
 
     void deleteResource(ResourceId);
 
@@ -230,9 +236,14 @@ public:
     void beginSetPixels(ResourceId id);
     bool didSetPixelsComplete(ResourceId id);
 
+    // For tests only! This prevents detecting uninitialized reads.
+    // Use setPixels or lockForWrite to allocate implicitly.
+    void allocateForTesting(ResourceId id);
+
 private:
     struct Resource {
         Resource();
+        ~Resource();
         Resource(unsigned textureId, const gfx::Size& size, GLenum format, GLenum filter);
         Resource(uint8_t* pixels, const gfx::Size& size, GLenum format, GLenum filter);
 
@@ -242,6 +253,7 @@ private:
         // Query used to determine when asynchronous set pixels complete.
         unsigned glUploadQueryId;
         Mailbox mailbox;
+        base::Callback<void(unsigned)> mailboxReleaseCallback;
         uint8_t* pixels;
         uint8_t* pixelBuffer;
         int lockForReadCount;
@@ -250,6 +262,7 @@ private:
         bool exported;
         bool markedForDeletion;
         bool pendingSetPixels;
+        bool allocated;
         gfx::Size size;
         GLenum format;
         // TODO(skyostil): Use a separate sampler object for filter state.
@@ -277,6 +290,7 @@ private:
 
     bool transferResource(WebKit::WebGraphicsContext3D*, ResourceId, TransferableResource*);
     void deleteResourceInternal(ResourceMap::iterator it);
+    void lazyAllocate(Resource*);
 
     OutputSurface* m_outputSurface;
     ResourceId m_nextId;

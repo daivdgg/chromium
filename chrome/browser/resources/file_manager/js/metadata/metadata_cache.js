@@ -534,7 +534,7 @@ MetadataCache.prototype.refreshFileMetadata = function(fileURL) {
     return;
   // TODO(kaznacheev) This does not really work with GData search.
   var url = fileURL.substr(0, fileURL.lastIndexOf('/'));
-  metadataCache.refreshDirectory(url);
+  this.refreshDirectory(url);
 };
 
 /**
@@ -652,7 +652,7 @@ FilesystemProvider.prototype.fetch = function(url, type, callback, opt_entry) {
   if (opt_entry)
     onEntry(opt_entry);
   else
-    webkitResolveLocalFileSystemURL(url, onEntry, onError);
+    window.webkitResolveLocalFileSystemURL(url, onEntry, onError);
 };
 
 /**

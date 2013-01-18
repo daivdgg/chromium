@@ -391,6 +391,7 @@ class SpdyNetworkTransactionSpdy3Test
 
       ScopedVector<UploadElementReader> element_readers;
       element_readers.push_back(new UploadFileElementReader(
+          base::MessageLoopProxy::current(),
           file_path, 0, kUploadDataSize, base::Time()));
       upload_data_stream_.reset(new UploadDataStream(&element_readers, 0));
 
@@ -417,6 +418,7 @@ class SpdyNetworkTransactionSpdy3Test
       element_readers.push_back(
           new UploadBytesElementReader(kUploadData, kFileRangeOffset));
       element_readers.push_back(new UploadFileElementReader(
+          base::MessageLoopProxy::current(),
           file_path, kFileRangeOffset, kFileRangeLength, base::Time()));
       element_readers.push_back(new UploadBytesElementReader(
           kUploadData + kFileRangeOffset + kFileRangeLength,
@@ -986,7 +988,7 @@ TEST_P(SpdyNetworkTransactionSpdy3Test, ThreeGetsWithMaxConcurrent) {
   scoped_ptr<SpdyFrame> fbody3(ConstructSpdyBodyFrame(5, true));
 
   SettingsMap settings;
-  const size_t max_concurrent_streams = 1;
+  const uint32 max_concurrent_streams = 1;
   settings[SETTINGS_MAX_CONCURRENT_STREAMS] =
       SettingsFlagsAndValue(SETTINGS_FLAG_NONE, max_concurrent_streams);
   scoped_ptr<SpdyFrame> settings_frame(ConstructSpdySettings(settings));
@@ -1120,7 +1122,7 @@ TEST_P(SpdyNetworkTransactionSpdy3Test, FourGetsWithMaxConcurrentPriority) {
   scoped_ptr<SpdyFrame> fbody3(ConstructSpdyBodyFrame(7, true));
 
   SettingsMap settings;
-  const size_t max_concurrent_streams = 1;
+  const uint32 max_concurrent_streams = 1;
   settings[SETTINGS_MAX_CONCURRENT_STREAMS] =
       SettingsFlagsAndValue(SETTINGS_FLAG_NONE, max_concurrent_streams);
   scoped_ptr<SpdyFrame> settings_frame(ConstructSpdySettings(settings));
@@ -1260,7 +1262,7 @@ TEST_P(SpdyNetworkTransactionSpdy3Test, ThreeGetsWithMaxConcurrentDelete) {
   scoped_ptr<SpdyFrame> fbody2(ConstructSpdyBodyFrame(3, true));
 
   SettingsMap settings;
-  const size_t max_concurrent_streams = 1;
+  const uint32 max_concurrent_streams = 1;
   settings[SETTINGS_MAX_CONCURRENT_STREAMS] =
       SettingsFlagsAndValue(SETTINGS_FLAG_NONE, max_concurrent_streams);
   scoped_ptr<SpdyFrame> settings_frame(ConstructSpdySettings(settings));
@@ -1391,7 +1393,7 @@ TEST_P(SpdyNetworkTransactionSpdy3Test, ThreeGetsWithMaxConcurrentSocketClose) {
   scoped_ptr<SpdyFrame> resp2(ConstructSpdyGetSynReply(NULL, 0, 3));
 
   SettingsMap settings;
-  const size_t max_concurrent_streams = 1;
+  const uint32 max_concurrent_streams = 1;
   settings[SETTINGS_MAX_CONCURRENT_STREAMS] =
       SettingsFlagsAndValue(SETTINGS_FLAG_NONE, max_concurrent_streams);
   scoped_ptr<SpdyFrame> settings_frame(ConstructSpdySettings(settings));

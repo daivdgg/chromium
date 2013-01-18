@@ -49,6 +49,9 @@ const char kDisable3DAPIs[]                 = "disable-3d-apis";
 // Disable gpu-accelerated 2d canvas.
 const char kDisableAccelerated2dCanvas[]    = "disable-accelerated-2d-canvas";
 
+// Disable antialiasing on 2d canvas.
+const char kDisable2dCanvasAntialiasing[]   = "disable-canvas-aa";
+
 // Disables accelerated compositing.
 const char kDisableAcceleratedCompositing[] = "disable-accelerated-compositing";
 
@@ -147,6 +150,9 @@ const char kDisableHistogramCustomizer[]    = "disable-histogram-customizer";
 // Disable the use of an ImageTransportSurface. This means the GPU process
 // will present the rendered page rather than the browser process.
 const char kDisableImageTransportSurface[]  = "disable-image-transport-surface";
+
+// Use hardware gpu, if available, for tests.
+const char kUseGpuInTests[]                 = "use-gpu-in-tests";
 
 // Disables GPU hardware acceleration.  If software renderer is not in place,
 // then the GPU process won't launch.
@@ -266,6 +272,9 @@ const char kEnableDataChannels[]            = "enable-data-channels";
 // Enables device motion events.
 const char kEnableDeviceMotion[]            = "enable-device-motion";
 
+// Enables restarting interrupted downloads.
+const char kEnableDownloadResumption[]      = "enable-download-resumption";
+
 // Enables WebKit features that are in development.
 const char kEnableExperimentalWebKitFeatures[] =
     "enable-experimental-webkit-features";
@@ -278,7 +287,7 @@ const char kEnableFastback[]                = "enable-fastback";
 // or to a specified width and height using --enable-fixed-layout=w,h
 const char kEnableFixedLayout[]             = "enable-fixed-layout";
 
-// Enable the JavaScript Full Screen API.
+// Disable the JavaScript Full Screen API.
 const char kDisableFullScreen[]             = "disable-fullscreen";
 
 // Enable Text Service Framework(TSF) for text inputting instead of IMM32. This
@@ -309,10 +318,6 @@ const char kUseFakeDeviceForMediaStream[] = "use-fake-device-for-media-stream";
 // This does NOT enable color management for images. The source is still
 // assumed to be sRGB.
 const char kEnableMonitorProfile[]          = "enable-monitor-profile";
-
-// Enables UI releasing handle to front surface for background tabs on platforms
-// that support it.
-const char kEnableUIReleaseFrontSurface[] = "enable-ui-release-front-surface";
 
 // Enables compositor-accelerated touch-screen pinch gestures.
 const char kEnablePinch[]                   = "enable-pinch";
@@ -477,6 +482,10 @@ const char kLoggingLevel[]                  = "log-level";
 // Make plugin processes log their sent and received messages to VLOG(1).
 const char kLogPluginMessages[]             = "log-plugin-messages";
 
+// Sample memory usage with high frequency and store the results to the
+// Renderer.Memory histogram. Used in memory tests.
+const char kMemoryMetrics[]                 = "memory-metrics";
+
 // Causes the process to run as a NativeClient broker
 // (used for launching NaCl loader processes on 64-bit Windows).
 const char kNaClBrokerProcess[]             = "nacl-broker";
@@ -588,9 +597,14 @@ const char kEnableAcceleratedOverflowScroll[] =
     "enable-accelerated-overflow-scroll";
 
 // Enables accelerated compositing for scrollable frames for accelerated
-// scrolling for them.
+// scrolling for them. Requires kForceCompositingMode.
 const char kEnableAcceleratedScrollableFrames[] =
      "enable-accelerated-scrollable-frames";
+
+// Enables accelerated scrolling by the compositor for frames. Requires
+// kForceCompositingMode and kEnableAcceleratedScrollableFrames.
+const char kEnableCompositedScrollingForFrames[] =
+     "enable-composited-scrolling-for-frames";
 
 // Visibly render a border around paint rects in the web page to help debug
 // and study painting behavior.
@@ -723,12 +737,6 @@ const char kEnableWebViewSynchronousAPIs[] = "enable-webview-synchronous-apis";
 const char kChildCleanExit[]                = "child-clean-exit";
 #endif
 
-#if defined(OS_MACOSX) || defined(OS_WIN)
-// Use the system SSL library (Secure Transport on Mac, SChannel on Windows)
-// instead of NSS for SSL.
-const char kUseSystemSSL[]                  = "use-system-ssl";
-#endif
-
 #if defined(OS_MACOSX) && !defined(OS_IOS)
 const char kDisableCarbonInterposing[]      = "disable-carbon-interposing";
 #endif
@@ -737,12 +745,6 @@ const char kDisableCarbonInterposing[]      = "disable-carbon-interposing";
 const char kDisableSoftwareRasterizer[]     = "disable-software-rasterizer";
 
 #if defined(USE_AURA)
-// Configures the time after a GestureFlingCancel in which taps are cancelled.
-extern const char kFlingTapSuppressMaxDown[] = "fling-tap-suppress-max-down";
-
-// Maximum time between mousedown and mouseup to be considered a tap.
-extern const char kFlingTapSuppressMaxGap[] = "fling-tap-suppress-max-gap";
-
 // Forces usage of the test compositor. Needed to run ui tests on bots.
 extern const char kTestCompositor[]         = "test-compositor";
 #endif
@@ -754,6 +756,9 @@ const char kDefaultTileHeight[]             = "default-tile-height";
 // Sets the width and height above which a composited layer will get tiled.
 const char kMaxUntiledLayerWidth[]          = "max-untiled-layer-width";
 const char kMaxUntiledLayerHeight[]         = "max-untiled-layer-height";
+
+// Use ExynosVideoDecodeAccelerator for video decode (instead of SECOMX)
+const char kUseExynosVda[]                  = "use-exynos-vda";
 
 const char kEnableFixedPositionCreatesStackingContext[]
     = "enable-fixed-position-creates-stacking-context";

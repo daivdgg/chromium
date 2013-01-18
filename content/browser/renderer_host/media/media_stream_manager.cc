@@ -462,8 +462,6 @@ std::string MediaStreamManager::OpenDevice(
   const std::string& label = AddRequest(request);
   StartEnumeration(request);
 
-  PostRequestToUI(label);
-
   return label;
 }
 
@@ -585,7 +583,8 @@ void MediaStreamManager::PostRequestToUI(const std::string& label) {
                                 request->render_view_id,
                                 request->options,
                                 request->security_origin,
-                                request->type);
+                                request->type,
+                                request->requested_device_id);
 }
 
 void MediaStreamManager::HandleRequest(const std::string& label) {

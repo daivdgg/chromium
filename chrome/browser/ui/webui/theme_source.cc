@@ -40,8 +40,7 @@ static const char* kNewIncognitoTabCSSPath = "css/incognito_new_tab_theme.css";
 // ThemeSource, public:
 
 ThemeSource::ThemeSource(Profile* profile)
-    : DataSource(chrome::kChromeUIThemePath, MessageLoop::current()),
-      profile_(profile->GetOriginalProfile()) {
+    : profile_(profile->GetOriginalProfile()) {
   css_bytes_ = NTPResourceCacheFactory::GetForProfile(profile)->GetNewTabCSS(
       profile->IsOffTheRecord());
 }
@@ -49,9 +48,14 @@ ThemeSource::ThemeSource(Profile* profile)
 ThemeSource::~ThemeSource() {
 }
 
-void ThemeSource::StartDataRequest(const std::string& path,
-                                   bool is_incognito,
-                                   int request_id) {
+std::string ThemeSource::GetSource() {
+  return chrome::kChromeUIThemePath;
+}
+
+void ThemeSource::StartDataRequest(
+    const std::string& path,
+    bool is_incognito,
+    const content::URLDataSource::GotDataCallback& callback) {
   // Default scale factor if not specified.
   ui::ScaleFactor scale_factor;
   std::string uncached_path;
@@ -65,17 +69,19 @@ void ThemeSource::StartDataRequest(const std::string& path,
     DCHECK((uncached_path == kNewTabCSSPath && !is_incognito) ||
            (uncached_path == kNewIncognitoTabCSSPath && is_incognito));
 
-    SendResponse(request_id, css_bytes_);
+    callback.Run(css_bytes_);
     return;
-  } else {
-    int resource_id = ResourcesUtil::GetThemeResourceId(uncached_path);
-    if (resource_id != -1) {
-      SendThemeBitmap(request_id, resource_id, scale_factor);
-      return;
-    }
   }
+
+
+  int resource_id = ResourcesUtil::GetThemeResourceId(uncached_path);
+  if (resource_id != -1) {
+    SendThemeBitmap(callback, resource_id, scale_factor);
+    return;
+  }
+
   // We don't have any data to send back.
-  SendResponse(request_id, NULL);
+  callback.Run(NULL);
 }
 
 std::string ThemeSource::GetMimeType(const std::string& path) const {
@@ -109,7 +115,7 @@ MessageLoop* ThemeSource::MessageLoopForRequestPath(
   if (!ThemeService::IsThemeableImage(resource_id))
     return NULL;
 
-  return DataSource::MessageLoopForRequestPath(path);
+  return content::URLDataSource::MessageLoopForRequestPath(path);
 }
 
 bool ThemeSource::ShouldReplaceExistingSource() const {
@@ -121,9 +127,10 @@ bool ThemeSource::ShouldReplaceExistingSource() const {
 ////////////////////////////////////////////////////////////////////////////////
 // ThemeSource, private:
 
-void ThemeSource::SendThemeBitmap(int request_id,
-                                  int resource_id,
-                                  ui::ScaleFactor scale_factor) {
+void ThemeSource::SendThemeBitmap(
+    const content::URLDataSource::GotDataCallback& callback,
+    int resource_id,
+    ui::ScaleFactor scale_factor) {
   if (ThemeService::IsThemeableImage(resource_id)) {
     DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
     ui::ThemeProvider* tp = ThemeServiceFactory::GetForProfile(profile_);
@@ -131,12 +138,10 @@ void ThemeSource::SendThemeBitmap(int request_id,
 
     scoped_refptr<base::RefCountedMemory> image_data(tp->GetRawData(
         resource_id, scale_factor));
-    SendResponse(request_id, image_data);
+    callback.Run(image_data);
   } else {
     DCHECK(BrowserThread::CurrentlyOn(BrowserThread::IO));
     const ResourceBundle& rb = ResourceBundle::GetSharedInstance();
-    SendResponse(
-        request_id,
-        rb.LoadDataResourceBytesForScale(resource_id, scale_factor));
+    callback.Run(rb.LoadDataResourceBytesForScale(resource_id, scale_factor));
   }
 }

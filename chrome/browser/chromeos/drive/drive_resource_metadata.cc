@@ -187,8 +187,11 @@ DriveResourceMetadata::DriveResourceMetadata()
       loaded_(false),
       ALLOW_THIS_IN_INITIALIZER_LIST(weak_ptr_factory_(this)) {
   root_ = CreateDriveDirectory().Pass();
+  root_->set_resource_id(kWAPIRootDirectoryResourceId);
   root_->set_title(kDriveRootDirectory);
   root_->SetBaseNameFromTitle();
+
+  AddEntryToResourceMap(root_.get());
 }
 
 DriveResourceMetadata::~DriveResourceMetadata() {
@@ -208,13 +211,6 @@ scoped_ptr<DriveDirectory> DriveResourceMetadata::CreateDriveDirectory() {
   return scoped_ptr<DriveDirectory>(new DriveDirectory(this));
 }
 
-void DriveResourceMetadata::InitializeRootEntry(const std::string& id) {
-  DCHECK(!id.empty());
-  DCHECK(root_->resource_id().empty());
-  root_->set_resource_id(id);
-  AddEntryToResourceMap(root_.get());
-}
-
 void DriveResourceMetadata::ClearRoot() {
   if (!root_.get())
     return;
@@ -232,6 +228,20 @@ void DriveResourceMetadata::ClearRoot() {
   // build.
   resource_map_.clear();
   root_.reset();
+}
+
+void DriveResourceMetadata::GetLargestChangestamp(
+    const GetChangestampCallback& callback) {
+  base::MessageLoopProxy::current()->PostTask(
+      FROM_HERE, base::Bind(callback, largest_changestamp_));
+}
+
+void DriveResourceMetadata::SetLargestChangestamp(
+    int64 value,
+    const FileOperationCallback& callback) {
+  largest_changestamp_ = value;
+  base::MessageLoopProxy::current()->PostTask(
+      FROM_HERE, base::Bind(callback, DRIVE_FILE_OK));
 }
 
 void DriveResourceMetadata::AddEntryToDirectory(
@@ -849,9 +859,7 @@ bool DriveResourceMetadata::ParseFromString(
   }
 
   root_->FromProto(proto.drive_directory());
-  // Call AddEntryToResourceMap() instead of InitializeRootEntry() as the root
-  // resource ID is already set from proto.
-  AddEntryToResourceMap(root_.get());
+  DCHECK_EQ(kWAPIRootDirectoryResourceId, root_->resource_id());
 
   loaded_ = true;
   largest_changestamp_ = proto.largest_changestamp();

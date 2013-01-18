@@ -4,17 +4,21 @@
 
 #include "chrome/browser/ui/sync/one_click_signin_helper.h"
 
+#include <algorithm>
+#include <functional>
+#include <utility>
+#include <vector>
+
 #include "base/bind.h"
-#include "base/command_line.h"
 #include "base/compiler_specific.h"
-#include "base/metrics/histogram.h"
 #include "base/metrics/field_trial.h"
+#include "base/metrics/histogram.h"
 #include "base/string_split.h"
 #include "base/string_util.h"
 #include "base/supports_user_data.h"
 #include "base/utf_string_conversions.h"
+#include "base/values.h"
 #include "chrome/browser/api/infobars/infobar_service.h"
-#include "chrome/browser/api/infobars/one_click_signin_infobar_delegate.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/google/google_util.h"
@@ -29,10 +33,12 @@
 #include "chrome/browser/signin/signin_names_io_thread.h"
 #include "chrome/browser/sync/profile_sync_service.h"
 #include "chrome/browser/sync/profile_sync_service_factory.h"
+#include "chrome/browser/sync/sync_prefs.h"
 #include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/sync/one_click_signin_histogram.h"
+#include "chrome/browser/ui/sync/one_click_signin_infobar_delegate.h"
 #include "chrome/browser/ui/sync/one_click_signin_sync_starter.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/chrome_switches.h"
@@ -58,9 +64,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 
-#include <functional>
-
-DEFINE_WEB_CONTENTS_USER_DATA_KEY(OneClickSigninHelper)
+DEFINE_WEB_CONTENTS_USER_DATA_KEY(OneClickSigninHelper);
 
 namespace {
 
@@ -232,13 +236,19 @@ const void* const OneClickSigninRequestUserData::kUserDataKey =
 // of this infobar.
 class OneClickInfoBarDelegateImpl : public OneClickSigninInfoBarDelegate {
  public:
-  OneClickInfoBarDelegateImpl(InfoBarService* owner,
-                              const std::string& session_index,
-                              const std::string& email,
-                              const std::string& password);
-  virtual ~OneClickInfoBarDelegateImpl();
+  // Creates a one click signin delegate and adds it to |infobar_service|.
+  static void Create(InfoBarService* infobar_service,
+                     const std::string& session_index,
+                     const std::string& email,
+                     const std::string& password);
 
  private:
+  OneClickInfoBarDelegateImpl(InfoBarService* owner,
+                               const std::string& session_index,
+                               const std::string& email,
+                               const std::string& password);
+  virtual ~OneClickInfoBarDelegateImpl();
+
   // InfoBarDelegate overrides.
   virtual InfoBarAutomationType GetInfoBarAutomationType() const OVERRIDE;
   virtual void InfoBarDismissed() OVERRIDE;
@@ -269,6 +279,16 @@ class OneClickInfoBarDelegateImpl : public OneClickSigninInfoBarDelegate {
 
   DISALLOW_COPY_AND_ASSIGN(OneClickInfoBarDelegateImpl);
 };
+
+// static
+void OneClickInfoBarDelegateImpl::Create(InfoBarService* infobar_service,
+                                         const std::string& session_index,
+                                         const std::string& email,
+                                         const std::string& password) {
+  infobar_service->AddInfoBar(scoped_ptr<InfoBarDelegate>(
+      new OneClickInfoBarDelegateImpl(infobar_service, session_index, email,
+                                      password)));
+}
 
 OneClickInfoBarDelegateImpl::OneClickInfoBarDelegateImpl(
     InfoBarService* owner,
@@ -412,12 +432,12 @@ bool OneClickSigninHelper::CanOffer(content::WebContents* web_contents,
   if (web_contents->GetBrowserContext()->IsOffTheRecord())
     return false;
 
-  if (!ProfileSyncService::IsSyncEnabled())
-    return false;
-
   Profile* profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
   if (!profile)
+    return false;
+
+  if (!profile->IsSyncAccessible())
     return false;
 
   if (can_offer_for == CAN_OFFER_FOR_INTERSTITAL_ONLY &&
@@ -521,12 +541,12 @@ OneClickSigninHelper::Offer OneClickSigninHelper::CanOfferOnIOThreadImpl(
   if (!SyncPromoUI::UseWebBasedSigninFlow())
     return DONT_OFFER;
 
-  if (!ProfileSyncService::IsSyncEnabled())
-    return DONT_OFFER;
-
   // Check for incognito before other parts of the io_data, since those
   // members may not be initalized.
   if (io_data->is_incognito())
+    return DONT_OFFER;
+
+  if (!browser_sync::SyncPrefs::IsSyncAccessibleOnIOThread(io_data))
     return DONT_OFFER;
 
   if (!io_data->reverse_autologin_enabled()->GetValue())
@@ -536,9 +556,6 @@ OneClickSigninHelper::Offer OneClickSigninHelper::CanOfferOnIOThreadImpl(
     return DONT_OFFER;
 
   if (!SigninManager::AreSigninCookiesAllowed(io_data->GetCookieSettings()))
-    return DONT_OFFER;
-
-  if (!io_data->reverse_autologin_enabled()->GetValue())
     return DONT_OFFER;
 
   // The checks below depend on chrome already knowing what account the user
@@ -867,8 +884,6 @@ void OneClickSigninHelper::DidStopLoading(
   Browser* browser = chrome::FindBrowserWithWebContents(contents);
   Profile* profile =
       Profile::FromBrowserContext(contents->GetBrowserContext());
-  InfoBarService* infobar_tab_helper =
-      InfoBarService::FromWebContents(contents);
 
   VLOG(1) << "OneClickSigninHelper::DidStopLoading: signin is go."
           << " auto_accept=" << auto_accept_
@@ -881,9 +896,9 @@ void OneClickSigninHelper::DidStopLoading(
                                   one_click_signin::HISTOGRAM_DISMISSED,
                                   one_click_signin::HISTOGRAM_MAX);
       } else {
-        infobar_tab_helper->AddInfoBar(
-            new OneClickInfoBarDelegateImpl(infobar_tab_helper, session_index_,
-                                            email_, password_));
+        OneClickInfoBarDelegateImpl::Create(
+            InfoBarService::FromWebContents(contents), session_index_, email_,
+            password_);
       }
       break;
     case AUTO_ACCEPT_ACCEPTED:

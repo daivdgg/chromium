@@ -4,6 +4,8 @@ include_rules = [
   "+chrome/installer",
   "+chrome/tools/profiles",  # For history unit tests.
   "+chromeos",
+  "+components/web_contents_delegate_android",
+  # TODO(boliu): Remove when content/components is moved to components.
   "+content/components",
   "+content/public/browser",
   "+device/bluetooth",
@@ -62,11 +64,6 @@ include_rules = [
   "+webkit/glue/webmenuitem.h",
   "+webkit/glue/webpreferences.h",
   "+webkit/glue/window_open_disposition.h",
-  # DO NOT ADD ANY MORE ITEMS TO THE ABOVE LIST!
-
-  # TODO(jam): Need to remove all these and use only content/public. BUG=98716
-  # DO NOT ADD ANY MORE ITEMS TO THE LIST BELOW!
-  "!content/browser/geolocation/wifi_data_provider_common.h",
   # DO NOT ADD ANY MORE ITEMS TO THE ABOVE LIST!
 
   "-chrome/browser/ui/views",

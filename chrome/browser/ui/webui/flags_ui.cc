@@ -45,6 +45,7 @@ ChromeWebUIDataSource* CreateFlagsUIHTMLSource() {
   ChromeWebUIDataSource* source =
       new ChromeWebUIDataSource(chrome::kChromeUIFlagsHost);
 
+  source->set_use_json_js_format_v2();
   source->AddLocalizedString("flagsLongTitle", IDS_FLAGS_LONG_TITLE);
   source->AddLocalizedString("flagsTableTitle", IDS_FLAGS_TABLE_TITLE);
   source->AddLocalizedString("flagsNoExperimentsAvailable",
@@ -162,7 +163,7 @@ FlagsUI::FlagsUI(content::WebUI* web_ui) : WebUIController(web_ui) {
 
   // Set up the about:flags source.
   Profile* profile = Profile::FromWebUI(web_ui);
-  ChromeURLDataManager::AddDataSource(profile, CreateFlagsUIHTMLSource());
+  ChromeURLDataManager::AddDataSourceImpl(profile, CreateFlagsUIHTMLSource());
 }
 
 // static

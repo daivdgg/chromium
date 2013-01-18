@@ -196,16 +196,13 @@ class CONTENT_EXPORT PluginServiceImpl
 
   // Helper so we can finish opening the channel after looking up the
   // plugin.
-  void FinishOpenChannelToPlugin(
-      const FilePath& plugin_path,
-      PluginProcessHost::Client* client);
+  void FinishOpenChannelToPlugin(const FilePath& plugin_path,
+                                 PluginProcessHost::Client* client);
 
 #if defined(OS_POSIX) && !defined(OS_OPENBSD) && !defined(OS_ANDROID)
   // Registers a new FilePathWatcher for a given path.
-  static void RegisterFilePathWatcher(
-      base::files::FilePathWatcher* watcher,
-      const FilePath& path,
-      base::files::FilePathWatcher::Delegate* delegate);
+  static void RegisterFilePathWatcher(base::FilePathWatcher* watcher,
+                                      const FilePath& path);
 #endif
 
   // The plugin list instance.
@@ -222,8 +219,7 @@ class CONTENT_EXPORT PluginServiceImpl
 #endif
 
 #if defined(OS_POSIX) && !defined(OS_OPENBSD) && !defined(OS_ANDROID)
-  ScopedVector<base::files::FilePathWatcher> file_watchers_;
-  scoped_refptr<PluginDirWatcherDelegate> file_watcher_delegate_;
+  ScopedVector<base::FilePathWatcher> file_watchers_;
 #endif
 
   std::vector<PepperPluginInfo> ppapi_plugins_;

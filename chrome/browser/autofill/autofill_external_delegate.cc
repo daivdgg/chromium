@@ -28,7 +28,7 @@
 using content::RenderViewHost;
 using WebKit::WebAutofillClient;
 
-DEFINE_WEB_CONTENTS_USER_DATA_KEY(AutofillExternalDelegate)
+DEFINE_WEB_CONTENTS_USER_DATA_KEY(AutofillExternalDelegate);
 
 void AutofillExternalDelegate::CreateForWebContentsAndManager(
     content::WebContents* web_contents,
@@ -87,7 +87,7 @@ void AutofillExternalDelegate::OnSuggestionsReturned(
     const std::vector<string16>& autofill_labels,
     const std::vector<string16>& autofill_icons,
     const std::vector<int>& autofill_unique_ids) {
-  if (query_id != autofill_query_id_)
+  if (query_id != autofill_query_id_ || !controller_)
     return;
 
   std::vector<string16> values(autofill_values);

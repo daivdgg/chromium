@@ -62,6 +62,7 @@ ChromeWebUIDataSource* CreateFlashUIHTMLSource() {
   ChromeWebUIDataSource* source =
       new ChromeWebUIDataSource(chrome::kChromeUIFlashHost);
 
+  source->set_use_json_js_format_v2();
   source->AddLocalizedString("loadingMessage", IDS_FLASH_LOADING_MESSAGE);
   source->AddLocalizedString("flashLongTitle", IDS_FLASH_TITLE_MESSAGE);
   source->set_json_path("strings.js");
@@ -387,7 +388,7 @@ FlashUI::FlashUI(content::WebUI* web_ui) : WebUIController(web_ui) {
 
   // Set up the about:flash source.
   Profile* profile = Profile::FromWebUI(web_ui);
-  ChromeURLDataManager::AddDataSource(profile, CreateFlashUIHTMLSource());
+  ChromeURLDataManager::AddDataSourceImpl(profile, CreateFlashUIHTMLSource());
 }
 
 // static

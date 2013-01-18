@@ -169,7 +169,7 @@ std::string GetUserEmail() {
 // Returns the index of the feedback tab if already open, -1 otherwise
 int GetIndexOfFeedbackTab(Browser* browser) {
   GURL feedback_url(chrome::kChromeUIFeedbackURL);
-  for (int i = 0; i < browser->tab_count(); ++i) {
+  for (int i = 0; i < browser->tab_strip_model()->count(); ++i) {
     WebContents* tab = browser->tab_strip_model()->GetWebContentsAt(i);
     if (tab && tab->GetURL().GetWithEmptyPath() == feedback_url)
       return i;
@@ -227,7 +227,8 @@ void ShowFeedbackPage(Browser* browser,
 
   std::string feedback_url = std::string(chrome::kChromeUIFeedbackURL) + "?" +
       kSessionIDParameter + base::IntToString(browser->session_id().id()) +
-      "&" + kTabIndexParameter + base::IntToString(browser->active_index()) +
+      "&" + kTabIndexParameter +
+      base::IntToString(browser->tab_strip_model()->active_index()) +
       "&" + kDescriptionParameter +
       net::EscapeUrlEncodedData(description_template, false) + "&" +
       kCategoryTagParameter + net::EscapeUrlEncodedData(category_tag, false);
@@ -384,11 +385,8 @@ void FeedbackHandler::ClobberScreenshotsSource() {
 
 void FeedbackHandler::SetupScreenshotsSource() {
   Profile* profile = Profile::FromBrowserContext(tab_->GetBrowserContext());
-  // If we don't already have a screenshot source object created, create one.
-  if (!screenshot_source_) {
-    screenshot_source_ =
-        new ScreenshotSource(FeedbackUtil::GetScreenshotPng(), profile);
-  }
+  screenshot_source_ =
+      new ScreenshotSource(FeedbackUtil::GetScreenshotPng(), profile);
   // Add the source to the data manager.
   ChromeURLDataManager::AddDataSource(profile, screenshot_source_);
 }
@@ -452,7 +450,7 @@ bool FeedbackHandler::Init() {
 
     Browser* browser = chrome::FindBrowserWithID(session_id);
     // Sanity checks.
-    if (!browser || index >= browser->tab_count())
+    if (!browser || index >= browser->tab_strip_model()->count())
       return false;
 
     if (index >= 0) {
@@ -474,8 +472,6 @@ bool FeedbackHandler::Init() {
 }
 
 void FeedbackHandler::RegisterMessages() {
-  SetupScreenshotsSource();
-
   web_ui()->RegisterMessageCallback("getDialogDefaults",
       base::Bind(&FeedbackHandler::HandleGetDialogDefaults,
                  base::Unretained(this)));
@@ -729,7 +725,7 @@ FeedbackUI::FeedbackUI(content::WebUI* web_ui)
 
   // Set up the chrome://feedback/ source.
   Profile* profile = Profile::FromWebUI(web_ui);
-  ChromeURLDataManager::AddDataSource(profile, html_source);
+  ChromeURLDataManager::AddDataSourceImpl(profile, html_source);
 }
 
 #if defined(OS_CHROMEOS)

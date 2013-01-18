@@ -463,12 +463,6 @@ void NetworkLibraryImplCros::RequestNetworkScan() {
                  weak_ptr_factory_.GetWeakPtr()));
 }
 
-bool NetworkLibraryImplCros::GetWifiAccessPoints(
-    WifiAccessPointVector* result) {
-  CHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
-  return CrosGetWifiAccessPoints(result);
-}
-
 void NetworkLibraryImplCros::RefreshIPConfig(Network* network) {
   DCHECK(network);
   CrosRequestNetworkDeviceProperties(
@@ -660,18 +654,18 @@ bool NetworkLibraryImplCros::NetworkManagerStatusChanged(
       UpdateAvailableTechnologies(vlist);
       break;
     }
+    case PROPERTY_INDEX_UNINITIALIZED_TECHNOLOGIES: {
+      const ListValue* vlist = NULL;
+      if (!value->GetAsList(&vlist))
+        return false;
+      UpdateTechnologies(vlist, &uninitialized_devices_);
+      break;
+    }
     case PROPERTY_INDEX_ENABLED_TECHNOLOGIES: {
       const ListValue* vlist = NULL;
       if (!value->GetAsList(&vlist))
         return false;
       UpdateEnabledTechnologies(vlist);
-      break;
-    }
-    case PROPERTY_INDEX_CONNECTED_TECHNOLOGIES: {
-      const ListValue* vlist = NULL;
-      if (!value->GetAsList(&vlist))
-        return false;
-      UpdateConnectedTechnologies(vlist);
       break;
     }
     case PROPERTY_INDEX_DEFAULT_TECHNOLOGY:
@@ -809,11 +803,6 @@ void NetworkLibraryImplCros::UpdateEnabledTechnologies(
     active_cellular_ = NULL;
     cellular_networks_.clear();
   }
-}
-
-void NetworkLibraryImplCros::UpdateConnectedTechnologies(
-    const ListValue* technologies) {
-  UpdateTechnologies(technologies, &connected_devices_);
 }
 
 ////////////////////////////////////////////////////////////////////////////

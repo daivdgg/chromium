@@ -29,6 +29,13 @@ class CONTENT_EXPORT GpuMemoryManager :
     public base::SupportsWeakPtr<GpuMemoryManager> {
  public:
   enum { kDefaultMaxSurfacesWithFrontbufferSoftLimit = 8 };
+  enum ScheduleManageTime {
+    // Add a call to Manage to the thread's message loop immediately.
+    kScheduleManageNow,
+    // Add a Manage call to the thread's message loop for execution 1/60th of
+    // of a second from now.
+    kScheduleManageLater,
+  };
 
   GpuMemoryManager(GpuChannelManager* channel_manager,
                    size_t max_surfaces_with_frontbuffer_soft_limit);
@@ -39,7 +46,7 @@ class CONTENT_EXPORT GpuMemoryManager :
   // delayed calls to "queue" up. This way, we do not spam clients in certain
   // lower priority situations. An immediate schedule manage will cancel any
   // queued delayed manage.
-  void ScheduleManage(bool immediate);
+  void ScheduleManage(ScheduleManageTime schedule_manage_time);
 
   // Retrieve GPU Resource consumption statistics for the task manager
   void GetVideoMemoryUsageStats(
@@ -96,13 +103,16 @@ class CONTENT_EXPORT GpuMemoryManager :
   void Manage();
   void SetClientsHibernatedState() const;
   size_t GetVisibleClientAllocation() const;
-  size_t GetCurrentBackgroundedAvailableGpuMemory() const;
+  size_t GetCurrentNonvisibleAvailableGpuMemory() const;
+  void AssignSurfacesAllocationsNonuniform();
+  void AssignSurfacesAllocationsUniform();
+  void AssignNonSurfacesAllocations();
 
   // Update the amount of GPU memory we think we have in the system, based
   // on what the stubs' contexts report.
   void UpdateAvailableGpuMemory();
   void UpdateUnmanagedMemoryLimits();
-  void UpdateBackgroundedAvailableGpuMemory();
+  void UpdateNonvisibleAvailableGpuMemory();
 
   // The amount of video memory which is available for allocation.
   size_t GetAvailableGpuMemory() const;
@@ -115,8 +125,8 @@ class CONTENT_EXPORT GpuMemoryManager :
   size_t GetMaximumTotalGpuMemory() const;
 
   // The maximum and minimum amount of memory that a tab may be assigned.
-  size_t GetMaximumTabAllocation() const;
-  size_t GetMinimumTabAllocation() const;
+  size_t GetMaximumClientAllocation() const;
+  size_t GetMinimumClientAllocation() const;
 
   // Get a reasonable memory limit from a viewport's surface area.
   static size_t CalcAvailableFromViewportArea(int viewport_area);
@@ -169,11 +179,15 @@ class CONTENT_EXPORT GpuMemoryManager :
     bytes_unmanaged_limit_step_ = bytes;
   }
 
-  void TestingSetBackgroundedAvailableGpuMemory(size_t bytes) {
-    bytes_backgrounded_available_gpu_memory_ = bytes;
+  void TestingSetNonvisibleAvailableGpuMemory(size_t bytes) {
+    bytes_nonvisible_available_gpu_memory_ = bytes;
   }
 
   GpuChannelManager* channel_manager_;
+
+  // The new memory policy does not uniformly assign memory to tabs, but
+  // scales the assignments to the tabs' needs.
+  bool use_nonuniform_memory_policy_;
 
   // A list of all visible and nonvisible clients, in most-recently-used
   // order (most recently used is first).
@@ -200,13 +214,13 @@ class CONTENT_EXPORT GpuMemoryManager :
   bool bytes_minimum_per_client_overridden_;
 
   // The maximum amount of memory that can be allocated for GPU resources
-  // in backgrounded renderers.
-  size_t bytes_backgrounded_available_gpu_memory_;
+  // in nonvisible renderers.
+  size_t bytes_nonvisible_available_gpu_memory_;
 
   // The current total memory usage, and historical maximum memory usage
   size_t bytes_allocated_managed_current_;
   size_t bytes_allocated_managed_visible_;
-  size_t bytes_allocated_managed_backgrounded_;
+  size_t bytes_allocated_managed_nonvisible_;
   size_t bytes_allocated_unmanaged_current_;
   size_t bytes_allocated_historical_max_;
 
@@ -220,7 +234,7 @@ class CONTENT_EXPORT GpuMemoryManager :
 
   // The number of browser windows that exist. If we ever receive a
   // GpuMsg_SetVideoMemoryWindowCount, then we use this to compute memory
-  // budgets, instead of doing more complicated stub-based calculations.
+  // allocations, instead of doing more complicated stub-based calculations.
   bool window_count_has_been_received_;
   uint32 window_count_;
 

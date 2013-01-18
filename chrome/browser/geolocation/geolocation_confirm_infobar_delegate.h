@@ -19,6 +19,15 @@ class InfoBarService;
 // and handling of geolocation permission infobars to the user.
 class GeolocationConfirmInfoBarDelegate : public ConfirmInfoBarDelegate {
  public:
+  // Creates a geolocation delegate and adds it to |infobar_service|.  Returns
+  // the delegate if it was successfully added.
+  static InfoBarDelegate* Create(InfoBarService* infobar_service,
+                                 GeolocationInfoBarQueueController* controller,
+                                 const GeolocationPermissionRequestID& id,
+                                 const GURL& requesting_frame,
+                                 const std::string& display_languages);
+
+ protected:
   GeolocationConfirmInfoBarDelegate(
       InfoBarService* infobar_service,
       GeolocationInfoBarQueueController* controller,
@@ -28,10 +37,11 @@ class GeolocationConfirmInfoBarDelegate : public ConfirmInfoBarDelegate {
 
   const GeolocationPermissionRequestID& id() const { return id_; }
 
- protected:
   // ConfirmInfoBarDelegate:
   virtual gfx::Image* GetIcon() const OVERRIDE;
   virtual Type GetInfoBarType() const OVERRIDE;
+  virtual bool ShouldExpireInternal(
+      const content::LoadCommittedDetails& details) const OVERRIDE;
   virtual string16 GetMessageText() const OVERRIDE;
   virtual string16 GetButtonLabel(InfoBarButton button) const OVERRIDE;
   virtual bool Accept() OVERRIDE;
@@ -46,6 +56,7 @@ class GeolocationConfirmInfoBarDelegate : public ConfirmInfoBarDelegate {
   GeolocationInfoBarQueueController* controller_;
   const GeolocationPermissionRequestID id_;
   GURL requesting_frame_;
+  int contents_unique_id_;
   std::string display_languages_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(GeolocationConfirmInfoBarDelegate);

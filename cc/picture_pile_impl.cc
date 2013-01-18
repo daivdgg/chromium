@@ -4,10 +4,12 @@
 
 #include "base/debug/trace_event.h"
 #include "cc/picture_pile_impl.h"
+#include "cc/region.h"
 #include "cc/rendering_stats.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkSize.h"
 #include "ui/gfx/rect_conversions.h"
+#include "ui/gfx/skia_util.h"
 
 namespace cc {
 
@@ -37,9 +39,9 @@ PicturePileImpl* PicturePileImpl::GetCloneForDrawingOnThread(
 scoped_refptr<PicturePileImpl> PicturePileImpl::CloneForDrawing() const {
   TRACE_EVENT0("cc", "PicturePileImpl::CloneForDrawing");
   scoped_refptr<PicturePileImpl> clone = Create();
-  for (PicturePile::Pile::const_iterator i = pile_.begin();
-       i != pile_.end(); ++i)
+  for (Pile::const_iterator i = pile_.begin(); i != pile_.end(); ++i)
     clone->pile_.push_back((*i)->Clone());
+  clone->min_contents_scale_ = min_contents_scale_;
 
   return clone;
 }
@@ -49,44 +51,76 @@ void PicturePileImpl::Raster(
     gfx::Rect content_rect,
     float contents_scale,
     RenderingStats* stats) {
+
+  if (!pile_.size())
+    return;
+
+  DCHECK(contents_scale >= min_contents_scale_);
+
   base::TimeTicks rasterizeBeginTime = base::TimeTicks::Now();
 
-  // TODO(enne): do this more efficiently, i.e. top down with Skia clips
   canvas->save();
   canvas->translate(-content_rect.x(), -content_rect.y());
-  SkRect layer_skrect = SkRect::MakeXYWH(
-      content_rect.x(),
-      content_rect.y(),
-      content_rect.width(),
-      content_rect.height());
-  canvas->clipRect(layer_skrect);
-  canvas->scale(contents_scale, contents_scale);
+  canvas->clipRect(gfx::RectToSkRect(content_rect));
 
-  gfx::Rect layer_rect = gfx::ToEnclosedRect(gfx::ScaleRect(gfx::RectF(content_rect), 1 / contents_scale));
-
-  for (PicturePile::Pile::const_iterator i = pile_.begin();
-       i != pile_.end(); ++i) {
-    if (!(*i)->LayerRect().Intersects(layer_rect))
+  // Raster through the pile top down, using clips to make sure that
+  // pictures on top are not overdrawn by pictures on the bottom.
+  Region unclipped(content_rect);
+  for (Pile::reverse_iterator i = pile_.rbegin(); i != pile_.rend(); ++i) {
+    // This is intentionally *enclosed* rect, so that the clip is aligned on
+    // integral post-scale content pixels and does not extend past the edges of
+    // the picture's layer rect.  The min_contents_scale enforces that enough
+    // buffer pixels have been added such that the enclosed rect encompasses all
+    // invalidated pixels at any larger scale level.
+    gfx::Rect content_clip = gfx::ToEnclosedRect(
+        gfx::ScaleRect((*i)->LayerRect(), contents_scale));
+    if (!unclipped.Intersects(content_clip))
       continue;
-    (*i)->Raster(canvas);
+    (*i)->Raster(canvas, content_clip, contents_scale);
 
-    SkISize deviceSize = canvas->getDeviceSize();
-    stats->totalPixelsRasterized += deviceSize.width() * deviceSize.height();
+    // Don't allow pictures underneath to draw where this picture did.
+    canvas->clipRect(gfx::RectToSkRect(content_clip), SkRegion::kDifference_Op);
+    unclipped.Subtract(content_clip);
+
+    stats->totalPixelsRasterized +=
+        content_clip.width() * content_clip.height();
   }
   canvas->restore();
 
-  stats->totalRasterizeTimeInSeconds += (base::TimeTicks::Now() -
-                                         rasterizeBeginTime).InSecondsF();
+  stats->totalRasterizeTime += base::TimeTicks::Now() - rasterizeBeginTime;
 }
 
 void PicturePileImpl::GatherPixelRefs(
     const gfx::Rect& rect, std::list<skia::LazyPixelRef*>& pixel_refs) {
   std::list<skia::LazyPixelRef*> result;
-  for (PicturePile::Pile::const_iterator i = pile_.begin();
-      i != pile_.end(); ++i) {
+  for (Pile::const_iterator i = pile_.begin(); i != pile_.end(); ++i) {
     (*i)->GatherPixelRefs(rect, result);
     pixel_refs.splice(pixel_refs.end(), result);
   }
+}
+
+skia::RefPtr<SkPicture> PicturePileImpl::GetFlattenedPicture() {
+  TRACE_EVENT0("cc", "PicturePileImpl::GetFlattenedPicture");
+
+  gfx::Rect layer_rect;
+  for (Pile::const_iterator i = pile_.begin(); i != pile_.end(); ++i) {
+    layer_rect.Union((*i)->LayerRect());
+  }
+
+  skia::RefPtr<SkPicture> picture = skia::AdoptRef(new SkPicture);
+  if (layer_rect.IsEmpty())
+    return picture;
+
+  SkCanvas* canvas = picture->beginRecording(
+      layer_rect.width(),
+      layer_rect.height(),
+      SkPicture::kUsePathBoundsForClip_RecordingFlag);
+
+  RenderingStats stats;
+  Raster(canvas, layer_rect, 1.0, &stats);
+  picture->endRecording();
+
+  return picture;
 }
 
 }  // namespace cc

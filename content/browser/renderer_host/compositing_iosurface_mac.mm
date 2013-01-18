@@ -9,6 +9,7 @@
 
 #include "base/command_line.h"
 #include "base/debug/trace_event.h"
+#include "base/mac/mac_util.h"
 #include "base/message_loop.h"
 #include "base/threading/platform_thread.h"
 #include "content/common/content_constants_internal.h"
@@ -439,7 +440,12 @@ void CompositingIOSurfaceMac::CopyTo(
       void* out,
       const base::Callback<void(bool)>& callback) {
   CGLSetCurrentContext(cglContext_);
-  bool async_copy = HasPixelBufferObjectExtension() && !IsVendorIntel();
+
+  // Using PBO crashes on Intel drivers but not on newer Mountain Lion
+  // systems. See bug http://crbug.com/152225.
+  bool async_copy = HasPixelBufferObjectExtension() &&
+      (base::mac::IsOSMountainLionOrLater() || !IsVendorIntel());
+
   bool ret = false;
   if (async_copy)
     ret = AsynchronousCopyTo(src_pixel_subrect, dst_pixel_size, out, callback);
@@ -668,6 +674,8 @@ bool CompositingIOSurfaceMac::SynchronousCopyTo(
   glUniform1i(blit_rgb_sampler_location_, texture_unit);
   glActiveTexture(GL_TEXTURE0 + texture_unit);
   glBindTexture(GL_TEXTURE_RECTANGLE_ARB, texture_);
+  glTexParameterf(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameterf(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
   SurfaceQuad quad;
   quad.set_rect(0.0f, 0.0f, dst_pixel_size.width(), dst_pixel_size.height());

@@ -7,15 +7,15 @@
 #include "base/basictypes.h"
 #include "base/string_util.h"
 #include "base/utf_string_conversions.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebSize.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURL.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebNetworkStateNotifier.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebRuntimeFeatures.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebKit.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSettings.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebSize.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURL.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebView.h"
-#include "unicode/uchar.h"
+#include "third_party/icu/public/common/unicode/uchar.h"
 #include "webkit/glue/webkit_glue.h"
 
 using WebKit::WebNetworkStateNotifier;
@@ -85,6 +85,7 @@ WebPreferences::WebPreferences()
       show_fps_counter(false),
       accelerated_compositing_for_overflow_scroll_enabled(false),
       accelerated_compositing_for_scrollable_frames_enabled(false),
+      composited_scrolling_for_frames_enabled(false),
       show_paint_rects(false),
       render_vsync_enabled(true),
       asynchronous_spell_checking_enabled(true),
@@ -97,6 +98,7 @@ WebPreferences::WebPreferences()
       accelerated_compositing_for_video_enabled(false),
       accelerated_2d_canvas_enabled(false),
       deferred_2d_canvas_enabled(false),
+      antialiased_2d_canvas_disabled(false),
       accelerated_painting_enabled(false),
       accelerated_filters_enabled(false),
       gesture_tap_highlight_enabled(false),
@@ -136,6 +138,7 @@ WebPreferences::WebPreferences()
       editing_behavior(EDITING_BEHAVIOR_MAC),
 #endif
       supports_multiple_windows(true),
+      viewport_enabled(false),
       cookie_enabled(true)
 #if defined(OS_ANDROID)
       ,
@@ -363,6 +366,10 @@ void WebPreferences::Apply(WebView* web_view) const {
   settings->setAcceleratedCompositingForScrollableFramesEnabled(
       accelerated_compositing_for_scrollable_frames_enabled);
 
+  // Enables composited scrolling for frames if requested on command line.
+  settings->setCompositedScrollingForFramesEnabled(
+      composited_scrolling_for_frames_enabled);
+
   // Display the current compositor tree as overlay if requested on
   // the command line
   settings->setShowPlatformLayerTree(show_composited_layer_tree);
@@ -387,6 +394,9 @@ void WebPreferences::Apply(WebView* web_view) const {
 
   // Enable deferred 2d canvas if requested on the command line.
   settings->setDeferred2dCanvasEnabled(deferred_2d_canvas_enabled);
+
+  // Disable antialiasing for 2d canvas if requested on the command line.
+  settings->setAntialiased2dCanvasEnabled(!antialiased_2d_canvas_disabled);
 
   // Enable gpu-accelerated painting if requested on the command line.
   settings->setAcceleratedPaintingEnabled(accelerated_painting_enabled);
@@ -461,10 +471,13 @@ void WebPreferences::Apply(WebView* web_view) const {
   settings->setDeferredImageDecodingEnabled(deferred_image_decoding_enabled);
   settings->setShouldRespectImageOrientation(should_respect_image_orientation);
 
+  settings->setUnsafePluginPastingEnabled(false);
   settings->setEditingBehavior(
       static_cast<WebSettings::EditingBehavior>(editing_behavior));
 
   settings->setSupportsMultipleWindows(supports_multiple_windows);
+
+  settings->setViewportEnabled(viewport_enabled);
 
 #if defined(OS_ANDROID)
   settings->setAllowCustomScrollbarInMainFrame(false);

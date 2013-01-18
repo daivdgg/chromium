@@ -60,9 +60,13 @@
                  android:permission="org.chromium.content_shell.permission.SANDBOX"
                  android:isolatedProcess="true"
                  android:exported="false" />
+
+        <!-- Name of the class implementing the invalidation client, for sync notifications. -->
+        <meta-data android:name="org.chromium.sync.notifier.IMPLEMENTING_CLASS_NAME"
+                   android:value="org.chromium.sync.notifier.TEST_VALUE" />
     </application>
 
-    <uses-sdk android:minSdkVersion="14" android:targetSdkVersion="16" />
+    <uses-sdk android:minSdkVersion="14" android:targetSdkVersion="17" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.GET_ACCOUNTS"/>

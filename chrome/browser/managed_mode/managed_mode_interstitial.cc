@@ -5,10 +5,11 @@
 #include "chrome/browser/managed_mode/managed_mode_interstitial.h"
 
 #include "base/i18n/rtl.h"
+#include "chrome/browser/managed_mode/managed_mode_navigation_observer.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab_contents/tab_util.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
+#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
@@ -38,6 +39,10 @@ void ShowInterstitialOnUIThread(int render_process_host_id,
         BrowserThread::IO, FROM_HERE, base::Bind(callback, true));
     return;
   }
+
+  ManagedModeNavigationObserver* navigation_observer =
+      ManagedModeNavigationObserver::FromWebContents(web_contents);
+  navigation_observer->SetStateToRecordingAfterPreview();
 
   new ManagedModeInterstitial(web_contents, url, callback);
 }
@@ -100,7 +105,7 @@ std::string ManagedModeInterstitial::GetHTMLContents() {
   strings.SetString(
       "contentPacksSectionButton",
       l10n_util::GetStringUTF16(IDS_CONTENT_PACKS_SECTION_BUTTON));
-  ChromeURLDataManager::DataSource::SetFontAndTextDirection(&strings);
+  web_ui_util::SetFontAndTextDirection(&strings);
 
   base::StringPiece html(
       ResourceBundle::GetSharedInstance().GetRawDataResource(

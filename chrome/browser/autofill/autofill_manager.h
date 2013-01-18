@@ -26,8 +26,10 @@
 #include "chrome/browser/autofill/field_types.h"
 #include "chrome/browser/autofill/form_structure.h"
 #include "chrome/browser/autofill/personal_data_manager.h"
+#include "chrome/common/autofill/autocheckout_status.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/common/ssl_status.h"
+#include "third_party/WebKit/Source/WebKit/chromium/public/WebFormElement.h"
 
 class AutofillExternalDelegate;
 class AutofillField;
@@ -170,9 +172,10 @@ class AutofillManager : public content::WebContentsObserver,
   bool OnFormSubmitted(const FormData& form,
                        const base::TimeTicks& timestamp);
 
-  // Tell the renderer the current interactive autocomplete failed somehow.
-  // Exposed for testing.
-  virtual void ReturnAutocompleteError();
+  // Tell the renderer the current interactive autocomplete finished.
+  virtual void ReturnAutocompleteResult(
+      WebKit::WebFormElement::AutocompleteResult result,
+      const FormData& form_data);
 
  private:
   // content::WebContentsObserver:
@@ -237,6 +240,10 @@ class AutofillManager : public content::WebContentsObserver,
   // Passes return data for an OnRequestAutocomplete call back to the page.
   void ReturnAutocompleteData(const FormStructure* result);
 
+  // Called to signal clicking an element failed in some way during an
+  // Autocheckout flow.
+  void OnClickFailed(autofill::AutocheckoutStatus status);
+
   // Fills |host| with the RenderViewHost for this tab.
   // Returns false if Autofill is disabled or if the host is unavailable.
   bool GetHost(content::RenderViewHost** host) const WARN_UNUSED_RESULT;
@@ -283,8 +290,7 @@ class AutofillManager : public content::WebContentsObserver,
 
   // Returns a list of values from the stored credit cards that match |type| and
   // the value of |field| and returns the labels of the matching credit cards.
-  void GetCreditCardSuggestions(FormStructure* form,
-                                const FormFieldData& field,
+  void GetCreditCardSuggestions(const FormFieldData& field,
                                 AutofillFieldType type,
                                 std::vector<string16>* values,
                                 std::vector<string16>* labels,

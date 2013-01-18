@@ -22,6 +22,9 @@
       'DEST': 'include/ppapi_main',
     },
   ],
+  'DATA': [
+    'Makefile',
+  ],
   'DEST': 'src',
   'NAME': 'ppapi_main',
 }

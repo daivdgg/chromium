@@ -39,12 +39,14 @@ class ChromeURLDataManagerBackend {
   ChromeURLDataManagerBackend();
   ~ChromeURLDataManagerBackend();
 
-  // Invoked to create the protocol handler for chrome://.
+  // Invoked to create the protocol handler for chrome://. |is_incognito| should
+  // be set for incognito profiles.
   static net::URLRequestJobFactory::ProtocolHandler* CreateProtocolHandler(
-      ChromeURLDataManagerBackend* backend);
+      ChromeURLDataManagerBackend* backend,
+      bool is_incognito);
 
   // Adds a DataSource to the collection of data sources.
-  void AddDataSource(ChromeURLDataManager::DataSource* source);
+  void AddDataSource(URLDataSourceImpl* source);
 
   // DataSource invokes this. Sends the data to the URLRequest.
   void DataAvailable(RequestID request_id, base::RefCountedMemory* bytes);
@@ -56,12 +58,20 @@ class ChromeURLDataManagerBackend {
   friend class URLRequestChromeJob;
 
   typedef std::map<std::string,
-      scoped_refptr<ChromeURLDataManager::DataSource> > DataSourceMap;
+      scoped_refptr<URLDataSourceImpl> > DataSourceMap;
   typedef std::map<RequestID, URLRequestChromeJob*> PendingRequestMap;
 
   // Called by the job when it's starting up.
   // Returns false if |url| is not a URL managed by this object.
   bool StartRequest(const GURL& url, URLRequestChromeJob* job);
+
+  // Helper function to call StartDataRequest on |source|'s delegate. This is
+  // needed because while we want to call URLDataSourceDelegate's method, we
+  // need to add a refcount on the source.
+  static void CallStartRequest(scoped_refptr<URLDataSourceImpl> source,
+                               const std::string& path,
+                               bool is_incognito,
+                               int request_id);
 
   // Remove a request from the list of pending requests.
   void RemoveRequest(URLRequestChromeJob* job);
@@ -85,8 +95,11 @@ class ChromeURLDataManagerBackend {
   DISALLOW_COPY_AND_ASSIGN(ChromeURLDataManagerBackend);
 };
 
+// Creates protocol handler for chrome-devtools://. |is_incognito| should be
+// set for incognito profiles.
 net::URLRequestJobFactory::ProtocolHandler*
 CreateDevToolsProtocolHandler(ChromeURLDataManagerBackend* backend,
-                              net::NetworkDelegate* network_delegate);
+                              net::NetworkDelegate* network_delegate,
+                              bool is_incognito);
 
 #endif  // CHROME_BROWSER_UI_WEBUI_CHROME_URL_DATA_MANAGER_BACKEND_H_

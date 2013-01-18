@@ -10,11 +10,88 @@
 #include "base/format_macros.h"
 #include "base/rand_util.h"
 #include "base/stringprintf.h"
+#include "base/time.h"
 #include "base/values.h"
 #include "chrome/test/chromedriver/chrome.h"
 #include "chrome/test/chromedriver/chrome_launcher.h"
 #include "chrome/test/chromedriver/session.h"
 #include "chrome/test/chromedriver/status.h"
+#include "third_party/webdriver/atoms.h"
+
+namespace {
+
+Status FindElementByJs(
+    int interval_ms,
+    bool only_one,
+    bool has_root_element,
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  std::string strategy;
+  if (!params.GetString("using", &strategy))
+    return Status(kUnknownError, "'using' must be a string");
+  std::string target;
+  if (!params.GetString("value", &target))
+    return Status(kUnknownError, "'value' must be a string");
+  std::string root_element;
+  if (has_root_element && !params.GetString("id", &root_element))
+    return Status(kUnknownError, "'id' of root element must be a string");
+
+  std::string script;
+  if (only_one)
+    script = webdriver::atoms::asString(webdriver::atoms::FIND_ELEMENT);
+  else
+    script = webdriver::atoms::asString(webdriver::atoms::FIND_ELEMENTS);
+  scoped_ptr<base::DictionaryValue> locator(new base::DictionaryValue());
+  locator->SetString(strategy, target);
+  base::ListValue arguments;
+  arguments.Append(locator.release());
+  if (has_root_element) {
+    scoped_ptr<base::DictionaryValue> id(new base::DictionaryValue());
+    id->SetString("ELEMENT", root_element);
+    arguments.Append(id.release());
+  }
+
+  base::Time start_time = base::Time::Now();
+  while (true) {
+    scoped_ptr<base::Value> temp;
+    Status status = session->chrome->CallFunction(
+        session->frame, script, arguments, &temp);
+    if (status.IsError())
+      return status;
+
+    if (!temp->IsType(base::Value::TYPE_NULL)) {
+      if (only_one) {
+        value->reset(temp.release());
+        return Status(kOk);
+      } else {
+        base::ListValue* result;
+        if (!temp->GetAsList(&result))
+          return Status(kUnknownError, "script returns unexpected result");
+
+        if (result->GetSize() > 0U) {
+          value->reset(temp.release());
+          return Status(kOk);
+        }
+      }
+    }
+
+    if ((base::Time::Now() - start_time).InMilliseconds() >=
+        session->implicit_wait) {
+      if (only_one) {
+        return Status(kNoSuchElement);
+      } else {
+        value->reset(new base::ListValue());
+        return Status(kOk);
+      }
+    }
+    base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(interval_ms));
+  }
+
+  return Status(kUnknownError);
+}
+
+}  // namespace
 
 Status ExecuteNewSession(
     SessionMap* session_map,
@@ -103,5 +180,149 @@ Status ExecuteExecuteScript(
     return Status(kUnknownError, "'args' must be a list");
 
   return session->chrome->CallFunction(
-      "function(){" + script + "}", *args, value);
+      session->frame, "function(){" + script + "}", *args, value);
+}
+
+Status ExecuteSwitchToFrame(
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  const base::Value* id;
+  if (!params.Get("id", &id))
+    return Status(kUnknownError, "missing 'id'");
+
+  if (id->IsType(base::Value::TYPE_NULL)) {
+    session->frame = "";
+    return Status(kOk);
+  }
+
+  std::string evaluate_xpath_script =
+      "function(xpath) {"
+      "  return document.evaluate(xpath, document, null, "
+      "      XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;"
+      "}";
+  std::string xpath = "(/html/body//iframe|/html/frameset/frame)";
+  std::string id_string;
+  int id_int;
+  if (id->GetAsString(&id_string)) {
+    xpath += base::StringPrintf(
+        "[@name=\"%s\" or @id=\"%s\"]", id_string.c_str(), id_string.c_str());
+  } else if (id->GetAsInteger(&id_int)) {
+    xpath += base::StringPrintf("[%d]", id_int + 1);
+  } else if (id->IsType(base::Value::TYPE_DICTIONARY)) {
+    // TODO(kkania): Implement.
+    return Status(kUnknownError, "frame switching by element not implemented");
+  } else {
+    return Status(kUnknownError, "invalid 'id'");
+  }
+  base::ListValue args;
+  args.Append(new base::StringValue(xpath));
+  std::string frame;
+  Status status = session->chrome->GetFrameByFunction(
+      session->frame, evaluate_xpath_script, args, &frame);
+  if (status.IsError())
+    return status;
+  session->frame = frame;
+  return Status(kOk);
+}
+
+Status ExecuteGetTitle(
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  const char* kGetTitleScript =
+      "function() {"
+      "  if (document.title)"
+      "    return document.title;"
+      "  else"
+      "    return document.URL;"
+      "}";
+  base::ListValue args;
+  return session->chrome->CallFunction(
+      session->frame, kGetTitleScript, args, value);
+}
+
+Status ExecuteFindElement(
+    int interval_ms,
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  return FindElementByJs(interval_ms, true, false, session, params, value);
+}
+
+Status ExecuteFindElements(
+    int interval_ms,
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  return FindElementByJs(interval_ms, false, false, session, params, value);
+}
+
+Status ExecuteFindChildElement(
+    int interval_ms,
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  return FindElementByJs(interval_ms, true, true, session, params, value);
+}
+
+Status ExecuteFindChildElements(
+    int interval_ms,
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  return FindElementByJs(interval_ms, false, true, session, params, value);
+}
+
+Status ExecuteSetTimeout(
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  int ms;
+  if (!params.GetInteger("ms", &ms) || ms < 0)
+    return Status(kUnknownError, "'ms' must be a non-negative integer");
+  std::string type;
+  if (!params.GetString("type", &type))
+    return Status(kUnknownError, "'type' must be a string");
+  if (type == "implicit")
+    session->implicit_wait = ms;
+  else if (type == "script")
+    session->script_timeout = ms;
+  else if (type == "page load")
+    session->page_load_timeout = ms;
+  else
+    return Status(kUnknownError, "unknown type of timeout:" + type);
+  return Status(kOk);
+}
+
+Status ExecuteGetCurrentUrl(
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  base::ListValue args;
+  return session->chrome->CallFunction(
+      "", "function() { return document.URL; }", args, value);
+}
+
+Status ExecuteGoBack(
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  return session->chrome->EvaluateScript(
+      "", "window.history.back();", value);
+}
+
+Status ExecuteGoForward(
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  return session->chrome->EvaluateScript(
+      "", "window.history.forward();", value);
+}
+
+Status ExecuteRefresh(
+    Session* session,
+    const base::DictionaryValue& params,
+    scoped_ptr<base::Value>* value) {
+  return session->chrome->Reload();
 }

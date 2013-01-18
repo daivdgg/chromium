@@ -56,6 +56,7 @@ BrowserPluginGuest::BrowserPluginGuest(
           base::TimeDelta::FromMilliseconds(kHungRendererDelayMs)),
       focused_(params.focused),
       visible_(params.visible),
+      name_(params.name),
       auto_size_enabled_(params.auto_size_params.enable),
       max_auto_size_(params.auto_size_params.max_size),
       min_auto_size_(params.auto_size_params.min_size) {
@@ -71,10 +72,12 @@ bool BrowserPluginGuest::OnMessageReceivedFromEmbedder(
     IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_Go, OnGo)
     IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_HandleInputEvent,
                         OnHandleInputEvent)
+    IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_NavigateGuest, OnNavigateGuest)
     IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_Reload, OnReload)
     IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_ResizeGuest, OnResizeGuest)
     IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_SetAutoSize, OnSetSize)
     IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_SetFocus, OnSetFocus)
+    IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_SetName, OnSetName)
     IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_SetVisibility, OnSetVisibility)
     IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_Stop, OnStop)
     IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_TerminateGuest, OnTerminateGuest)
@@ -244,6 +247,7 @@ void BrowserPluginGuest::DidStartProvisionalLoadForFrame(
     bool is_main_frame,
     const GURL& validated_url,
     bool is_error_page,
+    bool is_iframe_srcdoc,
     RenderViewHost* render_view_host) {
   // Inform the embedder of the loadStart.
   SendMessageToEmbedder(
@@ -320,12 +324,13 @@ void BrowserPluginGuest::RenderViewReady() {
   // here (see http://crbug.com/158151).
   Send(new ViewMsg_SetFocus(routing_id(), focused_));
   UpdateVisibility();
-  if (auto_size_enabled_) {
-    web_contents()->GetRenderViewHost()->EnableAutoResize(
-        min_auto_size_, max_auto_size_);
-  } else {
-    web_contents()->GetRenderViewHost()->DisableAutoResize(damage_view_size_);
-  }
+  RenderViewHost* rvh = web_contents()->GetRenderViewHost();
+  if (auto_size_enabled_)
+    rvh->EnableAutoResize(min_auto_size_, max_auto_size_);
+  else
+    rvh->DisableAutoResize(damage_view_size_);
+
+  rvh->Send(new ViewMsg_SetName(rvh->GetRoutingID(), name_));
 }
 
 void BrowserPluginGuest::RenderViewGone(base::TerminationStatus status) {
@@ -352,6 +357,7 @@ void BrowserPluginGuest::RenderViewGone(base::TerminationStatus status) {
 bool BrowserPluginGuest::OnMessageReceived(const IPC::Message& message) {
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP(BrowserPluginGuest, message)
+    IPC_MESSAGE_HANDLER(ViewHostMsg_CreateWindow, OnCreateWindow)
     IPC_MESSAGE_HANDLER(ViewHostMsg_HandleInputEvent_ACK, OnHandleInputEventAck)
     IPC_MESSAGE_HANDLER(ViewHostMsg_HasTouchEventHandlers,
                         OnHasTouchEventHandlers)
@@ -365,14 +371,11 @@ bool BrowserPluginGuest::OnMessageReceived(const IPC::Message& message) {
     IPC_MESSAGE_HANDLER(ViewHostMsg_ShowWidget, OnShowWidget)
     IPC_MESSAGE_HANDLER(ViewHostMsg_TakeFocus, OnTakeFocus)
     IPC_MESSAGE_HANDLER(DragHostMsg_UpdateDragCursor, OnUpdateDragCursor)
+    IPC_MESSAGE_HANDLER(ViewHostMsg_UpdateFrameName, OnUpdateFrameName)
     IPC_MESSAGE_HANDLER(ViewHostMsg_UpdateRect, OnUpdateRect)
     IPC_MESSAGE_UNHANDLED(handled = false)
   IPC_END_MESSAGE_MAP()
   return handled;
-}
-
-void BrowserPluginGuest::OnGo(int instance_id, int relative_index) {
-  web_contents()->GetController().GoToOffset(relative_index);
 }
 
 void BrowserPluginGuest::OnDragStatusUpdate(int instance_id,
@@ -397,6 +400,10 @@ void BrowserPluginGuest::OnDragStatusUpdate(int instance_id,
     case WebKit::WebDragStatusUnknown:
       NOTREACHED();
   }
+}
+
+void BrowserPluginGuest::OnGo(int instance_id, int relative_index) {
+  web_contents()->GetController().GoToOffset(relative_index);
 }
 
 void BrowserPluginGuest::OnHandleInputEvent(
@@ -428,6 +435,26 @@ void BrowserPluginGuest::OnHandleInputEvent(
   guest_rvh->StartHangMonitorTimeout(guest_hang_timeout_);
 }
 
+void BrowserPluginGuest::OnNavigateGuest(
+    int instance_id,
+    const std::string& src) {
+  GURL url(src);
+  // We do not load empty urls in web_contents.
+  // If a guest sets empty src attribute after it has navigated to some
+  // non-empty page, the action is considered no-op. This empty src navigation
+  // should never be sent to BrowserPluginGuest (browser process).
+  DCHECK(!src.empty());
+  if (!src.empty()) {
+    // As guests do not swap processes on navigation, only navigations to
+    // normal web URLs are supported.  No protocol handlers are installed for
+    // other schemes (e.g., WebUI or extensions), and no permissions or bindings
+    // can be granted to the guest process.
+    web_contents()->GetController().LoadURL(url, Referrer(),
+                                            PAGE_TRANSITION_AUTO_TOPLEVEL,
+                                            std::string());
+  }
+}
+
 void BrowserPluginGuest::OnReload(int instance_id) {
   // TODO(fsamuel): Don't check for repost because we don't want to show
   // Chromium's repost warning. We might want to implement a separate API
@@ -455,6 +482,22 @@ void BrowserPluginGuest::OnResizeGuest(
   }
   SetDamageBuffer(params);
   web_contents()->GetView()->SizeContents(params.view_size);
+}
+
+void BrowserPluginGuest::OnSetFocus(int instance_id, bool focused) {
+  if (focused_ == focused)
+      return;
+  focused_ = focused;
+  Send(new ViewMsg_SetFocus(routing_id(), focused));
+}
+
+void BrowserPluginGuest::OnSetName(int instance_id, const std::string& name) {
+  if (name == name_)
+    return;
+  name_ = name;
+  web_contents()->GetRenderViewHost()->Send(new ViewMsg_SetName(
+      web_contents()->GetRenderViewHost()->GetRoutingID(),
+      name));
 }
 
 void BrowserPluginGuest::OnSetSize(
@@ -489,13 +532,6 @@ void BrowserPluginGuest::OnSetSize(
   OnResizeGuest(instance_id_, resize_guest_params);
 }
 
-void BrowserPluginGuest::OnSetFocus(int instance_id, bool focused) {
-  if (focused_ == focused)
-      return;
-  focused_ = focused;
-  Send(new ViewMsg_SetFocus(routing_id(), focused));
-}
-
 void BrowserPluginGuest::OnSetVisibility(int instance_id, bool visible) {
   visible_ = visible;
   BrowserPluginEmbedder* embedder =
@@ -525,6 +561,18 @@ void BrowserPluginGuest::OnUpdateRectACK(
   render_view_host->Send(
       new ViewMsg_UpdateRect_ACK(render_view_host->GetRoutingID()));
   OnSetSize(instance_id_, auto_size_params, resize_guest_params);
+}
+
+void BrowserPluginGuest::OnCreateWindow(
+    const ViewHostMsg_CreateWindow_Params& params,
+    int* route_id,
+    int* surface_id,
+    int64* cloned_session_storage_namespace_id) {
+  // TODO(fsamuel): We do not currently support window.open.
+  // See http://crbug.com/140316.
+  *route_id = MSG_ROUTING_NONE;
+  *surface_id = 0;
+  *cloned_session_storage_namespace_id = 0l;
 }
 
 void BrowserPluginGuest::OnHandleInputEventAck(
@@ -593,6 +641,19 @@ void BrowserPluginGuest::OnUpdateDragCursor(
     view->UpdateDragCursor(operation);
 }
 
+void BrowserPluginGuest::OnUpdateFrameName(int frame_id,
+                                           bool is_top_level,
+                                           const std::string& name) {
+  if (!is_top_level)
+    return;
+
+  name_ = name;
+  SendMessageToEmbedder(new BrowserPluginMsg_UpdatedName(
+      embedder_routing_id(),
+      instance_id_,
+      name));
+}
+
 void BrowserPluginGuest::OnUpdateRect(
     const ViewHostMsg_UpdateRect_Params& params) {
 
@@ -601,6 +662,7 @@ void BrowserPluginGuest::OnUpdateRect(
   relay_params.scale_factor = params.scale_factor;
   relay_params.is_resize_ack = ViewHostMsg_UpdateRect_Flags::is_resize_ack(
       params.flags);
+  relay_params.needs_ack = params.needs_ack;
 
   // HW accelerated case, acknowledge resize only
   if (!params.needs_ack) {

@@ -85,6 +85,10 @@
 #include "webkit/glue/web_intent_service_data.h"
 #include "webkit/glue/webpreferences.h"
 
+#if defined(OS_ANDROID)
+#include "content/browser/android/date_time_chooser_android.h"
+#endif
+
 #if defined(OS_MACOSX)
 #include "base/mac/foundation_util.h"
 #include "ui/surface/io_surface_support_mac.h"
@@ -160,16 +164,6 @@ static int StartDownload(content::RenderViewHost* rvh,
                                         image_size));
   return g_next_favicon_download_id;
 }
-
-#if defined(OS_WIN)
-
-BOOL CALLBACK InvalidateWindow(HWND hwnd, LPARAM lparam) {
-  // Note: erase is required to properly paint some widgets borders. This can
-  // be seen with textfields.
-  InvalidateRect(hwnd, NULL, TRUE);
-  return TRUE;
-}
-#endif
 
 ViewMsg_Navigate_Type::Value GetNavigationType(
     BrowserContext* browser_context, const NavigationEntryImpl& entry,
@@ -312,9 +306,6 @@ WebContentsImpl::WebContentsImpl(
       is_being_destroyed_(false),
       notify_disconnection_(false),
       dialog_creator_(NULL),
-#if defined(OS_WIN)
-      message_box_active_(CreateEvent(NULL, TRUE, FALSE, NULL)),
-#endif
       is_showing_before_unload_dialog_(false),
       opener_web_ui_type_(WebUI::kNoWebUI),
       closed_by_user_gesture_(false),
@@ -390,10 +381,13 @@ WebContentsImpl* WebContentsImpl::CreateWithOpener(
 WebContentsImpl* WebContentsImpl::CreateGuest(
     BrowserContext* browser_context,
     SiteInstance* site_instance,
+    int routing_id,
+    WebContentsImpl* opener_web_contents,
     int guest_instance_id,
     const BrowserPluginHostMsg_CreateGuest_Params& params) {
 
-  WebContentsImpl* new_contents = new WebContentsImpl(browser_context, NULL);
+  WebContentsImpl* new_contents = new WebContentsImpl(browser_context,
+                                                      opener_web_contents);
 
   // This makes |new_contents| act as a guest.
   // For more info, see comment above class BrowserPluginGuest.
@@ -403,7 +397,9 @@ WebContentsImpl* WebContentsImpl::CreateGuest(
         new_contents,
         params));
 
-  new_contents->Init(WebContents::CreateParams(browser_context, site_instance));
+  WebContents::CreateParams create_params(browser_context, site_instance);
+  create_params.routing_id = routing_id;
+  new_contents->Init(create_params);
 
   return new_contents;
 }
@@ -479,6 +475,8 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
       command_line.HasSwitch(switches::kEnableAcceleratedOverflowScroll);
   prefs.accelerated_compositing_for_scrollable_frames_enabled =
       command_line.HasSwitch(switches::kEnableAcceleratedScrollableFrames);
+  prefs.composited_scrolling_for_frames_enabled =
+      command_line.HasSwitch(switches::kEnableCompositedScrollingForFrames);
   prefs.show_paint_rects =
       command_line.HasSwitch(switches::kShowPaintRects);
   prefs.render_vsync_enabled =
@@ -496,6 +494,8 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
       !command_line.HasSwitch(switches::kDisableAccelerated2dCanvas);
   prefs.deferred_2d_canvas_enabled =
       !command_line.HasSwitch(switches::kDisableDeferred2dCanvas);
+  prefs.antialiased_2d_canvas_disabled =
+      command_line.HasSwitch(switches::kDisable2dCanvasAntialiasing);
   prefs.accelerated_painting_enabled =
       GpuProcessHost::gpu_enabled() &&
       command_line.HasSwitch(switches::kEnableAcceleratedPainting);
@@ -609,16 +609,18 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
 
   prefs.is_online = !net::NetworkChangeNotifier::IsOffline();
 
-  // Force accelerated compositing and 2d canvas off for chrome:, about: and
-  // chrome-devtools: pages (unless it's specifically allowed).
-  if ((url.SchemeIs(chrome::kChromeDevToolsScheme) ||
-      url.SchemeIs(chrome::kChromeUIScheme) ||
+  // Force accelerated compositing and 2d canvas off for chrome: and about:
+  // pages (unless it's specifically allowed).
+  if ((url.SchemeIs(chrome::kChromeUIScheme) ||
       (url.SchemeIs(chrome::kAboutScheme) &&
        url.spec() != chrome::kAboutBlankURL)) &&
       !command_line.HasSwitch(switches::kAllowWebUICompositing)) {
     prefs.accelerated_compositing_enabled = false;
     prefs.accelerated_2d_canvas_enabled = false;
   }
+
+  if (url.SchemeIs(chrome::kChromeDevToolsScheme))
+    prefs.show_fps_counter = false;
 
   if (command_line.HasSwitch(switches::kDefaultTileWidth))
     prefs.default_tile_width =
@@ -643,6 +645,12 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
 
   prefs.apply_page_scale_factor_in_compositor =
       command_line.HasSwitch(switches::kEnablePinch);
+
+  if (command_line.HasSwitch(switches::kEnableCssTransformPinch)) {
+    prefs.apply_default_device_scale_factor_in_compositor = false;
+    prefs.apply_page_scale_factor_in_compositor = false;
+  }
+
   prefs.per_tile_painting_enabled =
       command_line.HasSwitch(cc::switches::kEnablePerTilePainting);
   prefs.accelerated_animation_enabled =
@@ -655,6 +663,8 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
       switches::kEnableGestureTapHighlight);
 
   prefs.number_of_cpu_cores = base::SysInfo::NumberOfProcessors();
+
+  prefs.viewport_enabled = command_line.HasSwitch(switches::kEnableViewport);
 
   prefs.deferred_image_decoding_enabled =
       command_line.HasSwitch(switches::kEnableDeferredImageDecoding);
@@ -721,10 +731,6 @@ bool WebContentsImpl::OnMessageReceived(RenderViewHost* render_view_host,
     IPC_MESSAGE_HANDLER(ViewHostMsg_RegisterProtocolHandler,
                         OnRegisterProtocolHandler)
     IPC_MESSAGE_HANDLER(ViewHostMsg_Find_Reply, OnFindReply)
-#if defined(OS_ANDROID)
-    IPC_MESSAGE_HANDLER(ViewHostMsg_FindMatchRects_Reply,
-                        OnFindMatchRectsReply)
-#endif
     IPC_MESSAGE_HANDLER(ViewHostMsg_CrashedPlugin, OnCrashedPlugin)
     IPC_MESSAGE_HANDLER(ViewHostMsg_AppCacheAccessed, OnAppCacheAccessed)
     IPC_MESSAGE_HANDLER(ViewHostMsg_OpenColorChooser, OnOpenColorChooser)
@@ -739,6 +745,12 @@ bool WebContentsImpl::OnMessageReceived(RenderViewHost* render_view_host,
                         OnBrowserPluginCreateGuest)
     IPC_MESSAGE_HANDLER(IconHostMsg_DidDownloadFavicon, OnDidDownloadFavicon)
     IPC_MESSAGE_HANDLER(IconHostMsg_UpdateFaviconURL, OnUpdateFaviconURL)
+#if defined(OS_ANDROID)
+    IPC_MESSAGE_HANDLER(ViewHostMsg_FindMatchRects_Reply,
+                        OnFindMatchRectsReply)
+    IPC_MESSAGE_HANDLER(ViewHostMsg_OpenDateTimeDialog,
+                        OnOpenDateTimeDialog)
+#endif
     IPC_MESSAGE_UNHANDLED(handled = false)
   IPC_END_MESSAGE_MAP_EX()
   message_source_ = NULL;
@@ -1180,6 +1192,10 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
   java_bridge_dispatcher_host_manager_.reset(
       new JavaBridgeDispatcherHostManager(this));
 #endif
+
+#if defined(OS_ANDROID)
+  date_time_chooser_.reset(new DateTimeChooserAndroid());
+#endif
 }
 
 void WebContentsImpl::OnWebContentsDestroyed(WebContents* web_contents) {
@@ -1394,8 +1410,10 @@ void WebContentsImpl::CreateNewWidget(int route_id,
       new RenderWidgetHostImpl(this, process, route_id);
   created_widgets_.insert(widget_host);
 
-  RenderWidgetHostViewPort* widget_view =
-      RenderWidgetHostViewPort::CreateViewForWidget(widget_host);
+  RenderWidgetHostViewPort* widget_view = RenderWidgetHostViewPort::FromRWHV(
+      view_->CreateViewForPopupWidget(widget_host));
+  if (!widget_view)
+    return;
   if (!is_fullscreen) {
     // Popups should not get activated.
     widget_view->SetPopupType(popup_type);
@@ -1515,7 +1533,7 @@ void WebContentsImpl::ShowContextMenu(
 }
 
 void WebContentsImpl::RequestMediaAccessPermission(
-    const MediaStreamRequest* request,
+    const MediaStreamRequest& request,
     const MediaResponseCallback& callback) {
   if (delegate_)
     delegate_->RequestMediaAccessPermission(this, request, callback);
@@ -1978,16 +1996,20 @@ void WebContentsImpl::DidStartProvisionalLoadForFrame(
     bool is_main_frame,
     const GURL& url) {
   bool is_error_page = (url.spec() == kUnreachableWebDataURL);
+  bool is_iframe_srcdoc = (url.spec() == chrome::kAboutSrcDocURL);
   GURL validated_url(url);
   RenderProcessHost* render_process_host =
       render_view_host->GetProcess();
   RenderViewHost::FilterURL(render_process_host, false, &validated_url);
 
+  if (is_main_frame)
+    DidChangeLoadProgress(0);
+
   // Notify observers about the start of the provisional load.
   FOR_EACH_OBSERVER(WebContentsObserver, observers_,
                     DidStartProvisionalLoadForFrame(frame_id, parent_frame_id,
                     is_main_frame, validated_url, is_error_page,
-                    render_view_host));
+                    is_iframe_srcdoc, render_view_host));
 
   if (is_main_frame) {
     // Notify observers about the provisional change in the main frame URL.
@@ -2135,8 +2157,11 @@ void WebContentsImpl::OnDocumentLoadedInFrame(int64 frame_id) {
 
 void WebContentsImpl::OnDidFinishLoad(
     int64 frame_id,
-    const GURL& validated_url,
+    const GURL& url,
     bool is_main_frame) {
+  GURL validated_url(url);
+  RenderProcessHost* render_process_host = message_source_->GetProcess();
+  RenderViewHost::FilterURL(render_process_host, false, &validated_url);
   FOR_EACH_OBSERVER(WebContentsObserver, observers_,
                     DidFinishLoad(frame_id, validated_url, is_main_frame,
                                   message_source_));
@@ -2144,10 +2169,13 @@ void WebContentsImpl::OnDidFinishLoad(
 
 void WebContentsImpl::OnDidFailLoadWithError(
     int64 frame_id,
-    const GURL& validated_url,
+    const GURL& url,
     bool is_main_frame,
     int error_code,
     const string16& error_description) {
+  GURL validated_url(url);
+  RenderProcessHost* render_process_host = message_source_->GetProcess();
+  RenderViewHost::FilterURL(render_process_host, false, &validated_url);
   FOR_EACH_OBSERVER(WebContentsObserver, observers_,
                     DidFailLoad(frame_id, validated_url, is_main_frame,
                                 error_code, error_description,
@@ -2255,11 +2283,18 @@ void WebContentsImpl::OnFindMatchRectsReply(
   if (delegate_)
     delegate_->FindMatchRectsReply(this, version, rects, active_rect);
 }
+
+void WebContentsImpl::OnOpenDateTimeDialog(int type, const std::string& value) {
+  date_time_chooser_->ShowDialog(
+      GetContentNativeView(), GetRenderViewHost(), type, value);
+}
+
 #endif
 
-void WebContentsImpl::OnCrashedPlugin(const FilePath& plugin_path) {
+void WebContentsImpl::OnCrashedPlugin(const FilePath& plugin_path,
+                                      base::ProcessId plugin_pid) {
   FOR_EACH_OBSERVER(WebContentsObserver, observers_,
-                    PluginCrashed(plugin_path));
+                    PluginCrashed(plugin_path, plugin_pid));
 }
 
 void WebContentsImpl::OnAppCacheAccessed(const GURL& manifest_url,
@@ -2358,7 +2393,6 @@ void WebContentsImpl::OnBrowserPluginCreateGuest(
 void WebContentsImpl::OnDidDownloadFavicon(
     int id,
     const GURL& image_url,
-    bool errored,
     int requested_size,
     const std::vector<SkBitmap>& bitmaps) {
   FaviconDownloadMap::iterator iter = favicon_download_map_.find(id);
@@ -2368,7 +2402,7 @@ void WebContentsImpl::OnDidDownloadFavicon(
     return;
   }
   if (!iter->second.is_null()) {
-    iter->second.Run(id, image_url, errored, requested_size, bitmaps);
+    iter->second.Run(id, image_url, requested_size, bitmaps);
   }
   favicon_download_map_.erase(id);
 }
@@ -2674,8 +2708,17 @@ void WebContentsImpl::RenderViewDeleted(RenderViewHost* rvh) {
 void WebContentsImpl::DidNavigate(
     RenderViewHost* rvh,
     const ViewHostMsg_FrameNavigate_Params& params) {
-  if (PageTransitionIsMainFrame(params.transition))
+  if (PageTransitionIsMainFrame(params.transition)) {
+    // When overscroll navigation gesture is enabled, a screenshot of the page
+    // in its current state is taken so that it can be used during the
+    // nav-gesture. It is necessary to take the screenshot here, before calling
+    // RenderViewHostManager::DidNavigateMainFrame, because that can change
+    // WebContents::GetRenderViewHost to return the new host, instead of the one
+    // that may have just been swapped out.
+    controller_.TakeScreenshot();
+
     render_manager_.DidNavigateMainFrame(rvh);
+  }
 
   // Update the site of the SiteInstance if it doesn't have one yet, unless
   // this is for about:blank.  In that case, the SiteInstance can still be

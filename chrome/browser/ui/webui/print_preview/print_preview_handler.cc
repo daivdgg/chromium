@@ -35,6 +35,8 @@
 #include "chrome/browser/printing/print_view_manager.h"
 #include "chrome/browser/printing/printer_manager_dialog.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/chrome_select_file_policy.h"
 #include "chrome/browser/ui/webui/print_preview/print_preview_ui.h"
 #include "chrome/browser/ui/webui/print_preview/sticky_settings.h"
@@ -57,7 +59,7 @@
 #include "printing/page_range.h"
 #include "printing/page_size_margins.h"
 #include "printing/print_settings.h"
-#include "unicode/ulocdata.h"
+#include "third_party/icu/public/i18n/unicode/ulocdata.h"
 
 #if defined(OS_CHROMEOS)
 // TODO(kinaba): provide more non-intrusive way for handling local/remote
@@ -319,6 +321,9 @@ void PrintPreviewHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback("printWithCloudPrint",
       base::Bind(&PrintPreviewHandler::HandlePrintWithCloudPrint,
                  base::Unretained(this)));
+  web_ui()->RegisterMessageCallback("forceOpenNewTab",
+        base::Bind(&PrintPreviewHandler::HandleForceOpenNewTab,
+                   base::Unretained(this)));
 }
 
 WebContents* PrintPreviewHandler::preview_web_contents() const {
@@ -727,6 +732,18 @@ void PrintPreviewHandler::HandleReportUiEvent(const ListValue* args) {
   }
 }
 
+void PrintPreviewHandler::HandleForceOpenNewTab(const ListValue* args) {
+  std::string url;
+  if (!args->GetString(0, &url))
+    return;
+  Browser* browser = chrome::FindBrowserWithWebContents(GetInitiatorTab());
+  if (!browser)
+    return;
+  chrome::AddSelectedTabWithURL(browser,
+                                GURL(url),
+                                content::PAGE_TRANSITION_LINK);
+}
+
 void PrintPreviewHandler::SendInitialSettings(
     const std::string& default_printer,
     const std::string& cloud_print_data) {
@@ -804,18 +821,18 @@ void PrintPreviewHandler::SendCloudPrintJob() {
       web_ui()->GetController());
   print_preview_ui->GetPrintPreviewDataForIndex(
       printing::COMPLETE_PREVIEW_DOCUMENT_INDEX, &data);
-  DCHECK(data.get() && data->size() > 0U && data->front());
+  if (data.get() && data->size() > 0U && data->front()) {
+    // BASE64 encode the job data.
+    std::string raw_data(reinterpret_cast<const char*>(data->front()),
+                         data->size());
+    std::string base64_data;
+    if (!base::Base64Encode(raw_data, &base64_data)) {
+      NOTREACHED() << "Base64 encoding PDF data.";
+    }
+    StringValue data_value(base64_data);
 
-  // BASE64 encode the job data.
-  std::string raw_data(reinterpret_cast<const char*>(data->front()),
-                       data->size());
-  std::string base64_data;
-  if (!base::Base64Encode(raw_data, &base64_data)) {
-    NOTREACHED() << "Base64 encoding PDF data.";
+    web_ui()->CallJavascriptFunction("printToCloud", data_value);
   }
-  StringValue data_value(base64_data);
-
-  web_ui()->CallJavascriptFunction("printToCloud", data_value);
 }
 
 WebContents* PrintPreviewHandler::GetInitiatorTab() const {

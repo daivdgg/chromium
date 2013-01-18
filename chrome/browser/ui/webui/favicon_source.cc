@@ -17,37 +17,48 @@
 #include "ui/base/layout.h"
 #include "ui/base/resource/resource_bundle.h"
 
-FaviconSource::FaviconSource(Profile* profile, IconType type)
-    : DataSource(type == FAVICON ? chrome::kChromeUIFaviconHost :
-                     chrome::kChromeUITouchIconHost,
-                 MessageLoop::current()) {
-  Init(profile, type);
+FaviconSource::IconRequest::IconRequest()
+    : size_in_dip(gfx::kFaviconSize),
+      scale_factor(ui::SCALE_FACTOR_NONE) {
 }
 
-FaviconSource::FaviconSource(Profile* profile,
-                             IconType type,
-                             const std::string& source_name)
-    : DataSource(source_name, MessageLoop::current()) {
-  Init(profile, type);
+FaviconSource::IconRequest::IconRequest(
+    const content::URLDataSource::GotDataCallback& cb,
+    const std::string& path,
+    int size,
+    ui::ScaleFactor scale)
+    : callback(cb),
+      request_path(path),
+      size_in_dip(size),
+      scale_factor(scale) {
+}
+
+FaviconSource::IconRequest::~IconRequest() {
+}
+
+FaviconSource::FaviconSource(Profile* profile, IconType type)
+    : profile_(profile->GetOriginalProfile()),
+      icon_types_(type == FAVICON ? history::FAVICON :
+          history::TOUCH_PRECOMPOSED_ICON | history::TOUCH_ICON |
+          history::FAVICON) {
 }
 
 FaviconSource::~FaviconSource() {
 }
 
-void FaviconSource::Init(Profile* profile, IconType type) {
-  profile_ = profile->GetOriginalProfile();
-  icon_types_ = type == FAVICON ? history::FAVICON :
-      history::TOUCH_PRECOMPOSED_ICON | history::TOUCH_ICON |
-      history::FAVICON;
+std::string FaviconSource::GetSource() {
+  return icon_types_ == history::FAVICON ?
+      chrome::kChromeUIFaviconHost : chrome::kChromeUITouchIconHost;
 }
 
-void FaviconSource::StartDataRequest(const std::string& path,
-                                     bool is_incognito,
-                                     int request_id) {
+void FaviconSource::StartDataRequest(
+    const std::string& path,
+    bool is_incognito,
+    const content::URLDataSource::GotDataCallback& callback) {
   FaviconService* favicon_service =
       FaviconServiceFactory::GetForProfile(profile_, Profile::EXPLICIT_ACCESS);
   if (!favicon_service || path.empty()) {
-    SendDefaultResponse(IconRequest(request_id,
+    SendDefaultResponse(IconRequest(callback,
                                     "",
                                     16,
                                     ui::SCALE_FACTOR_100P));
@@ -76,7 +87,7 @@ void FaviconSource::StartDataRequest(const std::string& path,
         scale_factor,
         base::Bind(&FaviconSource::OnFaviconDataAvailable,
                    base::Unretained(this),
-                   IconRequest(request_id,
+                   IconRequest(callback,
                                path.substr(prefix_length),
                                size_in_dip,
                                scale_factor)),
@@ -123,7 +134,7 @@ void FaviconSource::StartDataRequest(const std::string& path,
     for (size_t i = 0; i < arraysize(history::kPrepopulatedPages); i++) {
       if (url.spec() ==
           l10n_util::GetStringUTF8(history::kPrepopulatedPages[i].url_id)) {
-        SendResponse(request_id,
+        callback.Run(
             ResourceBundle::GetSharedInstance().LoadDataResourceBytesForScale(
                 history::kPrepopulatedPages[i].favicon_id,
                 scale_factor));
@@ -137,7 +148,7 @@ void FaviconSource::StartDataRequest(const std::string& path,
         scale_factor,
         base::Bind(&FaviconSource::OnFaviconDataAvailable,
                    base::Unretained(this),
-                   IconRequest(request_id,
+                   IconRequest(callback,
                                url.spec(),
                                size_in_dip,
                                scale_factor)),
@@ -168,7 +179,7 @@ void FaviconSource::OnFaviconDataAvailable(
     const history::FaviconBitmapResult& bitmap_result) {
   if (bitmap_result.is_valid()) {
     // Forward the data along to the networking system.
-    SendResponse(request.request_id, bitmap_result.bitmap_data);
+    request.callback.Run(bitmap_result.bitmap_data);
   } else if (!HandleMissingResource(request)) {
     SendDefaultResponse(request);
   }
@@ -200,5 +211,5 @@ void FaviconSource::SendDefaultResponse(const IconRequest& icon_request) {
     default_favicons_[favicon_index] = default_favicon;
   }
 
-  SendResponse(icon_request.request_id, default_favicon);
+  icon_request.callback.Run(default_favicon);
 }

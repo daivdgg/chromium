@@ -201,6 +201,11 @@ bool QuicHttpStream::IsConnectionReusable() const {
   return false;
 }
 
+bool QuicHttpStream::GetLoadTimingInfo(LoadTimingInfo* load_timing_info) const {
+  // TODO(mmenke):  Figure out what to do here.
+  return true;
+}
+
 void QuicHttpStream::GetSSLInfo(SSLInfo* ssl_info) {
   DCHECK(stream_);
   NOTIMPLEMENTED();
@@ -347,8 +352,8 @@ int QuicHttpStream::DoSendHeaders() {
   bool has_upload_data = request_body_stream_ != NULL;
 
   io_state_ = STATE_SEND_HEADERS_COMPLETE;
-  int rv = stream_->WriteData(request_, !has_upload_data);
-  return rv;
+  QuicConsumedData rv = stream_->WriteData(request_, !has_upload_data);
+  return rv.bytes_consumed;
 }
 
 int QuicHttpStream::DoSendHeadersComplete(int rv) {
@@ -398,14 +403,13 @@ int QuicHttpStream::DoSendBody() {
   int len = request_body_buf_->BytesRemaining();
   if (len > 0 || eof) {
     base::StringPiece data(request_body_buf_->data(), len);
-    int rv = stream_->WriteData(data, eof);
-    request_body_buf_->DidConsume(rv);
-    DCHECK_NE(ERR_IO_PENDING, rv);
+    QuicConsumedData rv = stream_->WriteData(data, eof);
+    request_body_buf_->DidConsume(rv.bytes_consumed);
     if (eof) {
       io_state_ = STATE_OPEN;
       return OK;
     }
-    return rv;
+    return rv.bytes_consumed;
   }
 
   io_state_ = STATE_SEND_BODY_COMPLETE;

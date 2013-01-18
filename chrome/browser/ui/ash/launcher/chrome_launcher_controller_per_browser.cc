@@ -768,7 +768,7 @@ void ChromeLauncherControllerPerBrowser::OnBrowserShortcutClicked(
     return;
   }
 
-  Browser* last_browser = browser::FindTabbedBrowser(
+  Browser* last_browser = chrome::FindTabbedBrowser(
       GetProfileForNewWindows(), true, chrome::HOST_DESKTOP_TYPE_ASH);
 
   if (!last_browser) {
@@ -887,6 +887,9 @@ void ChromeLauncherControllerPerBrowser::OnShelfAlignmentChanged(
       break;
     case ash::SHELF_ALIGNMENT_RIGHT:
       pref_value = ash::kShelfAlignmentRight;
+      break;
+    case ash::SHELF_ALIGNMENT_TOP:
+      pref_value = ash::kShelfAlignmentTop;
       break;
   }
 
@@ -1132,6 +1135,8 @@ void ChromeLauncherControllerPerBrowser::SetShelfAlignmentFromPrefs() {
       alignment = ash::SHELF_ALIGNMENT_LEFT;
     else if (alignment_value == ash::kShelfAlignmentRight)
       alignment = ash::SHELF_ALIGNMENT_RIGHT;
+    else if (alignment_value == ash::kShelfAlignmentTop)
+      alignment = ash::SHELF_ALIGNMENT_TOP;
     ash::Shell::GetInstance()->SetShelfAlignment(alignment, *iter);
   }
 }

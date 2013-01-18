@@ -31,12 +31,6 @@ class VariationsService
     : public net::URLFetcherDelegate,
       public ResourceRequestAllowedNotifier::Observer {
  public:
-  VariationsService();
-
-  // This constructor exists for injecting a mock notifier. It is meant for
-  // testing only. This instance will take ownership of |notifier|.
-  explicit VariationsService(ResourceRequestAllowedNotifier* notifier);
-
   virtual ~VariationsService();
 
   // Creates field trials based on Variations Seed loaded from local prefs. If
@@ -49,16 +43,23 @@ class VariationsService
   // |CreateTrialsFromSeed|.
   void StartRepeatedVariationsSeedFetch();
 
+  // Exposed for testing.
+  void SetCreateTrialsFromSeedCalledForTesting(bool called);
+
   // Register Variations related prefs in Local State.
   static void RegisterPrefs(PrefServiceSimple* prefs);
 
-  // Exposed for testing.
-  void SetCreateTrialsFromSeedCalledForTesting(bool called);
+  // Factory method for creating a VariationsService.
+  static VariationsService* Create();
 
  protected:
   // Starts the fetching process once, where |OnURLFetchComplete| is called with
   // the response.
   virtual void DoActualFetch();
+
+  // This constructor exists for injecting a mock notifier. It is meant for
+  // testing only. This instance will take ownership of |notifier|.
+  explicit VariationsService(ResourceRequestAllowedNotifier* notifier);
 
  private:
   FRIEND_TEST_ALL_PREFIXES(VariationsServiceTest, CheckStudyChannel);
@@ -74,6 +75,10 @@ class VariationsService
   FRIEND_TEST_ALL_PREFIXES(VariationsServiceTest, LoadSeed);
   FRIEND_TEST_ALL_PREFIXES(VariationsServiceTest, StoreSeed);
   FRIEND_TEST_ALL_PREFIXES(VariationsServiceTest, ValidateStudy);
+
+  // Default constructor is private. Use the |Create| factory method to create a
+  // VariationsService.
+  VariationsService();
 
   // Checks if prerequisites for fetching the Variations seed are met, and if
   // so, performs the actual fetch using |DoActualFetch|.
@@ -94,11 +99,13 @@ class VariationsService
                      PrefService* local_prefs);
 
   // Returns whether |study| should be disabled according to its restriction
-  // parameters. Uses |version_info| for min / max version checks and
-  // |reference_date| for the start date check.
+  // parameters. Uses |version_info| for min / max version checks,
+  // |reference_date| for the start date check and |channel| for channel
+  // checks.
   static bool ShouldAddStudy(const Study& study,
                              const chrome::VersionInfo& version_info,
-                             const base::Time& reference_date);
+                             const base::Time& reference_date,
+                             chrome::VersionInfo::Channel channel);
 
   // Checks whether a study is applicable for the given |channel| per |filter|.
   static bool CheckStudyChannel(const Study_Filter& filter,

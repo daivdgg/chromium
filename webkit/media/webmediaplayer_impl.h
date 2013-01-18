@@ -80,6 +80,7 @@ class MediaLog;
 namespace webkit_media {
 
 class MediaStreamClient;
+class WebAudioSourceProviderImpl;
 class WebMediaPlayerDelegate;
 class WebMediaPlayerParams;
 class WebMediaPlayerProxy;
@@ -325,7 +326,8 @@ class WebMediaPlayerImpl
 
   bool incremented_externally_allocated_memory_;
 
-  WebKit::WebAudioSourceProvider* audio_source_provider_;
+  // Routes audio playback to either AudioRendererSink or WebAudio.
+  scoped_refptr<WebAudioSourceProviderImpl> audio_source_provider_;
 
   bool is_local_source_;
   bool supports_save_;

@@ -67,12 +67,6 @@ class CONTENT_EXPORT DownloadItem : public base::SupportsUserData {
     MAX_DOWNLOAD_STATE
   };
 
-  enum SafetyState {
-    SAFE = 0,
-    DANGEROUS,
-    DANGEROUS_BUT_VALIDATED  // Dangerous but the user confirmed the download.
-  };
-
   // Reason for deleting the download.  Passed to Delete().
   enum DeleteReason {
     DELETE_DUE_TO_BROWSER_SHUTDOWN = 0,
@@ -119,8 +113,16 @@ class CONTENT_EXPORT DownloadItem : public base::SupportsUserData {
   // Called when the user has validated the download of a dangerous file.
   virtual void DangerousDownloadValidated() = 0;
 
-  // Allow the user to temporarily pause a download or resume a paused download.
-  virtual void TogglePause() = 0;
+  // Pause a download.  Will have no effect if the download is already
+  // paused.
+  virtual void Pause() = 0;
+
+  // Resume a download.  Will have no effect if the download is not
+  // paused.
+  virtual void Resume() = 0;
+
+  // Resume a download that's been interrupted.
+  virtual void ResumeInterruptedDownload() = 0;
 
   // Cancel the download operation. We need to distinguish between cancels at
   // exit (DownloadManager destructor) from user interface initiated cancels
@@ -234,13 +236,9 @@ class CONTENT_EXPORT DownloadItem : public base::SupportsUserData {
   // external action.
   virtual bool GetFileExternallyRemoved() const = 0;
 
-  // The safety state of the download.  |GetSafetyState() == DANGEROUS|
-  // may represent a potentially dangerous download, and may occur even
-  // if |IsDangerous() == false|.
-  virtual SafetyState GetSafetyState() const = 0;
-
   // True if the file that will be written by the download is dangerous
-  // and we will require user intervention to complete the download.
+  // and we will require a call to DangerousDownloadValidated() to complete.
+  // False if the download is safe or that function has been called.
   virtual bool IsDangerous() const = 0;
 
   // Why |safety_state_| is not SAFE.

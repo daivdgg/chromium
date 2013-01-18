@@ -11,11 +11,16 @@
 #include <sys/utsname.h>
 #endif
 
+#if defined(OS_LINUX)
+#include <malloc.h>
+#endif
+
 #include <limits>
 
 #include "base/logging.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/path_service.h"
+#include "base/process_util.h"
 #include "base/string_piece.h"
 #include "base/string_tokenizer.h"
 #include "base/string_util.h"
@@ -28,13 +33,12 @@
 #if defined(OS_MACOSX)
 #include "skia/ext/skia_utils_mac.h"
 #endif
-#include "third_party/skia/include/core/SkBitmap.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebData.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebImage.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebRect.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebSize.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebVector.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebData.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebImage.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebRect.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebSize.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebVector.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDevToolsAgent.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDocument.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebElement.h"
@@ -48,6 +52,7 @@
 #if defined(OS_WIN)
 #include "third_party/WebKit/Source/WebKit/chromium/public/win/WebInputEventFactory.h"
 #endif
+#include "third_party/skia/include/core/SkBitmap.h"
 #include "v8/include/v8.h"
 #include "webkit/glue/glue_serialize.h"
 
@@ -333,5 +338,38 @@ void ConfigureURLRequestForReferrerPolicy(
 }
 
 COMPILE_ASSERT(std::numeric_limits<double>::has_quiet_NaN, has_quiet_NaN);
+
+#if defined(OS_LINUX) || defined(OS_ANDROID)
+size_t MemoryUsageKB() {
+  struct mallinfo minfo = mallinfo();
+  uint64_t mem_usage =
+#if defined(USE_TCMALLOC)
+      minfo.uordblks
+#else
+      (minfo.hblkhd + minfo.arena)
+#endif
+      >> 10;
+
+  v8::HeapStatistics stat;
+  v8::V8::GetHeapStatistics(&stat);
+  return mem_usage + (static_cast<uint64_t>(stat.total_heap_size()) >> 10);
+}
+#elif defined(OS_MACOSX)
+size_t MemoryUsageKB() {
+  scoped_ptr<base::ProcessMetrics> process_metrics(
+      // The default port provider is sufficient to get data for the current
+      // process.
+      base::ProcessMetrics::CreateProcessMetrics(
+          base::GetCurrentProcessHandle(), NULL));
+  return process_metrics->GetWorkingSetSize() >> 10;
+}
+#else
+size_t MemoryUsageKB() {
+  scoped_ptr<base::ProcessMetrics> process_metrics(
+      base::ProcessMetrics::CreateProcessMetrics(
+          base::GetCurrentProcessHandle()));
+  return process_metrics->GetPagefileUsage() >> 10;
+}
+#endif
 
 } // namespace webkit_glue

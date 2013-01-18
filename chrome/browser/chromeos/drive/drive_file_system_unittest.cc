@@ -28,7 +28,7 @@
 #include "chrome/browser/chromeos/drive/mock_drive_cache_observer.h"
 #include "chrome/browser/google_apis/drive_api_parser.h"
 #include "chrome/browser/google_apis/drive_uploader.h"
-#include "chrome/browser/google_apis/mock_drive_service.h"
+#include "chrome/browser/google_apis/fake_drive_service.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/browser/browser_thread.h"
@@ -79,28 +79,6 @@ void DriveSearchCallback(
   EXPECT_EQ(expected_next_feed, next_feed);
 
   message_loop->Quit();
-}
-
-// Action used to set mock expectations for
-// DriveServiceInterface::GetResourceEntry().
-ACTION_P2(MockGetResourceEntry, status, entry) {
-  base::MessageLoopProxy::current()->PostTask(FROM_HERE,
-      base::Bind(arg1, status, entry));
-}
-
-// Action used to set mock expectations for
-// DriveFileSystem::CopyHostedDocument().
-ACTION_P2(MockCopyHostedDocument, status, value) {
-  base::MessageLoopProxy::current()->PostTask(
-      FROM_HERE,
-      base::Bind(arg2, status, base::Passed(value)));
-}
-
-ACTION(MockFailingGetResourceList) {
-  base::MessageLoopProxy::current()->PostTask(
-      FROM_HERE,
-      base::Bind(arg5, google_apis::GDATA_NO_CONNECTION,
-                 base::Passed(scoped_ptr<google_apis::ResourceList>())));
 }
 
 // Counts the number of files (not directories) in |entries|.
@@ -209,7 +187,7 @@ class DriveFileSystemTest : public testing::Test {
         io_thread_(content::BrowserThread::IO),
         cache_(NULL),
         file_system_(NULL),
-        mock_drive_service_(NULL),
+        fake_drive_service_(NULL),
         drive_webapps_registry_(NULL),
         expected_error_(DRIVE_FILE_OK),
         expected_cache_state_(0),
@@ -227,11 +205,13 @@ class DriveFileSystemTest : public testing::Test {
 
     profile_.reset(new TestingProfile);
 
-    callback_helper_ = new CallbackHelper;
-
     // Allocate and keep a pointer to the mock, and inject it into the
     // DriveFileSystem object, which will own the mock object.
-    mock_drive_service_ = new StrictMock<google_apis::MockDriveService>;
+    fake_drive_service_ = new google_apis::FakeDriveService;
+    fake_drive_service_->LoadResourceListForWapi(
+        "gdata/root_feed.json");
+    fake_drive_service_->LoadAccountMetadataForWapi(
+        "gdata/account_metadata.json");
 
     fake_free_disk_space_getter_.reset(new FakeFreeDiskSpaceGetter);
 
@@ -252,7 +232,7 @@ class DriveFileSystemTest : public testing::Test {
     ASSERT_FALSE(file_system_);
     file_system_ = new DriveFileSystem(profile_.get(),
                                        cache_,
-                                       mock_drive_service_,
+                                       fake_drive_service_,
                                        fake_uploader_.get(),
                                        drive_webapps_registry_.get(),
                                        blocking_task_runner_);
@@ -270,11 +250,10 @@ class DriveFileSystemTest : public testing::Test {
 
   virtual void TearDown() OVERRIDE {
     ASSERT_TRUE(file_system_);
-    EXPECT_CALL(*mock_drive_service_, CancelAll()).Times(1);
     delete file_system_;
     file_system_ = NULL;
-    delete mock_drive_service_;
-    mock_drive_service_ = NULL;
+    delete fake_drive_service_;
+    fake_drive_service_ = NULL;
     cache_->Destroy();
     // The cache destruction requires to post a task to the blocking pool.
     google_apis::test_util::RunBlockingPoolTask();
@@ -322,7 +301,7 @@ class DriveFileSystemTest : public testing::Test {
     directory_path.GetComponents(&dir_parts);
     entry_dict->SetString("title.$t", dir_parts[dir_parts.size() - 1]);
 
-    DriveFileError error;
+    DriveFileError error = DRIVE_FILE_ERROR_FAILED;
     DriveFileSystem::CreateDirectoryParams params(directory_path,
                                                   directory_path,
                                                   false,  // is_exclusive
@@ -337,8 +316,7 @@ class DriveFileSystemTest : public testing::Test {
   }
 
   bool RemoveEntry(const FilePath& file_path) {
-    DriveFileError error;
-    EXPECT_CALL(*mock_drive_service_, DeleteResource(_, _)).Times(AnyNumber());
+    DriveFileError error = DRIVE_FILE_ERROR_FAILED;
     file_system_->Remove(
         file_path, false,
         base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
@@ -358,25 +336,29 @@ class DriveFileSystemTest : public testing::Test {
   // Gets entry info by path synchronously.
   scoped_ptr<DriveEntryProto> GetEntryInfoByPathSync(
       const FilePath& file_path) {
+    DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+    scoped_ptr<DriveEntryProto> entry_proto;
     file_system_->GetEntryInfoByPath(
         file_path,
-        base::Bind(&CallbackHelper::GetEntryInfoCallback,
-                   callback_helper_.get()));
+        base::Bind(&test_util::CopyResultsFromGetEntryInfoCallback,
+                   &error, &entry_proto));
     google_apis::test_util::RunBlockingPoolTask();
 
-    return callback_helper_->entry_proto_.Pass();
+    return entry_proto.Pass();
   }
 
   // Gets directory info by path synchronously.
   scoped_ptr<DriveEntryProtoVector> ReadDirectoryByPathSync(
       const FilePath& file_path) {
+    DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+    scoped_ptr<DriveEntryProtoVector> entries;
     file_system_->ReadDirectoryByPath(
         file_path,
-        base::Bind(&CallbackHelper::ReadDirectoryCallback,
-                   callback_helper_.get()));
+        base::Bind(&test_util::CopyResultsFromReadDirectoryByPathCallback,
+                   &error, &entries));
     google_apis::test_util::RunBlockingPoolTask();
 
-    return callback_helper_->directory_entries_.Pass();
+    return entries.Pass();
   }
 
   // Returns true if an entry exists at |file_path|.
@@ -610,15 +592,6 @@ class DriveFileSystemTest : public testing::Test {
     }
   }
 
-  void SetExpectationsForGetResourceEntry(const base::Value& value,
-                                          const std::string& resource_id) {
-    scoped_ptr<google_apis::ResourceEntry> entry =
-        google_apis::ResourceEntry::ExtractAndParse(value);
-    EXPECT_CALL(*mock_drive_service_, GetResourceEntry(resource_id, _))
-        .WillOnce(MockGetResourceEntry(google_apis::HTTP_SUCCESS,
-                                       base::Passed(&entry)));
-  }
-
   // Loads serialized proto file from GCache, and makes sure the root
   // filesystem has a root at 'drive'
   bool TestLoadMetadataFromCache() {
@@ -650,7 +623,7 @@ class DriveFileSystemTest : public testing::Test {
     DriveEntryProto* dir_base = root_dir->mutable_drive_entry();
     PlatformFileInfoProto* platform_info = dir_base->mutable_file_info();
     dir_base->set_title("drive");
-    dir_base->set_resource_id(kWAPIRootDirectoryResourceIdForTesting);
+    dir_base->set_resource_id(kWAPIRootDirectoryResourceId);
     dir_base->set_upload_url("http://resumable-create-media/1");
     platform_info->set_is_directory(true);
 
@@ -736,86 +709,6 @@ class DriveFileSystemTest : public testing::Test {
     EXPECT_EQ(entry_proto.resource_id(), resource_id);
   }
 
-  // This is used as a helper for registering callbacks that need to be
-  // RefCountedThreadSafe, and a place where we can fetch results from various
-  // operations.
-  class CallbackHelper
-    : public base::RefCountedThreadSafe<CallbackHelper> {
-   public:
-    CallbackHelper()
-        : last_error_(DRIVE_FILE_OK),
-          quota_bytes_total_(0),
-          quota_bytes_used_(0),
-          entry_proto_(NULL) {}
-
-    virtual void GetFileCallback(DriveFileError error,
-                                 const FilePath& file_path,
-                                 const std::string& mime_type,
-                                 DriveFileType file_type) {
-      last_error_ = error;
-      download_path_ = file_path;
-      mime_type_ = mime_type;
-      file_type_ = file_type;
-    }
-
-    virtual void FileOperationCallback(DriveFileError error) {
-      DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
-
-      last_error_ = error;
-    }
-
-    virtual void GetAvailableSpaceCallback(DriveFileError error,
-                                           int64 bytes_total,
-                                           int64 bytes_used) {
-      last_error_ = error;
-      quota_bytes_total_ = bytes_total;
-      quota_bytes_used_ = bytes_used;
-    }
-
-    virtual void OpenFileCallback(DriveFileError error,
-                                  const FilePath& file_path) {
-      last_error_ = error;
-      opened_file_path_ = file_path;
-      MessageLoop::current()->Quit();
-    }
-
-    virtual void CloseFileCallback(DriveFileError error) {
-      last_error_ = error;
-      MessageLoop::current()->Quit();
-    }
-
-    virtual void GetEntryInfoCallback(
-        DriveFileError error,
-        scoped_ptr<DriveEntryProto> entry_proto) {
-      last_error_ = error;
-      entry_proto_ = entry_proto.Pass();
-    }
-
-    virtual void ReadDirectoryCallback(
-        DriveFileError error,
-        bool /* hide_hosted_documents */,
-        scoped_ptr<DriveEntryProtoVector> entries) {
-      last_error_ = error;
-      directory_entries_ = entries.Pass();
-    }
-
-    DriveFileError last_error_;
-    FilePath download_path_;
-    FilePath opened_file_path_;
-    std::string mime_type_;
-    DriveFileType file_type_;
-    int64 quota_bytes_total_;
-    int64 quota_bytes_used_;
-    scoped_ptr<DriveEntryProto> entry_proto_;
-    scoped_ptr<DriveEntryProtoVector> directory_entries_;
-
-   protected:
-    virtual ~CallbackHelper() {}
-
-   private:
-    friend class base::RefCountedThreadSafe<CallbackHelper>;
-  };
-
   // Copy the result from FindFirstMissingParentDirectory().
   static void CopyResultFromFindFirstMissingParentDirectory(
       DriveFileSystem::FindFirstMissingParentDirectoryResult* out_result,
@@ -831,11 +724,10 @@ class DriveFileSystemTest : public testing::Test {
   content::TestBrowserThread io_thread_;
   scoped_refptr<base::SequencedTaskRunner> blocking_task_runner_;
   scoped_ptr<TestingProfile> profile_;
-  scoped_refptr<CallbackHelper> callback_helper_;
   DriveCache* cache_;
   scoped_ptr<FakeDriveUploader> fake_uploader_;
   DriveFileSystem* file_system_;
-  StrictMock<google_apis::MockDriveService>* mock_drive_service_;
+  google_apis::FakeDriveService* fake_drive_service_;
   scoped_ptr<DriveWebAppsRegistry> drive_webapps_registry_;
   scoped_ptr<FakeFreeDiskSpaceGetter> fake_free_disk_space_getter_;
   scoped_ptr<StrictMock<MockDriveCacheObserver> > mock_cache_observer_;
@@ -876,16 +768,18 @@ TEST_F(DriveFileSystemTest, DuplicatedAsyncInitialization) {
       FilePath(FILE_PATH_LITERAL("drive")),
       &message_loop_);
 
-  EXPECT_CALL(*mock_drive_service_, GetAccountMetadata(_)).Times(1);
-  EXPECT_CALL(*mock_drive_service_,
-              GetResourceList(Eq(GURL()), _, _, _, _, _)).Times(1);
-
   file_system_->GetEntryInfoByPath(
       FilePath(FILE_PATH_LITERAL("drive")), callback);
   file_system_->GetEntryInfoByPath(
       FilePath(FILE_PATH_LITERAL("drive")), callback);
   message_loop_.Run();  // Wait to get our result
   EXPECT_EQ(2, counter);
+
+  // GetEntryInfoByPath() was called twice, but the account metadata and the
+  // resource list should only be loaded once. In the past, there was a bug
+  // that caused them to be loaded twice.
+  EXPECT_EQ(1, fake_drive_service_->account_metadata_load_count());
+  EXPECT_EQ(1, fake_drive_service_->resource_list_load_count());
 }
 
 TEST_F(DriveFileSystemTest, SearchRootDirectory) {
@@ -895,9 +789,6 @@ TEST_F(DriveFileSystemTest, SearchRootDirectory) {
   scoped_ptr<DriveEntryProto> entry = GetEntryInfoByPathSync(
       FilePath(FILE_PATH_LITERAL(kFilePath)));
   ASSERT_TRUE(entry.get());
-  // We get kWAPIRootDirectoryResourceId instead of
-  // kWAPIRootDirectoryResourceIdForTesting
-  // here, as the root ID is set in DriveFeedLoader::UpdateFromFeed().
   EXPECT_EQ(kWAPIRootDirectoryResourceId, entry->resource_id());
 }
 
@@ -1214,50 +1105,48 @@ TEST_F(DriveFileSystemTest, CachedFeedLoading) {
 TEST_F(DriveFileSystemTest, CachedFeedLoadingThenServerFeedLoading) {
   SaveTestFileSystem(USE_SERVER_TIMESTAMP);
 
-  // SaveTestFileSystem and "account_metadata.json" have the same changestamp,
-  // so no request for new feeds (i.e., call to GetResourceList) should happen.
-  // Account metadata is already set up in MockDriveService's constructor.
-  EXPECT_CALL(*mock_drive_service_, GetAccountMetadata(_)).Times(1);
-  EXPECT_CALL(*mock_drive_service_, GetResourceList(_, _, _, _, _, _)).Times(0);
-
   // Kicks loading of cached file system and query for server update.
   EXPECT_TRUE(EntryExists(FilePath(FILE_PATH_LITERAL("drive/File1"))));
+
+  // SaveTestFileSystem and "account_metadata.json" have the same changestamp,
+  // so no request for new feeds (i.e., call to GetResourceList) should happen.
+  EXPECT_EQ(1, fake_drive_service_->account_metadata_load_count());
+  EXPECT_EQ(0, fake_drive_service_->resource_list_load_count());
+
 
   // Since the file system has verified that it holds the latest snapshot,
   // it should change its state to INITIALIZED, which admits periodic refresh.
   // To test it, call CheckForUpdates and verify it does try to check updates.
-  EXPECT_CALL(*mock_drive_service_, GetAccountMetadata(_)).Times(1);
-
   file_system_->CheckForUpdates();
   google_apis::test_util::RunBlockingPoolTask();
+  EXPECT_EQ(2, fake_drive_service_->account_metadata_load_count());
 }
 
 TEST_F(DriveFileSystemTest, OfflineCachedFeedLoading) {
   SaveTestFileSystem(USE_OLD_TIMESTAMP);
 
-  // Account metadata is already set up in MockDriveService's constructor.
-  EXPECT_CALL(*mock_drive_service_, GetAccountMetadata(_)).Times(1);
-
   // Make GetResourceList fail for simulating offline situation. This will leave
   // the file system "loaded from cache, but not synced with server" state.
-  EXPECT_CALL(*mock_drive_service_, GetResourceList(_, _, _, _, _, _))
-      .WillOnce(MockFailingGetResourceList());
+  fake_drive_service_->set_offline(true);
 
   // Kicks loading of cached file system and query for server update.
   EXPECT_TRUE(EntryExists(FilePath(FILE_PATH_LITERAL("drive/File1"))));
+  // Loading of account metadata should not happen as it's offline.
+  EXPECT_EQ(0, fake_drive_service_->account_metadata_load_count());
 
   // Since the file system has at least succeeded to load cached snapshot,
   // the file system should be able to start periodic refresh.
-  // To test it, call CheckForUpdates and verify it does try to check updates.
-  EXPECT_CALL(*mock_drive_service_, GetAccountMetadata(_)).Times(1);
-  EXPECT_CALL(*mock_drive_service_, GetResourceList(_, _, _, _, _, _)).Times(1);
+  // To test it, call CheckForUpdates and verify it does try to check
+  // updates, which will cause directory changes.
+  fake_drive_service_->set_offline(false);
 
   file_system_->CheckForUpdates();
-  // Expected value from reading gdata/basic_feed.json.
-  // See MockDriveService's |feed_data_|.
-  EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(_)).Times(2);
+  EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(_))
+      .Times(AtLeast(1));
 
   google_apis::test_util::RunBlockingPoolTask();
+  EXPECT_EQ(1, fake_drive_service_->account_metadata_load_count());
+  EXPECT_EQ(1, fake_drive_service_->resource_list_load_count());
 }
 
 TEST_F(DriveFileSystemTest, TransferFileFromLocalToRemote_RegularFile) {
@@ -1268,10 +1157,6 @@ TEST_F(DriveFileSystemTest, TransferFileFromLocalToRemote_RegularFile) {
   // We'll add a file to the Drive root directory.
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
       Eq(FilePath(FILE_PATH_LITERAL("drive"))))).Times(1);
-
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
 
   // Prepare a local file.
   base::ScopedTempDir temp_dir;
@@ -1290,11 +1175,14 @@ TEST_F(DriveFileSystemTest, TransferFileFromLocalToRemote_RegularFile) {
       google_apis::ResourceEntry::ExtractAndParse(*value));
 
   // Transfer the local file to Drive.
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
   file_system_->TransferFileFromLocalToRemote(
-      local_src_file_path, remote_dest_file_path, callback);
+      local_src_file_path,
+      remote_dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 
   // Now the remote file should exist.
   EXPECT_TRUE(EntryExists(remote_dest_file_path));
@@ -1331,26 +1219,17 @@ TEST_F(DriveFileSystemTest, TransferFileFromLocalToRemote_HostedDocument) {
       google_apis::test_util::LoadJSONFile("gdata/uploaded_document.json");
   scoped_ptr<google_apis::ResourceEntry> resource_entry =
       google_apis::ResourceEntry::ExtractAndParse(*value);
-  EXPECT_CALL(*mock_drive_service_,
-              CopyHostedDocument(kResourceId,
-                                 FILE_PATH_LITERAL("Document 1"),
-                                 _))
-      .WillOnce(MockCopyHostedDocument(google_apis::HTTP_SUCCESS,
-                                       &resource_entry));
-  // We'll then add the hosted document to the destination directory.
-  EXPECT_CALL(*mock_drive_service_,
-              AddResourceToDirectory(_, _, _)).Times(1);
 
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
 
   // Transfer the local file to Drive.
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
   file_system_->TransferFileFromLocalToRemote(
-      local_src_file_path, remote_dest_file_path, callback);
+      local_src_file_path,
+      remote_dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 
   // Now the remote file should exist.
   EXPECT_TRUE(EntryExists(remote_dest_file_path));
@@ -1358,10 +1237,6 @@ TEST_F(DriveFileSystemTest, TransferFileFromLocalToRemote_HostedDocument) {
 
 TEST_F(DriveFileSystemTest, TransferFileFromRemoteToLocal_RegularFile) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
-
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
 
   base::ScopedTempDir temp_dir;
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
@@ -1379,55 +1254,42 @@ TEST_F(DriveFileSystemTest, TransferFileFromRemoteToLocal_RegularFile) {
   fake_free_disk_space_getter_->set_fake_free_disk_space(
       file_size + kMinFreeSpace);
 
-  const std::string remote_src_file_data = "Test file data";
-  mock_drive_service_->set_file_data(new std::string(remote_src_file_data));
-
-  // Before Download starts metadata from server will be fetched.
-  // We will read content url from the result.
-  scoped_ptr<base::Value> document =
-      google_apis::test_util::LoadJSONFile("gdata/document_to_download.json");
-  SetExpectationsForGetResourceEntry(*document, "file:2_file_resource_id");
-
-  // The file is obtained with the mock DriveService.
-  EXPECT_CALL(*mock_drive_service_,
-              DownloadFile(remote_src_file_path,
-                           cache_file,
-                           GURL("https://file_content_url_changed/"),
-                           _, _))
-      .Times(1);
-
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
   file_system_->TransferFileFromRemoteToLocal(
-      remote_src_file_path, local_dest_file_path, callback);
+      remote_src_file_path,
+      local_dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 
+  // The content is "x"s of the file size.
+  const std::string kExpectedContent = "xxxxxxxxxx";
   std::string cache_file_data;
   EXPECT_TRUE(file_util::ReadFileToString(cache_file, &cache_file_data));
-  EXPECT_EQ(remote_src_file_data, cache_file_data);
+  EXPECT_EQ(kExpectedContent, cache_file_data);
 
   std::string local_dest_file_data;
   EXPECT_TRUE(file_util::ReadFileToString(local_dest_file_path,
                                           &local_dest_file_data));
-  EXPECT_EQ(remote_src_file_data, local_dest_file_data);
+  EXPECT_EQ(kExpectedContent, local_dest_file_data);
 }
 
 TEST_F(DriveFileSystemTest, TransferFileFromRemoteToLocal_HostedDocument) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
 
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
   base::ScopedTempDir temp_dir;
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
   FilePath local_dest_file_path = temp_dir.path().Append("local_copy.txt");
   FilePath remote_src_file_path(FILE_PATH_LITERAL("drive/Document 1.gdoc"));
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
   file_system_->TransferFileFromRemoteToLocal(
-      remote_src_file_path, local_dest_file_path, callback);
+      remote_src_file_path,
+      local_dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 
   scoped_ptr<DriveEntryProto> entry_proto = GetEntryInfoByPathSync(
       remote_src_file_path);
@@ -1443,13 +1305,13 @@ TEST_F(DriveFileSystemTest, CopyNotExistingFile) {
 
   EXPECT_FALSE(EntryExists(src_file_path));
 
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
-  file_system_->Copy(src_file_path, dest_file_path, callback);
+  DriveFileError error = DRIVE_FILE_OK;
+  file_system_->Copy(
+      src_file_path,
+      dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, error);
 
   EXPECT_FALSE(EntryExists(src_file_path));
   EXPECT_FALSE(EntryExists(dest_file_path));
@@ -1472,13 +1334,14 @@ TEST_F(DriveFileSystemTest, CopyFileToNonExistingDirectory) {
 
   EXPECT_FALSE(EntryExists(dest_parent_path));
 
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
+  DriveFileError error = DRIVE_FILE_OK;
+  file_system_->Move(
+      src_file_path,
+      dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
 
-  file_system_->Move(src_file_path, dest_file_path, callback);
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, error);
 
   EXPECT_TRUE(EntryExists(src_file_path));
   EXPECT_FALSE(EntryExists(dest_parent_path));
@@ -1508,14 +1371,13 @@ TEST_F(DriveFileSystemTest, CopyFileToInvalidPath) {
       dest_parent_path);
   ASSERT_TRUE(dest_entry_proto.get());
 
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
-  file_system_->Copy(src_file_path, dest_file_path, callback);
+  DriveFileError error = DRIVE_FILE_OK;
+  file_system_->Copy(
+      src_file_path,
+      dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_A_DIRECTORY,
-            callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_A_DIRECTORY, error);
 
   EXPECT_TRUE(EntryExists(src_file_path));
   EXPECT_TRUE(EntryExists(src_file_path));
@@ -1540,20 +1402,16 @@ TEST_F(DriveFileSystemTest, RenameFile) {
   std::string src_file_resource_id =
       src_entry_proto->resource_id();
 
-  EXPECT_CALL(*mock_drive_service_,
-              RenameResource(GURL(src_entry_proto->edit_url()),
-                             FILE_PATH_LITERAL("Test.log"), _));
-
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
       Eq(FilePath(FILE_PATH_LITERAL("drive/Directory 1"))))).Times(1);
 
-  file_system_->Move(src_file_path, dest_file_path, callback);
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+  file_system_->Move(
+      src_file_path,
+      dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 
   EXPECT_FALSE(EntryExists(src_file_path));
   EXPECT_TRUE(EntryExists(dest_file_path));
@@ -1582,27 +1440,19 @@ TEST_F(DriveFileSystemTest, MoveFileFromRootToSubDirectory) {
   ASSERT_TRUE(dest_parent_proto->file_info().is_directory());
   EXPECT_FALSE(dest_parent_proto->content_url().empty());
 
-  EXPECT_CALL(*mock_drive_service_,
-              RenameResource(GURL(src_entry_proto->edit_url()),
-                             FILE_PATH_LITERAL("Test.log"), _));
-  EXPECT_CALL(*mock_drive_service_,
-              AddResourceToDirectory(
-                  GURL(dest_parent_proto->content_url()),
-                  GURL(src_entry_proto->edit_url()), _));
-
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
   // Expect notification for both source and destination directories.
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
       Eq(FilePath(FILE_PATH_LITERAL("drive"))))).Times(1);
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
       Eq(FilePath(FILE_PATH_LITERAL("drive/Directory 1"))))).Times(1);
 
-  file_system_->Move(src_file_path, dest_file_path, callback);
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+  file_system_->Move(
+      src_file_path,
+      dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 
   EXPECT_FALSE(EntryExists(src_file_path));
   EXPECT_TRUE(EntryExists(dest_file_path));
@@ -1632,27 +1482,19 @@ TEST_F(DriveFileSystemTest, MoveFileFromSubDirectoryToRoot) {
   ASSERT_TRUE(src_parent_proto->file_info().is_directory());
   EXPECT_FALSE(src_parent_proto->content_url().empty());
 
-  EXPECT_CALL(*mock_drive_service_,
-              RenameResource(GURL(src_entry_proto->edit_url()),
-                             FILE_PATH_LITERAL("Test.log"), _));
-  EXPECT_CALL(*mock_drive_service_,
-              RemoveResourceFromDirectory(
-                  GURL(src_parent_proto->content_url()),
-                  src_file_resource_id, _));
-
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
   // Expect notification for both source and destination directories.
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
       Eq(FilePath(FILE_PATH_LITERAL("drive"))))).Times(1);
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
       Eq(FilePath(FILE_PATH_LITERAL("drive/Directory 1"))))).Times(1);
 
-  file_system_->Move(src_file_path, dest_file_path, callback);
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+  file_system_->Move(
+      src_file_path,
+      dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 
   EXPECT_FALSE(EntryExists(src_file_path));
   ASSERT_TRUE(EntryExists(dest_file_path));
@@ -1698,23 +1540,6 @@ TEST_F(DriveFileSystemTest, MoveFileBetweenSubDirectories) {
 
   EXPECT_FALSE(EntryExists(interim_file_path));
 
-  EXPECT_CALL(*mock_drive_service_,
-              RenameResource(GURL(src_entry_proto->edit_url()),
-                             FILE_PATH_LITERAL("Test.log"), _));
-  EXPECT_CALL(*mock_drive_service_,
-              RemoveResourceFromDirectory(
-                  GURL(src_parent_proto->content_url()),
-                  src_file_resource_id, _));
-  EXPECT_CALL(*mock_drive_service_,
-              AddResourceToDirectory(
-                  GURL(dest_parent_proto->content_url()),
-                  GURL(src_entry_proto->edit_url()),
-                  _));
-
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
   // Expect notification for both source and destination directories plus
   // interim file path.
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
@@ -1724,9 +1549,13 @@ TEST_F(DriveFileSystemTest, MoveFileBetweenSubDirectories) {
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
       Eq(FilePath(FILE_PATH_LITERAL("drive/New Folder 1"))))).Times(1);
 
-  file_system_->Move(src_file_path, dest_file_path, callback);
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+  file_system_->Move(
+      src_file_path,
+      dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 
   EXPECT_FALSE(EntryExists(src_file_path));
   EXPECT_FALSE(EntryExists(interim_file_path));
@@ -1744,13 +1573,13 @@ TEST_F(DriveFileSystemTest, MoveNotExistingFile) {
 
   EXPECT_FALSE(EntryExists(src_file_path));
 
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
-  file_system_->Move(src_file_path, dest_file_path, callback);
+  DriveFileError error = DRIVE_FILE_OK;
+  file_system_->Move(
+      src_file_path,
+      dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, error);
 
   EXPECT_FALSE(EntryExists(src_file_path));
   EXPECT_FALSE(EntryExists(dest_file_path));
@@ -1773,14 +1602,13 @@ TEST_F(DriveFileSystemTest, MoveFileToNonExistingDirectory) {
 
   EXPECT_FALSE(EntryExists(dest_parent_path));
 
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
-  file_system_->Move(src_file_path, dest_file_path, callback);
+  DriveFileError error = DRIVE_FILE_OK;
+  file_system_->Move(
+      src_file_path,
+      dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, callback_helper_->last_error_);
-
+  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, error);
 
   EXPECT_FALSE(EntryExists(dest_parent_path));
   EXPECT_FALSE(EntryExists(dest_file_path));
@@ -1809,14 +1637,13 @@ TEST_F(DriveFileSystemTest, MoveFileToInvalidPath) {
       dest_parent_path);
   ASSERT_TRUE(dest_parent_proto.get());
 
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
-  file_system_->Move(src_file_path, dest_file_path, callback);
+  DriveFileError error = DRIVE_FILE_OK;
+  file_system_->Move(
+      src_file_path,
+      dest_file_path,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_A_DIRECTORY,
-            callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_A_DIRECTORY, error);
 
   EXPECT_TRUE(EntryExists(src_file_path));
   EXPECT_TRUE(EntryExists(dest_parent_path));
@@ -1961,31 +1788,22 @@ TEST_F(DriveFileSystemTest, FindFirstMissingParentDirectory) {
 // Create a directory through the document service
 TEST_F(DriveFileSystemTest, CreateDirectoryWithService) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
-  EXPECT_CALL(*mock_drive_service_,
-              AddNewDirectory(_, "Sample Directory Title", _)).Times(1);
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
       Eq(FilePath(FILE_PATH_LITERAL("drive"))))).Times(1);
 
-  // Set last error so it's not a valid error code.
-  callback_helper_->last_error_ = static_cast<DriveFileError>(1);
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
   file_system_->CreateDirectory(
       FilePath(FILE_PATH_LITERAL("drive/Sample Directory Title")),
       false,  // is_exclusive
       true,  // is_recursive
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get()));
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
-  // TODO(gspencer): Uncomment this when we get a blob that
-  // works that can be returned from the mock.
-  // EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
+
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 }
 
 TEST_F(DriveFileSystemTest, GetFileByPath_FromGData_EnoughSpace) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
-
-  GetFileCallback callback =
-      base::Bind(&CallbackHelper::GetFileCallback,
-                 callback_helper_.get());
 
   FilePath file_in_root(FILE_PATH_LITERAL("drive/File 1.txt"));
   scoped_ptr<DriveEntryProto> entry_proto(GetEntryInfoByPathSync(file_in_root));
@@ -1998,36 +1816,23 @@ TEST_F(DriveFileSystemTest, GetFileByPath_FromGData_EnoughSpace) {
   fake_free_disk_space_getter_->set_fake_free_disk_space(
       file_size + kMinFreeSpace);
 
-  // Before Download starts metadata from server will be fetched.
-  // We will read content url from the result.
-  scoped_ptr<base::Value> document =
-      google_apis::test_util::LoadJSONFile("gdata/document_to_download.json");
-  SetExpectationsForGetResourceEntry(*document, "file:2_file_resource_id");
-
-  // The file is obtained with the mock DriveService.
-  EXPECT_CALL(*mock_drive_service_,
-              DownloadFile(file_in_root,
-                           downloaded_file,
-                           GURL("https://file_content_url_changed/"),
-                           _, _))
-      .Times(1);
-
-  file_system_->GetFileByPath(file_in_root, callback,
-                              google_apis::GetContentCallback());
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+  FilePath file_path;
+  DriveFileType file_type;
+  file_system_->GetFileByPath(
+      file_in_root,
+      base::Bind(&test_util::CopyResultsFromGetFileCallback,
+                 &error, &file_path, &file_type),
+      google_apis::GetContentCallback());
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
-  EXPECT_EQ(REGULAR_FILE, callback_helper_->file_type_);
-  EXPECT_EQ(downloaded_file.value(),
-            callback_helper_->download_path_.value());
+  EXPECT_EQ(DRIVE_FILE_OK, error);
+  EXPECT_EQ(REGULAR_FILE, file_type);
+  EXPECT_EQ(downloaded_file.value(), file_path.value());
 }
 
 TEST_F(DriveFileSystemTest, GetFileByPath_FromGData_NoSpaceAtAll) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
-
-  GetFileCallback callback =
-      base::Bind(&CallbackHelper::GetFileCallback,
-                 callback_helper_.get());
 
   FilePath file_in_root(FILE_PATH_LITERAL("drive/File 1.txt"));
   scoped_ptr<DriveEntryProto> entry_proto(GetEntryInfoByPathSync(file_in_root));
@@ -2038,34 +1843,21 @@ TEST_F(DriveFileSystemTest, GetFileByPath_FromGData_NoSpaceAtAll) {
   // Pretend we have no space at all.
   fake_free_disk_space_getter_->set_fake_free_disk_space(0);
 
-  // Before Download starts metadata from server will be fetched.
-  // We will read content url from the result.
-  scoped_ptr<base::Value> document =
-      google_apis::test_util::LoadJSONFile("gdata/document_to_download.json");
-  SetExpectationsForGetResourceEntry(*document, "file:2_file_resource_id");
-
-  // The file is not obtained with the mock DriveService, because of no space.
-  EXPECT_CALL(*mock_drive_service_,
-              DownloadFile(file_in_root,
-                           downloaded_file,
-                           GURL("https://file_content_url_changed/"),
-                           _, _))
-      .Times(0);
-
-  file_system_->GetFileByPath(file_in_root, callback,
-                              google_apis::GetContentCallback());
+  DriveFileError error = DRIVE_FILE_OK;
+  FilePath file_path;
+  DriveFileType file_type;
+  file_system_->GetFileByPath(
+      file_in_root,
+      base::Bind(&test_util::CopyResultsFromGetFileCallback,
+                 &error, &file_path, &file_type),
+      google_apis::GetContentCallback());
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(DRIVE_FILE_ERROR_NO_SPACE,
-            callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_ERROR_NO_SPACE, error);
 }
 
 TEST_F(DriveFileSystemTest, GetFileByPath_FromGData_NoEnoughSpaceButCanFreeUp) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
-
-  GetFileCallback callback =
-      base::Bind(&CallbackHelper::GetFileCallback,
-                 callback_helper_.get());
 
   FilePath file_in_root(FILE_PATH_LITERAL("drive/File 1.txt"));
   scoped_ptr<DriveEntryProto> entry_proto(GetEntryInfoByPathSync(file_in_root));
@@ -2085,40 +1877,37 @@ TEST_F(DriveFileSystemTest, GetFileByPath_FromGData_NoEnoughSpaceButCanFreeUp) {
   fake_free_disk_space_getter_->set_fake_free_disk_space(
       file_size + kMinFreeSpace);
 
-  // Store something in the temporary cache directory.
+  // Store something of the file size in the temporary cache directory.
+  const std::string content(file_size, 'x');
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+  const FilePath tmp_file =
+      temp_dir.path().AppendASCII("something.txt");
+  ASSERT_EQ(file_size,
+            file_util::WriteFile(tmp_file, content.data(), content.size()));
+
   TestStoreToCache("<resource_id>",
                    "<md5>",
-                   google_apis::test_util::GetTestFilePath(
-                       "gdata/root_feed.json"),
+                   tmp_file,
                    DRIVE_FILE_OK,
                    test_util::TEST_CACHE_STATE_PRESENT,
                    DriveCache::CACHE_TYPE_TMP);
   ASSERT_TRUE(CacheEntryExists("<resource_id>", "<md5>"));
   ASSERT_TRUE(CacheFileExists("<resource_id>", "<md5>"));
 
-  // Before Download starts metadata from server will be fetched.
-  // We will read content url from the result.
-  scoped_ptr<base::Value> document =
-      google_apis::test_util::LoadJSONFile("gdata/document_to_download.json");
-  SetExpectationsForGetResourceEntry(*document, "file:2_file_resource_id");
-
-  // The file is obtained with the mock DriveService, because of we freed up the
-  // space.
-  EXPECT_CALL(*mock_drive_service_,
-              DownloadFile(file_in_root,
-                           downloaded_file,
-                           GURL("https://file_content_url_changed/"),
-                           _, _))
-      .Times(1);
-
-  file_system_->GetFileByPath(file_in_root, callback,
-                              google_apis::GetContentCallback());
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+  FilePath file_path;
+  DriveFileType file_type;
+  file_system_->GetFileByPath(
+      file_in_root,
+      base::Bind(&test_util::CopyResultsFromGetFileCallback,
+                 &error, &file_path, &file_type),
+      google_apis::GetContentCallback());
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
-  EXPECT_EQ(REGULAR_FILE, callback_helper_->file_type_);
-  EXPECT_EQ(downloaded_file.value(),
-            callback_helper_->download_path_.value());
+  EXPECT_EQ(DRIVE_FILE_OK, error);
+  EXPECT_EQ(REGULAR_FILE, file_type);
+  EXPECT_EQ(downloaded_file.value(), file_path.value());
 
   // The file should be removed in order to free up space, and the cache
   // entry should also be removed.
@@ -2128,10 +1917,6 @@ TEST_F(DriveFileSystemTest, GetFileByPath_FromGData_NoEnoughSpaceButCanFreeUp) {
 
 TEST_F(DriveFileSystemTest, GetFileByPath_FromGData_EnoughSpaceButBecomeFull) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
-
-  GetFileCallback callback =
-      base::Bind(&CallbackHelper::GetFileCallback,
-                 callback_helper_.get());
 
   FilePath file_in_root(FILE_PATH_LITERAL("drive/File 1.txt"));
   scoped_ptr<DriveEntryProto> entry_proto(GetEntryInfoByPathSync(file_in_root));
@@ -2149,36 +1934,23 @@ TEST_F(DriveFileSystemTest, GetFileByPath_FromGData_EnoughSpaceButBecomeFull) {
   fake_free_disk_space_getter_->set_fake_free_disk_space(kMinFreeSpace - 1);
   fake_free_disk_space_getter_->set_fake_free_disk_space(kMinFreeSpace - 1);
 
-  // Before Download starts metadata from server will be fetched.
-  // We will read content url from the result.
-  scoped_ptr<base::Value> document =
-      google_apis::test_util::LoadJSONFile("gdata/document_to_download.json");
-  SetExpectationsForGetResourceEntry(*document, "file:2_file_resource_id");
-
-  // The file is obtained with the mock DriveService.
-  EXPECT_CALL(*mock_drive_service_,
-              DownloadFile(file_in_root,
-                           downloaded_file,
-                           GURL("https://file_content_url_changed/"),
-                           _, _))
-      .Times(1);
-
-  file_system_->GetFileByPath(file_in_root, callback,
-                              google_apis::GetContentCallback());
+  DriveFileError error = DRIVE_FILE_OK;
+  FilePath file_path;
+  DriveFileType file_type;
+  file_system_->GetFileByPath(
+      file_in_root,
+      base::Bind(&test_util::CopyResultsFromGetFileCallback,
+                 &error, &file_path, &file_type),
+      google_apis::GetContentCallback());
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(DRIVE_FILE_ERROR_NO_SPACE,
-            callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_ERROR_NO_SPACE, error);
 }
 
 TEST_F(DriveFileSystemTest, GetFileByPath_FromCache) {
   fake_free_disk_space_getter_->set_fake_free_disk_space(kLotsOfSpace);
 
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
-
-  GetFileCallback callback =
-      base::Bind(&CallbackHelper::GetFileCallback,
-                 callback_helper_.get());
 
   FilePath file_in_root(FILE_PATH_LITERAL("drive/File 1.txt"));
   scoped_ptr<DriveEntryProto> entry_proto(GetEntryInfoByPathSync(file_in_root));
@@ -2195,48 +1967,43 @@ TEST_F(DriveFileSystemTest, GetFileByPath_FromCache) {
                    test_util::TEST_CACHE_STATE_PRESENT,
                    DriveCache::CACHE_TYPE_TMP);
 
-  // Make sure we don't fetch metadata for downloading file.
-  EXPECT_CALL(*mock_drive_service_, GetResourceEntry(_, _)).Times(0);
-
-  // Make sure we don't call downloads at all.
-  EXPECT_CALL(*mock_drive_service_,
-              DownloadFile(file_in_root,
-                           downloaded_file,
-                           GURL("https://file_content_url_changed/"),
-                           _, _))
-      .Times(0);
-
-  file_system_->GetFileByPath(file_in_root, callback,
-                              google_apis::GetContentCallback());
+  DriveFileError error = DRIVE_FILE_OK;
+  FilePath file_path;
+  DriveFileType file_type;
+  file_system_->GetFileByPath(
+      file_in_root,
+      base::Bind(&test_util::CopyResultsFromGetFileCallback,
+                 &error, &file_path, &file_type),
+      google_apis::GetContentCallback());
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(REGULAR_FILE, callback_helper_->file_type_);
-  EXPECT_EQ(downloaded_file.value(),
-            callback_helper_->download_path_.value());
+  EXPECT_EQ(REGULAR_FILE, file_type);
+  EXPECT_EQ(downloaded_file.value(), file_path.value());
 }
 
 TEST_F(DriveFileSystemTest, GetFileByPath_HostedDocument) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
-
-  GetFileCallback callback =
-      base::Bind(&CallbackHelper::GetFileCallback,
-                 callback_helper_.get());
 
   FilePath file_in_root(FILE_PATH_LITERAL("drive/Document 1.gdoc"));
   scoped_ptr<DriveEntryProto> src_entry_proto =
       GetEntryInfoByPathSync(file_in_root);
   ASSERT_TRUE(src_entry_proto.get());
 
-  file_system_->GetFileByPath(file_in_root, callback,
-                              google_apis::GetContentCallback());
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+  FilePath file_path;
+  DriveFileType file_type;
+  file_system_->GetFileByPath(
+      file_in_root,
+      base::Bind(&test_util::CopyResultsFromGetFileCallback,
+                 &error, &file_path, &file_type),
+      google_apis::GetContentCallback());
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(HOSTED_DOCUMENT, callback_helper_->file_type_);
-  EXPECT_FALSE(callback_helper_->download_path_.empty());
+  EXPECT_EQ(HOSTED_DOCUMENT, file_type);
+  EXPECT_FALSE(file_path.empty());
 
   ASSERT_TRUE(src_entry_proto.get());
-  VerifyHostedDocumentJSONFile(*src_entry_proto,
-                               callback_helper_->download_path_);
+  VerifyHostedDocumentJSONFile(*src_entry_proto, file_path);
 }
 
 TEST_F(DriveFileSystemTest, GetFileByResourceId) {
@@ -2244,49 +2011,30 @@ TEST_F(DriveFileSystemTest, GetFileByResourceId) {
 
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
 
-  GetFileCallback callback =
-      base::Bind(&CallbackHelper::GetFileCallback,
-                 callback_helper_.get());
-
   FilePath file_in_root(FILE_PATH_LITERAL("drive/File 1.txt"));
   scoped_ptr<DriveEntryProto> entry_proto(GetEntryInfoByPathSync(file_in_root));
   FilePath downloaded_file = GetCachePathForFile(
       entry_proto->resource_id(),
       entry_proto->file_specific_info().file_md5());
 
-  // Before Download starts metadata from server will be fetched.
-  // We will read content url from the result.
-  scoped_ptr<base::Value> document =
-      google_apis::test_util::LoadJSONFile("gdata/document_to_download.json");
-  SetExpectationsForGetResourceEntry(*document, "file:2_file_resource_id");
-
-  // The file is obtained with the mock DriveService, because it's not stored in
-  // the cache.
-  EXPECT_CALL(*mock_drive_service_,
-              DownloadFile(file_in_root,
-                           downloaded_file,
-                           GURL("https://file_content_url_changed/"),
-                           _, _))
-      .Times(1);
-
-  file_system_->GetFileByResourceId(entry_proto->resource_id(),
-                                    callback,
-                                    google_apis::GetContentCallback());
+  DriveFileError error = DRIVE_FILE_OK;
+  FilePath file_path;
+  DriveFileType file_type;
+  file_system_->GetFileByResourceId(
+      entry_proto->resource_id(),
+      base::Bind(&test_util::CopyResultsFromGetFileCallback,
+                 &error, &file_path, &file_type),
+      google_apis::GetContentCallback());
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(REGULAR_FILE, callback_helper_->file_type_);
-  EXPECT_EQ(downloaded_file.value(),
-            callback_helper_->download_path_.value());
+  EXPECT_EQ(REGULAR_FILE, file_type);
+  EXPECT_EQ(downloaded_file.value(), file_path.value());
 }
 
 TEST_F(DriveFileSystemTest, GetFileByResourceId_FromCache) {
   fake_free_disk_space_getter_->set_fake_free_disk_space(kLotsOfSpace);
 
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
-
-  GetFileCallback callback =
-      base::Bind(&CallbackHelper::GetFileCallback,
-                 callback_helper_.get());
 
   FilePath file_in_root(FILE_PATH_LITERAL("drive/File 1.txt"));
   scoped_ptr<DriveEntryProto> entry_proto(GetEntryInfoByPathSync(file_in_root));
@@ -2304,18 +2052,21 @@ TEST_F(DriveFileSystemTest, GetFileByResourceId_FromCache) {
                    DriveCache::CACHE_TYPE_TMP);
 
   // The file is obtained from the cache.
-  // Make sure we don't call downloads at all.
-  EXPECT_CALL(*mock_drive_service_, DownloadFile(_, _, _, _, _))
-      .Times(0);
+  // Hence the downloading should work even if the drive service is offline.
+  fake_drive_service_->set_offline(true);
 
-  file_system_->GetFileByResourceId(entry_proto->resource_id(),
-                                    callback,
-                                    google_apis::GetContentCallback());
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+  FilePath file_path;
+  DriveFileType file_type;
+  file_system_->GetFileByResourceId(
+      entry_proto->resource_id(),
+      base::Bind(&test_util::CopyResultsFromGetFileCallback,
+                 &error, &file_path, &file_type),
+      google_apis::GetContentCallback());
   google_apis::test_util::RunBlockingPoolTask();
 
-  EXPECT_EQ(REGULAR_FILE, callback_helper_->file_type_);
-  EXPECT_EQ(downloaded_file.value(),
-            callback_helper_->download_path_.value());
+  EXPECT_EQ(REGULAR_FILE, file_type);
+  EXPECT_EQ(downloaded_file.value(), file_path.value());
 }
 
 TEST_F(DriveFileSystemTest, UpdateFileByResourceId_PersistentFile) {
@@ -2400,12 +2151,6 @@ TEST_F(DriveFileSystemTest, UpdateFileByResourceId_PersistentFile) {
   EXPECT_CALL(*mock_directory_observer_,
               OnDirectoryChanged(Eq(FilePath(kDriveRootDirectory)))).Times(1);
 
-  // The callback will be called upon completion of
-  // UpdateFileByResourceId().
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
   // Check the number of files in the root directory. We'll compare the
   // number after updating a file.
   scoped_ptr<DriveEntryProtoVector> root_directory_entries(
@@ -2413,10 +2158,15 @@ TEST_F(DriveFileSystemTest, UpdateFileByResourceId_PersistentFile) {
   ASSERT_TRUE(root_directory_entries.get());
   const int num_files_in_root = CountFiles(*root_directory_entries);
 
-  file_system_->UpdateFileByResourceId(kResourceId, callback);
+  // The callback will be called upon completion of
+  // UpdateFileByResourceId().
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+  file_system_->UpdateFileByResourceId(
+      kResourceId,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
   // Make sure that the number of files did not change (i.e. we updated an
   // existing file, rather than adding a new file. The number of files
   // increases if we don't handle the file update right).
@@ -2436,83 +2186,70 @@ TEST_F(DriveFileSystemTest, UpdateFileByResourceId_NonexistentFile) {
 
   // The callback will be called upon completion of
   // UpdateFileByResourceId().
-  FileOperationCallback callback =
-      base::Bind(&CallbackHelper::FileOperationCallback,
-                 callback_helper_.get());
-
-  file_system_->UpdateFileByResourceId(kResourceId, callback);
+  DriveFileError error = DRIVE_FILE_OK;
+  file_system_->UpdateFileByResourceId(
+      kResourceId,
+      base::Bind(&test_util::CopyErrorCodeFromFileOperationCallback, &error));
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, error);
 }
 
 TEST_F(DriveFileSystemTest, ContentSearch) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
 
-  mock_drive_service_->set_search_result("gdata/search_result_feed.json");
-
-  // There should be only one GetResourceList request, even though search result
-  // feed has next feed url.
-  EXPECT_CALL(*mock_drive_service_, GetResourceList(Eq(GURL()), _, "foo", _, _,
-                                                    _)).Times(1);
-
   const SearchResultPair kExpectedResults[] = {
+    { "drive/Directory 1/Sub Directory Folder/Sub Sub Directory Folder",
+      true },
+    { "drive/Directory 1/Sub Directory Folder", true },
     { "drive/Directory 1/SubDirectory File 1.txt", false },
-    { "drive/Directory 1", true }
+    { "drive/Directory 1", true },
+    { "drive/Directory 2", true },
   };
 
   SearchCallback callback = base::Bind(&DriveSearchCallback,
       &message_loop_,
       kExpectedResults, ARRAYSIZE_UNSAFE(kExpectedResults),
-      GURL("https://next_feed"));
+      GURL());
 
-  file_system_->Search("foo", false, GURL(), callback);
+  file_system_->Search("Directory", false, GURL(), callback);
   message_loop_.Run();  // Wait to get our result.
 }
 
 TEST_F(DriveFileSystemTest, ContentSearchWithNewEntry) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
 
-  // Search result returning two entries "Directory 1/" and
-  // "Directory 1/SubDirectory Newly Added File.txt". The latter is not
-  // contained in the root feed.
-  mock_drive_service_->set_search_result(
-      "gdata/search_result_with_new_entry_feed.json");
-
-  // There should be only one GetResourceList request, even though search result
-  // feed has next feed url.
-  EXPECT_CALL(*mock_drive_service_, GetResourceList(Eq(GURL()), _, "foo", _, _,
-                                                    _)).Times(1);
+  // Create a new directory in the drive service.
+  google_apis::GDataErrorCode error = google_apis::GDATA_OTHER_ERROR;
+  scoped_ptr<google_apis::ResourceEntry> resource_entry;
+  fake_drive_service_->AddNewDirectory(
+      GURL(),  // Add to the root directory.
+      FILE_PATH_LITERAL("New Directory 1!"),
+      base::Bind(
+          &google_apis::test_util::CopyResultsFromGetResourceEntryCallback,
+          &error,
+          &resource_entry));
+  message_loop_.RunUntilIdle();
 
   // As the result of the first Search(), only entries in the current file
-  // system snapshot are expected to be returned.
+  // system snapshot are expected to be returned (i.e. "New Directory 1!"
+  // shouldn't be included in the search result even though it matches
+  // "Directory 1".
   const SearchResultPair kExpectedResults[] = {
     { "drive/Directory 1", true }
   };
 
   // At the same time, unknown entry should trigger delta feed request.
-  // This will cause notification to observers (e.g., File Browser) so that
-  // they can request search again.
-  EXPECT_CALL(*mock_drive_service_, GetAccountMetadata(_)).Times(1);
-  EXPECT_CALL(*mock_drive_service_, GetResourceList(Eq(GURL()), _, "", _, _, _))
-      .Times(1);
-  EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
-      Eq(FilePath(FILE_PATH_LITERAL("drive"))))).Times(1);
-  EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
-      Eq(FilePath(FILE_PATH_LITERAL(
-          "drive/Directory 1/Sub Directory Folder"))))).Times(1);
-  EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
-      Eq(FilePath(FILE_PATH_LITERAL(
-          "drive/Directory 1/Sub Directory Folder/"
-          "Sub Sub Directory Folder"))))).Times(1);
-  EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
-      Eq(FilePath(FILE_PATH_LITERAL("drive/Entry 1 Title"))))).Times(1);
+  // This will cause notification to directory observers (e.g., File Browser)
+  // so that they can request search again.
+  EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(_))
+      .Times(AtLeast(1));
 
   SearchCallback callback = base::Bind(&DriveSearchCallback,
       &message_loop_,
       kExpectedResults, ARRAYSIZE_UNSAFE(kExpectedResults),
-      GURL("https://next_feed"));
+      GURL());
 
-  file_system_->Search("foo", false, GURL(), callback);
+  file_system_->Search("Directory 1", false, GURL(), callback);
   // Make sure all the delayed tasks to complete.
   // message_loop_.Run() can return before the delta feed processing finishes.
   google_apis::test_util::RunBlockingPoolTask();
@@ -2521,44 +2258,30 @@ TEST_F(DriveFileSystemTest, ContentSearchWithNewEntry) {
 TEST_F(DriveFileSystemTest, ContentSearchEmptyResult) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
 
-  mock_drive_service_->set_search_result("gdata/empty_feed.json");
-
-  EXPECT_CALL(*mock_drive_service_, GetResourceList(Eq(GURL()), _, "foo", _, _,
-                                                    _)).Times(1);
-
   const SearchResultPair* expected_results = NULL;
 
   SearchCallback callback = base::Bind(&DriveSearchCallback,
       &message_loop_, expected_results, 0u, GURL());
 
-  file_system_->Search("foo", false, GURL(), callback);
+  file_system_->Search("no-match query", false, GURL(), callback);
   message_loop_.Run();  // Wait to get our result.
 }
 
 TEST_F(DriveFileSystemTest, GetAvailableSpace) {
-  GetAvailableSpaceCallback callback =
-      base::Bind(&CallbackHelper::GetAvailableSpaceCallback,
-                 callback_helper_.get());
-
-  EXPECT_CALL(*mock_drive_service_, GetAccountMetadata(_));
-
-  file_system_->GetAvailableSpace(callback);
+  DriveFileError error = DRIVE_FILE_OK;
+  int64 bytes_total;
+  int64 bytes_used;
+  file_system_->GetAvailableSpace(
+      base::Bind(&test_util::CopyResultsFromGetAvailableSpaceCallback,
+                 &error, &bytes_total, &bytes_used));
   google_apis::test_util::RunBlockingPoolTask();
-  EXPECT_EQ(GG_LONGLONG(6789012345), callback_helper_->quota_bytes_used_);
-  EXPECT_EQ(GG_LONGLONG(9876543210), callback_helper_->quota_bytes_total_);
+  EXPECT_EQ(GG_LONGLONG(6789012345), bytes_used);
+  EXPECT_EQ(GG_LONGLONG(9876543210), bytes_total);
 }
 
 TEST_F(DriveFileSystemTest, RequestDirectoryRefresh) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
 
-  // We'll fetch documents in the root directory with its resource ID.
-  // kWAPIRootDirectoryResourceId instead of
-  // kWAPIRootDirectoryResourceIdForTesting
-  // is used here as the root ID is set in DriveFeedLoader::UpdateFromFeed().
-  EXPECT_CALL(*mock_drive_service_,
-              GetResourceList(Eq(GURL()), _, _, _, kWAPIRootDirectoryResourceId,
-                              _))
-      .Times(1);
   // We'll notify the directory change to the observer.
   EXPECT_CALL(*mock_directory_observer_,
               OnDirectoryChanged(Eq(FilePath(kDriveRootDirectory)))).Times(1);
@@ -2569,13 +2292,6 @@ TEST_F(DriveFileSystemTest, RequestDirectoryRefresh) {
 
 TEST_F(DriveFileSystemTest, OpenAndCloseFile) {
   ASSERT_TRUE(LoadRootFeedDocument("gdata/root_feed.json"));
-
-  OpenFileCallback callback =
-      base::Bind(&CallbackHelper::OpenFileCallback,
-                 callback_helper_.get());
-  FileOperationCallback close_file_callback =
-      base::Bind(&CallbackHelper::CloseFileCallback,
-                 callback_helper_.get());
 
   const FilePath kFileInRoot(FILE_PATH_LITERAL("drive/File 1.txt"));
   scoped_ptr<DriveEntryProto> entry_proto(GetEntryInfoByPathSync(kFileInRoot));
@@ -2595,42 +2311,35 @@ TEST_F(DriveFileSystemTest, OpenAndCloseFile) {
   fake_free_disk_space_getter_->set_fake_free_disk_space(
       file_size + kMinFreeSpace);
 
-  const std::string kExpectedFileData = "test file data";
-  mock_drive_service_->set_file_data(new std::string(kExpectedFileData));
-
-  // Before Download starts metadata from server will be fetched.
-  // We will read content url from the result.
-  scoped_ptr<base::Value> document =
-      google_apis::test_util::LoadJSONFile("gdata/document_to_download.json");
-  SetExpectationsForGetResourceEntry(*document, "file:2_file_resource_id");
-
-  // The file is obtained with the mock DriveService.
-  EXPECT_CALL(*mock_drive_service_,
-              DownloadFile(kFileInRoot,
-                           downloaded_file,
-                           GURL("https://file_content_url_changed/"),
-                           _, _))
-      .Times(1);
-
   // Open kFileInRoot ("drive/File 1.txt").
-  file_system_->OpenFile(kFileInRoot, callback);
+  DriveFileError error = DRIVE_FILE_ERROR_FAILED;
+  FilePath file_path;
+  file_system_->OpenFile(
+      kFileInRoot,
+      base::Bind(&test_util::CopyResultsFromOpenFileCallbackAndQuit,
+                 &error, &file_path));
   message_loop_.Run();
-  const FilePath opened_file_path = callback_helper_->opened_file_path_;
+  const FilePath opened_file_path = file_path;
 
   // Verify that the file was properly opened.
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 
   // Try to open the already opened file.
-  file_system_->OpenFile(kFileInRoot, callback);
+  file_system_->OpenFile(
+      kFileInRoot,
+      base::Bind(&test_util::CopyResultsFromOpenFileCallbackAndQuit,
+                 &error, &file_path));
   message_loop_.Run();
 
   // It must fail.
-  EXPECT_EQ(DRIVE_FILE_ERROR_IN_USE, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_ERROR_IN_USE, error);
 
   // Verify that the file contents match the expected contents.
+  // The content is "x"s of the file size.
+  const std::string kExpectedContent = "xxxxxxxxxx";
   std::string cache_file_data;
   EXPECT_TRUE(file_util::ReadFileToString(opened_file_path, &cache_file_data));
-  EXPECT_EQ(kExpectedFileData, cache_file_data);
+  EXPECT_EQ(kExpectedContent, cache_file_data);
 
   // Verify that the cache state was changed as expected.
   VerifyCacheStateAfterOpenFile(DRIVE_FILE_OK,
@@ -2639,11 +2348,14 @@ TEST_F(DriveFileSystemTest, OpenAndCloseFile) {
                                 opened_file_path);
 
   // Close kFileInRoot ("drive/File 1.txt").
-  file_system_->CloseFile(kFileInRoot, close_file_callback);
+  file_system_->CloseFile(
+      kFileInRoot,
+      base::Bind(&test_util::CopyResultsFromCloseFileCallbackAndQuit,
+                 &error));
   message_loop_.Run();
 
   // Verify that the file was properly closed.
-  EXPECT_EQ(DRIVE_FILE_OK, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_OK, error);
 
   // Verify that the cache state was changed as expected.
   VerifyCacheStateAfterCloseFile(DRIVE_FILE_OK,
@@ -2651,11 +2363,14 @@ TEST_F(DriveFileSystemTest, OpenAndCloseFile) {
                                  file_md5);
 
   // Try to close the same file twice.
-  file_system_->CloseFile(kFileInRoot, close_file_callback);
+  file_system_->CloseFile(
+      kFileInRoot,
+      base::Bind(&test_util::CopyResultsFromCloseFileCallbackAndQuit,
+                 &error));
   message_loop_.Run();
 
   // It must fail.
-  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, callback_helper_->last_error_);
+  EXPECT_EQ(DRIVE_FILE_ERROR_NOT_FOUND, error);
 }
 
 // TODO(satorux): Testing if WebAppsRegistry is loaded here is awkward. We
@@ -2674,7 +2389,6 @@ TEST_F(DriveFileSystemTest, WebAppsRegistryIsLoaded) {
   // Kicks loading of cached file system and query for server update. This
   // will cause GetAccountMetadata() to be called, to check the server-side
   // changestamp, and the webapps registry will be loaded at the same time.
-  EXPECT_CALL(*mock_drive_service_, GetAccountMetadata(_)).Times(1);
   EXPECT_TRUE(EntryExists(FilePath(FILE_PATH_LITERAL("drive/File1"))));
 
   // An app for foo.ext_1 should now be found, as the registry was loaded.

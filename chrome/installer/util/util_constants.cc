@@ -154,6 +154,10 @@ const char kRemoveChromeRegistration[] = "remove-chrome-registration";
 // line flag so that we try the launch only once.
 const char kRunAsAdmin[] = "run-as-admin";
 
+// Combined with --uninstall, signals to setup.exe that this uninstall was
+// triggered by a self-destructing Chrome.
+const char kSelfDestruct[] = "self-destruct";
+
 // Install Chrome to system wise location. The default is per user install.
 const char kSystemLevel[] = "system-level";
 
@@ -189,6 +193,16 @@ const char kToastResultsKey[] = "toast-results-key";
 
 }  // namespace switches
 
+// The Active Setup executable will be an identical copy of setup.exe; this is
+// necessary because Windows' installer detection heuristics (which include
+// things like process name being "setup.exe") will otherwise force elevation
+// for non-admin users when setup.exe is launched. This is mitigated by adding
+// requestedExecutionLevel="asInvoker" to setup.exe's manifest on Vista+, but
+// there is no such manifest entry on Windows XP (which results in
+// crbug.com/166473).
+// TODO(gab): Rename setup.exe itself altogether and use the same binary for
+// Active Setup.
+const wchar_t kActiveSetupExe[] = L"chrmstp.exe";
 const wchar_t kChromeAppHostExe[] = L"app_host.exe";
 const wchar_t kChromeDll[] = L"chrome.dll";
 const wchar_t kChromeExe[] = L"chrome.exe";

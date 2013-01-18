@@ -201,8 +201,8 @@ HoverHighlightView::HoverHighlightView(ViewClickListener* listener)
       default_color_(0),
       text_highlight_color_(0),
       text_default_color_(0),
-      fixed_height_(0),
-      hover_(false) {
+      hover_(false),
+      expandable_(false) {
   set_notify_enter_exit_on_child(true);
 }
 
@@ -244,7 +244,9 @@ views::Label* HoverHighlightView::AddLabel(const string16& text,
       views::Border::CreateEmptyBorder(5, left_margin, 5, right_margin));
   text_label_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   text_label_->SetFont(text_label_->font().DeriveFont(0, style));
-  text_label_->SetDisabledColor(SkColorSetARGB(127, 0, 0, 0));
+  // Do not set alpha value in disable color. It will have issue with elide
+  // blending filter in disabled state for rendering label text color.
+  text_label_->SetDisabledColor(SkColorSetARGB(255, 127, 127, 127));
   if (text_default_color_)
     text_label_->SetEnabledColor(text_default_color_);
   AddChildView(text_label_);
@@ -284,6 +286,13 @@ views::Label* HoverHighlightView::AddCheckableLabel(const string16& text,
   }
 }
 
+void HoverHighlightView::SetExpandable(bool expandable) {
+  if (expandable != expandable_) {
+    expandable_ = expandable;
+    InvalidateLayout();
+  }
+}
+
 bool HoverHighlightView::PerformAction(const ui::Event& event) {
   if (!listener_)
     return false;
@@ -293,8 +302,8 @@ bool HoverHighlightView::PerformAction(const ui::Event& event) {
 
 gfx::Size HoverHighlightView::GetPreferredSize() {
   gfx::Size size = ActionableView::GetPreferredSize();
-  if (fixed_height_)
-    size.set_height(fixed_height_);
+  if (!expandable_ || size.height() < kTrayPopupItemHeight)
+    size.set_height(kTrayPopupItemHeight);
   return size;
 }
 
@@ -624,7 +633,6 @@ SpecialPopupRow::~SpecialPopupRow() {
 void SpecialPopupRow::SetTextLabel(int string_id, ViewClickListener* listener) {
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
   HoverHighlightView* container = new HoverHighlightView(listener);
-  container->set_fixed_height(kTrayPopupItemHeight);
   container->SetLayoutManager(new
       views::BoxLayout(views::BoxLayout::kHorizontal, 0, 3, kIconPaddingLeft));
 
@@ -702,7 +710,8 @@ void SetupLabelForTray(views::Label* label) {
 
 void SetTrayImageItemBorder(views::View* tray_view,
                             ShelfAlignment alignment) {
-  if (alignment == SHELF_ALIGNMENT_BOTTOM) {
+  if (alignment == SHELF_ALIGNMENT_BOTTOM ||
+      alignment == SHELF_ALIGNMENT_TOP) {
     tray_view->set_border(views::Border::CreateEmptyBorder(
         0, kTrayImageItemHorizontalPaddingBottomAlignment,
         0, kTrayImageItemHorizontalPaddingBottomAlignment));
@@ -717,7 +726,8 @@ void SetTrayImageItemBorder(views::View* tray_view,
 
 void SetTrayLabelItemBorder(TrayItemView* tray_view,
                             ShelfAlignment alignment) {
-  if (alignment == SHELF_ALIGNMENT_BOTTOM) {
+  if (alignment == SHELF_ALIGNMENT_BOTTOM ||
+      alignment == SHELF_ALIGNMENT_TOP) {
     tray_view->set_border(views::Border::CreateEmptyBorder(
         0, kTrayLabelItemHorizontalPaddingBottomAlignment,
         0, kTrayLabelItemHorizontalPaddingBottomAlignment));

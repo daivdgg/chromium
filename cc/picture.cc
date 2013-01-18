@@ -10,6 +10,7 @@
 #include "third_party/skia/include/core/SkData.h"
 #include "third_party/skia/include/utils/SkPictureUtils.h"
 #include "ui/gfx/rect_conversions.h"
+#include "ui/gfx/skia_util.h"
 
 namespace {
 // URI label for a lazily decoded SkPixelRef.
@@ -47,7 +48,8 @@ scoped_refptr<Picture> Picture::Clone() const {
 
 void Picture::Record(ContentLayerClient* painter,
                      RenderingStats& stats) {
-  TRACE_EVENT0("cc", "Picture::Record");
+  TRACE_EVENT2("cc", "Picture::Record",
+               "width", layer_rect_.width(), "height", layer_rect_.height());
 
   // Record() should only be called once.
   DCHECK(!picture_);
@@ -77,8 +79,7 @@ void Picture::Record(ContentLayerClient* painter,
   gfx::RectF opaque_layer_rect;
   base::TimeTicks beginPaintTime = base::TimeTicks::Now();
   painter->paintContents(canvas, layer_rect_, opaque_layer_rect);
-  double delta = (base::TimeTicks::Now() - beginPaintTime).InSecondsF();
-  stats.totalPaintTimeInSeconds += delta;
+  stats.totalPaintTime += base::TimeTicks::Now() - beginPaintTime;
   stats.totalPixelsPainted += layer_rect_.width() *
                               layer_rect_.height();
 
@@ -88,10 +89,17 @@ void Picture::Record(ContentLayerClient* painter,
   opaque_rect_ = gfx::ToEnclosedRect(opaque_layer_rect);
 }
 
-void Picture::Raster(SkCanvas* canvas) {
-  TRACE_EVENT0("cc", "Picture::Raster");
+void Picture::Raster(
+    SkCanvas* canvas,
+    gfx::Rect content_rect,
+    float contents_scale) {
+  TRACE_EVENT2("cc", "Picture::Raster",
+               "width", layer_rect_.width(), "height", layer_rect_.height());
   DCHECK(picture_);
+
   canvas->save();
+  canvas->clipRect(gfx::RectToSkRect(content_rect));
+  canvas->scale(contents_scale, contents_scale);
   canvas->translate(layer_rect_.x(), layer_rect_.y());
   canvas->drawPicture(*picture_);
   canvas->restore();

@@ -25,6 +25,7 @@
 #include "chrome/browser/file_select_helper.h"
 #include "chrome/browser/history/history_tab_helper.h"
 #include "chrome/browser/history/history_types.h"
+#include "chrome/browser/intents/register_intent_handler_infobar_delegate.h"
 #include "chrome/browser/pepper_broker_infobar_delegate.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/repost_form_warning_controller.h"
@@ -34,6 +35,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tab_contents.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/media_stream_infobar_delegate.h"
 #include "chrome/browser/ui/tab_modal_confirm_dialog.h"
 #include "chrome/browser/ui/views/infobars/infobar_container_view.h"
 #include "chrome/browser/ui/views/tab_contents/render_view_context_menu_win.h"
@@ -59,9 +61,9 @@
 #include "content/public/common/ssl_status.h"
 #include "grit/generated_resources.h"
 #include "grit/locale_settings.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebCString.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebReferrerPolicy.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebCString.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSecurityPolicy.h"
 #include "ui/base/events/event_utils.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -800,7 +802,7 @@ void ExternalTabContainerWin::RegisterIntentHandler(
     WebContents* tab,
     const webkit_glue::WebIntentServiceData& data,
     bool user_gesture) {
-  Browser::RegisterIntentHandlerHelper(tab, data, user_gesture);
+  RegisterIntentHandlerInfoBarDelegate::Create(tab, data);
 }
 
 void ExternalTabContainerWin::WebIntentDispatch(
@@ -823,9 +825,9 @@ void ExternalTabContainerWin::FindReply(WebContents* tab,
 
 void ExternalTabContainerWin::RequestMediaAccessPermission(
     content::WebContents* web_contents,
-    const content::MediaStreamRequest* request,
+    const content::MediaStreamRequest& request,
     const content::MediaResponseCallback& callback) {
-  Browser::RequestMediaAccessPermissionHelper(web_contents, request, callback);
+  MediaStreamInfoBarDelegate::Create(web_contents, request, callback);
 }
 
 bool ExternalTabContainerWin::RequestPpapiBrokerPermission(
@@ -833,7 +835,7 @@ bool ExternalTabContainerWin::RequestPpapiBrokerPermission(
     const GURL& url,
     const FilePath& plugin_path,
     const base::Callback<void(bool)>& callback) {
-  PepperBrokerInfoBarDelegate::Show(web_contents, url, plugin_path, callback);
+  PepperBrokerInfoBarDelegate::Create(web_contents, url, plugin_path, callback);
   return true;
 }
 

@@ -22,18 +22,22 @@
 namespace {
 
 // Notification dimensions.
-const int kIconLeftPadding = 0;
-const int kIconColumnWidth = message_center::kNotificationIconWidth;
-const int kIconToTextPadding = 15;
-const int kTextToClosePadding = 10;
-const int kCloseColumnWidth = 8;
-const int kCloseRightPadding = 6;
 const int kIconTopPadding = 0;
-const int kTextTopPadding = 9;
-const int kCloseTopPadding = 6;
+const int kIconLeftPadding = 0;
 const int kIconBottomPadding = 0;
-const int kTextBottomPadding = 12;
+const int kIconColumnWidth = message_center::kNotificationIconWidth;
+const int kIconToTextPadding = 16;
+const int kTextTopPadding = 6;
+const int kTextBottomPadding = 6;
+const int kTextToClosePadding = 10;
+const int kCloseTopPadding = 8;
+const int kCloseRightPadding = 8;
+const int kCloseColumnWidth = 8;
 const int kItemTitleToDetailsPadding = 3;
+const int kImageTopPadding = 0;
+const int kImageLeftPadding = 0;
+const int kImageBottomPadding = 0;
+const int kImageRightPadding = 0;
 
 // Notification colors. The text background colors below are used only to keep
 // view::Label from modifying the text color and will not actually be drawn.
@@ -72,20 +76,52 @@ ItemView::ItemView(
   title->SetElideBehavior(views::Label::ELIDE_AT_END);
   title->SetEnabledColor(kTitleColor);
   title->SetBackgroundColor(kTitleBackgroundColor);
-  AddChildViewAt(title, 0);
+  AddChildView(title);
 
   views::Label* details = new views::Label(item.message);
   details->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   details->SetElideBehavior(views::Label::ELIDE_AT_END);
   details->SetEnabledColor(kMessageColor);
   details->SetBackgroundColor(kMessageBackgroundColor);
-  AddChildViewAt(details, 1);
+  AddChildView(details);
 
   PreferredSizeChanged();
   SchedulePaint();
 }
 
 ItemView::~ItemView() {
+}
+
+// ProportionalImageViews match their heights to their widths to preserve the
+// proportions of their images.
+class ProportionalImageView : public views::ImageView {
+ public:
+  ProportionalImageView();
+  virtual ~ProportionalImageView();
+
+  // Overridden from views::View.
+  virtual int GetHeightForWidth(int width) OVERRIDE;
+};
+
+ProportionalImageView::ProportionalImageView() {
+}
+
+ProportionalImageView::~ProportionalImageView() {
+}
+
+int ProportionalImageView::GetHeightForWidth(int width) {
+  int height = 0;
+  gfx::ImageSkia image = GetImage();
+  if (image.width() > 0 && image.height() > 0) {
+    double proportion = image.height() / (double) image.width();
+    height = 0.5 + width * proportion;
+    if (height > message_center::kNotificationMaximumImageHeight) {
+      height = message_center::kNotificationMaximumImageHeight;
+      width = 0.5 + height / proportion;
+    }
+    SetImageSize(gfx::Size(width, height));
+  }
+  return height;
 }
 
 }  // namespace
@@ -128,8 +164,17 @@ void NotificationView::SetUpView() {
                      kCloseColumnWidth + kCloseRightPadding);
                      // Close button + padding.
 
-  // First row: Icon. This vertically spans the close button padding row, the
-  // close button row, and all item rows.
+  // Figure out how many rows the icon should span.
+  int span = 1;  // One row for the title and close button,
+  int displayed_item_count =
+      std::min(notification_.items.size(), kNotificationMaximumItems);
+  if (displayed_item_count > 0)
+    span += displayed_item_count;  // ... and one row per item,
+  else
+    span += 1;  // ... or one row for the message,
+  span += 1;  // ... and one row for the text padding.
+
+  // First row: Icon. This spans all the text rows to its right.
   layout->StartRow(0, 0);
   views::ImageView* icon = new views::ImageView();
   icon->SetImageSize(gfx::Size(message_center::kNotificationIconWidth,
@@ -139,47 +184,78 @@ void NotificationView::SetUpView() {
   icon->SetVerticalAlignment(views::ImageView::LEADING);
   icon->set_border(MakePadding(kIconTopPadding, kIconLeftPadding,
                                kIconBottomPadding, kIconToTextPadding));
-  int displayed_item_count =
-      std::min(notification_.items.size(), kNotificationMaxItems);
-  layout->AddView(icon, 1, 2 + displayed_item_count);
+  layout->AddView(icon, 1, span);
 
-  // First row: Title. This vertically spans the close button padding row and
-  // the close button row.
-  // TODO(dharcourt): Skip the title Label when there's no title text.
-  views::Label* title = new views::Label(notification_.title);
-  title->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  title->SetElideBehavior(views::Label::ELIDE_AT_END);
-  title->SetFont(title->font().DeriveFont(4));
-  title->SetEnabledColor(kTitleColor);
-  title->SetBackgroundColor(kTitleBackgroundColor);
-  title->set_border(MakePadding(kTextTopPadding, 0, 3, kTextToClosePadding));
-  layout->AddView(title, 1, 2);
+  // First row: Title.
+  if (notification_.title.empty()) {
+    layout->SkipColumns(1);
+  } else {
+    views::Label* title = new views::Label(notification_.title);
+    title->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+    title->SetElideBehavior(views::Label::ELIDE_AT_END);
+    title->SetFont(title->font().DeriveFont(4));
+    title->SetEnabledColor(kTitleColor);
+    title->SetBackgroundColor(kTitleBackgroundColor);
+    title->set_border(MakePadding(kTextTopPadding, 0, 3, kTextToClosePadding));
+    layout->AddView(title);
+  }
 
-  // First row: Close button padding.
-  views::View* padding = new views::ImageView();
-  padding->set_border(MakePadding(kCloseTopPadding, 1, 0, 0));
-  layout->AddView(padding);
-
-  // Second row: Close button, which has to be on a row of its own because its
-  // top padding can't be set using empty borders (ImageButtons don't support
-  // borders). The resize factor of this row (100) is much higher than that of
-  // other rows (0) to ensure the first row's height stays at kCloseTopPadding.
-  layout->StartRow(100, 0);
-  layout->SkipColumns(2);
+  // Second row: Close button. Because ImageButtons don't support padding, the
+  // close_button_ ImageButton has to be put inside a plain view that does
+  // support the padding we need.
   DCHECK(close_button_);
-  layout->AddView(close_button_);
+  views::View* close = new views::View();
+  close->SetLayoutManager(
+      new views::BoxLayout(views::BoxLayout::kHorizontal, 0, 0, 0));
+  close->AddChildView(close_button_);
+  close->set_border(MakePadding(kCloseTopPadding, 0, 0, 0));
+  layout->AddView(close);
+
+  // One row for the message if appropriate.
+  if (notification_.items.size() == 0 && !notification_.message.empty()) {
+    layout->StartRow(0, 0);
+    layout->SkipColumns(1);
+    views::Label* message = new views::Label(notification_.message);
+    message->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+    message->SetMultiLine(true);
+    message->SetEnabledColor(kMessageColor);
+    message->SetBackgroundColor(kMessageBackgroundColor);
+    message->set_border(MakePadding(0, 0, 3, kTextToClosePadding));
+    layout->AddView(message);
+    layout->SkipColumns(1);
+  }
 
   // One row for each notification item, including appropriate padding.
-  for (int i = 0; i < displayed_item_count; ++i) {
-    int bottom_padding =
-        (i < displayed_item_count - 1) ? 4 : (kTextBottomPadding - 2);
+  for (int i = 0, n = displayed_item_count; i < n; ++i) {
     layout->StartRow(0, 0);
     layout->SkipColumns(1);
     ItemView* item = new ItemView(notification_.items[i]);
-    item->set_border(MakePadding(0, 0, bottom_padding, kTextToClosePadding));
+    item->set_border(MakePadding(0, 0, 4, kTextToClosePadding));
     layout->AddView(item);
     layout->SkipColumns(1);
   }
+
+  // One text padding row, which adds some extra padding between the last line
+  // of text and anything below it but also ensures all text above it is
+  // top-aligned by having its height grow at the expense of the rows above it.
+  layout->StartRow(100, 0);
+  layout->SkipColumns(1);
+  views::View* padding = new views::ImageView();
+  padding->set_border(MakePadding(kTextBottomPadding, 1, 0, 0));
+  layout->AddView(padding);
+  layout->SkipColumns(1);
+
+  // One row for the image.
+  layout->StartRow(0, 0);
+  views::ImageView* image = new ProportionalImageView();
+  image->SetImageSize(notification_.image.size());
+  image->SetImage(notification_.image);
+  image->SetHorizontalAlignment(views::ImageView::CENTER);
+  image->SetVerticalAlignment(views::ImageView::LEADING);
+  image->set_border(MakePadding(kImageTopPadding, kImageLeftPadding,
+                                kImageBottomPadding, kImageRightPadding));
+  layout->AddView(image, 3, 1,
+                  views::GridLayout::FILL, views::GridLayout::LEADING);
 }
 
 }  // namespace message_center

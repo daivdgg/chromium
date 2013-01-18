@@ -17,6 +17,10 @@ namespace remoting {
 // See remoting/host/video_frame_capturer.h.
 class VideoFrameCapturerFake : public VideoFrameCapturer {
  public:
+  // VideoFrameCapturerFake generates a picture of size kWidth x kHeight.
+  static const int kWidth = 800;
+  static const int kHeight = 600;
+
   VideoFrameCapturerFake();
   virtual ~VideoFrameCapturerFake();
 
@@ -25,7 +29,6 @@ class VideoFrameCapturerFake : public VideoFrameCapturer {
   virtual void Stop() OVERRIDE;
   virtual void InvalidateRegion(const SkRegion& invalid_region) OVERRIDE;
   virtual void CaptureFrame() OVERRIDE;
-  virtual const SkISize& size_most_recent() const OVERRIDE;
 
  private:
   // Generates an image in the front buffer.

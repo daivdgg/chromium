@@ -8,6 +8,7 @@
 #include "cc/draw_quad.h"
 #include "cc/layer_tree_host.h"
 #include "cc/output_surface.h"
+#include "cc/prioritized_resource_manager.h"
 #include "cc/resource_update_controller.h"
 #include "cc/thread.h"
 
@@ -28,6 +29,10 @@ SingleThreadProxy::SingleThreadProxy(LayerTreeHost* layerTreeHost)
 {
     TRACE_EVENT0("cc", "SingleThreadProxy::SingleThreadProxy");
     DCHECK(Proxy::isMainThread());
+    DCHECK(layerTreeHost);
+
+    // Impl-side painting not supported without threaded compositing
+    DCHECK(!layerTreeHost->settings().implSidePainting);
 }
 
 void SingleThreadProxy::start()
@@ -148,7 +153,7 @@ bool SingleThreadProxy::recreateOutputSurface()
 
 void SingleThreadProxy::renderingStats(RenderingStats* stats)
 {
-    stats->totalCommitTimeInSeconds = m_totalCommitTime.InSecondsF();
+    stats->totalCommitTime = m_totalCommitTime;
     stats->totalCommitCount = m_totalCommitCount;
     m_layerTreeHostImpl->renderingStats(stats);
 }
@@ -158,13 +163,6 @@ const RendererCapabilities& SingleThreadProxy::rendererCapabilities() const
     DCHECK(m_rendererInitialized);
     // Note: this gets called during the commit by the "impl" thread
     return m_RendererCapabilitiesForMainThread;
-}
-
-void SingleThreadProxy::loseOutputSurface()
-{
-    DCHECK(Proxy::isMainThread());
-    m_layerTreeHost->didLoseOutputSurface();
-    m_outputSurfaceLost = true;
 }
 
 void SingleThreadProxy::setNeedsAnimate()
@@ -367,9 +365,6 @@ bool SingleThreadProxy::doComposite()
 
         m_layerTreeHostImpl->animate(base::TimeTicks::Now(), base::Time::Now());
 
-        if (m_layerTreeHostImpl->settings().implSidePainting)
-          m_layerTreeHostImpl->manageTiles();
-
         // We guard prepareToDraw() with canDraw() because it always returns a valid frame, so can only
         // be used when such a frame is possible. Since drawLayers() depends on the result of
         // prepareToDraw(), it is guarded on canDraw() as well.
@@ -402,6 +397,13 @@ void SingleThreadProxy::didSwapFrame()
 bool SingleThreadProxy::commitPendingForTesting()
 {
     return false;
+}
+
+skia::RefPtr<SkPicture> SingleThreadProxy::capturePicture()
+{
+    // Requires impl-side painting, which is only supported in threaded compositing.
+    NOTREACHED();
+    return skia::RefPtr<SkPicture>();
 }
 
 }  // namespace cc

@@ -24,6 +24,7 @@
 #include "third_party/WebKit/Source/Platform/chromium/public/WebFilterOperations.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkImageFilter.h"
+#include "third_party/skia/include/core/SkPicture.h"
 #include "ui/gfx/rect.h"
 #include "ui/gfx/rect_f.h"
 #include "ui/gfx/transform.h"
@@ -60,6 +61,7 @@ public:
     // LayerAnimationValueObserver implementation.
     virtual void OnOpacityAnimated(float) OVERRIDE;
     virtual void OnTransformAnimated(const gfx::Transform&) OVERRIDE;
+    virtual bool IsActive() const OVERRIDE;
 
     // Tree structure.
     LayerImpl* parent() { return m_parent; }
@@ -198,6 +200,12 @@ public:
     float contentsScaleY() const { return m_drawProperties.contents_scale_y; }
     void setContentsScale(float contentsScaleX, float contentsScaleY);
 
+    virtual void calculateContentsScale(
+        float idealContentsScale,
+        float* contentsScaleX,
+        float* contentsScaleY,
+        gfx::Size* contentBounds);
+
     gfx::Vector2d scrollOffset() const { return m_scrollOffset; }
     void setScrollOffset(gfx::Vector2d);
 
@@ -263,6 +271,7 @@ public:
     virtual Region visibleContentOpaqueRegion() const;
 
     virtual void didUpdateTransforms() { }
+    virtual void didBecomeActive() { }
 
     // Indicates that the surface previously used to render this layer
     // was lost and that a new one has been created. Won't be called
@@ -280,6 +289,12 @@ public:
     const ScrollbarLayerImpl* verticalScrollbarLayer() const;
 
     gfx::Rect layerRectToContentRect(const gfx::RectF& layerRect) const;
+
+    virtual skia::RefPtr<SkPicture> getPicture();
+
+    virtual bool canClipSelf() const;
+
+    virtual bool areVisibleResourcesReady() const;
 
 protected:
     LayerImpl(LayerTreeImpl* layerImpl, int);

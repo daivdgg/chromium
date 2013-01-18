@@ -22,7 +22,6 @@
 #include "chrome/browser/browser_about_handler.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
 #include "chrome/browser/ui/webui/options/autofill_options_handler.h"
 #include "chrome/browser/ui/webui/options/browser_options_handler.h"
 #include "chrome/browser/ui/webui/options/clear_browser_data_handler.h"
@@ -44,11 +43,13 @@
 #include "chrome/browser/ui/webui/options/search_engine_manager_handler.h"
 #include "chrome/browser/ui/webui/options/startup_pages_handler.h"
 #include "chrome/browser/ui/webui/theme_source.h"
+#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/time_format.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/notification_types.h"
 #include "content/public/browser/render_view_host.h"
+#include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/browser/web_ui.h"
@@ -101,16 +102,17 @@ namespace options {
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class OptionsUIHTMLSource : public ChromeURLDataManager::DataSource {
+class OptionsUIHTMLSource : public content::URLDataSource {
  public:
   // The constructor takes over ownership of |localized_strings|.
   explicit OptionsUIHTMLSource(DictionaryValue* localized_strings);
 
-  // Called when the network layer has requested a resource underneath
-  // the path we registered.
-  virtual void StartDataRequest(const std::string& path,
-                                bool is_incognito,
-                                int request_id);
+  // content::URLDataSource implementation.
+  virtual std::string GetSource() OVERRIDE;
+  virtual void StartDataRequest(
+      const std::string& path,
+      bool is_incognito,
+      const content::URLDataSource::GotDataCallback& callback);
   virtual std::string GetMimeType(const std::string&) const;
 
  private:
@@ -122,17 +124,21 @@ class OptionsUIHTMLSource : public ChromeURLDataManager::DataSource {
   DISALLOW_COPY_AND_ASSIGN(OptionsUIHTMLSource);
 };
 
-OptionsUIHTMLSource::OptionsUIHTMLSource(DictionaryValue* localized_strings)
-    : DataSource(chrome::kChromeUISettingsFrameHost, MessageLoop::current()) {
+OptionsUIHTMLSource::OptionsUIHTMLSource(DictionaryValue* localized_strings) {
   DCHECK(localized_strings);
   localized_strings_.reset(localized_strings);
 }
 
-void OptionsUIHTMLSource::StartDataRequest(const std::string& path,
-                                            bool is_incognito,
-                                            int request_id) {
+std::string OptionsUIHTMLSource::GetSource() {
+  return chrome::kChromeUISettingsFrameHost;
+}
+
+void OptionsUIHTMLSource::StartDataRequest(
+    const std::string& path,
+    bool is_incognito,
+    const content::URLDataSource::GotDataCallback& callback) {
   scoped_refptr<base::RefCountedMemory> response_bytes;
-  SetFontAndTextDirection(localized_strings_.get());
+  web_ui_util::SetFontAndTextDirection(localized_strings_.get());
 
   if (path == kLocalizedStringsFile) {
     // Return dynamically-generated strings from memory.
@@ -150,7 +156,7 @@ void OptionsUIHTMLSource::StartDataRequest(const std::string& path,
         LoadDataResourceBytes(IDR_OPTIONS_HTML);
   }
 
-  SendResponse(request_id, response_bytes);
+  callback.Run(response_bytes);
 }
 
 std::string OptionsUIHTMLSource::GetMimeType(const std::string& path) const {

@@ -19,7 +19,6 @@
 #include "base/message_loop.h"
 #include "base/path_service.h"
 #include "base/string_util.h"
-#include "chrome/browser/net/chrome_url_request_context.h"
 #include "chrome/browser/ui/webui/shared_resources_data_source.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
@@ -208,9 +207,11 @@ void URLToRequest(const GURL& url, std::string* source_name,
 class URLRequestChromeJob : public net::URLRequestJob,
                             public base::SupportsWeakPtr<URLRequestChromeJob> {
  public:
+  // |is_incognito| set when job is generated from an incognito profile.
   URLRequestChromeJob(net::URLRequest* request,
                       net::NetworkDelegate* network_delegate,
-                      ChromeURLDataManagerBackend* backend);
+                      ChromeURLDataManagerBackend* backend,
+                      bool is_incognito);
 
   // net::URLRequestJob implementation.
   virtual void Start() OVERRIDE;
@@ -234,6 +235,11 @@ class URLRequestChromeJob : public net::URLRequestJob,
 
   void set_allow_caching(bool allow_caching) {
     allow_caching_ = allow_caching;
+  }
+
+  // Returns true when job was generated from an incognito profile.
+  bool is_incognito() const {
+    return is_incognito_;
   }
 
  private:
@@ -262,6 +268,9 @@ class URLRequestChromeJob : public net::URLRequestJob,
   // If true, set a header in the response to prevent it from being cached.
   bool allow_caching_;
 
+  // True when job is generated from an incognito profile.
+  const bool is_incognito_;
+
   // The backend is owned by ChromeURLRequestContext and always outlives us.
   ChromeURLDataManagerBackend* backend_;
 
@@ -272,11 +281,13 @@ class URLRequestChromeJob : public net::URLRequestJob,
 
 URLRequestChromeJob::URLRequestChromeJob(net::URLRequest* request,
                                          net::NetworkDelegate* network_delegate,
-                                         ChromeURLDataManagerBackend* backend)
+                                         ChromeURLDataManagerBackend* backend,
+                                         bool is_incognito)
     : net::URLRequestJob(request, network_delegate),
       data_offset_(0),
       pending_buf_size_(0),
       allow_caching_(true),
+      is_incognito_(is_incognito),
       backend_(backend),
       ALLOW_THIS_IN_INITIALIZER_LIST(weak_factory_(this)) {
   DCHECK(backend);
@@ -390,11 +401,11 @@ namespace {
 // After that, notifies |job| that mime type is available. This method
 // should be called on the UI thread, but notification is performed on
 // the IO thread.
-void GetMimeTypeOnUI(ChromeURLDataManager::DataSource* source,
+void GetMimeTypeOnUI(URLDataSourceImpl* source,
                      const std::string& path,
                      const base::WeakPtr<URLRequestChromeJob>& job) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
-  std::string mime_type = source->GetMimeType(path);
+  std::string mime_type = source->source()->GetMimeType(path);
   BrowserThread::PostTask(
       BrowserThread::IO, FROM_HERE,
       base::Bind(&URLRequestChromeJob::MimeTypeAvailable, job, mime_type));
@@ -407,7 +418,9 @@ namespace {
 class ChromeProtocolHandler
     : public net::URLRequestJobFactory::ProtocolHandler {
  public:
-  explicit ChromeProtocolHandler(ChromeURLDataManagerBackend* backend);
+  // |is_incognito| should be set for incognito profiles.
+  explicit ChromeProtocolHandler(ChromeURLDataManagerBackend* backend,
+                                 bool is_incognito);
   ~ChromeProtocolHandler();
 
   virtual net::URLRequestJob* MaybeCreateJob(
@@ -418,12 +431,15 @@ class ChromeProtocolHandler
   // These members are owned by ProfileIOData, which owns this ProtocolHandler.
   ChromeURLDataManagerBackend* const backend_;
 
+  // True when generated from an incognito profile.
+  const bool is_incognito_;
+
   DISALLOW_COPY_AND_ASSIGN(ChromeProtocolHandler);
 };
 
 ChromeProtocolHandler::ChromeProtocolHandler(
-    ChromeURLDataManagerBackend* backend)
-    : backend_(backend) {}
+    ChromeURLDataManagerBackend* backend, bool is_incognito)
+    : backend_(backend), is_incognito_(is_incognito) {}
 
 ChromeProtocolHandler::~ChromeProtocolHandler() {}
 
@@ -432,14 +448,18 @@ net::URLRequestJob* ChromeProtocolHandler::MaybeCreateJob(
   DCHECK(request);
 
   // Fall back to using a custom handler
-  return new URLRequestChromeJob(request, network_delegate, backend_);
+  return new URLRequestChromeJob(request, network_delegate, backend_,
+                                 is_incognito_);
 }
 
 }  // namespace
 
 ChromeURLDataManagerBackend::ChromeURLDataManagerBackend()
     : next_request_id_(0) {
-  AddDataSource(new SharedResourcesDataSource());
+  content::URLDataSource* shared_source = new SharedResourcesDataSource();
+  URLDataSourceImpl* source_impl =
+      new URLDataSourceImpl(shared_source->GetSource(), shared_source);
+  AddDataSource(source_impl);
 }
 
 ChromeURLDataManagerBackend::~ChromeURLDataManagerBackend() {
@@ -453,17 +473,17 @@ ChromeURLDataManagerBackend::~ChromeURLDataManagerBackend() {
 // static
 net::URLRequestJobFactory::ProtocolHandler*
 ChromeURLDataManagerBackend::CreateProtocolHandler(
-    ChromeURLDataManagerBackend* backend) {
+    ChromeURLDataManagerBackend* backend, bool is_incognito) {
   DCHECK(backend);
-  return new ChromeProtocolHandler(backend);
+  return new ChromeProtocolHandler(backend, is_incognito);
 }
 
 void ChromeURLDataManagerBackend::AddDataSource(
-    ChromeURLDataManager::DataSource* source) {
+    URLDataSourceImpl* source) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::IO));
   DataSourceMap::iterator i = data_sources_.find(source->source_name());
   if (i != data_sources_.end()) {
-    if (!source->ShouldReplaceExistingSource())
+    if (!source->source()->ShouldReplaceExistingSource())
       return;
     i->second->backend_ = NULL;
   }
@@ -493,26 +513,26 @@ bool ChromeURLDataManagerBackend::StartRequest(const GURL& url,
   if (i == data_sources_.end())
     return false;
 
-  ChromeURLDataManager::DataSource* source = i->second;
+  URLDataSourceImpl* source = i->second;
 
   // Save this request so we know where to send the data.
   RequestID request_id = next_request_id_++;
   pending_requests_.insert(std::make_pair(request_id, job));
 
-  job->set_allow_caching(source->AllowCaching());
-
-  const ChromeURLRequestContext* context =
-      static_cast<const ChromeURLRequestContext*>(job->request()->context());
+  job->set_allow_caching(source->source()->AllowCaching());
 
   // Forward along the request to the data source.
-  MessageLoop* target_message_loop = source->MessageLoopForRequestPath(path);
+  MessageLoop* target_message_loop =
+      source->source()->MessageLoopForRequestPath(path);
   if (!target_message_loop) {
-    job->MimeTypeAvailable(source->GetMimeType(path));
+    job->MimeTypeAvailable(source->source()->GetMimeType(path));
 
     // The DataSource is agnostic to which thread StartDataRequest is called
     // on for this path.  Call directly into it from this thread, the IO
     // thread.
-    source->StartDataRequest(path, context->is_incognito(), request_id);
+    source->source()->StartDataRequest(
+        path, job->is_incognito(),
+        base::Bind(&URLDataSourceImpl::SendResponse, source, request_id));
   } else {
     // URLRequestChromeJob should receive mime type before data. This
     // is guaranteed because request for mime type is placed in the
@@ -521,17 +541,29 @@ bool ChromeURLDataManagerBackend::StartRequest(const GURL& url,
     target_message_loop->PostTask(
         FROM_HERE,
         base::Bind(&GetMimeTypeOnUI,
-                   scoped_refptr<ChromeURLDataManager::DataSource>(source),
+                   scoped_refptr<URLDataSourceImpl>(source),
                    path, job->AsWeakPtr()));
 
     // The DataSource wants StartDataRequest to be called on a specific thread,
     // usually the UI thread, for this path.
     target_message_loop->PostTask(
         FROM_HERE,
-        base::Bind(&ChromeURLDataManager::DataSource::StartDataRequest, source,
-                   path, context->is_incognito(), request_id));
+        base::Bind(&ChromeURLDataManagerBackend::CallStartRequest,
+                   make_scoped_refptr(source), path, job->is_incognito(),
+                   request_id));
   }
   return true;
+}
+
+void ChromeURLDataManagerBackend::CallStartRequest(
+    scoped_refptr<URLDataSourceImpl> source,
+    const std::string& path,
+    bool is_incognito,
+    int request_id) {
+  source->source()->StartDataRequest(
+      path,
+      is_incognito,
+      base::Bind(&URLDataSourceImpl::SendResponse, source, request_id));
 }
 
 void ChromeURLDataManagerBackend::RemoveRequest(URLRequestChromeJob* job) {
@@ -606,8 +638,10 @@ bool IsSupportedDevToolsURL(const GURL& url, FilePath* path) {
 class DevToolsJobFactory
     : public net::URLRequestJobFactory::ProtocolHandler {
  public:
+  // |is_incognito| should be set for incognito profiles.
   DevToolsJobFactory(ChromeURLDataManagerBackend* backend,
-                     net::NetworkDelegate* network_delegate);
+                     net::NetworkDelegate* network_delegate,
+                     bool is_incognito);
   virtual ~DevToolsJobFactory();
 
   virtual net::URLRequestJob* MaybeCreateJob(
@@ -620,13 +654,18 @@ class DevToolsJobFactory
   ChromeURLDataManagerBackend* const backend_;
   net::NetworkDelegate* network_delegate_;
 
+  // True when generated from an incognito profile.
+  const bool is_incognito_;
+
   DISALLOW_COPY_AND_ASSIGN(DevToolsJobFactory);
 };
 
 DevToolsJobFactory::DevToolsJobFactory(ChromeURLDataManagerBackend* backend,
-                                       net::NetworkDelegate* network_delegate)
+                                       net::NetworkDelegate* network_delegate,
+                                       bool is_incognito)
     : backend_(backend),
-      network_delegate_(network_delegate) {
+      network_delegate_(network_delegate),
+      is_incognito_(is_incognito) {
   DCHECK(backend_);
 }
 
@@ -640,13 +679,15 @@ DevToolsJobFactory::MaybeCreateJob(
   if (IsSupportedDevToolsURL(request->url(), &path))
     return new net::URLRequestFileJob(request, network_delegate, path);
 #endif
-  return new URLRequestChromeJob(request, network_delegate, backend_);
+  return new URLRequestChromeJob(request, network_delegate, backend_,
+                                 is_incognito_);
 }
 
 }  // namespace
 
 net::URLRequestJobFactory::ProtocolHandler*
 CreateDevToolsProtocolHandler(ChromeURLDataManagerBackend* backend,
-                              net::NetworkDelegate* network_delegate) {
-  return new DevToolsJobFactory(backend, network_delegate);
+                              net::NetworkDelegate* network_delegate,
+                              bool is_incognito) {
+  return new DevToolsJobFactory(backend, network_delegate, is_incognito);
 }

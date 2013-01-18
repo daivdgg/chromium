@@ -27,6 +27,7 @@
 #include "content/browser/loader/resource_dispatcher_host_impl.h"
 #include "content/browser/net/browser_online_state_observer.h"
 #include "content/browser/plugin_service_impl.h"
+#include "content/browser/renderer_host/media/audio_mirroring_manager.h"
 #include "content/browser/renderer_host/media/media_stream_manager.h"
 #include "content/browser/speech/speech_recognition_manager_impl.h"
 #include "content/browser/trace_controller_impl.h"
@@ -227,6 +228,11 @@ media::AudioManager* BrowserMainLoop::GetAudioManager() {
 }
 
 // static
+AudioMirroringManager* BrowserMainLoop::GetAudioMirroringManager() {
+  return g_current_browser_main_loop->audio_mirroring_manager_.get();
+}
+
+// static
 MediaStreamManager* BrowserMainLoop::GetMediaStreamManager() {
   return g_current_browser_main_loop->media_stream_manager_.get();
 }
@@ -273,24 +279,8 @@ void BrowserMainLoop::EarlyInitialization() {
 #endif
 
 #if !defined(USE_OPENSSL)
-  // Use NSS for SSL by default.
-  // The default client socket factory uses NSS for SSL by default on
-  // Windows and Mac.
-  bool init_nspr = false;
-#if defined(OS_WIN) || defined(OS_MACOSX)
-  if (parsed_command_line_.HasSwitch(switches::kUseSystemSSL)) {
-    net::ClientSocketFactory::UseSystemSSL();
-  } else {
-    init_nspr = true;
-  }
-  UMA_HISTOGRAM_BOOLEAN("Chrome.CommandLineUseSystemSSL", !init_nspr);
-#elif defined(USE_NSS)
-  init_nspr = true;
-#endif
-  if (init_nspr) {
-    // We want to be sure to init NSPR on the main thread.
-    crypto::EnsureNSPRInit();
-  }
+  // We want to be sure to init NSPR on the main thread.
+  crypto::EnsureNSPRInit();
 #endif  // !defined(USE_OPENSSL)
 
 #if defined(OS_POSIX) && !defined(OS_MACOSX) && !defined(OS_ANDROID)
@@ -343,6 +333,9 @@ void BrowserMainLoop::MainMessageLoopStart() {
   hi_res_timer_manager_.reset(new HighResolutionTimerManager);
   network_change_notifier_.reset(net::NetworkChangeNotifier::Create());
   audio_manager_.reset(media::AudioManager::Create());
+#if !defined(OS_IOS)
+  audio_mirroring_manager_.reset(new AudioMirroringManager());
+#endif
 
 #if !defined(OS_IOS)
   // Start tracing to a file if needed.
@@ -513,7 +506,6 @@ void BrowserMainLoop::ShutdownThreadsAndCleanUp() {
 #if defined(USE_AURA)
   ImageTransportFactory::Terminate();
 #endif
-  BrowserGpuChannelHostFactory::Terminate();
 
   // The device monitors are using |system_monitor_| as dependency, so delete
   // them before |system_monitor_| goes away.
@@ -618,6 +610,10 @@ void BrowserMainLoop::ShutdownThreadsAndCleanUp() {
   BrowserThreadImpl::ShutdownThreadPool();
 
 #if !defined(OS_IOS)
+  // Must happen after the IO thread is shutdown since this may be accessed from
+  // it.
+  BrowserGpuChannelHostFactory::Terminate();
+
   // Must happen after the I/O thread is shutdown since this class lives on the
   // I/O thread and isn't threadsafe.
   GamepadService::GetInstance()->Terminate();

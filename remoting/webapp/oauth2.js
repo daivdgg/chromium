@@ -11,6 +11,9 @@
  * chrome-extensions in OAuth2.
  */
 
+// TODO(jamiewalch): Delete this code once Chromoting is a v2 app and uses the
+// identity API (http://crbug.com/ 134213).
+
 'use strict';
 
 /** @suppress {duplicate} */
@@ -32,6 +35,8 @@ remoting.OAuth2.prototype.KEY_REFRESH_TOKEN_REVOKABLE_ =
     'oauth2-refresh-token-revokable';
 /** @private */
 remoting.OAuth2.prototype.KEY_ACCESS_TOKEN_ = 'oauth2-access-token';
+/** @private */
+remoting.OAuth2.prototype.KEY_XSRF_TOKEN_ = 'oauth2-xsrf-token';
 /** @private */
 remoting.OAuth2.prototype.KEY_EMAIL_ = 'remoting-email';
 
@@ -262,16 +267,29 @@ remoting.OAuth2.prototype.refreshAccessToken_ = function(onDone) {
 };
 
 /**
+ * @private
+ * @return {string} A URL-Safe Base64-encoded 128-bit random value. */
+remoting.OAuth2.prototype.generateXsrfToken_ = function() {
+  var random = new Uint8Array(16);
+  window.crypto.getRandomValues(random);
+  var base64Token = window.btoa(String.fromCharCode.apply(null, random));
+  return base64Token.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+};
+
+/**
  * Redirect page to get a new OAuth2 Refresh Token.
  *
  * @return {void} Nothing.
  */
 remoting.OAuth2.prototype.doAuthRedirect = function() {
+  var xsrf_token = this.generateXsrfToken_();
+  window.localStorage.setItem(this.KEY_XSRF_TOKEN_, xsrf_token);
   var GET_CODE_URL = 'https://accounts.google.com/o/oauth2/auth?' +
     remoting.xhr.urlencodeParamHash({
           'client_id': this.CLIENT_ID_,
           'redirect_uri': this.REDIRECT_URI_,
           'scope': this.SCOPE_,
+          'state': xsrf_token,
           'response_type': 'code',
           'access_type': 'offline',
           'approval_prompt': 'force'
@@ -283,11 +301,18 @@ remoting.OAuth2.prototype.doAuthRedirect = function() {
  * Asynchronously exchanges an authorization code for a refresh token.
  *
  * @param {string} code The new refresh token.
+ * @param {string} state The state parameter received from the OAuth redirect.
  * @param {function(XMLHttpRequest):void} onDone Callback to invoke on
  *     completion.
  * @return {void} Nothing.
  */
-remoting.OAuth2.prototype.exchangeCodeForToken = function(code, onDone) {
+remoting.OAuth2.prototype.exchangeCodeForToken = function(code, state, onDone) {
+  var xsrf_token = window.localStorage.getItem(this.KEY_XSRF_TOKEN_);
+  window.localStorage.removeItem(this.KEY_XSRF_TOKEN_);
+  if (xsrf_token == undefined || state != xsrf_token) {
+    // Invalid XSRF token, or unexpected OAuth2 redirect. Abort.
+    onDone(null);
+  }
   var parameters = {
     'client_id': this.CLIENT_ID_,
     'client_secret': this.CLIENT_SECRET_,
@@ -492,11 +517,17 @@ remoting.OAuth2.prototype.getEmail = function(onOk, onError) {
   var onResponse = function(xhr) {
     var email = null;
     if (xhr.status == 200) {
-      // TODO(ajwong): See if we can't find a JSON endpoint.
-      email = xhr.responseText.split('&')[0].split('=')[1];
-      window.localStorage.setItem(that.KEY_EMAIL_, email);
-      onOk(email);
-      return;
+      var result = jsonParseSafe(xhr.responseText);
+      if (result && 'email' in result) {
+        window.localStorage.setItem(that.KEY_EMAIL_, result['email']);
+        onOk(result['email']);
+        return;
+      } else {
+        console.error(
+            'Cannot parse userinfo response: ', xhr.responseText, xhr);
+        onError(remoting.Error.UNEXPECTED);
+        return;
+      }
     }
     console.error('Unable to get email address:', xhr.status, xhr);
     if (xhr.status == 401) {
@@ -509,8 +540,7 @@ remoting.OAuth2.prototype.getEmail = function(onOk, onError) {
   /** @param {string} token The access token. */
   var getEmailFromToken = function(token) {
     var headers = { 'Authorization': 'OAuth ' + token };
-    // TODO(ajwong): Update to new v2 API.
-    remoting.xhr.get('https://www.googleapis.com/userinfo/email',
+    remoting.xhr.get('https://www.googleapis.com/oauth2/v1/userinfo',
                      onResponse, '', headers);
   };
 

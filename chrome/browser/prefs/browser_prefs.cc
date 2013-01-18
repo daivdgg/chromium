@@ -17,7 +17,7 @@
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/extensions/api/commands/command_service.h"
-#include "chrome/browser/extensions/api/tabs/tabs.h"
+#include "chrome/browser/extensions/api/tabs/tabs_api.h"
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/extensions/extension_prefs.h"
 #include "chrome/browser/extensions/extension_web_ui.h"
@@ -54,6 +54,7 @@
 #include "chrome/browser/renderer_host/web_cache_manager.h"
 #include "chrome/browser/search_engines/template_url_prepopulate_data.h"
 #include "chrome/browser/signin/signin_manager_factory.h"
+#include "chrome/browser/sync/sync_prefs.h"
 #include "chrome/browser/task_manager/task_manager.h"
 #include "chrome/browser/translate/translate_prefs.h"
 #include "chrome/browser/ui/alternate_error_tab_observer.h"
@@ -151,6 +152,7 @@ void RegisterLocalState(PrefServiceSimple* local_state) {
   browser_shutdown::RegisterPrefs(local_state);
   chrome::RegisterScreenshotPrefs(local_state);
   ExternalProtocolHandler::RegisterPrefs(local_state);
+  FlagsUI::RegisterPrefs(local_state);
   geolocation::RegisterPrefs(local_state);
   IntranetRedirectDetector::RegisterPrefs(local_state);
   KeywordEditorController::RegisterPrefs(local_state);
@@ -162,6 +164,7 @@ void RegisterLocalState(PrefServiceSimple* local_state) {
   PromoResourceService::RegisterPrefs(local_state);
   SigninManagerFactory::RegisterPrefs(local_state);
   SSLConfigServiceManager::RegisterPrefs(local_state);
+  UpgradeDetector::RegisterPrefs(local_state);
   WebCacheManager::RegisterPrefs(local_state);
 
 #if defined(ENABLE_PLUGINS)
@@ -194,9 +197,7 @@ void RegisterLocalState(PrefServiceSimple* local_state) {
   BackgroundModeManager::RegisterPrefs(local_state);
   chrome_variations::VariationsService::RegisterPrefs(local_state);
   RegisterBrowserPrefs(local_state);
-  FlagsUI::RegisterPrefs(local_state);
   ManagedMode::RegisterPrefs(local_state);
-  UpgradeDetector::RegisterPrefs(local_state);
 #endif
 
 #if defined(OS_CHROMEOS)
@@ -227,6 +228,7 @@ void RegisterUserPrefs(PrefServiceSyncable* user_prefs) {
   BookmarkPromptPrefs::RegisterUserPrefs(user_prefs);
   bookmark_utils::RegisterUserPrefs(user_prefs);
   BrowserInstantController::RegisterUserPrefs(user_prefs);
+  browser_sync::SyncPrefs::RegisterUserPrefs(user_prefs);
   ChromeContentBrowserClient::RegisterUserPrefs(user_prefs);
   ChromeVersionService::RegisterUserPrefs(user_prefs);
   chrome_browser_net::HttpServerPropertiesManager::RegisterUserPrefs(
@@ -270,7 +272,6 @@ void RegisterUserPrefs(PrefServiceSyncable* user_prefs) {
 #endif
 
 #if defined(OS_ANDROID)
-  geolocation::RegisterUserPrefs(user_prefs);
   PromoHandler::RegisterUserPrefs(user_prefs);
 #endif
 
@@ -279,7 +280,7 @@ void RegisterUserPrefs(PrefServiceSyncable* user_prefs) {
 #endif
 
 #if !defined(OS_ANDROID)
-  CaptureVisibleTabFunction::RegisterUserPrefs(user_prefs);
+  TabsCaptureVisibleTabFunction::RegisterUserPrefs(user_prefs);
   ChromeToMobileService::RegisterUserPrefs(user_prefs);
   DevToolsWindow::RegisterUserPrefs(user_prefs);
   extensions::CommandService::RegisterUserPrefs(user_prefs);

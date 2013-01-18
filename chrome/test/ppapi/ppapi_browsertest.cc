@@ -117,6 +117,34 @@ using content::RenderViewHost;
     IN_PROC_BROWSER_TEST_F(PPAPINaClGLibcTest, DISABLED_##test_name) { \
       RunTestViaHTTPIfAudioOutputAvailable(STRIP_PREFIXES(test_name)); \
     }
+#elif defined(ARCH_CPU_ARM_FAMILY)
+// NaCl glibc tests are not included in ARM as there is no glibc support
+// on ARM today.
+#define TEST_PPAPI_NACL_VIA_HTTP(test_name) \
+    IN_PROC_BROWSER_TEST_F(PPAPINaClNewlibTest, test_name) { \
+      RunTestViaHTTP(STRIP_PREFIXES(test_name)); \
+    }
+
+#define TEST_PPAPI_NACL_VIA_HTTP_DISALLOWED_SOCKETS(test_name) \
+    IN_PROC_BROWSER_TEST_F(PPAPINaClTestDisallowedSockets, test_name) { \
+      RunTestViaHTTP(STRIP_PREFIXES(test_name)); \
+    }
+
+#define TEST_PPAPI_NACL_WITH_SSL_SERVER(test_name) \
+    IN_PROC_BROWSER_TEST_F(PPAPINaClNewlibTest, test_name) { \
+      RunTestWithSSLServer(STRIP_PREFIXES(test_name)); \
+    }
+
+#define TEST_PPAPI_NACL_VIA_HTTP_WITH_WS(test_name) \
+    IN_PROC_BROWSER_TEST_F(PPAPINaClNewlibTest, test_name) { \
+      RunTestWithWebSocketServer(STRIP_PREFIXES(test_name)); \
+    }
+
+#define TEST_PPAPI_NACL_VIA_HTTP_WITH_AUDIO_OUTPUT(test_name) \
+    IN_PROC_BROWSER_TEST_F(PPAPINaClNewlibTest, test_name) { \
+      RunTestViaHTTPIfAudioOutputAvailable(STRIP_PREFIXES(test_name)); \
+    }
+
 #else
 
 // NaCl based PPAPI tests
@@ -597,13 +625,6 @@ TEST_PPAPI_OUT_OF_PROCESS_VIA_HTTP(FileIO_WillWriteWillSetLength)
 #define MAYBE_FileIO_ParallelReads FileIO_ParallelReads
 #endif
 
-// PPAPINaclTest.FileIO_TouchQuery is flaky on Windows. http://crbug.com/130349
-#if defined(OS_WIN)
-#define MAYBE_NACL_FileIO_TouchQuery DISABLED_FileIO_TouchQuery
-#else
-#define MAYBE_NACL_FileIO_TouchQuery FileIO_TouchQuery
-#endif
-
 // PPAPINaclTest.FileIO_AbortCalls is often flaky on Windows.
 // http://crbug.com/160034
 #if defined(OS_WIN)
@@ -618,7 +639,7 @@ TEST_PPAPI_NACL_VIA_HTTP(MAYBE_FileIO_ParallelReads)
 // http://crbug.com/167150
 TEST_PPAPI_NACL_VIA_HTTP(DISABLED_FileIO_ParallelWrites)
 TEST_PPAPI_NACL_VIA_HTTP(FileIO_NotAllowMixedReadWrite)
-TEST_PPAPI_NACL_VIA_HTTP(MAYBE_NACL_FileIO_TouchQuery)
+TEST_PPAPI_NACL_VIA_HTTP(FileIO_TouchQuery)
 TEST_PPAPI_NACL_VIA_HTTP(FileIO_ReadWriteSetLength)
 TEST_PPAPI_NACL_VIA_HTTP(FileIO_ReadToArrayWriteSetLength)
 // The following test requires PPB_FileIO_Trusted, not available in NaCl.

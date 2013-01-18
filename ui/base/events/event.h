@@ -195,7 +195,6 @@ class UI_EXPORT Event {
     delete_native_event_ = delete_native_event;
   }
   void set_cancelable(bool cancelable) { cancelable_ = cancelable; }
-  void set_time_stamp(base::TimeDelta time_stamp) { time_stamp_ = time_stamp; }
   void set_dispatch_to_hidden_targets(bool dispatch_to_hidden_targets) {
     dispatch_to_hidden_targets_ = dispatch_to_hidden_targets;
   }
@@ -631,6 +630,11 @@ class UI_EXPORT ScrollEvent : public MouseEvent {
               int flags,
               float x_offset,
               float y_offset);
+
+  // Scale the scroll event's offset value.
+  // This is useful in the multi-monitor setup where it needs to be scaled
+  // to provide a consistent user experience.
+  void Scale(const float factor);
 
   float x_offset() const { return x_offset_; }
   float y_offset() const { return y_offset_; }

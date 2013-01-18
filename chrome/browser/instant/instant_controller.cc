@@ -27,7 +27,7 @@
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/escape.h"
-#include "unicode/normalizer2.h"
+#include "third_party/icu/public/common/unicode/normalizer2.h"
 
 #if defined(TOOLKIT_VIEWS)
 #include "ui/views/widget/widget.h"
@@ -47,6 +47,20 @@ const int kMaxInstantSupportFailures = 10;
 // If an Instant page has not been used in these many milliseconds, it is
 // reloaded so that the page does not become stale.
 const int kStaleLoaderTimeoutMS = 3 * 3600 * 1000;
+
+// For reporting events of interest.
+enum InstantControllerEvent {
+  INSTANT_CONTROLLER_EVENT_URL_ADDED_TO_BLACKLIST = 0,
+  INSTANT_CONTROLLER_EVENT_URL_REMOVED_FROM_BLACKLIST = 1,
+  INSTANT_CONTROLLER_EVENT_URL_BLOCKED_BY_BLACKLIST = 2,
+  INSTANT_CONTROLLER_EVENT_MAX = 3,
+};
+
+void RecordEventHistogram(InstantControllerEvent event) {
+  UMA_HISTOGRAM_ENUMERATION("Instant.InstantControllerEvent",
+                            event,
+                            INSTANT_CONTROLLER_EVENT_MAX);
+}
 
 void AddSessionStorageHistogram(bool extended_enabled,
                                 const content::WebContents* tab1,
@@ -370,10 +384,7 @@ bool InstantController::Update(const AutocompleteMatch& match,
   // suggestion or reset the existing "gray text".
   browser_->SetInstantSuggestion(last_suggestion_);
 
-  // Though we may have handled a URL match above, we return false here, so that
-  // omnibox prerendering can kick in. TODO(sreeram): Remove this (and always
-  // return true) once we are able to commit URLs as well.
-  return last_match_was_search_;
+  return true;
 }
 
 // TODO(tonyg): This method only fires when the omnibox bounds change. It also
@@ -462,8 +473,9 @@ content::WebContents* InstantController::GetPreviewContents() const {
 }
 
 bool InstantController::IsPreviewingSearchResults() const {
-  return model_.mode().is_search_suggestions() && last_match_was_search_ &&
-         IsFullHeight(model_);
+  return model_.mode().is_search_suggestions() && IsFullHeight(model_) &&
+         (last_match_was_search_ ||
+          last_suggestion_.behavior == INSTANT_COMPLETE_NEVER);
 }
 
 bool InstantController::CommitIfPossible(InstantCommitType type) {
@@ -477,7 +489,9 @@ bool InstantController::CommitIfPossible(InstantCommitType type) {
   // If we are on an already committed search results page, send a submit event
   // to the page, but otherwise, nothing else to do.
   if (instant_tab_) {
-    if (last_match_was_search_ && type == INSTANT_COMMIT_PRESSED_ENTER) {
+    if (type == INSTANT_COMMIT_PRESSED_ENTER &&
+        (last_match_was_search_ ||
+         last_suggestion_.behavior == INSTANT_COMPLETE_NEVER)) {
       instant_tab_->Submit(last_omnibox_text_);
       instant_tab_->contents()->Focus();
       return true;
@@ -811,9 +825,13 @@ void InstantController::InstantSupportDetermined(
 
   if (loader_ && loader_->contents() == contents) {
     if (supports_instant) {
-      blacklisted_urls_.erase(loader_->instant_url());
+      if (blacklisted_urls_.erase(loader_->instant_url())) {
+        RecordEventHistogram(
+            INSTANT_CONTROLLER_EVENT_URL_REMOVED_FROM_BLACKLIST);
+      }
     } else {
       ++blacklisted_urls_[loader_->instant_url()];
+      RecordEventHistogram(INSTANT_CONTROLLER_EVENT_URL_ADDED_TO_BLACKLIST);
       HideInternal();
       delete loader_->ReleaseContents();
       MessageLoop::current()->DeleteSoon(FROM_HERE, loader_.release());
@@ -870,6 +888,12 @@ void InstantController::InstantLoaderRenderViewGone() {
 }
 
 void InstantController::InstantLoaderAboutToNavigateMainFrame(const GURL& url) {
+  // If the page does not yet support instant, we allow redirects and other
+  // navigations to go through since the instant URL can redirect - e.g. to
+  // country specific pages.
+  if (!loader_->supports_instant())
+    return;
+
   GURL instant_url(loader_->instant_url());
 
   // If we are navigating to the instant URL, do nothing.
@@ -1166,6 +1190,17 @@ bool InstantController::GetInstantURL(const TemplateURL* template_url,
   if (!template_url)
     return false;
 
+  // If the user has edited the TemplateURL, the instant_url may no longer be
+  // correct since we won't have migrated it.
+  if (!template_url->safe_for_autoreplace())
+    return false;
+
+  // Extended mode won't work properly unless the TemplateURL supports the
+  // param to enable it on the server.
+  if (extended_enabled_ &&
+      template_url->search_terms_replacement_key().empty())
+    return false;
+
   const TemplateURLRef& instant_url_ref = template_url->instant_url_ref();
   if (!instant_url_ref.IsValid())
     return false;
@@ -1201,8 +1236,10 @@ bool InstantController::GetInstantURL(const TemplateURL* template_url,
   std::map<std::string, int>::const_iterator iter =
       blacklisted_urls_.find(*instant_url);
   if (iter != blacklisted_urls_.end() &&
-      iter->second > kMaxInstantSupportFailures)
+      iter->second > kMaxInstantSupportFailures) {
+    RecordEventHistogram(INSTANT_CONTROLLER_EVENT_URL_BLOCKED_BY_BLACKLIST);
     return false;
+  }
 
   return true;
 }

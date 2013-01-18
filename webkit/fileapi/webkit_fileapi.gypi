@@ -6,6 +6,8 @@
   'variables': {
     'webkit_fileapi_sources': [
       '../fileapi/file_observers.h',
+      '../fileapi/file_permission_policy.cc',
+      '../fileapi/file_permission_policy.h',
       '../fileapi/file_stream_writer.h',
       '../fileapi/file_system_callback_dispatcher.cc',
       '../fileapi/file_system_callback_dispatcher.h',
@@ -104,6 +106,8 @@
       '../fileapi/task_runner_bound_observer_list.h',
       '../fileapi/test_mount_point_provider.cc',
       '../fileapi/test_mount_point_provider.h',
+      '../fileapi/upload_file_system_file_element_reader.cc',
+      '../fileapi/upload_file_system_file_element_reader.h',
       '../fileapi/webfilewriter_base.cc',
       '../fileapi/webfilewriter_base.h',
     ],

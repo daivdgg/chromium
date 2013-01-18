@@ -8,8 +8,19 @@
     # duplicated from chrome.gyp
     'chromium_code': 1,
 
-    'remoting_host_linux_clipboard%': 1,
-    'remoting_multi_process%': 0,
+    'variables': {
+      'conditions': [
+        # Enable the multi-process host on Windows by default.
+        ['OS=="win"', {
+          'remoting_multi_process%': 1,
+        }, {
+          'remoting_multi_process%': 0,
+        }],
+      ],
+    },
+
+    'remoting_multi_process%': '<(remoting_multi_process)',
+    'remoting_use_apps_v2%': 0,
 
     # The |major|, |build| and |patch| versions are inherited from Chrome.
     # Since Chrome's |minor| version is always '0', we replace it with a
@@ -168,6 +179,7 @@
       'webapp/host_list.js',
       'webapp/host_screen.js',
       'webapp/host_session.js',
+      'webapp/host_settings.js',
       'webapp/host_setup_dialog.js',
       'webapp/host_table_entry.js',
       'webapp/l10n.js',
@@ -225,11 +237,6 @@
       '..',  # Root of Chrome checkout
     ],
     'conditions': [
-      ['remoting_host_linux_clipboard != 0', {
-        'defines': [
-          'REMOTING_HOST_LINUX_CLIPBOARD',
-        ],
-      }],
       ['remoting_multi_process != 0', {
         'defines': [
           'REMOTING_MULTI_PROCESS',
@@ -341,6 +348,8 @@
             'host/audio_scheduler.h',
             'host/audio_silence_detector.cc',
             'host/audio_silence_detector.h',
+            'host/basic_desktop_environment.cc',
+            'host/basic_desktop_environment.h',
             'host/capture_scheduler.cc',
             'host/capture_scheduler.h',
             'host/chromoting_host.cc',
@@ -361,10 +370,7 @@
             'host/continue_window_gtk.cc',
             'host/continue_window_mac.mm',
             'host/continue_window_win.cc',
-            'host/desktop_environment.cc',
             'host/desktop_environment.h',
-            'host/desktop_environment_factory.cc',
-            'host/desktop_environment_factory.h',
             'host/desktop_resizer.h',
             'host/desktop_resizer_linux.cc',
             'host/desktop_resizer_win.cc',
@@ -405,8 +411,6 @@
             'host/ipc_audio_capturer.h',
             'host/ipc_constants.cc',
             'host/ipc_constants.h',
-            'host/ipc_desktop_environment_factory.cc',
-            'host/ipc_desktop_environment_factory.h',
             'host/ipc_desktop_environment.cc',
             'host/ipc_desktop_environment.h',
             'host/ipc_event_executor.cc',
@@ -477,8 +481,8 @@
             'host/win/omaha.h',
             'host/win/security_descriptor.cc',
             'host/win/security_descriptor.h',
-            'host/win/session_desktop_environment_factory.cc',
-            'host/win/session_desktop_environment_factory.h',
+            'host/win/session_desktop_environment.cc',
+            'host/win/session_desktop_environment.h',
             'host/win/session_event_executor.cc',
             'host/win/session_event_executor.h',
             'host/win/window_station_and_desktop.cc',
@@ -1694,8 +1698,10 @@
         'webapp/build-webapp.py',
         '<(remoting_version_path)',
         '<(chrome_version_path)',
+        '<@(remoting_webapp_patch_files)',
         '<@(remoting_webapp_files)',
         '<@(remoting_webapp_js_files)',
+        '<@(remoting_webapp_apps_v2_js_files)',
         '<@(remoting_webapp_locale_files)',
       ],
 
@@ -1711,6 +1717,22 @@
           'dependencies!': [
             'remoting_host_plugin',
           ],
+        }],
+        ['remoting_use_apps_v2==1', {
+          'variables': {
+            'remoting_webapp_patch_files': [
+              'webapp/appsv2.patch',
+            ],
+            'remoting_webapp_apps_v2_js_files': [
+              'webapp/background.js',
+              'webapp/identity.js',
+            ],
+          },
+        }, {
+          'variables': {
+            'remoting_webapp_patch_files': [],
+            'remoting_webapp_apps_v2_js_files': [],
+          },
         }],
       ],
 
@@ -1729,8 +1751,10 @@
             'webapp/build-webapp.py',
             '<(remoting_version_path)',
             '<(chrome_version_path)',
+            '<@(remoting_webapp_patch_files)',
             '<@(remoting_webapp_files)',
             '<@(remoting_webapp_js_files)',
+            '<@(remoting_webapp_apps_v2_js_files)',
             '<@(remoting_webapp_locale_files)',
           ],
           'conditions': [
@@ -1754,8 +1778,11 @@
             '<(plugin_path)',
             '<@(remoting_webapp_files)',
             '<@(remoting_webapp_js_files)',
+            '<@(remoting_webapp_apps_v2_js_files)',
             '--locales',
             '<@(remoting_webapp_locale_files)',
+            '--patches',
+            '<@(remoting_webapp_patch_files)',
           ],
           'msvs_cygwin_shell': 1,
         },
@@ -1767,7 +1794,7 @@
       'type': 'none',
       'variables': {
         'grit_out_dir': '<(SHARED_INTERMEDIATE_DIR)',
-        'grit_resource_ids': 'resource_ids',
+        'grit_resource_ids': 'resources/resource_ids',
         'sources': [
           'base/resources_unittest.cc',
           'host/plugin/host_script_object.cc',
@@ -2184,6 +2211,7 @@
         '../base/base.gyp:base',
         '../base/base.gyp:base_i18n',
         '../base/base.gyp:test_support_base',
+        '../ipc/ipc.gyp:ipc',
         '../media/media.gyp:media',
         '../net/net.gyp:net_test_support',
         '../ppapi/ppapi.gyp:ppapi_cpp',

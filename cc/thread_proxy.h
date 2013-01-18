@@ -42,7 +42,6 @@ public:
     virtual bool recreateOutputSurface() OVERRIDE;
     virtual void renderingStats(RenderingStats*) OVERRIDE;
     virtual const RendererCapabilities& rendererCapabilities() const OVERRIDE;
-    virtual void loseOutputSurface() OVERRIDE;
     virtual void setNeedsAnimate() OVERRIDE;
     virtual void setNeedsCommit() OVERRIDE;
     virtual void setNeedsRedraw() OVERRIDE;
@@ -55,6 +54,7 @@ public:
     virtual void acquireLayerTextures() OVERRIDE;
     virtual void forceSerializeOnSwapBuffers() OVERRIDE;
     virtual bool commitPendingForTesting() OVERRIDE;
+    virtual skia::RefPtr<SkPicture> capturePicture() OVERRIDE;
 
     // LayerTreeHostImplClient implementation
     virtual void didLoseOutputSurfaceOnImplThread() OVERRIDE;
@@ -74,12 +74,15 @@ public:
     virtual ScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapIfPossible() OVERRIDE;
     virtual ScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapForced() OVERRIDE;
     virtual void scheduledActionCommit() OVERRIDE;
+    virtual void scheduledActionActivatePendingTreeIfNeeded() OVERRIDE;
     virtual void scheduledActionBeginContextRecreation() OVERRIDE;
     virtual void scheduledActionAcquireLayerTexturesForMainThread() OVERRIDE;
     virtual void didAnticipatedDrawTimeChange(base::TimeTicks) OVERRIDE;
 
     // ResourceUpdateControllerClient implementation
     virtual void readyToFinalizeTextureUpdates() OVERRIDE;
+
+    int maxFramesPendingForTesting() const { return m_schedulerOnImplThread->maxFramesPending(); }
 
 private:
     ThreadProxy(LayerTreeHost*, scoped_ptr<Thread> implThread);
@@ -134,6 +137,7 @@ private:
     void forceSerializeOnSwapBuffersOnImplThread(CompletionEvent*);
     void setNeedsForcedCommitOnImplThread();
     void commitPendingOnImplThreadForTesting(CommitPendingRequest* request);
+    void capturePictureOnImplThread(CompletionEvent*, skia::RefPtr<SkPicture>*);
 
     // Accessed on main thread only.
     bool m_animateRequested; // Set only when setNeedsAnimate is called.
@@ -173,6 +177,9 @@ private:
 
     // Set when the main thread is waiting on a commit to complete.
     CompletionEvent* m_commitCompletionEventOnImplThread;
+
+    // Set when the main thread is waiting on a pending tree activation.
+    CompletionEvent* m_completionEventForCommitHeldOnTreeActivation;
 
     // Set when the main thread is waiting on layers to be drawn.
     CompletionEvent* m_textureAcquisitionCompletionEventOnImplThread;

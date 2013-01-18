@@ -67,7 +67,6 @@
         # * code below browser/extensions
         'browser/about_flags.cc',
         'browser/about_flags.h',
-        'browser/about_flags_android.cc',
         'browser/accessibility/accessibility_extension_api_constants.cc',
         'browser/accessibility/accessibility_extension_api_constants.h',
         'browser/accessibility/accessibility_events.cc',
@@ -110,16 +109,13 @@
         'browser/api/infobars/infobar_delegate.cc',
         'browser/api/infobars/infobar_delegate.h',
         'browser/api/infobars/infobar_service.h',
-        'browser/api/infobars/link_infobar_delegate.cc',
-        'browser/api/infobars/link_infobar_delegate.h',
-        'browser/api/infobars/one_click_signin_infobar_delegate.cc',
-        'browser/api/infobars/one_click_signin_infobar_delegate.h',
         'browser/api/infobars/simple_alert_infobar_delegate.cc',
         'browser/api/infobars/simple_alert_infobar_delegate.h',
         'browser/api/sync/profile_sync_service_base.h',
         'browser/api/sync/profile_sync_service_observer.h',
         'browser/api/webdata/autofill_web_data.h',
         'browser/api/webdata/autofill_web_data_service.h',
+        'browser/api/webdata/web_data_results.cc',
         'browser/api/webdata/web_data_results.h',
         'browser/api/webdata/web_data_service_base.h',
         'browser/api/webdata/web_data_service_consumer.h',
@@ -250,6 +246,8 @@
         'browser/autofill/wallet/cart.h',
         'browser/autofill/wallet/full_wallet.cc',
         'browser/autofill/wallet/full_wallet.h',
+        'browser/autofill/wallet/required_action.cc',
+        'browser/autofill/wallet/required_action.h',
         'browser/autofill/wallet/wallet_address.cc',
         'browser/autofill/wallet/wallet_address.h',
         'browser/autofill/wallet/wallet_client.cc',
@@ -432,8 +430,6 @@
         'browser/chrome_browser_main_x11.h',
         'browser/chrome_content_browser_client.cc',
         'browser/chrome_content_browser_client.h',
-        'browser/chrome_metrics_helper.cc',
-        'browser/chrome_metrics_helper.h',
         'browser/chrome_page_zoom.cc',
         'browser/chrome_page_zoom.h',
         'browser/chrome_page_zoom_constants.cc',
@@ -632,8 +628,6 @@
         'browser/geolocation/geolocation_confirm_infobar_delegate.h',
         'browser/geolocation/geolocation_confirm_infobar_delegate_android.cc',
         'browser/geolocation/geolocation_confirm_infobar_delegate_android.h',
-        'browser/geolocation/geolocation_confirm_infobar_delegate_factory.cc',
-        'browser/geolocation/geolocation_confirm_infobar_delegate_factory.h',
         'browser/geolocation/geolocation_infobar_queue_controller.cc',
         'browser/geolocation/geolocation_infobar_queue_controller.h',
         'browser/geolocation/geolocation_permission_request_id.cc',
@@ -642,8 +636,6 @@
         'browser/geolocation/geolocation_prefs.h',
         'browser/geolocation/geolocation_settings_state.cc',
         'browser/geolocation/geolocation_settings_state.h',
-        'browser/geolocation/wifi_data_provider_chromeos.cc',
-        'browser/geolocation/wifi_data_provider_chromeos.h',
         'browser/global_keyboard_shortcuts_mac.h',
         'browser/global_keyboard_shortcuts_mac.mm',
         'browser/google/google_search_counter.cc',
@@ -675,6 +667,10 @@
         'browser/google_apis/drive_api_operations.h',
         'browser/google_apis/drive_api_parser.cc',
         'browser/google_apis/drive_api_parser.h',
+        'browser/google_apis/drive_api_service.cc',
+        'browser/google_apis/drive_api_service.h',
+        'browser/google_apis/drive_api_url_generator.cc',
+        'browser/google_apis/drive_api_url_generator.h',
         'browser/google_apis/drive_api_util.cc',
         'browser/google_apis/drive_api_util.h',
         'browser/google_apis/drive_entry_kinds.h',
@@ -913,6 +909,8 @@
         'browser/importer/toolbar_importer.h',
         'browser/importer/toolbar_importer_utils.cc',
         'browser/importer/toolbar_importer_utils.h',
+        'browser/infobars/alternate_nav_infobar_delegate.cc',
+        'browser/infobars/alternate_nav_infobar_delegate.h',
         'browser/infobars/infobar.cc',
         'browser/infobars/infobar.h',
         'browser/infobars/infobar_container.cc',
@@ -940,15 +938,12 @@
         'browser/intents/cws_intents_registry.cc',
         'browser/intents/cws_intents_registry.h',
         'browser/intents/cws_intents_registry_factory.cc',
-        'browser/intents/device_attached_intent_source.cc',
-        'browser/intents/device_attached_intent_source.h',
         'browser/intents/cws_intents_registry_factory.h',
         'browser/intents/default_web_intent_service.cc',
         'browser/intents/default_web_intent_service.h',
         'browser/intents/intent_service_host.h',
         'browser/intents/native_services.cc',
         'browser/intents/native_services.h',
-        'browser/intents/register_intent_handler_helper.cc',
         'browser/intents/register_intent_handler_infobar_delegate.cc',
         'browser/intents/register_intent_handler_infobar_delegate.h',
         'browser/intents/web_intents_registry.cc',
@@ -976,6 +971,8 @@
         'browser/language_usage_metrics.h',
         'browser/lifetime/application_lifetime.cc',
         'browser/lifetime/application_lifetime.h',
+        'browser/lifetime/application_lifetime_android.cc',
+        'browser/lifetime/application_lifetime_android.h',
         'browser/lifetime/application_lifetime_aura.cc',
         'browser/lifetime/application_lifetime_gtk.cc',
         'browser/lifetime/application_lifetime_mac.mm',
@@ -1076,6 +1073,8 @@
         'browser/metrics/tracking_synchronizer_observer.h',
         'browser/metrics/variations/resource_request_allowed_notifier.cc',
         'browser/metrics/variations/resource_request_allowed_notifier.h',
+        'browser/metrics/variations/variations_http_header_provider.cc',
+        'browser/metrics/variations/variations_http_header_provider.h',
         'browser/metrics/variations/variations_service.cc',
         'browser/metrics/variations/variations_service.h',
         'browser/native_window_notification_source.h',
@@ -1487,13 +1486,13 @@
         'browser/prefs/pref_service.h',
         'browser/prefs/pref_service_builder.cc',
         'browser/prefs/pref_service_builder.h',
-        'browser/prefs/pref_service_observer.h',
         'browser/prefs/pref_service_simple.cc',
         'browser/prefs/pref_service_simple.h',
         'browser/prefs/pref_service_syncable.cc',
         'browser/prefs/pref_service_syncable.h',
         'browser/prefs/pref_service_syncable_builder.cc',
         'browser/prefs/pref_service_syncable_builder.h',
+        'browser/prefs/pref_service_syncable_observer.h',
         'browser/prefs/pref_value_store.cc',
         'browser/prefs/pref_value_store.h',
         'browser/prefs/proxy_config_dictionary.cc',
@@ -2047,6 +2046,10 @@
         'browser/sync_file_system/sync_file_system_service.h',
         'browser/system_monitor/disk_info_mac.h',
         'browser/system_monitor/disk_info_mac.mm',
+        'browser/system_monitor/image_capture_device.h',
+        'browser/system_monitor/image_capture_device.mm',
+        'browser/system_monitor/image_capture_device_manager.h',
+        'browser/system_monitor/image_capture_device_manager.mm',
         'browser/system_monitor/media_device_notifications_utils.cc',
         'browser/system_monitor/media_device_notifications_utils.h',
         'browser/system_monitor/media_storage_util.cc',
@@ -2065,6 +2068,9 @@
         'browser/system_monitor/removable_device_notifications_mac.mm',
         'browser/system_monitor/removable_device_notifications_window_win.cc',
         'browser/system_monitor/removable_device_notifications_window_win.h',
+        'browser/system_monitor/removable_storage_notifications.cc',
+        'browser/system_monitor/removable_storage_notifications.h',
+        'browser/system_monitor/removable_storage_observer.h',
         'browser/system_monitor/udev_util_linux.cc',
         'browser/system_monitor/udev_util_linux.h',
         'browser/system_monitor/volume_mount_watcher_win.cc',
@@ -2166,12 +2172,11 @@
         'browser/value_store/value_store.h',
         'browser/view_type_utils.cc',
         'browser/view_type_utils.h',
+        'browser/visitedlink/visitedlink_delegate.h',
         'browser/visitedlink/visitedlink_event_listener.cc',
         'browser/visitedlink/visitedlink_event_listener.h',
         'browser/visitedlink/visitedlink_master.cc',
         'browser/visitedlink/visitedlink_master.h',
-        'browser/visitedlink/visitedlink_master_factory.cc',
-        'browser/visitedlink/visitedlink_master_factory.h',
         'browser/web_applications/web_app.cc',
         'browser/web_applications/web_app.h',
         'browser/web_applications/web_app_android.cc',
@@ -2210,6 +2215,8 @@
         'browser/webdata/token_service_table.h',
         'browser/webdata/web_apps_table.cc',
         'browser/webdata/web_apps_table.h',
+        'browser/webdata/web_data_request_manager.cc',
+        'browser/webdata/web_data_request_manager.h',
         'browser/webdata/web_data_service.cc',
         'browser/webdata/web_data_service.h',
         'browser/webdata/web_data_service_factory.cc',
@@ -2235,6 +2242,7 @@
         '<(grit_out_dir)/grit/devtools_discovery_page_resources_map.cc',
         '<(grit_out_dir)/grit/shared_resources_map.cc',
         '<(grit_out_dir)/grit/theme_resources_map.cc',
+        '<(SHARED_INTERMEDIATE_DIR)/ui/ui_resources/grit/ui_resources_map.cc',
 
         # This file is generated by the autofill_regexes action.
         '<(SHARED_INTERMEDIATE_DIR)/autofill_regex_constants.cc',
@@ -2300,12 +2308,6 @@
             # CoreImage is iOS 5+, but iOS 4.3 is still supported.
             'xcode_settings': {'OTHER_LDFLAGS': ['-weak_framework CoreImage']},
           },
-        }],
-        ['enable_one_click_signin==0', {
-          'sources!': [
-            'browser/api/infobars/one_click_signin_infobar_delegate.cc',
-            'browser/api/infobars/one_click_signin_infobar_delegate.h',
-          ],
         }],
         ['enable_extensions==1', {
           'sources': [
@@ -2386,6 +2388,8 @@
             ['include', 'browser/policy/policy_service.h'],
             ['include', 'browser/policy/policy_service_stub.cc'],
             ['include', 'browser/policy/policy_service_stub.h'],
+            ['include', 'browser/policy/url_blacklist_manager.cc'],
+            ['include', 'browser/policy/url_blacklist_manager.h'],
           ],
         }],
         ['enable_plugins==1', {
@@ -2744,7 +2748,7 @@
         }],
         ['OS=="android"', {
           'dependencies': [
-            '../content/content.gyp:web_contents_delegate_android',
+            '../components/components.gyp:web_contents_delegate_android',
             'chrome_browser_jni_headers',
           ],
           'dependencies!': [
@@ -2763,17 +2767,11 @@
             'browser/bookmarks/bookmark_html_writer.cc',
             'browser/ssl/ssl_add_certificate.cc',
 
-            # about:flags is unsupported.
-            'browser/about_flags.cc',
-            'browser/about_flags.h',
-
             'browser/jankometer.cc',
             'browser/sync/sync_global_error.cc',
             'browser/sync/sync_global_error.h',
 
-            # There's no Browser/BrowserList on Android.
             'browser/download/download_crx_util.cc',
-            'browser/lifetime/application_lifetime_stub.cc',
             'browser/net/gaia/gaia_oauth_fetcher.cc',
             'browser/omnibox_search_hint.cc',
             'browser/page_cycler/page_cycler.cc',
@@ -2794,8 +2792,6 @@
             'browser/tab_contents/spelling_bubble_model.h',
             'browser/tab_contents/spelling_menu_observer.cc',
             'browser/tab_contents/spelling_menu_observer.h',
-            'browser/upgrade_detector.cc',
-            'browser/upgrade_detector.h',
             'browser/upgrade_detector_impl.cc',
             'browser/upgrade_detector_impl.h',
 
@@ -2810,7 +2806,6 @@
             ['exclude', '^browser/first_run/'],
             ['include', '^browser/first_run/first_run.cc'], # For ctor/dtor of a struct.
             ['exclude', '^browser/importer/'],
-            ['exclude', '^browser/lifetime/'],
             ['exclude', '^browser/managed_mode/'],
             ['exclude', '^browser/service/'],
             ['exclude', '^browser/speech/'],
@@ -2839,6 +2834,7 @@
               '$(SDKROOT)/System/Library/Frameworks/AudioUnit.framework',
               '$(SDKROOT)/System/Library/Frameworks/DiskArbitration.framework',
               '$(SDKROOT)/System/Library/Frameworks/IOKit.framework',
+              '$(SDKROOT)/System/Library/Frameworks/ImageCaptureCore.framework',
               '$(SDKROOT)/System/Library/Frameworks/OpenGL.framework',
               '$(SDKROOT)/System/Library/Frameworks/QuartzCore.framework',
               '$(SDKROOT)/System/Library/Frameworks/SecurityInterface.framework',
@@ -2849,14 +2845,11 @@
           ],
           'sources': [
             # Build the necessary GTM sources
-            '../third_party/GTM/Foundation/GTMNSObject+KeyValueObserving.h',
-            '../third_party/GTM/Foundation/GTMNSObject+KeyValueObserving.m',
             '../third_party/GTM/Foundation/GTMServiceManagement.h',
             '../third_party/GTM/Foundation/GTMServiceManagement.c',
           ],
           'include_dirs': [
             '../third_party/GTM',
-            '../third_party/GTM/DebugUtils',
             '../third_party/GTM/Foundation',
           ],
         }],
@@ -2883,6 +2876,15 @@
             '../ui/views/views.gyp:views',
             '../win8/win8.gyp:win8_util',
           ],
+          'direct_dependent_settings': {
+            'msvs_settings': {
+              'VCLinkerTool': {
+                'DelayLoadDLLs': [
+                  'propsys.dll',
+                ],
+              },
+            },
+          },
           'export_dependent_settings': [
             '../ui/views/controls/webview/webview.gyp:webview',
             '../ui/views/views.gyp:views',
@@ -2976,6 +2978,16 @@
           'dependencies': [
             '../ui/app_list/app_list.gyp:app_list',
           ]
+        }],
+        ['enable_message_center==1', {
+          'dependencies': [
+            '../ui/message_center/message_center.gyp:message_center',
+          ],
+        }, {  # enable_message_center==0
+          'sources!': [
+            'browser/notifications/message_center_notification_manager.cc',
+            'browser/notifications/message_center_notification_manager.h',
+          ],
         }],
       ],
       'target_conditions': [
@@ -3097,6 +3109,7 @@
           'target_name': 'chrome_browser_jni_headers',
           'type': 'none',
           'sources': [
+            'android/java/src/org/chromium/chrome/browser/ApplicationLifetime.java',
             'android/java/src/org/chromium/chrome/browser/autofill/AutofillPopupGlue.java',
             'android/java/src/org/chromium/chrome/browser/ChromeBrowserProvider.java',
             'android/java/src/org/chromium/chrome/browser/ChromeHttpAuthHandler.java',

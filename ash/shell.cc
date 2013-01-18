@@ -15,6 +15,7 @@
 #include "ash/desktop_background/user_wallpaper_delegate.h"
 #include "ash/display/display_controller.h"
 #include "ash/display/display_manager.h"
+#include "ash/display/event_transformation_handler.h"
 #include "ash/display/mouse_cursor_event_filter.h"
 #include "ash/display/screen_position_controller.h"
 #include "ash/drag_drop/drag_drop_controller.h"
@@ -76,7 +77,6 @@
 #include "ui/aura/focus_manager.h"
 #include "ui/aura/layout_manager.h"
 #include "ui/aura/root_window.h"
-#include "ui/aura/ui_controls_aura.h"
 #include "ui/aura/window.h"
 #include "ui/base/ui_base_switches.h"
 #include "ui/compositor/layer.h"
@@ -85,7 +85,6 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/screen.h"
 #include "ui/gfx/size.h"
-#include "ui/ui_controls/ui_controls.h"
 #include "ui/views/corewm/compound_event_filter.h"
 #include "ui/views/corewm/corewm_switches.h"
 #include "ui/views/corewm/focus_controller.h"
@@ -208,7 +207,6 @@ Shell::Shell(ShellDelegate* delegate)
   gfx::Screen::SetScreenInstance(gfx::SCREEN_TYPE_ALTERNATE, screen_);
   if (!gfx::Screen::GetScreenByType(gfx::SCREEN_TYPE_NATIVE))
     gfx::Screen::SetScreenInstance(gfx::SCREEN_TYPE_NATIVE, screen_);
-  ui_controls::InstallUIControlsAura(internal::CreateUIControls());
 #if defined(OS_CHROMEOS)
   content::GpuFeatureType blacklisted_features =
       content::GpuDataManager::GetInstance()->GetBlacklistedFeatures();
@@ -232,7 +230,7 @@ Shell::~Shell() {
   // effects (e.g. crashes) from changing focus during shutdown.
   // See bug crbug.com/134502.
   if (active_root_window_)
-    aura::client::GetFocusClient(active_root_window_)->FocusWindow(NULL, NULL);
+    aura::client::GetFocusClient(active_root_window_)->FocusWindow(NULL);
 
   // Please keep in same order as in Init() because it's easy to miss one.
   RemovePreTargetHandler(user_activity_detector_.get());
@@ -469,6 +467,9 @@ void Shell::Init() {
   AddPreTargetHandler(accelerator_filter_.get());
 #endif
 
+  event_transformation_handler_.reset(new internal::EventTransformationHandler);
+  AddPreTargetHandler(event_transformation_handler_.get());
+
   system_gesture_filter_.reset(new internal::SystemGestureEventFilter);
   AddPreTargetHandler(system_gesture_filter_.get());
 
@@ -647,7 +648,7 @@ views::NonClientFrameView* Shell::CreateDefaultNonClientFrameView(
     views::Widget* widget) {
   if (CommandLine::ForCurrentProcess()->HasSwitch(
           ::switches::kEnableNewDialogStyle)) {
-    return new views::DialogFrameView;
+    return new views::DialogFrameView(string16());
   }
   // Use translucent-style window frames for dialogs.
   CustomFrameViewAsh* frame_view = new CustomFrameViewAsh;

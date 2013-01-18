@@ -16,6 +16,7 @@
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebGraphicsContext3D.h"
 #include "ui/gfx/size.h"
+#include "ui/gfx/vector2d_f.h"
 
 struct ViewHostMsg_TextInputState_Params;
 
@@ -134,7 +135,9 @@ class RenderWidgetHostViewAndroid : public RenderWidgetHostViewBase {
                                float page_scale_factor,
                                float min_page_scale_factor,
                                float max_page_scale_factor,
-                               const gfx::Size& content_size) OVERRIDE;
+                               const gfx::Size& content_size,
+                               const gfx::Vector2dF& controls_offset,
+                               const gfx::Vector2dF& content_offset) OVERRIDE;
   virtual void ShowDisambiguationPopup(const gfx::Rect& target_rect,
                                        const SkBitmap& zoomed_bitmap) OVERRIDE;
 
@@ -156,6 +159,8 @@ class RenderWidgetHostViewAndroid : public RenderWidgetHostViewBase {
 
   // Select all text between the given coordinates.
   void SelectRange(const gfx::Point& start, const gfx::Point& end);
+
+  void MoveCaret(const gfx::Point& point);
 
  private:
   // The model object.

@@ -45,34 +45,18 @@ import subprocess
 import sys
 import time
 
-import emulator
 from pylib import android_commands
-from pylib import buildbot_report
 from pylib import cmd_helper
-from pylib import debug_info
 from pylib import ports
-from pylib import run_tests_helper
-from pylib import test_options_parser
-from pylib.base_test_sharder import BaseTestSharder
-from pylib.single_test_runner import SingleTestRunner
+from pylib.base.base_test_sharder import BaseTestSharder
+from pylib.gtest import debug_info
+from pylib.gtest import gtest_config
+from pylib.gtest.single_test_runner import SingleTestRunner
+from pylib.utils import emulator
+from pylib.utils import run_tests_helper
+from pylib.utils import test_options_parser
 from pylib.utils import time_profile
 from pylib.utils import xvfb
-
-
-_TEST_SUITES = ['base_unittests',
-                'cc_unittests',
-                'content_unittests',
-                'gpu_unittests',
-                'ipc_tests',
-                'media_unittests',
-                'net_unittests',
-                'sql_unittests',
-                'sync_unit_tests',
-                'ui_unittests',
-                'unit_tests',
-                'webkit_compositor_bindings_unittests',
-                'android_webview_unittests',
-               ]
 
 
 def FullyQualifiedTestSuites(exe, option_test_suite, build_type):
@@ -87,7 +71,7 @@ def FullyQualifiedTestSuites(exe, option_test_suite, build_type):
   if option_test_suite:
     all_test_suites = [option_test_suite]
   else:
-    all_test_suites = _TEST_SUITES
+    all_test_suites = gtest_config.STABLE_TEST_SUITES
 
   if exe:
     qualified_test_suites = [os.path.join(test_suite_dir, t)
@@ -103,7 +87,7 @@ def FullyQualifiedTestSuites(exe, option_test_suite, build_type):
       raise Exception('Test suite %s not found in %s.\n'
                       'Supported test suites:\n %s\n'
                       'Ensure it has been built.\n' %
-                      (t, q, _TEST_SUITES))
+                      (t, q, gtest_config.STABLE_TEST_SUITES))
   return qualified_test_suites
 
 
@@ -112,7 +96,7 @@ class TestSharder(BaseTestSharder):
 
   def __init__(self, attached_devices, test_suite, gtest_filter,
                test_arguments, timeout, cleanup_test_files, tool,
-               log_dump_name, fast_and_loose, build_type, in_webkit_checkout,
+               log_dump_name, build_type, in_webkit_checkout,
                flakiness_server=None):
     BaseTestSharder.__init__(self, attached_devices, build_type)
     self.test_suite = test_suite
@@ -122,7 +106,6 @@ class TestSharder(BaseTestSharder):
     self.cleanup_test_files = cleanup_test_files
     self.tool = tool
     self.log_dump_name = log_dump_name
-    self.fast_and_loose = fast_and_loose
     self.in_webkit_checkout = in_webkit_checkout
     self.flakiness_server = flakiness_server
     self.all_tests = []
@@ -169,7 +152,6 @@ class TestSharder(BaseTestSharder):
         self.tool,
         0,
         not not self.log_dump_name,
-        self.fast_and_loose,
         self.build_type,
         self.in_webkit_checkout)
     # The executable/apk needs to be copied before we can call GetAllTests.
@@ -205,7 +187,6 @@ class TestSharder(BaseTestSharder):
         self.timeout,
         self.cleanup_test_files, self.tool, index,
         not not self.log_dump_name,
-        self.fast_and_loose,
         self.build_type,
         self.in_webkit_checkout)
 
@@ -242,25 +223,13 @@ def _RunATestSuite(options):
     0 if successful, number of failing tests otherwise.
   """
   step_name = os.path.basename(options.test_suite).replace('-debug.apk', '')
-  buildbot_report.PrintNamedStep(step_name)
   attached_devices = []
   buildbot_emulators = []
 
   if options.use_emulator:
-    for n in range(options.emulator_count):
-      t = time_profile.TimeProfile('Emulator launch %d' % n)
-      avd_name = None
-      if n > 0:
-        # Creates a temporary AVD for the extra emulators.
-        avd_name = 'run_tests_avd_%d' % n
-      buildbot_emulator = emulator.Emulator(avd_name, options.fast_and_loose)
-      buildbot_emulator.Launch(kill_all_emulators=n == 0)
-      t.Stop()
-      buildbot_emulators.append(buildbot_emulator)
-      attached_devices.append(buildbot_emulator.device)
-    # Wait for all emulators to boot completed.
-    map(lambda buildbot_emulator: buildbot_emulator.ConfirmLaunch(True),
-        buildbot_emulators)
+    buildbot_emulators = emulator.LaunchEmulators(options.emulator_count,
+                                                  wait_for_boot=True)
+    attached_devices = [e.device for e in buildbot_emulators]
   elif options.test_device:
     attached_devices = [options.test_device]
   else:
@@ -268,7 +237,6 @@ def _RunATestSuite(options):
 
   if not attached_devices:
     logging.critical('A device must be attached and online.')
-    buildbot_report.PrintError()
     return 1
 
   # Reset the test port allocation. It's important to do it before starting
@@ -289,7 +257,6 @@ def _RunATestSuite(options):
       options.cleanup_test_files,
       options.tool,
       options.log_dump,
-      options.fast_and_loose,
       options.build_type,
       options.webkit,
       options.flakiness_dashboard_server)
@@ -338,65 +305,17 @@ def Dispatch(options):
 def ListTestSuites():
   """Display a list of available test suites."""
   print 'Available test suites are:'
-  for test_suite in _TEST_SUITES:
+  for test_suite in gtest_config.STABLE_TEST_SUITES:
     print test_suite
 
 
 def main(argv):
   option_parser = optparse.OptionParser()
-  test_options_parser.AddTestRunnerOptions(option_parser, default_timeout=0)
-  option_parser.add_option('-s', '--suite', dest='test_suite',
-                           help='Executable name of the test suite to run '
-                           '(use -s help to list them)')
-  option_parser.add_option('--out-directory', dest='out_directory',
-                           help='Path to the out/ directory, irrespective of '
-                           'the build type. Only for non-Chromium uses.')
-  option_parser.add_option('-d', '--device', dest='test_device',
-                           help='Target device the test suite to run ')
-  option_parser.add_option('-f', '--gtest_filter', dest='gtest_filter',
-                           help='gtest filter')
-  option_parser.add_option('-a', '--test_arguments', dest='test_arguments',
-                           help='Additional arguments to pass to the test')
-  option_parser.add_option('-L', dest='log_dump',
-                           help='file name of log dump, which will be put in '
-                           'subfolder debug_info_dumps under the same '
-                           'directory in where the test_suite exists.')
-  option_parser.add_option('-e', '--emulator', dest='use_emulator',
-                           action='store_true',
-                           help='Run tests in a new instance of emulator')
-  option_parser.add_option('-n', '--emulator_count',
-                           type='int', default=1,
-                           help='Number of emulators to launch for running the '
-                           'tests.')
-  option_parser.add_option('-x', '--xvfb', dest='use_xvfb',
-                           action='store_true',
-                           help='Use Xvfb around tests (ignored if not Linux)')
-  option_parser.add_option('--webkit', action='store_true',
-                           help='Run the tests from a WebKit checkout.')
-  option_parser.add_option('--fast', '--fast_and_loose', dest='fast_and_loose',
-                           action='store_true',
-                           help='Go faster (but be less stable), '
-                           'for quick testing.  Example: when tracking down '
-                           'tests that hang to add to the disabled list, '
-                           'there is no need to redeploy the test binary '
-                           'or data to the device again.  '
-                           'Don\'t use on bots by default!')
-  option_parser.add_option('--repeat', dest='repeat', type='int',
-                           default=2,
-                           help='Repeat count on test timeout')
-  option_parser.add_option('--exit_code', action='store_true',
-                           help='If set, the exit code will be total number '
-                           'of failures.')
-  option_parser.add_option('--exe', action='store_true',
-                           help='If set, use the exe test runner instead of '
-                           'the APK.')
-
+  test_options_parser.AddGTestOptions(option_parser)
   options, args = option_parser.parse_args(argv)
 
   if len(args) > 1:
-    print 'Unknown argument:', args[1:]
-    option_parser.print_usage()
-    sys.exit(1)
+    option_parser.error('Unknown argument: %s' % args[1:])
 
   run_tests_helper.SetLogLevel(options.verbose_count)
 

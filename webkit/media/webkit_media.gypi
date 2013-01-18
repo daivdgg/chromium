@@ -81,6 +81,8 @@
         'simple_video_frame_provider.h',
         'video_frame_provider.cc',
         'video_frame_provider.h',
+        'webaudiosourceprovider_impl.cc',
+        'webaudiosourceprovider_impl.h',
         'webmediaplayer_delegate.h',
         'webmediaplayer_impl.cc',
         'webmediaplayer_impl.h',
@@ -172,6 +174,8 @@
       'dependencies': [
         '<(DEPTH)/base/base.gyp:base',
         '<(DEPTH)/media/media.gyp:media',
+        # Include the following for media::AudioBus.
+        '<(DEPTH)/media/media.gyp:shared_memory_support',
       ],
       'sources': [
         'crypto/ppapi/cdm_video_decoder.cc',

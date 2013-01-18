@@ -20,15 +20,15 @@
 #include "net/base/net_util.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_util.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebHTTPHeaderVisitor.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebHTTPLoadInfo.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebHTTPHeaderVisitor.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebHTTPLoadInfo.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURL.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLError.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLLoadTiming.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLLoaderClient.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLRequest.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLResponse.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSecurityPolicy.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURL.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURLError.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURLLoadTiming.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURLLoaderClient.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURLRequest.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURLResponse.h"
 #include "webkit/base/file_path_string_conversions.h"
 #include "webkit/glue/ftp_directory_listing_response_delegate.h"
 #include "webkit/glue/multipart_response_delegate.h"
@@ -246,10 +246,14 @@ void PopulateURLResponse(
   // TODO(jungshik): Figure out the actual value of the referrer charset and
   // pass it to GetSuggestedFilename.
   std::string value;
-  if (headers->EnumerateHeader(NULL, "content-disposition", &value)) {
-    response->setSuggestedFileName(
-        net::GetSuggestedFilename(url, value, "", "", "", std::string()));
-  }
+  headers->EnumerateHeader(NULL, "content-disposition", &value);
+  response->setSuggestedFileName(
+      net::GetSuggestedFilename(url,
+                                value,
+                                std::string(),  // referrer_charset
+                                std::string(),  // suggested_name
+                                std::string(),  // mime_type
+                                std::string()));  // default_name
 
   Time time_val;
   if (headers->GetLastModifiedValue(&time_val))

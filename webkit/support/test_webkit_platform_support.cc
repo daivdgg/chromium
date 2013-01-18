@@ -14,15 +14,13 @@
 #include "net/cookies/cookie_monster.h"
 #include "net/http/http_cache.h"
 #include "net/test/test_server.h"
-#include "third_party/hyphen/hyphen.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebAudioDevice.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebData.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebFileSystem.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebGamepads.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURL.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebAudioDevice.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebData.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebFileSystem.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebGamepads.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURL.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDatabase.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBFactory.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebKit.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebRuntimeFeatures.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebScriptController.h"
@@ -30,6 +28,7 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebStorageArea.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebStorageEventDispatcher.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebStorageNamespace.h"
+#include "third_party/hyphen/hyphen.h"
 #include "v8/include/v8.h"
 #include "webkit/appcache/web_application_cache_host_impl.h"
 #include "webkit/database/vfs_backend.h"
@@ -57,7 +56,7 @@
 #include "webkit/tools/test_shell/test_shell_webblobregistry_impl.h"
 
 #if defined(OS_WIN)
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/win/WebThemeEngine.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/win/WebThemeEngine.h"
 #include "webkit/tools/test_shell/test_shell_webthemeengine.h"
 #elif defined(OS_MACOSX)
 #include "base/mac/mac_util.h"
@@ -370,17 +369,6 @@ class TestWebIDBFactory : public WebKit::WebIDBFactory {
 
   virtual void open(const WebString& name,
                     long long version,
-                    WebKit::WebIDBCallbacks* callbacks,
-                    WebKit::WebIDBDatabaseCallbacks* databaseCallbacks,
-                    const WebKit::WebSecurityOrigin& origin,
-                    WebKit::WebFrame* frame,
-                    const WebString& dataDir) {
-    factory_->open(name, version, callbacks, databaseCallbacks, origin, frame,
-                   dataDir.isEmpty() ? data_dir_ : dataDir);
-  }
-
-  virtual void open(const WebString& name,
-                    long long version,
                     long long transaction_id,
                     WebKit::WebIDBCallbacks* callbacks,
                     WebKit::WebIDBDatabaseCallbacks* databaseCallbacks,
@@ -455,6 +443,14 @@ size_t TestWebKitPlatformSupport::audioHardwareBufferSize() {
   return 128;
 }
 
+WebKit::WebAudioDevice* TestWebKitPlatformSupport::createAudioDevice(
+    size_t bufferSize, unsigned numberOfInputChannels,
+    unsigned numberOfChannels, double sampleRate,
+    WebKit::WebAudioDevice::RenderCallback*) {
+  return new WebAudioDeviceMock(sampleRate);
+}
+
+// TODO(crogers): remove once WebKit switches to new API.
 WebKit::WebAudioDevice* TestWebKitPlatformSupport::createAudioDevice(
     size_t bufferSize, unsigned numberOfChannels, double sampleRate,
     WebKit::WebAudioDevice::RenderCallback*) {

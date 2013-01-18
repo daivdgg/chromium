@@ -20,12 +20,13 @@
 #include "cc/layer_tree_settings.h"
 #include "cc/occlusion_tracker.h"
 #include "cc/output_surface.h"
-#include "cc/prioritized_resource_manager.h"
 #include "cc/proxy.h"
 #include "cc/rate_limiter.h"
 #include "cc/rendering_stats.h"
 #include "cc/scoped_ptr_vector.h"
+#include "skia/ext/refptr.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "third_party/skia/include/core/SkPicture.h"
 #include "ui/gfx/rect.h"
 
 #if defined(COMPILER_GCC)
@@ -46,6 +47,8 @@ class Layer;
 class LayerTreeHostImpl;
 class LayerTreeHostImplClient;
 class PrioritizedResourceManager;
+class PrioritizedResource;
+class ResourceProvider;
 class ResourceUpdateQueue;
 class HeadsUpDisplayLayer;
 class Region;
@@ -57,7 +60,7 @@ struct CC_EXPORT RendererCapabilities {
     RendererCapabilities();
     ~RendererCapabilities();
 
-    GLenum bestTextureFormat;
+    unsigned bestTextureFormat;
     bool usingPartialSwap;
     bool usingAcceleratedPainting;
     bool usingSetVisibility;
@@ -136,9 +139,6 @@ public:
 
     const RendererCapabilities& rendererCapabilities() const;
 
-    // Test only hook
-    void loseOutputSurface(int numTimes);
-
     void setNeedsAnimate();
     // virtual for testing
     virtual void setNeedsCommit();
@@ -201,6 +201,10 @@ public:
 
     AnimationRegistrar* animationRegistrar() const { return m_animationRegistrar.get(); }
 
+    skia::RefPtr<SkPicture> capturePicture();
+
+    bool blocksPendingCommit() const;
+
 protected:
     LayerTreeHost(LayerTreeHostClient*, const LayerTreeSettings&);
     bool initialize(scoped_ptr<Thread> implThread);
@@ -228,8 +232,6 @@ private:
     bool animateLayersRecursive(Layer* current, base::TimeTicks time);
     void setAnimationEventsRecursive(const AnimationEventsVector&, Layer*, base::Time wallClockTime);
 
-    void setNeedsDisplayOnAllLayersRecursive(Layer* layer);
-
     bool m_animating;
     bool m_needsFullTreeSync;
 
@@ -243,7 +245,6 @@ private:
 
     bool m_rendererInitialized;
     bool m_outputSurfaceLost;
-    int m_numTimesRecreateShouldFail;
     int m_numFailedRecreateAttempts;
 
     scoped_refptr<Layer> m_rootLayer;

@@ -6,14 +6,17 @@
 
 #include "base/file_util.h"
 #include "base/json/json_file_value_serializer.h"
+#include "base/json/json_reader.h"
 #include "base/message_loop.h"
 #include "base/path_service.h"
 #include "base/string_util.h"
+#include "base/stringprintf.h"
 #include "base/threading/sequenced_worker_pool.h"
 #include "chrome/browser/google_apis/gdata_wapi_parser.h"
 #include "chrome/browser/google_apis/test_server/http_server.h"
 #include "chrome/common/chrome_paths.h"
 #include "content/public/browser/browser_thread.h"
+#include "googleurl/src/gurl.h"
 
 namespace google_apis {
 namespace test_util {
@@ -45,6 +48,10 @@ FilePath GetTestFilePath(const std::string& relative_path) {
   path = path.AppendASCII("chromeos")
       .Append(FilePath::FromUTF8Unsafe(relative_path));
   return path;
+}
+
+GURL GetBaseUrlForTesting(int port) {
+  return GURL(base::StringPrintf("http://127.0.0.1:%d/", port));
 }
 
 void RunBlockingPoolTask() {
@@ -84,6 +91,15 @@ void CopyResultsFromGetDataCallback(GDataErrorCode* error_out,
   *error_out = error_in;
 }
 
+void CopyResultsFromGetDataCallbackAndQuit(GDataErrorCode* error_out,
+                                           scoped_ptr<base::Value>* value_out,
+                                           GDataErrorCode error_in,
+                                           scoped_ptr<base::Value> value_in) {
+  *error_out = error_in;
+  *value_out = value_in.Pass();
+  MessageLoop::current()->Quit();
+}
+
 void CopyResultsFromGetResourceEntryCallback(
     GDataErrorCode* error_out,
     scoped_ptr<ResourceEntry>* resource_entry_out,
@@ -111,6 +127,15 @@ void CopyResultsFromGetAccountMetadataCallback(
   *error_out = error_in;
 }
 
+void CopyResultsFromDownloadActionCallback(
+    GDataErrorCode* error_out,
+    FilePath* temp_file_out,
+    GDataErrorCode error_in,
+    const FilePath& temp_file_in) {
+  *error_out = error_in;
+  *temp_file_out = temp_file_in;
+}
+
 // Returns a HttpResponse created from the given file path.
 scoped_ptr<test_server::HttpResponse> CreateHttpResponseFromFile(
     const FilePath& file_path) {
@@ -131,6 +156,36 @@ scoped_ptr<test_server::HttpResponse> CreateHttpResponseFromFile(
   http_response->set_content(content);
   http_response->set_content_type(content_type);
   return http_response.Pass();
+}
+
+void DoNothingForReAuthenticateCallback(
+    AuthenticatedOperationInterface* /* operation */) {
+  NOTREACHED();
+}
+
+bool VerifyJsonData(const FilePath& expected_json_file_path,
+                    const base::Value* json_data) {
+  if (!json_data) {
+    LOG(ERROR) << "json_data is NULL";
+    return false;
+  }
+
+  std::string expected_content;
+  if (!file_util::ReadFileToString(
+          expected_json_file_path, &expected_content)) {
+    LOG(ERROR) << "Failed to read file: " << expected_json_file_path.value();
+    return false;
+  }
+
+  scoped_ptr<base::Value> expected_json_data(
+      base::JSONReader::Read(expected_content));
+  if (!base::Value::Equals(expected_json_data.get(), json_data)) {
+    LOG(ERROR)
+        << "The value of json_data is different from the file's content.";
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace test_util

@@ -1058,13 +1058,14 @@ void HistoryBackend::AddPageNoVisitForBookmark(const GURL& url,
   db_->AddURL(url_info);
 }
 
-void HistoryBackend::IterateURLs(HistoryService::URLEnumerator* iterator) {
+void HistoryBackend::IterateURLs(
+    const scoped_refptr<VisitedLinkDelegate::URLEnumerator>& iterator) {
   if (db_.get()) {
     HistoryDatabase::URLEnumerator e;
     if (db_->InitURLEnumeratorForEverything(&e)) {
       URLRow info;
       while (e.GetNextURL(&info)) {
-        iterator->OnURL(info);
+        iterator->OnURL(info.url());
       }
       iterator->OnComplete(true);  // Success.
       return;
@@ -1930,6 +1931,13 @@ void HistoryBackend::MergeFavicon(
   bool replaced_bitmap = false;
   for (size_t i = 0; i < bitmap_id_sizes.size(); ++i) {
     if (bitmap_id_sizes[i].pixel_size == pixel_size) {
+      if (IsFaviconBitmapDataEqual(bitmap_id_sizes[i].bitmap_id, bitmap_data)) {
+        thumbnail_db_->SetFaviconBitmapLastUpdateTime(
+            bitmap_id_sizes[i].bitmap_id, base::Time::Now());
+        // Return early as merging did not alter the bitmap data.
+        ScheduleCommit();
+        return;
+      }
       thumbnail_db_->SetFaviconBitmap(bitmap_id_sizes[i].bitmap_id, bitmap_data,
           base::Time::Now());
       replaced_bitmap = true;
@@ -2313,6 +2321,20 @@ void HistoryBackend::SetFaviconSizes(FaviconID icon_id,
   }
 
   thumbnail_db_->SetFaviconSizes(icon_id, favicon_sizes);
+}
+
+bool HistoryBackend::IsFaviconBitmapDataEqual(
+    FaviconBitmapID bitmap_id,
+    const scoped_refptr<base::RefCountedMemory>& new_bitmap_data) {
+  if (!new_bitmap_data.get())
+    return false;
+
+  scoped_refptr<base::RefCountedMemory> original_bitmap_data;
+  thumbnail_db_->GetFaviconBitmap(bitmap_id,
+                                  NULL,
+                                  &original_bitmap_data,
+                                  NULL);
+  return new_bitmap_data->Equals(original_bitmap_data);
 }
 
 bool HistoryBackend::GetFaviconsFromDB(

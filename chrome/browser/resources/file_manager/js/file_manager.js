@@ -128,10 +128,16 @@ DialogType.isModal = function(type) {
   FileManager.GOOGLE_DRIVE_HELP =
       'https://support.google.com/chromeos/?p=filemanager_drivehelp';
 
- /**
+  /**
    * Location of Google Drive specific help.
    */
   FileManager.GOOGLE_DRIVE_ROOT = 'https://drive.google.com';
+
+  /**
+   * Location of Files App specific help.
+   */
+  FileManager.FILES_APP_HELP =
+      'https://support.google.com/chromeos/?p=gsg_files_app';
 
   /**
    * Number of milliseconds in a day.
@@ -147,6 +153,33 @@ DialogType.isModal = function(type) {
 
   function removeChildren(element) {
     element.textContent = '';
+  }
+
+  /**
+   * Update the elemenst to display the information about remainig space for
+   * the storage.
+   * @param {!Element} spaceInnerBar Block element for a percentage bar
+   *                                 representing the remaining space.
+   * @param {!Element} spaceInfoLabel Inline element to contain the message.
+   * @param {!Element} spaceOuterBar Block element around the percentage bar.
+   */
+   function updateSpaceInfo(
+      sizeStatsResult, spaceInnerBar, spaceInfoLabel, spaceOuterBar) {
+    spaceInnerBar.removeAttribute('pending');
+    if (sizeStatsResult) {
+      var sizeStr = util.bytesToSi(sizeStatsResult.remainingSizeKB * 1024);
+      spaceInfoLabel.textContent = strf('SPACE_AVAILABLE', sizeStr);
+
+      var usedSpace =
+          sizeStatsResult.totalSizeKB - sizeStatsResult.remainingSizeKB;
+      spaceInnerBar.style.width =
+          (100 * usedSpace / sizeStatsResult.totalSizeKB) + '%';
+
+      spaceOuterBar.style.display = '';
+    } else {
+      spaceOuterBar.style.display = 'none';
+      spaceInfoLabel.textContent = str('FAILED_SPACE_INFO');
+    }
   }
 
   // Public statics.
@@ -262,7 +295,7 @@ DialogType.isModal = function(type) {
   FileManager.prototype.show_ = function() {
     if (this.showDelayTimeout_) {
       clearTimeout(this.showDelayTimeout_);
-      showDelayTimeout_ = null;
+      this.showDelayTimeout_ = null;
     }
     this.dialogDom_.classList.add('loaded');
   };
@@ -407,7 +440,7 @@ DialogType.isModal = function(type) {
 
     this.updateFileTypeFilter_();
 
-    this.selectionHandler_.onSelectionChanged();
+    this.selectionHandler_.onFileSelectionChanged();
 
     this.setupCurrentDirectory_(true /* page loading */);
 
@@ -444,19 +477,17 @@ DialogType.isModal = function(type) {
     this.copyManager_.addEventListener('copy-operation-complete',
         this.onCopyManagerOperationComplete_.bind(this));
 
-    var controller = this.fileTransferController_ = new FileTransferController(
-        FileGrid.renderDragThumbnail.bind(null,
-                                          this.document_,
-                                          this.metadataCache_),
-        this.copyManager_,
-        this.directoryModel_);
+    var controller = this.fileTransferController_ =
+        new FileTransferController(this.document_,
+                                   this.copyManager_,
+                                   this.directoryModel_);
     controller.attachDragSource(this.table_.list);
     controller.attachDropTarget(this.table_.list);
     controller.attachDragSource(this.grid_);
     controller.attachDropTarget(this.grid_);
     controller.attachDropTarget(this.rootsList_, true);
     controller.attachBreadcrumbsDropTarget(this.breadcrumbs_);
-    controller.attachCopyPasteHandlers(this.document_);
+    controller.attachCopyPasteHandlers();
     controller.addEventListener('selection-copied',
         this.blinkSelection.bind(this));
     controller.addEventListener('selection-cut',
@@ -480,6 +511,10 @@ DialogType.isModal = function(type) {
     this.rootsContextMenu_ =
         this.dialogDom_.querySelector('#roots-context-menu');
     cr.ui.Menu.decorate(this.rootsContextMenu_);
+
+    this.downloadsRootContextMenu_ =
+        this.dialogDom_.querySelector('#downloads-root-context-menu');
+    cr.ui.Menu.decorate(this.downloadsRootContextMenu_);
 
     this.textContextMenu_ =
         this.dialogDom_.querySelector('#text-context-menu');
@@ -547,6 +582,9 @@ DialogType.isModal = function(type) {
 
     CommandUtil.registerCommand(doc, 'gdata-go-to-drive',
         Commands.gdataGoToDriveCommand, this);
+
+    CommandUtil.registerCommand(doc, 'files-app-help',
+        Commands.filesAppHelpCommand, this);
 
     CommandUtil.registerCommand(doc, 'paste',
         Commands.pasteFileCommand, doc, this.fileTransferController_);
@@ -751,7 +789,7 @@ DialogType.isModal = function(type) {
 
     this.directoryModel_.start();
 
-    this.selectionHandler_ = new SelectionHandler(this);
+    this.selectionHandler_ = new FileSelectionHandler(this);
 
     this.fileWatcher_ = new FileManager.MetadataFileWatcher(this);
     this.fileWatcher_.start();
@@ -764,7 +802,7 @@ DialogType.isModal = function(type) {
                                this.updateStartupPrefs_.bind(this));
 
     this.directoryModel_.getFileListSelection().addEventListener('change',
-        this.selectionHandler_.onSelectionChanged.bind(
+        this.selectionHandler_.onFileSelectionChanged.bind(
             this.selectionHandler_));
 
     this.initList_(this.grid_);
@@ -989,7 +1027,7 @@ DialogType.isModal = function(type) {
       return dirPath == currentPath;
     }
     for (var i = 0; i < event.affectedEntries.length; i++) {
-      entry = event.affectedEntries[i];
+      var entry = event.affectedEntries[i];
       if (inCurrentDirectory(entry))
         this.directoryModel_.onEntryChanged(entry.name);
     }
@@ -1356,9 +1394,43 @@ DialogType.isModal = function(type) {
       li.appendChild(eject);
     }
 
-    // To enable photo import dialog, set this context menu for Downloads and
-    // remove 'hidden' attribute on import-photos command.
-    if (rootType != RootType.GDATA && rootType != RootType.DOWNLOADS) {
+    // Add a context menu for the root. "Downloads" has a menu item showing the
+    // remaining space information.
+    if (rootType == RootType.DOWNLOADS) {
+      cr.ui.contextMenuHandler.setContextMenu(li,
+                                              this.downloadsRootContextMenu_);
+
+      var downloadsRootContextMenu = this.downloadsRootContextMenu_;
+      var downloadsSpaceInfoLabel =
+          this.dialogDom_.querySelector('#downloads-space-info-label');
+
+      var downloadsSpaceInnerBar =
+          this.dialogDom_.querySelector('#downloads-space-info-bar');
+      var downloadsSpaceOuterBar =
+          this.dialogDom_.querySelector('#downloads-space-info-bar').
+              parentNode;
+
+      if (this.downloadsRootContextMenuListener_) {
+        cr.ui.contextMenuHandler.removeEventListener(
+            'show', this.downloadsRootContextMenuListener_);
+      }
+      this.downloadsRootContextMenuListener_ = function(ev) {
+        // Check available space on opening the context menu for Downloads.
+        if (ev.element != li || ev.menu != downloadsRootContextMenu)
+          return;
+
+        downloadsSpaceInnerBar.setAttribute('pending', '');
+        chrome.fileBrowserPrivate.getSizeStats(
+            util.makeFilesystemUrl(path),
+            function(sizeStats) {
+              updateSpaceInfo(sizeStats, downloadsSpaceInnerBar,
+                              downloadsSpaceInfoLabel, downloadsSpaceOuterBar);
+            });
+      };
+
+      cr.ui.contextMenuHandler.addEventListener(
+        'show', this.downloadsRootContextMenuListener_);
+    } else if (rootType != RootType.GDATA) {
       cr.ui.contextMenuHandler.setContextMenu(li, this.rootsContextMenu_);
     }
 
@@ -1546,7 +1618,7 @@ DialogType.isModal = function(type) {
     selection.tasks.init(selection.urls, selection.mimeTypes);
     selection.tasks.display(this.taskItems_);
     this.refreshCurrentDirectoryMetadata_();
-    this.selectionHandler_.onSelectionChanged();
+    this.selectionHandler_.onFileSelectionChanged();
   };
 
   FileManager.prototype.updateNetworkStateAndPreferences_ = function(
@@ -1846,7 +1918,7 @@ DialogType.isModal = function(type) {
    * @param {cr.Event} event The directory-changed event.
    */
   FileManager.prototype.onDirectoryChanged_ = function(event) {
-    this.selectionHandler_.onSelectionChanged();
+    this.selectionHandler_.onFileSelectionChanged();
     this.updateSearchBoxOnDirChange_();
     if (this.dialogType == DialogType.FULL_PAGE)
       this.table_.showOfflineColumn(this.isOnGData());
@@ -2720,21 +2792,8 @@ DialogType.isModal = function(type) {
     gdataSpaceInnerBar.setAttribute('pending', '');
     chrome.fileBrowserPrivate.getSizeStats(
         this.directoryModel_.getCurrentRootUrl(), function(result) {
-          gdataSpaceInnerBar.removeAttribute('pending');
-          if (result) {
-            var sizeInGb = util.bytesToSi(result.remainingSizeKB * 1024);
-            gdataSpaceInfoLabel.textContent =
-                strf('DRIVE_SPACE_AVAILABLE', sizeInGb);
-
-            var usedSpace = result.totalSizeKB - result.remainingSizeKB;
-            gdataSpaceInnerBar.style.width =
-                (100 * usedSpace / result.totalSizeKB) + '%';
-
-            gdataSpaceOuterBar.style.display = '';
-          } else {
-            gdataSpaceOuterBar.style.display = 'none';
-            gdataSpaceInfoLabel.textContent = str('DRIVE_FAILED_SPACE_INFO');
-          }
+          updateSpaceInfo(result, gdataSpaceInnerBar, gdataSpaceInfoLabel,
+                          gdataSpaceOuterBar);
         });
   };
 
@@ -2791,7 +2850,7 @@ DialogType.isModal = function(type) {
   };
 
   /**
-   * @return {Selection} Selection object.
+   * @return {FileSelection} Selection object.
    */
   FileManager.prototype.getSelection = function() {
     return this.selectionHandler_.selection;

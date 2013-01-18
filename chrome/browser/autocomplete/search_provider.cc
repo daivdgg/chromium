@@ -26,10 +26,10 @@
 #include "chrome/browser/autocomplete/history_url_provider.h"
 #include "chrome/browser/autocomplete/keyword_provider.h"
 #include "chrome/browser/autocomplete/url_prefix.h"
-#include "chrome/browser/chrome_metrics_helper.h"
 #include "chrome/browser/history/history.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/in_memory_database.h"
+#include "chrome/browser/metrics/variations/variations_http_header_provider.h"
 #include "chrome/browser/net/url_fixer_upper.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/profiles/profile.h"
@@ -70,6 +70,9 @@ enum SuggestRequestsHistogramValue {
   REPLY_RECEIVED,
   MAX_SUGGEST_REQUEST_HISTOGRAM_VALUE
 };
+
+// The verbatim score for an input which is not an URL.
+const int kNonURLVerbatimRelevance = 1300;
 
 // Increments the appropriate value in the histogram by one.
 void LogOmniboxSuggestRequest(
@@ -171,11 +174,11 @@ void SearchProvider::FinalizeInstantQuery(const string16& input_text,
     }
   }
 
-  // Add the new instant suggest result. We give it a rank higher than
-  // SEARCH_WHAT_YOU_TYPED so that it gets autocompleted.
-  const int verbatim_relevance = GetVerbatimRelevance();
+  // Add the new instant suggest result.
   if (suggestion.type == INSTANT_SUGGESTION_SEARCH) {
-    // Instant has a query suggestion.
+    // Instant has a query suggestion. Rank it higher than SEARCH_WHAT_YOU_TYPED
+    // so that it gets autocompleted.
+    const int verbatim_relevance = GetVerbatimRelevance();
     int did_not_accept_default_suggestion = default_suggest_results_.empty() ?
         TemplateURLRef::NO_SUGGESTIONS_AVAILABLE :
         TemplateURLRef::NO_SUGGESTION_CHOSEN;
@@ -188,11 +191,14 @@ void SearchProvider::FinalizeInstantQuery(const string16& input_text,
       results_updated = true;
     }
   } else {
-    // Instant has an URL suggestion.
+    // Instant has an URL suggestion. Rank it higher than URL_WHAT_YOU_TYPED so
+    // it gets autocompleted; use kNonURLVerbatimRelevance rather than
+    // verbatim_relevance so that the score does not change if the user keeps
+    // typing and the input changes from type UNKNOWN to URL.
     matches_.push_back(NavigationToMatch(
         NavigationResult(GURL(UTF16ToUTF8(suggestion.text)),
                          string16(),
-                         verbatim_relevance + 1),
+                         kNonURLVerbatimRelevance + 1),
         false));
     results_updated = true;
   }
@@ -654,7 +660,7 @@ net::URLFetcher* SearchProvider::CreateSuggestFetcher(
   fetcher->SetLoadFlags(net::LOAD_DO_NOT_SAVE_COOKIES);
   // Add Chrome experiment state to the request headers.
   net::HttpRequestHeaders headers;
-  ChromeMetricsHelper::GetInstance()->AppendHeaders(
+  chrome_variations::VariationsHttpHeaderProvider::GetInstance()->AppendHeaders(
       fetcher->GetOriginalURL(), profile_->IsOffTheRecord(), false, &headers);
   fetcher->SetExtraRequestHeaders(headers.ToString());
   fetcher->Start();
@@ -779,7 +785,8 @@ void SearchProvider::ConvertResultsToAutocompleteMatches() {
   }
   const size_t what_you_typed_size = map.size();
   if (!default_provider_suggestion_.text.empty() &&
-      default_provider_suggestion_.type == INSTANT_SUGGESTION_SEARCH)
+      default_provider_suggestion_.type == INSTANT_SUGGESTION_SEARCH &&
+      !input_.prevent_inline_autocomplete())
     AddMatchToMap(input_.text() + default_provider_suggestion_.text,
                   input_.text(), verbatim_relevance + 1,
                   AutocompleteMatch::SEARCH_SUGGEST,
@@ -799,12 +806,16 @@ void SearchProvider::ConvertResultsToAutocompleteMatches() {
     matches_.push_back(i->second);
 
   if (!default_provider_suggestion_.text.empty() &&
-      default_provider_suggestion_.type == INSTANT_SUGGESTION_URL)
+      default_provider_suggestion_.type == INSTANT_SUGGESTION_URL &&
+      !input_.prevent_inline_autocomplete()) {
+    // See comment in FinalizeInstantQuery() for why we don't use
+    // |verbatim_relevance| here.
     matches_.push_back(NavigationToMatch(
         NavigationResult(GURL(UTF16ToUTF8(default_provider_suggestion_.text)),
                          string16(),
-                         verbatim_relevance + 1),
+                         kNonURLVerbatimRelevance + 1),
         false));
+  }
   AddNavigationResultsToMatches(keyword_navigation_results_, true);
   AddNavigationResultsToMatches(default_navigation_results_, false);
 
@@ -1046,7 +1057,7 @@ int SearchProvider::CalculateRelevanceForVerbatim() const {
     case AutocompleteInput::UNKNOWN:
     case AutocompleteInput::QUERY:
     case AutocompleteInput::FORCED_QUERY:
-      return 1300;
+      return kNonURLVerbatimRelevance;
 
     case AutocompleteInput::REQUESTED_URL:
       return 1150;

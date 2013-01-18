@@ -46,7 +46,9 @@ NativeAppWindowViews::NativeAppWindowViews(
       web_view_(NULL),
       window_(NULL),
       is_fullscreen_(false),
-      frameless_(create_params.frame == ShellWindow::FRAME_NONE) {
+      frameless_(create_params.frame == ShellWindow::FRAME_NONE),
+      transparent_background_(create_params.transparent_background) {
+  Observe(shell_window_->web_contents());
   minimum_size_ = create_params.minimum_size;
   maximum_size_ = create_params.maximum_size;
 
@@ -77,6 +79,9 @@ void NativeAppWindowViews::InitializeDefaultWindow(
   init_params.delegate = this;
   init_params.remove_standard_frame = true;
   init_params.use_system_default_icon = true;
+  // TODO(erg): Conceptually, these are toplevel windows, but we theoretically
+  // could plumb context through to here in some cases.
+  init_params.top_level = true;
   window_->Init(init_params);
   gfx::Rect window_bounds = create_params.bounds;
   window_bounds.Inset(-GetFrameInsets());
@@ -389,6 +394,23 @@ void NativeAppWindowViews::OnWidgetVisibilityChanged(views::Widget* widget,
 void NativeAppWindowViews::OnWidgetActivationChanged(views::Widget* widget,
                                                      bool active) {
   shell_window_->OnNativeWindowChanged();
+}
+
+// WebContentsObserver implementation.
+
+void NativeAppWindowViews::RenderViewCreated(
+    content::RenderViewHost* render_view_host) {
+  if (transparent_background_) {
+    // Use a background with transparency to trigger transparency in Webkit.
+    SkBitmap background;
+    background.setConfig(SkBitmap::kARGB_8888_Config, 1, 1);
+    background.allocPixels();
+    background.eraseARGB(0x00, 0x00, 0x00, 0x00);
+
+    content::RenderWidgetHostView* view = render_view_host->GetView();
+    DCHECK(view);
+    view->SetBackground(background);
+  }
 }
 
 // views::View implementation.

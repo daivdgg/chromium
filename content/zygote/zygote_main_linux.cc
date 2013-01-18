@@ -38,7 +38,7 @@
 #include "sandbox/linux/services/libc_urandom_override.h"
 #include "sandbox/linux/suid/client/setuid_sandbox_client.h"
 #include "skia/ext/SkFontHost_fontconfig_control.h"
-#include "unicode/timezone.h"
+#include "third_party/icu/public/i18n/unicode/timezone.h"
 
 #if defined(OS_LINUX)
 #include <sys/epoll.h>
@@ -463,9 +463,7 @@ bool ZygoteMain(const MainFunctionParams& params,
 
   if (forkdelegate != NULL) {
     VLOG(1) << "ZygoteMain: initializing fork delegate";
-    forkdelegate->Init(setuid_sandbox->IsSuidSandboxChild(),
-                       Zygote::kBrowserDescriptor,
-                       Zygote::kMagicSandboxIPCDescriptor);
+    forkdelegate->Init(Zygote::kMagicSandboxIPCDescriptor);
   } else {
     VLOG(1) << "ZygoteMain: fork delegate is NULL";
   }

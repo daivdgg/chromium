@@ -542,20 +542,20 @@ body {
   -webkit-box-flex: 0;
   -webkit-box-orient: horizontal;
   -webkit-box-pack: end;
+  background-color: rgba(0, 0, 0, 0);
   background-position: 5px center;
   background-repeat: no-repeat;
+  border: none;
+  box-sizing: content-box;
+  color: white;
   cursor: pointer;
   display: -webkit-box;
   height: 40px;
   margin: 8px 0 7px 3px;
   max-width: 90px;
+  min-width: 0;
   opacity: 0.99;  /* Workaround for http://crosbug.com/21065 */
   padding: 0 10px 0 35px;
-}
-
-.gallery > .toolbar button {
-  background-color: rgba(0, 0, 0, 0);
-  color: white;
 }
 
 .gallery > .toolbar button:hover {
@@ -576,6 +576,7 @@ body {
     url('../images/gallery/2x/icon_autofix.png') 2x);
 }
 
+.gallery > .toolbar button.autofix:active,
 .gallery > .toolbar button.autofix[pressed] {
   background-image: -webkit-image-set(
     url('../images/gallery/icon_autofix_selected.png') 1x,
@@ -588,6 +589,7 @@ body {
     url('../images/gallery/2x/icon_crop.png') 2x);
 }
 
+.gallery > .toolbar button.crop:active,
 .gallery > .toolbar button.crop[pressed] {
   background-image:  -webkit-image-set(
     url('../images/gallery/icon_crop_selected.png') 1x,
@@ -600,6 +602,7 @@ body {
     url('../images/gallery/2x/icon_brightness.png') 2x);
 }
 
+.gallery > .toolbar button.exposure:active,
 .gallery > .toolbar button.exposure[pressed] {
   background-image: -webkit-image-set(
     url('../images/gallery/icon_brightness_selected.png') 1x,
@@ -612,6 +615,7 @@ body {
     url('../images/gallery/2x/icon_rotate.png') 2x);
 }
 
+.gallery > .toolbar button.rotate_right:active,
 .gallery > .toolbar button.rotate_right[pressed] {
   background-image: -webkit-image-set(
     url('../images/gallery/icon_rotate_selected.png') 1x,
@@ -624,6 +628,7 @@ body {
     url('../images/gallery/2x/icon_rotate_left.png') 2x);
 }
 
+.gallery > .toolbar button.rotate_left:active,
 .gallery > .toolbar button.rotate_left[pressed] {
   background-image: -webkit-image-set(
     url('../images/gallery/icon_rotate_left_selected.png') 1x,
@@ -1055,6 +1060,7 @@ body {
     url('../images/media/2x/error.png') 2x);
   background-position: 25px center;
   background-repeat: no-repeat;
+  color: white;
   display: -webkit-box;
   height: 54px;
   padding-left: 70px;
@@ -1162,7 +1168,7 @@ body {
     top + bottom + border-top-width + border-bottom-width AND
     left + right + border-left-width + border-right-width */
 .mosaic-tile .img-border {
-  border: 1px solid transparent;  /* Space between the outline and the image. */
+  border: 1px solid black;  /* Space between the outline and the image. */
   bottom: 4px;
   left: 4px;
   outline: 2px solid transparent;
@@ -1179,6 +1185,7 @@ body {
 
 .mosaic[visible='normal'].hover-visible .mosaic-tile:hover {
   -webkit-transform: scale(1.05);
+  z-index: 50;
 }
 
 .mosaic[visible='normal'].hover-visible

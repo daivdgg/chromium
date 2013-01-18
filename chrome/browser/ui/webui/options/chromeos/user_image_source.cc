@@ -76,22 +76,25 @@ base::RefCountedMemory* UserImageSource::GetUserImage(
       LoadDataResourceBytesForScale(IDR_LOGIN_DEFAULT_USER, scale_factor);
 }
 
-UserImageSource::UserImageSource()
-    : DataSource(chrome::kChromeUIUserImageHost, MessageLoop::current()) {
+UserImageSource::UserImageSource() {
 }
 
 UserImageSource::~UserImageSource() {}
 
-void UserImageSource::StartDataRequest(const std::string& path,
-                                       bool is_incognito,
-                                       int request_id) {
+std::string UserImageSource::GetSource() {
+  return chrome::kChromeUIUserImageHost;
+}
+
+void UserImageSource::StartDataRequest(
+    const std::string& path,
+    bool is_incognito,
+    const content::URLDataSource::GotDataCallback& callback) {
   std::string email;
   bool is_image_animated = false;
   ui::ScaleFactor scale_factor;
   GURL url(chrome::kChromeUIUserImageURL + path);
   ParseRequest(url, &email, &is_image_animated, &scale_factor);
-  SendResponse(request_id,
-               GetUserImage(email, is_image_animated, scale_factor));
+  callback.Run(GetUserImage(email, is_image_animated, scale_factor));
 }
 
 std::string UserImageSource::GetMimeType(const std::string& path) const {

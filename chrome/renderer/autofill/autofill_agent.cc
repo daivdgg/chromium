@@ -10,6 +10,7 @@
 #include "base/string_util.h"
 #include "base/time.h"
 #include "base/utf_string_conversions.h"
+#include "chrome/common/autofill/web_element_descriptor.h"
 #include "chrome/common/autofill_messages.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/form_data.h"
@@ -22,6 +23,7 @@
 #include "content/public/renderer/render_view.h"
 #include "grit/chromium_strings.h"
 #include "grit/generated_resources.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebRect.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDataSource.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDocument.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebFormControlElement.h"
@@ -32,7 +34,6 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebNodeCollection.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebOptionElement.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebView.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebRect.h"
 #include "ui/base/keycodes/keyboard_codes.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -160,10 +161,10 @@ bool AutofillAgent::OnMessageReceived(const IPC::Message& message) {
                         OnAcceptDataListSuggestion)
     IPC_MESSAGE_HANDLER(AutofillMsg_AcceptPasswordAutofillSuggestion,
                         OnAcceptPasswordAutofillSuggestion)
-    IPC_MESSAGE_HANDLER(AutofillMsg_RequestAutocompleteSuccess,
-                        OnRequestAutocompleteSuccess)
-    IPC_MESSAGE_HANDLER(AutofillMsg_RequestAutocompleteError,
-                        OnRequestAutocompleteError)
+    IPC_MESSAGE_HANDLER(AutofillMsg_RequestAutocompleteResult,
+                        OnRequestAutocompleteResult)
+    IPC_MESSAGE_HANDLER(AutofillMsg_FillFormsAndClick,
+                        OnFillFormsAndClick)
     IPC_MESSAGE_UNHANDLED(handled = false)
   IPC_END_MESSAGE_MAP()
   return handled;
@@ -226,7 +227,7 @@ void AutofillAgent::didRequestAutocomplete(WebKit::WebFrame* frame,
                                 &form_data,
                                 NULL)) {
     WebFormElement(form).finishRequestAutocomplete(
-        WebFormElement::AutocompleteResultError);
+        WebFormElement::AutocompleteResultErrorDisabled);
     return;
   }
 
@@ -602,20 +603,21 @@ void AutofillAgent::OnAcceptPasswordAutofillSuggestion(const string16& value) {
   DCHECK(handled);
 }
 
-void AutofillAgent::FinishAutocompleteRequest(
-    WebFormElement::AutocompleteResult result) {
+void AutofillAgent::OnRequestAutocompleteResult(
+    WebFormElement::AutocompleteResult result, const FormData& form_data) {
   DCHECK(!in_flight_request_form_.isNull());
+  if (result == WebFormElement::AutocompleteResultSuccess)
+    FillFormIncludingNonFocusableElements(form_data, in_flight_request_form_);
   in_flight_request_form_.finishRequestAutocomplete(result);
   in_flight_request_form_.reset();
 }
 
-void AutofillAgent::OnRequestAutocompleteSuccess(const FormData& form_data) {
-  FillFormIncludingNonFocusableElements(form_data, in_flight_request_form_);
-  FinishAutocompleteRequest(WebFormElement::AutocompleteResultSuccess);
-}
+void AutofillAgent::OnFillFormsAndClick(
+    const std::vector<FormData>& form_data,
+    const WebElementDescriptor& click_element_descriptor) {
+  // TODO(ramankk): Implement form filling.
 
-void AutofillAgent::OnRequestAutocompleteError() {
-  FinishAutocompleteRequest(WebFormElement::AutocompleteResultError);
+  // TODO(ahutter): Implement element clicking.
 }
 
 void AutofillAgent::ShowSuggestions(const WebInputElement& element,

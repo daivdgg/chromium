@@ -58,6 +58,9 @@ const char kContinueUrl[] =
 // The maximum number of times we want to show the sync promo at startup.
 const int kSyncPromoShowAtStartupMaximum = 10;
 
+// Forces the web based signin flow when set.
+bool g_force_web_based_signin_flow = false;
+
 // Checks we want to show the sync promo for the given brand.
 bool AllowPromoAtStartupForCurrentBrand() {
   std::string brand;
@@ -73,22 +76,18 @@ bool AllowPromoAtStartupForCurrentBrand() {
   return true;
 }
 
-// The Web UI data source for the sync promo page.
-class SyncPromoUIHTMLSource : public ChromeWebUIDataSource {
- public:
-  explicit SyncPromoUIHTMLSource(content::WebUI* web_ui);
-
- private:
-  ~SyncPromoUIHTMLSource() {}
-  DISALLOW_COPY_AND_ASSIGN(SyncPromoUIHTMLSource);
-};
-
-SyncPromoUIHTMLSource::SyncPromoUIHTMLSource(content::WebUI* web_ui)
-    : ChromeWebUIDataSource(chrome::kChromeUISyncPromoHost) {
+ChromeWebUIDataSource* CreateSyncUIHTMLSource(content::WebUI* web_ui) {
+  ChromeWebUIDataSource* html_source =
+      new ChromeWebUIDataSource(chrome::kChromeUISyncPromoHost);
   DictionaryValue localized_strings;
   options::CoreOptionsHandler::GetStaticLocalizedValues(&localized_strings);
   SyncSetupHandler::GetStaticLocalizedValues(&localized_strings, web_ui);
-  AddLocalizedStrings(localized_strings);
+  html_source->AddLocalizedStrings(localized_strings);
+  html_source->set_json_path(kStringsJsFile);
+  html_source->add_resource_path(kSyncPromoJsFile, IDR_SYNC_PROMO_JS);
+  html_source->set_default_resource(IDR_SYNC_PROMO_HTML);
+  html_source->set_use_json_js_format_v2();
+  return html_source;
 }
 
 }  // namespace
@@ -104,12 +103,8 @@ SyncPromoUI::SyncPromoUI(content::WebUI* web_ui) : WebUIController(web_ui) {
   ChromeURLDataManager::AddDataSource(profile, theme);
 
   // Set up the sync promo source.
-  SyncPromoUIHTMLSource* html_source = new SyncPromoUIHTMLSource(web_ui);
-  html_source->set_json_path(kStringsJsFile);
-  html_source->add_resource_path(kSyncPromoJsFile, IDR_SYNC_PROMO_JS);
-  html_source->set_default_resource(IDR_SYNC_PROMO_HTML);
-  html_source->set_use_json_js_format_v2();
-  ChromeURLDataManager::AddDataSource(profile, html_source);
+  ChromeURLDataManager::AddDataSourceImpl(profile,
+                                          CreateSyncUIHTMLSource(web_ui));
 
   sync_promo_trial::RecordUserShownPromo(web_ui);
 }
@@ -309,8 +304,14 @@ bool SyncPromoUI::GetAutoCloseForSyncPromoURL(const GURL& url) {
 bool SyncPromoUI::UseWebBasedSigninFlow() {
 #if defined(ENABLE_ONE_CLICK_SIGNIN)
   return CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kUseWebBasedSigninFlow);
+      switches::kUseWebBasedSigninFlow) ||
+      g_force_web_based_signin_flow;
 #else
   return false;
 #endif
+}
+
+// static
+void SyncPromoUI::ForceWebBasedSigninFlowForTesting(bool force) {
+  g_force_web_based_signin_flow = force;
 }

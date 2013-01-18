@@ -41,6 +41,7 @@
 struct BrowserPluginHostMsg_AutoSize_Params;
 struct BrowserPluginHostMsg_CreateGuest_Params;
 struct BrowserPluginHostMsg_ResizeGuest_Params;
+struct ViewHostMsg_CreateWindow_Params;
 #if defined(OS_MACOSX)
 struct ViewHostMsg_ShowPopup_Params;
 #endif
@@ -113,6 +114,7 @@ class CONTENT_EXPORT BrowserPluginGuest : public NotificationObserver,
       bool is_main_frame,
       const GURL& validated_url,
       bool is_error_page,
+      bool is_iframe_srcdoc,
       RenderViewHost* render_view_host) OVERRIDE;
   virtual void DidFailProvisionalLoad(
       int64 frame_id,
@@ -192,9 +194,6 @@ class CONTENT_EXPORT BrowserPluginGuest : public NotificationObserver,
 
   // Message handlers for messsages from embedder.
 
-  // If possible, navigate the guest to |relative_index| entries away from the
-  // current navigation entry.
-  virtual void OnGo(int instance_id, int relative_index);
   // Handles drag events from the embedder.
   // When dragging, the drag events go to the embedder first, and if the drag
   // happens on the browser plugin, then the plugin sends a corresponding
@@ -205,23 +204,30 @@ class CONTENT_EXPORT BrowserPluginGuest : public NotificationObserver,
                           const WebDropData& drop_data,
                           WebKit::WebDragOperationsMask drag_mask,
                           const gfx::Point& location);
+  // If possible, navigate the guest to |relative_index| entries away from the
+  // current navigation entry.
+  virtual void OnGo(int instance_id, int relative_index);
   // Overriden in tests.
   virtual void OnHandleInputEvent(int instance_id,
                                   const gfx::Rect& guest_window_rect,
                                   const WebKit::WebInputEvent* event);
+  void OnNavigateGuest(int instance_id, const std::string& src);
   // Reload the guest. Overriden in tests.
   virtual void OnReload(int instance_id);
   // Grab the new damage buffer from the embedder, and resize the guest's
   // web contents.
   void OnResizeGuest(int instance_id,
                      const BrowserPluginHostMsg_ResizeGuest_Params& params);
+  // Overriden in tests.
+  virtual void OnSetFocus(int instance_id, bool focused);
+  // Sets the name of the guest so that other guests in the same partition can
+  // access it.
+  void OnSetName(int instance_id, const std::string& name);
   // Updates the size state of the guest.
   void OnSetSize(
       int instance_id,
       const BrowserPluginHostMsg_AutoSize_Params& auto_size_params,
       const BrowserPluginHostMsg_ResizeGuest_Params& resize_guest_params);
-  // Overriden in tests.
-  virtual void OnSetFocus(int instance_id, bool focused);
   // The guest WebContents is visible if both its embedder is visible and
   // the browser plugin element is visible. If either one is not then the
   // WebContents is marked as hidden. A hidden WebContents will consume
@@ -249,6 +255,10 @@ class CONTENT_EXPORT BrowserPluginGuest : public NotificationObserver,
 
   // Message handlers for messages from guest.
 
+  void OnCreateWindow(const ViewHostMsg_CreateWindow_Params& params,
+                      int* route_id,
+                      int* surface_id,
+                      int64* cloned_session_storage_namespace_id);
   void OnHandleInputEventAck(
       WebKit::WebInputEvent::Type event_type,
       InputEventAckState ack_result);
@@ -263,6 +273,9 @@ class CONTENT_EXPORT BrowserPluginGuest : public NotificationObserver,
   // Overriden in tests.
   virtual void OnTakeFocus(bool reverse);
   void OnUpdateDragCursor(WebKit::WebDragOperation operation);
+  void OnUpdateFrameName(int frame_id,
+                         bool is_top_level,
+                         const std::string& name);
   void OnUpdateRect(const ViewHostMsg_UpdateRect_Params& params);
 
   // Static factory instance (always NULL for non-test).
@@ -284,6 +297,7 @@ class CONTENT_EXPORT BrowserPluginGuest : public NotificationObserver,
   base::TimeDelta guest_hang_timeout_;
   bool focused_;
   bool visible_;
+  std::string name_;
   bool auto_size_enabled_;
   gfx::Size max_auto_size_;
   gfx::Size min_auto_size_;

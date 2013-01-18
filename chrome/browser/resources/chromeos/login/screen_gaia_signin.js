@@ -13,15 +13,6 @@ cr.define('login', function() {
   // Maximum Gaia loading time in seconds.
   /** @const */ var MAX_GAIA_LOADING_TIME_SEC = 60;
 
-  // Network state constants.
-  /** @const */ var NET_STATE = {
-    OFFLINE: 0,
-    ONLINE: 1,
-    PORTAL: 2,
-    CONNECTING: 3,
-    UNKNOWN: 4
-  };
-
   // Frame loading errors.
   /** @const */ var NET_ERROR = {
     ABORTED_BY_USER: 3
@@ -185,7 +176,7 @@ cr.define('login', function() {
      */
     onBeforeShow: function(data) {
       chrome.send('loginUIStateChanged', ['gaia-signin', true]);
-      $('login-header-bar').signinUIActive = true;
+      $('login-header-bar').signinUIState = SIGNIN_UI_STATE.GAIA_SIGNIN;
 
       // Announce the name of the screen, if accessibility is on.
       $('gaia-signin-aria-label').setAttribute(
@@ -201,7 +192,7 @@ cr.define('login', function() {
      */
     onBeforeHide: function() {
       chrome.send('loginUIStateChanged', ['gaia-signin', false]);
-      $('login-header-bar').signinUIActive = false;
+      $('login-header-bar').signinUIState = SIGNIN_UI_STATE.HIDDEN;
     },
 
     /**
@@ -279,12 +270,16 @@ cr.define('login', function() {
 
       $('createAccount').hidden = !data.createAccount;
       $('guestSignin').hidden = !data.guestSignin;
+      $('createLocallyManagedUser').hidden = !data.createLocallyManagedUser;
       // Only show Cancel button when user pods can be displayed.
       $('login-header-bar').allowCancel =
           data.isShowUsers && $('pod-row').pods.length;
 
-      // Sign-in right panel is hidden if all its items are hidden.
-      var noRightPanel = $('createAccount').hidden && $('guestSignin').hidden;
+      // Sign-in right panel is hidden if all of its items are hidden.
+      var noRightPanel = $('gaia-signin-reason').hidden &&
+                         $('createAccount').hidden &&
+                         $('guestSignin').hidden &&
+                         $('createLocallyManagedUser').hidden;
       this.classList[noRightPanel ? 'add' : 'remove']('no-right-panel');
       if (Oobe.getInstance().currentScreen === this)
         Oobe.getInstance().updateScreenSize(this);
@@ -359,7 +354,7 @@ cr.define('login', function() {
           // Show 'Cancel' button to allow user to return to the main screen
           // (e.g. this makes sense when connection is back).
           Oobe.getInstance().headerHidden = false;
-          $('login-header-bar').signinUIActive = true;
+          $('login-header-bar').signinUIState = SIGNIN_UI_STATE.GAIA_SIGNIN;
           // Do nothing, since offline version is reloaded after an error comes.
         } else {
           Oobe.showSigninUI();
@@ -422,18 +417,25 @@ cr.define('login', function() {
      */
     updateLocalizedContent: function() {
       $('createAccount').innerHTML = localStrings.getStringF(
-        'createAccount',
-        '<a id="createAccountLink" class="signin-link" href="#">',
-        '</a>');
+          'createAccount',
+          '<a id="createAccountLink" class="signin-link" href="#">',
+          '</a>');
       $('guestSignin').innerHTML = localStrings.getStringF(
           'guestSignin',
           '<a id="guestSigninLink" class="signin-link" href="#">',
+          '</a>');
+      $('createLocallyManagedUser').innerHTML = localStrings.getStringF(
+          'createLocallyManagedUser',
+          '<a id="createLocallyManagedUserLink" class="signin-link" href="#">',
           '</a>');
       $('createAccountLink').onclick = function() {
         chrome.send('createAccount');
       };
       $('guestSigninLink').onclick = function() {
         chrome.send('launchIncognito');
+      };
+      $('createLocallyManagedUserLink').onclick = function() {
+        chrome.send('createLocallyManagedUser');
       };
     },
 

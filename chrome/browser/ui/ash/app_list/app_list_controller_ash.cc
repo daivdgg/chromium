@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/ash/app_list/app_list_controller_ash.h"
 
 #include "ash/shell.h"
+#include "chrome/browser/ui/app_list/app_list_util.h"
 #include "chrome/browser/ui/ash/launcher/chrome_launcher_controller.h"
 
 AppListControllerDelegateAsh::AppListControllerDelegateAsh() {}
@@ -15,6 +16,11 @@ void AppListControllerDelegateAsh::DismissView() {
   DCHECK(ash::Shell::HasInstance());
   if (ash::Shell::GetInstance()->GetAppListTargetVisibility())
     ash::Shell::GetInstance()->ToggleAppList(NULL);
+}
+
+gfx::NativeWindow AppListControllerDelegateAsh::GetAppListWindow() {
+  DCHECK(ash::Shell::HasInstance());
+  return ash::Shell::GetInstance()->GetAppListWindow();
 }
 
 bool AppListControllerDelegateAsh::IsAppPinned(
@@ -45,21 +51,21 @@ void AppListControllerDelegateAsh::CreateNewWindow(bool incognito) {
     ChromeLauncherController::instance()->CreateNewWindow();
 }
 
-void AppListControllerDelegateAsh::ActivateApp(Profile* profile,
-                                               const std::string& extension_id,
-                                               int event_flags) {
-  ChromeLauncherController::instance()->ActivateApp(extension_id, event_flags);
+void AppListControllerDelegateAsh::ActivateApp(
+    Profile* profile, const extensions::Extension* extension, int event_flags) {
+  ChromeLauncherController::instance()->ActivateApp(extension->id(),
+                                                    event_flags);
   DismissView();
 }
 
-void AppListControllerDelegateAsh::LaunchApp(Profile* profile,
-                                             const std::string& extension_id,
-                                             int event_flags) {
-  ChromeLauncherController::instance()->LaunchApp(extension_id, event_flags);
+void AppListControllerDelegateAsh::LaunchApp(
+    Profile* profile, const extensions::Extension* extension, int event_flags) {
+  ChromeLauncherController::instance()->LaunchApp(extension->id(),
+                                                  event_flags);
   DismissView();
 }
 
-namespace app_list_controller {
+namespace chrome {
 
 #if defined(OS_CHROMEOS)
 void ShowAppList() {
@@ -67,4 +73,4 @@ void ShowAppList() {
 }
 #endif
 
-}
+}  // namespace chrome

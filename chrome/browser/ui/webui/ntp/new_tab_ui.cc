@@ -26,7 +26,6 @@
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
 #include "chrome/browser/ui/webui/metrics_handler.h"
 #include "chrome/browser/ui/webui/ntp/favicon_webui_handler.h"
 #include "chrome/browser/ui/webui/ntp/foreign_session_handler.h"
@@ -362,13 +361,17 @@ Profile* NewTabUI::GetProfile() const {
 // NewTabHTMLSource
 
 NewTabUI::NewTabHTMLSource::NewTabHTMLSource(Profile* profile)
-    : DataSource(chrome::kChromeUINewTabHost, MessageLoop::current()),
-      profile_(profile) {
+    : profile_(profile) {
 }
 
-void NewTabUI::NewTabHTMLSource::StartDataRequest(const std::string& path,
-                                                  bool is_incognito,
-                                                  int request_id) {
+std::string NewTabUI::NewTabHTMLSource::GetSource() {
+  return chrome::kChromeUINewTabHost;
+}
+
+void NewTabUI::NewTabHTMLSource::StartDataRequest(
+    const std::string& path,
+    bool is_incognito,
+    const content::URLDataSource::GotDataCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
 
   std::map<std::string, std::pair<std::string, int> >::iterator it =
@@ -379,7 +382,7 @@ void NewTabUI::NewTabHTMLSource::StartDataRequest(const std::string& path,
             ResourceBundle::GetSharedInstance().LoadDataResourceBytes(
                 it->second.second) :
             new base::RefCountedStaticMemory);
-    SendResponse(request_id, resource_bytes);
+    callback.Run(resource_bytes);
     return;
   }
 
@@ -401,7 +404,7 @@ void NewTabUI::NewTabHTMLSource::StartDataRequest(const std::string& path,
       NTPResourceCacheFactory::GetForProfile(profile_)->
       GetNewTabHTML(is_incognito));
 
-  SendResponse(request_id, html_bytes);
+  callback.Run(html_bytes);
 }
 
 std::string NewTabUI::NewTabHTMLSource::GetMimeType(const std::string& resource)

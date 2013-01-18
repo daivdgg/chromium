@@ -43,6 +43,7 @@
 #include "ui/aura/window_tracker.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
 #include "ui/base/events/event.h"
+#include "ui/base/events/event_utils.h"
 #include "ui/base/gestures/gesture_recognizer.h"
 #include "ui/base/hit_test.h"
 #include "ui/base/ime/input_method.h"
@@ -168,13 +169,6 @@ bool ShouldSendPinchGesture() {
       CommandLine::ForCurrentProcess()->HasSwitch(switches::kEnableViewport) ||
       CommandLine::ForCurrentProcess()->HasSwitch(switches::kEnablePinch);
   return pinch_allowed;
-}
-
-bool ShouldReleaseFrontSurface() {
-  static bool release_front_surface_allowed =
-      CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kEnableUIReleaseFrontSurface);
-  return release_front_surface_allowed;
 }
 
 bool PointerEventActivates(const ui::Event& event) {
@@ -360,6 +354,14 @@ void RenderWidgetHostViewAura::InitAsPopup(
   }
   SetBounds(gfx::Rect(origin_in_parent, bounds_in_screen.size()));
   Show();
+
+#if defined(OS_CHROMEOS)
+  // Web Popups need capture for proper behavior including dismissal.
+  // SetCapture is called after Show because it will only succeed when
+  // the window is visible.
+  if (popup_type_ != WebKit::WebPopupTypeNone)
+    window_->SetCapture();
+#endif
 }
 
 void RenderWidgetHostViewAura::InitAsFullscreen(
@@ -969,7 +971,7 @@ bool RenderWidgetHostViewAura::HasAcceleratedSurface(
 
 void RenderWidgetHostViewAura::AcceleratedSurfaceRelease() {
   // This really tells us to release the frontbuffer.
-  if (current_surface_ && ShouldReleaseFrontSurface()) {
+  if (current_surface_) {
     ui::Compositor* compositor = GetCompositor();
     if (compositor) {
       // We need to wait for a commit to clear to guarantee that all we
@@ -1150,12 +1152,13 @@ void RenderWidgetHostViewAura::InsertChar(char16 ch, int flags) {
   }
 
   if (host_) {
+    double now = ui::EventTimeForNow().InSecondsF();
     // Send a WebKit::WebInputEvent::Char event to |host_|.
     NativeWebKeyboardEvent webkit_event(ui::ET_KEY_PRESSED,
                                         true /* is_char */,
                                         ch,
                                         flags,
-                                        base::Time::Now().ToDoubleT());
+                                        now);
     host_->ForwardKeyboardEvent(webkit_event);
   }
 }
@@ -1458,12 +1461,13 @@ void RenderWidgetHostViewAura::OnKeyEvent(ui::KeyEvent* event) {
       // Send a fabricated event, which is usually a VKEY_PROCESSKEY IME event.
       // For keys like VK_BACK/VK_LEFT, etc we need to send the raw keycode to
       // the renderer.
+      double now = ui::EventTimeForNow().InSecondsF();
       NativeWebKeyboardEvent webkit_event(
           event->type(),
           false /* is_char */,
           event->GetCharacter() ? event->GetCharacter() : event->key_code(),
           event->flags(),
-          base::Time::Now().ToDoubleT());
+          now);
       host_->ForwardKeyboardEvent(webkit_event);
     } else {
       NativeWebKeyboardEvent webkit_event(event);
@@ -1503,7 +1507,8 @@ void RenderWidgetHostViewAura::OnMouseEvent(ui::MouseEvent* event) {
       }
 
       // Forward event to renderer.
-      if (CanRendererHandleEvent(event))
+      if (CanRendererHandleEvent(event) &&
+          !(event->flags() & ui::EF_FROM_TOUCH))
         host_->ForwardMouseEvent(mouse_event);
     }
     return;
@@ -1530,21 +1535,32 @@ void RenderWidgetHostViewAura::OnMouseEvent(ui::MouseEvent* event) {
         MakeWebMouseWheelEvent(static_cast<ui::MouseWheelEvent*>(event));
     if (mouse_wheel_event.deltaX != 0 || mouse_wheel_event.deltaY != 0)
       host_->ForwardWheelEvent(mouse_wheel_event);
-  } else if (CanRendererHandleEvent(event)) {
+  } else if (CanRendererHandleEvent(event) &&
+             !(event->flags() & ui::EF_FROM_TOUCH)) {
     WebKit::WebMouseEvent mouse_event = MakeWebMouseEvent(event);
     ModifyEventMovementAndCoords(&mouse_event);
     host_->ForwardMouseEvent(mouse_event);
   }
 
+#if defined(OS_CHROMEOS)
+  bool allow_capture_change = popup_type_ == WebKit::WebPopupTypeNone &&
+      (!popup_child_host_view_ ||
+       popup_child_host_view_->popup_type_ == WebKit::WebPopupTypeNone);
+#else
+  bool allow_capture_change = true;
+#endif
+
   switch (event->type()) {
     case ui::ET_MOUSE_PRESSED:
-      window_->SetCapture();
+      if (allow_capture_change)
+        window_->SetCapture();
       // Confirm existing composition text on mouse click events, to make sure
       // the input caret won't be moved with an ongoing composition text.
       FinishImeCompositionSession();
       break;
     case ui::ET_MOUSE_RELEASED:
-      window_->ReleaseCapture();
+      if (allow_capture_change)
+        window_->ReleaseCapture();
       break;
     default:
       break;
@@ -1552,7 +1568,7 @@ void RenderWidgetHostViewAura::OnMouseEvent(ui::MouseEvent* event) {
 
   // Needed to propagate mouse event to native_tab_contents_view_aura.
   // TODO(pkotwicz): Find a better way of doing this.
-  if (window_->parent()->delegate())
+  if (window_->parent()->delegate() && !(event->flags() & ui::EF_FROM_TOUCH))
     window_->parent()->delegate()->OnMouseEvent(event);
 
   event->SetHandled();
@@ -1762,6 +1778,11 @@ void RenderWidgetHostViewAura::OnLostResources() {
   current_surface_ = NULL;
   UpdateExternalTexture();
   locks_pending_commit_.clear();
+
+  // Make sure all ImageTransportClients are deleted now that the context those
+  // are using is becoming invalid. This sends pending ACKs and needs to happen
+  // after calling UpdateExternalTexture() which syncs with the impl thread.
+  RunCompositingDidCommitCallbacks();
 
   DCHECK(!shared_surface_handle_.is_null());
   ImageTransportFactory* factory = ImageTransportFactory::GetInstance();

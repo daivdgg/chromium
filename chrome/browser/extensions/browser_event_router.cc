@@ -19,9 +19,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/common/extensions/extension.h"
+#include "chrome/common/extensions/api/extension_action/action_info.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/notification_service.h"
@@ -90,7 +89,7 @@ BrowserEventRouter::BrowserEventRouter(Profile* profile)
     Browser* browser = *iter;
     if (browser->tab_strip_model()) {
       for (int i = 0; i < browser->tab_strip_model()->count(); ++i) {
-        WebContents* contents = chrome::GetWebContentsAt(browser, i);
+        WebContents* contents = browser->tab_strip_model()->GetWebContentsAt(i);
         int tab_id = ExtensionTabUtil::GetTabId(contents);
         tab_entries_[tab_id] = TabEntry();
       }
@@ -110,10 +109,11 @@ void BrowserEventRouter::RegisterForBrowserNotifications(Browser* browser) {
   if (!profile_->IsSameProfile(browser->profile()))
     return;
   // Start listening to TabStripModel events for this browser.
-  browser->tab_strip_model()->AddObserver(this);
+  TabStripModel* tab_strip = browser->tab_strip_model();
+  tab_strip->AddObserver(this);
 
-  for (int i = 0; i < browser->tab_strip_model()->count(); ++i) {
-    RegisterForTabNotifications(chrome::GetWebContentsAt(browser, i));
+  for (int i = 0; i < tab_strip->count(); ++i) {
+    RegisterForTabNotifications(tab_strip->GetWebContentsAt(i));
   }
 }
 
@@ -339,17 +339,17 @@ void BrowserEventRouter::TabMoved(WebContents* contents,
 
 void BrowserEventRouter::TabUpdated(WebContents* contents, bool did_navigate) {
   TabEntry* entry = GetTabEntry(contents);
-  DictionaryValue* changed_properties = NULL;
+  scoped_ptr<DictionaryValue> changed_properties;
 
   DCHECK(entry);
 
   if (did_navigate)
-    changed_properties = entry->DidNavigate(contents);
+    changed_properties.reset(entry->DidNavigate(contents));
   else
-    changed_properties = entry->UpdateLoadState(contents);
+    changed_properties.reset(entry->UpdateLoadState(contents));
 
   if (changed_properties)
-    DispatchTabUpdatedEvent(contents, changed_properties);
+    DispatchTabUpdatedEvent(contents, changed_properties.Pass());
 }
 
 void BrowserEventRouter::DispatchEvent(
@@ -396,18 +396,27 @@ void BrowserEventRouter::DispatchSimpleBrowserEvent(
                 EventRouter::USER_GESTURE_UNKNOWN);
 }
 
-static void WillDispatchTabUpdatedEvent(WebContents* contents,
-                                        Profile* profile,
-                                        const Extension* extension,
-                                        ListValue* event_args) {
+static void WillDispatchTabUpdatedEvent(
+    WebContents* contents,
+    const DictionaryValue* changed_properties,
+    Profile* profile,
+    const Extension* extension,
+    ListValue* event_args) {
+  // Overwrite the second argument with the appropriate properties dictionary,
+  // depending on extension permissions.
+  DictionaryValue* properties_value = changed_properties->DeepCopy();
+  ExtensionTabUtil::ScrubTabValueForExtension(contents, extension,
+                                              properties_value);
+  event_args->Set(1, properties_value);
+
+  // Overwrite the third arg with our tab value as seen by this extension.
   DictionaryValue* tab_value = ExtensionTabUtil::CreateTabValue(
       contents, extension);
-  // Overwrite the third arg with our tab value as seen by this extension.
   event_args->Set(2, tab_value);
 }
 
 void BrowserEventRouter::DispatchTabUpdatedEvent(
-    WebContents* contents, DictionaryValue* changed_properties) {
+    WebContents* contents, scoped_ptr<DictionaryValue> changed_properties) {
   DCHECK(changed_properties);
   DCHECK(contents);
 
@@ -418,8 +427,9 @@ void BrowserEventRouter::DispatchTabUpdatedEvent(
   // First arg: The id of the tab that changed.
   args_base->AppendInteger(ExtensionTabUtil::GetTabId(contents));
 
-  // Second arg: An object containing the changes to the tab state.
-  args_base->Append(changed_properties);
+  // Second arg: An object containing the changes to the tab state.  Filled in
+  // by WillDispatchTabUpdatedEvent as a copy of changed_properties, if the
+  // extension has the tabs permission.
 
   // Third arg: An object containing the state of the tab. Filled in by
   // WillDispatchTabUpdatedEvent.
@@ -429,7 +439,8 @@ void BrowserEventRouter::DispatchTabUpdatedEvent(
   event->restrict_to_profile = profile;
   event->user_gesture = EventRouter::USER_GESTURE_NOT_ENABLED;
   event->will_dispatch_callback =
-      base::Bind(&WillDispatchTabUpdatedEvent, contents);
+      base::Bind(&WillDispatchTabUpdatedEvent,
+                 contents, changed_properties.get());
   ExtensionSystem::Get(profile)->event_router()->BroadcastEvent(event.Pass());
 }
 
@@ -471,8 +482,28 @@ void BrowserEventRouter::TabReplacedAt(TabStripModel* tab_strip_model,
                                        WebContents* old_contents,
                                        WebContents* new_contents,
                                        int index) {
-  TabClosingAt(tab_strip_model, old_contents, index);
-  TabInsertedAt(new_contents, index, tab_strip_model->active_index() == index);
+  // Notify listeners that the next tabs closing or being added are due to
+  // WebContents being swapped.
+  const int new_tab_id = ExtensionTabUtil::GetTabId(new_contents);
+  const int old_tab_id = ExtensionTabUtil::GetTabId(old_contents);
+  scoped_ptr<ListValue> args(new ListValue());
+  args->Append(Value::CreateIntegerValue(new_tab_id));
+  args->Append(Value::CreateIntegerValue(old_tab_id));
+
+  DispatchEvent(Profile::FromBrowserContext(new_contents->GetBrowserContext()),
+                events::kOnTabReplaced,
+                args.Pass(),
+                EventRouter::USER_GESTURE_UNKNOWN);
+
+  // Update tab_entries_.
+  const int removed_count = tab_entries_.erase(old_tab_id);
+  DCHECK_GT(removed_count, 0);
+  UnregisterForTabNotifications(old_contents);
+
+  if (!GetTabEntry(new_contents)) {
+    tab_entries_[new_tab_id] = TabEntry();
+    RegisterForTabNotifications(new_contents);
+  }
 }
 
 void BrowserEventRouter::TabPinnedStateChanged(WebContents* contents,
@@ -481,10 +512,10 @@ void BrowserEventRouter::TabPinnedStateChanged(WebContents* contents,
   int tab_index;
 
   if (ExtensionTabUtil::GetTabStripModel(contents, &tab_strip, &tab_index)) {
-    DictionaryValue* changed_properties = new DictionaryValue();
+    scoped_ptr<DictionaryValue> changed_properties(new DictionaryValue());
     changed_properties->SetBoolean(tab_keys::kPinnedKey,
                                    tab_strip->IsTabPinned(tab_index));
-    DispatchTabUpdatedEvent(contents, changed_properties);
+    DispatchTabUpdatedEvent(contents, changed_properties.Pass());
   }
 }
 
@@ -554,16 +585,16 @@ void BrowserEventRouter::ExtensionActionExecuted(
     WebContents* web_contents) {
   const char* event_name = NULL;
   switch (extension_action.action_type()) {
-    case Extension::ActionInfo::TYPE_BROWSER:
+    case ActionInfo::TYPE_BROWSER:
       event_name = "browserAction.onClicked";
       break;
-    case Extension::ActionInfo::TYPE_PAGE:
+    case ActionInfo::TYPE_PAGE:
       event_name = "pageAction.onClicked";
       break;
-    case Extension::ActionInfo::TYPE_SCRIPT_BADGE:
+    case ActionInfo::TYPE_SCRIPT_BADGE:
       event_name = "scriptBadge.onClicked";
       break;
-    case Extension::ActionInfo::TYPE_SYSTEM_INDICATOR:
+    case ActionInfo::TYPE_SYSTEM_INDICATOR:
       // The System Indicator handles its own clicks.
       break;
   }
@@ -571,8 +602,7 @@ void BrowserEventRouter::ExtensionActionExecuted(
   if (event_name) {
     scoped_ptr<ListValue> args(new ListValue());
     DictionaryValue* tab_value = ExtensionTabUtil::CreateTabValue(
-        web_contents,
-        ExtensionTabUtil::INCLUDE_PRIVACY_SENSITIVE_FIELDS);
+        web_contents);
     args->Append(tab_value);
 
     DispatchEventToExtension(profile,

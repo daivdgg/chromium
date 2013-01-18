@@ -145,8 +145,10 @@ bool QuicSession::OnCanWrite() {
   return write_blocked_streams_.empty();
 }
 
-int QuicSession::WriteData(QuicStreamId id, StringPiece data,
-                           QuicStreamOffset offset, bool fin) {
+QuicConsumedData QuicSession::WriteData(QuicStreamId id,
+                                        StringPiece data,
+                                        QuicStreamOffset offset,
+                                        bool fin) {
   // TODO(wtc): type mismatch -- connection_->SendStreamData() returns a
   // size_t.
   return connection_->SendStreamData(id, data, offset, fin, NULL);
@@ -267,7 +269,7 @@ bool QuicSession::IsClosedStream(QuicStreamId id) {
       implicitly_created_streams_.count(id) == 0;
 }
 
-size_t QuicSession::GetNumOpenStreams() {
+size_t QuicSession::GetNumOpenStreams() const {
   return stream_map_.size() + implicitly_created_streams_.size();
 }
 

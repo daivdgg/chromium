@@ -56,19 +56,6 @@ FileGrid.prototype.updateListItemsMetadata = function(type, props) {
 };
 
 /**
- * Renders a thumbnail for Drag And Drop operations.
- * @param {HTMLDocument} doc Owner document.
- * @param {MetadataCache} metadataCache To retrieve metadata.
- * @param {Entry} entry Entry to render a thumbnail for.
- * @return {HTMLElement} Created element.
- */
-FileGrid.renderDragThumbnail = function(doc, metadataCache, entry) {
-  var item = doc.createElement('div');
-  FileGrid.decorateThumbnail(item, entry, metadataCache, true);
-  return item;
-};
-
-/**
  * Decorates thumbnail.
  * @param {HTMLElement} li List item.
  * @param {Entry} entry Entry to render a thumbnail for.
@@ -122,9 +109,8 @@ FileGrid.decorateThumbnailBox = function(
   // is now stale. Request a refresh of the current directory, to get
   // the new thumbnail URLs. Once the directory is refreshed, we'll get
   // notified via onDirectoryChanged event.
-  // TODO:
-  var onImageLoadError = function(imageURL) {
-    metadataCache.refreshFileMetadata(imageURL);
+  var onImageLoadError = function() {
+    metadataCache.refreshFileMetadata(imageUrl);
   };
 
   var metadataTypes = 'thumbnail|filesystem';

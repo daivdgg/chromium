@@ -115,21 +115,18 @@ int GetEditFontPixelSize(bool popup_window_mode) {
                              kAutocompleteEditFontPixelSize;
 }
 
-// Copies |selected_text| as text to the primary clipboard. If |write_url| is
-// true, this will also write |url| and |text| to the clipboard as a well-formed
-// URL.
-void DoCopy(const string16& selected_text,
-            bool write_url,
-            const GURL& url,
-            const string16& text) {
-  ui::Clipboard* cb = ui::Clipboard::GetForCurrentThread();
-  ui::ScopedClipboardWriter scw(cb, ui::Clipboard::BUFFER_STANDARD);
+// Copies |selected_text| as text to the primary clipboard.
+void DoCopyText(const string16& selected_text) {
+  ui::ScopedClipboardWriter scw(ui::Clipboard::GetForCurrentThread(),
+                                ui::Clipboard::BUFFER_STANDARD);
   scw.WriteText(selected_text);
-  if (write_url) {
-    BookmarkNodeData data;
-    data.ReadFromTuple(url, text);
-    data.WriteToClipboard(NULL);
-  }
+}
+
+// This will write |url| and |text| to the clipboard as a well-formed URL.
+void DoCopyURL(const GURL& url, const string16& text) {
+  BookmarkNodeData data;
+  data.ReadFromTuple(url, text);
+  data.WriteToClipboard(NULL);
 }
 
 }  // namespace
@@ -418,10 +415,6 @@ void OmniboxViewViews::SetLocationEntryFocusable(bool focusable) {
 
 bool OmniboxViewViews::IsLocationEntryFocusableInRootView() const {
   return textfield_->IsFocusable();
-}
-
-void OmniboxViewViews::ExecuteCommandOnTextField(int command_id) {
-  return textfield_->ExecuteCommand(command_id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -774,7 +767,10 @@ void OmniboxViewViews::OnAfterCutOrCopy() {
   bool write_url;
   model()->AdjustTextForCopy(selection_range.GetMin(), selected_text == text,
       &selected_text, &url, &write_url);
-  DoCopy(selected_text, write_url, url, text);
+  if (write_url)
+    DoCopyURL(url, selected_text);
+  else
+    DoCopyText(selected_text);
 }
 
 void OmniboxViewViews::OnWriteDragData(ui::OSExchangeData* data) {
@@ -819,8 +815,7 @@ void OmniboxViewViews::UpdateContextMenu(ui::SimpleMenuModel* menu_contents) {
   menu_contents->AddItemWithStringId(IDC_EDIT_SEARCH_ENGINES,
       IDS_EDIT_SEARCH_ENGINES);
 
-  if (chrome::search::IsInstantExtendedAPIEnabled(
-          location_bar_view_->profile())) {
+  if (chrome::search::IsQueryExtractionEnabled(location_bar_view_->profile())) {
     int copy_position = menu_contents->GetIndexOfCommandId(IDS_APP_COPY);
     DCHECK(copy_position >= 0);
     menu_contents->InsertItemWithStringIdAt(
@@ -957,8 +952,7 @@ string16 OmniboxViewViews::GetSelectedText() const {
 }
 
 void OmniboxViewViews::CopyURL() {
-  const string16& text = toolbar_model()->GetText(false);
-  DoCopy(text, true, toolbar_model()->GetURL(), text);
+  DoCopyURL(toolbar_model()->GetURL(), toolbar_model()->GetText(false));
 }
 
 void OmniboxViewViews::OnPaste() {

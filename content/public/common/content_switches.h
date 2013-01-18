@@ -23,6 +23,7 @@ CONTENT_EXPORT extern const char kBrowserSubprocessPath[];
 // TODO(jam): this doesn't belong in content.
 CONTENT_EXPORT extern const char kChromeFrame[];
 CONTENT_EXPORT extern const char kCrashOnGpuHang[];
+CONTENT_EXPORT extern const char kDisable2dCanvasAntialiasing[];
 CONTENT_EXPORT extern const char kDisable3DAPIs[];
 CONTENT_EXPORT extern const char kDisableAccelerated2dCanvas[];
 CONTENT_EXPORT extern const char kDisableAcceleratedCompositing[];
@@ -51,6 +52,7 @@ extern const char kDisableFlashFullscreen3d[];
 CONTENT_EXPORT extern const char kDisableFlashStage3d[];
 CONTENT_EXPORT extern const char kDisableForceCompositingMode[];
 extern const char kDisableGeolocation[];
+CONTENT_EXPORT extern const char kUseGpuInTests[];
 extern const char kDisableGpu[];
 CONTENT_EXPORT extern const char kDisableGLMultisampling[];
 CONTENT_EXPORT extern const char kDisableGpuProcessPrelaunch[];
@@ -96,6 +98,7 @@ CONTENT_EXPORT extern const char kEnableCompositingForFixedPosition[];
 CONTENT_EXPORT extern const char kEnableCssShaders[];
 CONTENT_EXPORT extern const char kEnableDataChannels[];
 CONTENT_EXPORT extern const char kEnableDeviceMotion[];
+CONTENT_EXPORT extern const char kEnableDownloadResumption[];
 CONTENT_EXPORT extern const char kEnableExperimentalWebKitFeatures[];
 extern const char kEnableFastback[];
 CONTENT_EXPORT extern const char kEnableFixedLayout[];
@@ -108,7 +111,6 @@ extern const char kDisableMediaSource[];
 extern const char kDisableWebMediaPlayerMS[];
 CONTENT_EXPORT extern const char kUseFakeDeviceForMediaStream[];
 extern const char kEnableMonitorProfile[];
-extern const char kEnableUIReleaseFrontSurface[];
 extern const char kEnablePinch[];
 extern const char kEnableCssTransformPinch[];
 extern const char kEnablePreparsedJsCaching[];
@@ -150,6 +152,7 @@ CONTENT_EXPORT extern const char kJavaScriptFlags[];
 extern const char kLoadPlugin[];
 CONTENT_EXPORT extern const char kLoggingLevel[];
 extern const char kLogPluginMessages[];
+extern const char kMemoryMetrics[];
 // TODO(jam): this doesn't belong in content.
 CONTENT_EXPORT extern const char kNaClBrokerProcess[];
 CONTENT_EXPORT extern const char kNaClLoaderProcess[];
@@ -182,6 +185,7 @@ extern const char kShowCompositedLayerTree[];
 extern const char kShowFPSCounter[];
 extern const char kEnableAcceleratedOverflowScroll[];
 extern const char kEnableAcceleratedScrollableFrames[];
+extern const char kEnableCompositedScrollingForFrames[];
 extern const char kShowPaintRects[];
 CONTENT_EXPORT extern const char kSimulateTouchScreenWithMouse[];
 CONTENT_EXPORT extern const char kSingleProcess[];
@@ -195,6 +199,7 @@ extern const char kTraceStartup[];
 extern const char kTraceStartupFile[];
 extern const char kTraceStartupDuration[];
 CONTENT_EXPORT extern const char kUIPrioritizeInGpuProcess[];
+CONTENT_EXPORT extern const char kUseExynosVda[];
 CONTENT_EXPORT extern const char kUserAgent[];
 extern const char kUtilityCmdPrefix[];
 CONTENT_EXPORT extern const char kUtilityProcess[];
@@ -228,17 +233,11 @@ extern const char kEnableWebViewSynchronousAPIs[];
 extern const char kChildCleanExit[];
 #endif
 
-#if defined(OS_MACOSX) || defined(OS_WIN)
-extern const char kUseSystemSSL[];
-#endif
-
 #if defined(OS_MACOSX) && !defined(OS_IOS)
 extern const char kDisableCarbonInterposing[];
 #endif
 
 #if defined(USE_AURA)
-CONTENT_EXPORT extern const char kFlingTapSuppressMaxDown[];
-CONTENT_EXPORT extern const char kFlingTapSuppressMaxGap[];
 CONTENT_EXPORT extern const char kTestCompositor[];
 #endif
 

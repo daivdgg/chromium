@@ -12,8 +12,7 @@
 #include "base/bind.h"
 #include "base/bind_helpers.h"
 #include "base/memory/ref_counted_memory.h"
-#include "chrome/browser/bookmarks/bookmark_model.h"
-#include "chrome/browser/bookmarks/bookmark_model_factory.h"
+#include "chrome/browser/api/bookmarks/bookmark_service.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/favicon/favicon_util.h"
 #include "chrome/browser/history/select_favicon_frames.h"
@@ -370,7 +369,6 @@ void FaviconHandler::ProcessCurrentUrl() {
 void FaviconHandler::OnDidDownloadFavicon(
     int id,
     const GURL& image_url,
-    bool errored,
     int requested_size,
     const std::vector<SkBitmap>& bitmaps) {
   DownloadRequests::iterator i = download_requests_.find(id);
@@ -391,7 +389,7 @@ void FaviconHandler::OnDidDownloadFavicon(
     // The downloaded icon is still valid when there is no FaviconURL update
     // during the downloading.
     bool request_next_icon = true;
-    if (!errored) {
+    if (!bitmaps.empty()) {
       request_next_icon = !UpdateFaviconCandidate(
           i->second.url, image_url, image, score, i->second.icon_type);
     }
@@ -479,9 +477,9 @@ bool FaviconHandler::ShouldSaveFavicon(const GURL& url) {
     return true;
 
   // Otherwise store the favicon if the page is bookmarked.
-  BookmarkModel* bookmark_model =
-      BookmarkModelFactory::GetForProfile(profile_);
-  return bookmark_model && bookmark_model->IsBookmarked(url);
+  BookmarkService* bookmark_service =
+      BookmarkService::FromBrowserContext(profile_);
+  return bookmark_service && bookmark_service->IsBookmarked(url);
 }
 
 void FaviconHandler::OnFaviconDataForInitialURL(

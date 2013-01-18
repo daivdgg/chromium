@@ -24,16 +24,16 @@
 #include "media/filters/audio_renderer_impl.h"
 #include "media/filters/chunk_demuxer.h"
 #include "media/filters/video_renderer_base.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebRect.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebSize.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURL.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebRuntimeFeatures.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebVideoFrame.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebView.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebRect.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebSize.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURL.h"
 #include "v8/include/v8.h"
 #include "webkit/media/buffered_data_source.h"
 #include "webkit/media/filter_helpers.h"
+#include "webkit/media/webaudiosourceprovider_impl.h"
 #include "webkit/media/webmediaplayer_delegate.h"
 #include "webkit/media/webmediaplayer_params.h"
 #include "webkit/media/webmediaplayer_proxy.h"
@@ -140,7 +140,6 @@ WebMediaPlayerImpl::WebMediaPlayerImpl(
       media_log_(params.media_log()),
       accelerated_compositing_reported_(false),
       incremented_externally_allocated_memory_(false),
-      audio_source_provider_(params.audio_source_provider()),
       is_local_source_(false),
       supports_save_(true),
       starting_(false) {
@@ -198,13 +197,11 @@ WebMediaPlayerImpl::WebMediaPlayerImpl(
   proxy_->set_frame_provider(video_renderer);
 
   // Create default audio renderer using the null sink if no sink was provided.
-  scoped_refptr<media::AudioRendererSink> audio_renderer_sink =
-      params.audio_renderer_sink();
-  if (!audio_renderer_sink)
-    audio_renderer_sink = new media::NullAudioSink();
-
+  audio_source_provider_ = new WebAudioSourceProviderImpl(
+      params.audio_renderer_sink() ? params.audio_renderer_sink() :
+      new media::NullAudioSink());
   filter_collection_->AddAudioRenderer(new media::AudioRendererImpl(
-      audio_renderer_sink, set_decryptor_ready_cb));
+      audio_source_provider_, set_decryptor_ready_cb));
 }
 
 WebMediaPlayerImpl::~WebMediaPlayerImpl() {
@@ -644,9 +641,8 @@ void WebMediaPlayerImpl::putCurrentFrame(
     UMA_HISTOGRAM_BOOLEAN("Media.AcceleratedCompositingActive", true);
   }
   if (web_video_frame) {
-    scoped_refptr<media::VideoFrame> video_frame(
-        WebVideoFrameImpl::toVideoFrame(web_video_frame));
-    proxy_->PutCurrentFrame(video_frame);
+    WebVideoFrameImpl* impl = static_cast<WebVideoFrameImpl*>(web_video_frame);
+    proxy_->PutCurrentFrame(impl->video_frame);
     delete web_video_frame;
   } else {
     proxy_->PutCurrentFrame(NULL);

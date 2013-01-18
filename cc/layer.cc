@@ -4,7 +4,7 @@
 
 #include "cc/layer.h"
 
-#include "cc/active_animation.h"
+#include "cc/animation.h"
 #include "cc/animation_events.h"
 #include "cc/layer_animation_controller.h"
 #include "cc/layer_impl.h"
@@ -35,8 +35,6 @@ Layer::Layer()
     , m_scrollable(false)
     , m_shouldScrollOnMainThread(false)
     , m_haveWheelEventHandlers(false)
-    , m_nonFastScrollableRegionChanged(false)
-    , m_touchEventHandlerRegionChanged(false)
     , m_anchorPoint(0.5, 0.5)
     , m_backgroundColor(0)
     , m_opacity(1.0)
@@ -126,6 +124,27 @@ gfx::Rect Layer::layerRectToContentRect(const gfx::RectF& layerRect) const
 
 bool Layer::blocksPendingCommit() const
 {
+    return false;
+}
+
+bool Layer::canClipSelf() const
+{
+    return false;
+}
+
+bool Layer::blocksPendingCommitRecursive() const
+{
+    if (blocksPendingCommit())
+        return true;
+    if (maskLayer() && maskLayer()->blocksPendingCommitRecursive())
+        return true;
+    if (replicaLayer() && replicaLayer()->blocksPendingCommitRecursive())
+        return true;
+    for (size_t i = 0; i < m_children.size(); ++i)
+    {
+        if (m_children[i]->blocksPendingCommitRecursive())
+            return true;
+    }
     return false;
 }
 
@@ -386,7 +405,7 @@ float Layer::opacity() const
 
 bool Layer::opacityIsAnimating() const
 {
-    return m_layerAnimationController->isAnimatingProperty(ActiveAnimation::Opacity);
+    return m_layerAnimationController->isAnimatingProperty(Animation::Opacity);
 }
 
 void Layer::setContentsOpaque(bool opaque)
@@ -428,7 +447,7 @@ const gfx::Transform& Layer::transform() const
 
 bool Layer::transformIsAnimating() const
 {
-    return m_layerAnimationController->isAnimatingProperty(ActiveAnimation::Transform);
+    return m_layerAnimationController->isAnimatingProperty(Animation::Transform);
 }
 
 void Layer::setScrollOffset(gfx::Vector2d scrollOffset)
@@ -438,7 +457,7 @@ void Layer::setScrollOffset(gfx::Vector2d scrollOffset)
     m_scrollOffset = scrollOffset;
     if (m_layerScrollClient)
         m_layerScrollClient->didScroll();
-    setNeedsFullTreeSync();
+    setNeedsCommit();
 }
 
 void Layer::setMaxScrollOffset(gfx::Vector2d maxScrollOffset)
@@ -478,7 +497,6 @@ void Layer::setNonFastScrollableRegion(const Region& region)
     if (m_nonFastScrollableRegion == region)
         return;
     m_nonFastScrollableRegion = region;
-    m_nonFastScrollableRegionChanged = true;
     setNeedsCommit();
 }
 
@@ -487,7 +505,6 @@ void Layer::setTouchEventHandlerRegion(const Region& region)
     if (m_touchEventHandlerRegion == region)
         return;
     m_touchEventHandlerRegion = region;
-    m_touchEventHandlerRegionChanged = true;
 }
 
 void Layer::setDrawCheckerboardForMissingTiles(bool checkerboard)
@@ -593,19 +610,10 @@ void Layer::pushPropertiesTo(LayerImpl* layer)
     layer->setFilter(filter());
     layer->setBackgroundFilters(backgroundFilters());
     layer->setMasksToBounds(m_masksToBounds);
-    layer->setScrollable(m_scrollable);
     layer->setShouldScrollOnMainThread(m_shouldScrollOnMainThread);
     layer->setHaveWheelEventHandlers(m_haveWheelEventHandlers);
-    // Copying a Region is more expensive than most layer properties, since it involves copying two Vectors that may be
-    // arbitrarily large depending on page content, so we only push the property if it's changed.
-    if (m_nonFastScrollableRegionChanged) {
-        layer->setNonFastScrollableRegion(m_nonFastScrollableRegion);
-        m_nonFastScrollableRegionChanged = false;
-    }
-    if (m_touchEventHandlerRegionChanged) {
-        layer->setTouchEventHandlerRegion(m_touchEventHandlerRegion);
-        m_touchEventHandlerRegionChanged = false;
-    }
+    layer->setNonFastScrollableRegion(m_nonFastScrollableRegion);
+    layer->setTouchEventHandlerRegion(m_touchEventHandlerRegion);
     layer->setContentsOpaque(m_contentsOpaque);
     if (!opacityIsAnimating())
         layer->setOpacity(m_opacity);
@@ -614,11 +622,13 @@ void Layer::pushPropertiesTo(LayerImpl* layer)
     layer->setFixedToContainerLayer(m_fixedToContainerLayer);
     layer->setPreserves3D(preserves3D());
     layer->setUseParentBackfaceVisibility(m_useParentBackfaceVisibility);
-    layer->setScrollOffset(m_scrollOffset);
-    layer->setMaxScrollOffset(m_maxScrollOffset);
     layer->setSublayerTransform(m_sublayerTransform);
     if (!transformIsAnimating())
         layer->setTransform(m_transform);
+
+    layer->setScrollable(m_scrollable);
+    layer->setScrollOffset(m_scrollOffset);
+    layer->setMaxScrollOffset(m_maxScrollOffset);
 
     // If the main thread commits multiple times before the impl thread actually draws, then damage tracking
     // will become incorrect if we simply clobber the updateRect here. The LayerImpl's updateRect needs to
@@ -642,11 +652,6 @@ void Layer::pushPropertiesTo(LayerImpl* layer)
     }
 
     layer->setStackingOrderChanged(m_stackingOrderChanged);
-
-    if (maskLayer())
-        maskLayer()->pushPropertiesTo(layer->maskLayer());
-    if (replicaLayer())
-        replicaLayer()->pushPropertiesTo(layer->replicaLayer());
 
     m_layerAnimationController->pushAnimationUpdatesTo(layer->layerAnimationController());
 
@@ -748,7 +753,12 @@ void Layer::OnTransformAnimated(const gfx::Transform& transform)
     m_transform = transform;
 }
 
-bool Layer::addAnimation(scoped_ptr <ActiveAnimation> animation)
+bool Layer::IsActive() const
+{
+    return true;
+}
+
+bool Layer::addAnimation(scoped_ptr <Animation> animation)
 {
     // WebCore currently assumes that accelerated animations will start soon
     // after the animation is added. However we cannot guarantee that if we do

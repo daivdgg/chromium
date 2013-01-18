@@ -34,6 +34,19 @@ typedef uint64 QuicStreamOffset;
 typedef uint64 QuicPacketSequenceNumber;
 typedef uint8 QuicFecGroupNumber;
 
+// A struct for functions which consume data payloads and fins.
+// The first member of the pair indicates bytes consumed.
+// The second member of the pair indicates if an incoming fin was consumed.
+struct QuicConsumedData {
+  QuicConsumedData(size_t bytes_consumed, bool fin_consumed)
+      : bytes_consumed(bytes_consumed),
+        fin_consumed(fin_consumed) {
+  }
+  size_t bytes_consumed;
+  bool fin_consumed;
+};
+
+
 // TODO(rch): Consider Quic specific names for these constants.
 const size_t kMaxPacketSize = 1200;  // Maximum size in bytes of a QUIC packet.
 
@@ -137,7 +150,7 @@ enum QuicErrorCode {
 
   // Handshake message contained out of order tags.
   QUIC_CRYPTO_TAGS_OUT_OF_ORDER,
-  // Handshake message contained too many entires.
+  // Handshake message contained too many entries.
   QUIC_CRYPTO_TOO_MANY_ENTRIES,
   // Handshake message contained an invalid value length.
   QUIC_CRYPTO_INVALID_VALUE_LENGTH,
@@ -161,18 +174,19 @@ struct NET_EXPORT_PRIVATE QuicStreamFrame {
   QuicStreamFrame();
   QuicStreamFrame(QuicStreamId stream_id,
                   bool fin,
-                  uint64 offset,
+                  QuicStreamOffset offset,
                   base::StringPiece data);
 
   QuicStreamId stream_id;
   bool fin;
-  uint64 offset;
+  QuicStreamOffset offset;  // Location of this data in the stream.
   base::StringPiece data;
 };
 
 // TODO(ianswett): Re-evaluate the trade-offs of hash_set vs set when framing
 // is finalized.
 typedef std::set<QuicPacketSequenceNumber> SequenceSet;
+// TODO(pwestin): Add a way to enforce the max size of this map.
 typedef std::map<QuicPacketSequenceNumber, QuicTime> TimeMap;
 
 struct NET_EXPORT_PRIVATE ReceivedPacketInfo {
@@ -184,7 +198,7 @@ struct NET_EXPORT_PRIVATE ReceivedPacketInfo {
   // Records a packet receipt.
   void RecordReceived(QuicPacketSequenceNumber sequence_number);
 
-  // True if the sequence number is greater than largest_received or is listed
+  // True if the sequence number is greater than largest_observed or is listed
   // as missing.
   // Always returns false for sequence numbers less than least_unacked.
   bool IsAwaitingPacket(QuicPacketSequenceNumber sequence_number) const;
@@ -192,8 +206,15 @@ struct NET_EXPORT_PRIVATE ReceivedPacketInfo {
   // Clears all missing packets less than |least_unacked|.
   void ClearMissingBefore(QuicPacketSequenceNumber least_unacked);
 
-  // The highest packet sequence number we've received from the peer.
-  QuicPacketSequenceNumber largest_received;
+  // The highest packet sequence number we've observed from the peer.
+  //
+  // In general, this should be the largest packet number we've received.  In
+  // the case of truncated acks, we may have to advertise a lower "upper bound"
+  // than largest received, to avoid implicitly acking missing packets that
+  // don't fit in the missing packet list due to size limitations.  In this
+  // case, largest_observed may be a packet which is also in the missing packets
+  // list.
+  QuicPacketSequenceNumber largest_observed;
 
   // The set of packets which we're expecting and have not received.
   SequenceSet missing_packets;
@@ -212,8 +233,8 @@ struct NET_EXPORT_PRIVATE SentPacketInfo {
 struct NET_EXPORT_PRIVATE QuicAckFrame {
   QuicAckFrame() {}
   // Testing convenience method to construct a QuicAckFrame with all packets
-  // from least_unacked to largest_received acked.
-  QuicAckFrame(QuicPacketSequenceNumber largest_received,
+  // from least_unacked to largest_observed acked.
+  QuicAckFrame(QuicPacketSequenceNumber largest_observed,
                QuicPacketSequenceNumber least_unacked);
 
   NET_EXPORT_PRIVATE friend std::ostream& operator<<(
@@ -241,33 +262,10 @@ struct NET_EXPORT_PRIVATE CongestionFeedbackMessageInterArrival {
   CongestionFeedbackMessageInterArrival();
   ~CongestionFeedbackMessageInterArrival();
   uint16 accumulated_number_of_lost_packets;
-  // TODO(rch): These times should be QuicTime instances.  We can write
-  // them to the wire in the format specified below, but we should avoid
-  // storing them in memory that way.  As such, we should move this comment
-  // to QuicFramer.
-  int16 offset_time;
-  uint16 delta_time;  // delta time is described below.
   // The set of received packets since the last feedback was sent, along with
   // their arrival times.
   TimeMap received_packet_times;
 };
-
-/*
- * Description of delta time.
- *
- * 0                   1
- * 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- * |D|S|       offset_time         |
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *
- * Where:
- *   D is the time domain. If set time domain is in milliseconds, else in
- *    microseconds.
- *   S is the sign bit.
- *   offset_time is the time offset where the relative packet size is equal to
- *    0.
- */
 
 struct NET_EXPORT_PRIVATE CongestionFeedbackMessageFixRate {
   uint32 bitrate_in_bytes_per_second;

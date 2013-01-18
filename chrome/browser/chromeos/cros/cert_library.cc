@@ -29,9 +29,9 @@
 #include "grit/generated_resources.h"
 #include "net/base/cert_database.h"
 #include "net/base/nss_cert_database.h"
+#include "third_party/icu/public/i18n/unicode/coll.h"  // icu::Collator
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/l10n/l10n_util_collator.h"
-#include "unicode/coll.h"  // icu::Collator
 
 using content::BrowserThread;
 
@@ -197,6 +197,10 @@ class CertLibraryImpl
   }
 
   virtual std::string EncryptToken(const std::string& token) OVERRIDE {
+    // Don't care about token encryption while debugging.
+    if (!base::chromeos::IsRunningOnChromeOS())
+      return token;
+
     if (!LoadSupplementalUserKey()) {
       LOG(WARNING) << "Supplemental user key is not available for encrypt.";
       return std::string();
@@ -224,6 +228,10 @@ class CertLibraryImpl
 
   virtual std::string DecryptToken(
       const std::string& encrypted_token_hex) OVERRIDE {
+    // Don't care about token encryption while debugging.
+    if (!base::chromeos::IsRunningOnChromeOS())
+      return encrypted_token_hex;
+
     if (!LoadSupplementalUserKey()) {
       LOG(WARNING) << "Supplemental user key is not available for decrypt.";
       return std::string();

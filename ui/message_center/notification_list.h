@@ -57,6 +57,7 @@ class MESSAGE_CENTER_EXPORT NotificationList {
     // Images fetched asynchronously
     gfx::ImageSkia primary_icon;
     gfx::ImageSkia secondary_icon;
+    gfx::ImageSkia image;
 
     bool is_read;  // True if this has been seen in the message center
     bool shown_as_popup;  // True if this has been shown as a popup notification
@@ -132,6 +133,9 @@ class MESSAGE_CENTER_EXPORT NotificationList {
   bool SetNotificationSecondaryIcon(const std::string& id,
                                     const gfx::ImageSkia& image);
 
+  // Returns true if the notification exists and was updated.
+  bool SetNotificationImage(const std::string& id, const gfx::ImageSkia& image);
+
   bool HasNotification(const std::string& id);
 
   // Returns false if the first notification has been shown as a popup (which
@@ -144,6 +148,11 @@ class MESSAGE_CENTER_EXPORT NotificationList {
 
   // Marks the popups for the |priority| as shown.
   void MarkPopupsAsShown(int priority);
+
+  // Marks a specific popup item as shown. Set |mark_notification_as_read| to
+  // true in case marking the notification as read too.
+  void MarkSinglePopupAsShown(const std::string& id,
+                              bool mark_notification_as_read);
 
   bool quiet_mode() const { return quiet_mode_; }
 
@@ -177,8 +186,8 @@ class MESSAGE_CENTER_EXPORT NotificationList {
   // as a popup. kMaxVisiblePopupNotifications are used to limit the number of
   // notifications for the default priority.
   void GetPopupIterators(int priority,
-                         Notifications::iterator& first,
-                         Notifications::iterator& last);
+                         Notifications::iterator* first,
+                         Notifications::iterator* last);
 
   // Given a dictionary of optional notification fields (or NULL), unpacks all
   // recognized values into the given Notification struct. We assume prior

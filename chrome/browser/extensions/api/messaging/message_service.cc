@@ -162,7 +162,7 @@ void MessageService::OpenChannelToExtension(
   std::string tab_json = "null";
   if (source_contents) {
     scoped_ptr<DictionaryValue> tab_value(ExtensionTabUtil::CreateTabValue(
-        source_contents, ExtensionTabUtil::INCLUDE_PRIVACY_SENSITIVE_FIELDS));
+        source_contents));
     base::JSONWriter::Write(tab_value.get(), &tab_json);
   }
 
@@ -202,7 +202,7 @@ void MessageService::OpenChannelToNativeApp(
   std::string tab_json = "null";
   if (source_contents) {
     scoped_ptr<DictionaryValue> tab_value(ExtensionTabUtil::CreateTabValue(
-        source_contents, ExtensionTabUtil::INCLUDE_PRIVACY_SENSITIVE_FIELDS));
+        source_contents));
     base::JSONWriter::Write(tab_value.get(), &tab_json);
   }
 
@@ -211,7 +211,7 @@ void MessageService::OpenChannelToNativeApp(
                                                  source_extension_id));
 
   NativeMessageProcessHost::MessageType type =
-      channel_name == "chrome.extension.sendNativeMessage" ?
+      channel_name == "chrome.runtime.sendNativeMessage" ?
       NativeMessageProcessHost::TYPE_SEND_MESSAGE_REQUEST :
       NativeMessageProcessHost::TYPE_CONNECT;
 
@@ -287,7 +287,7 @@ void MessageService::OpenChannelToTab(
   std::string tab_json = "null";
   if (source_contents) {
     scoped_ptr<DictionaryValue> tab_value(ExtensionTabUtil::CreateTabValue(
-        source_contents, ExtensionTabUtil::INCLUDE_PRIVACY_SENSITIVE_FIELDS));
+        source_contents));
     base::JSONWriter::Write(tab_value.get(), &tab_json);
   }
 

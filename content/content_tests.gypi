@@ -277,6 +277,7 @@
         'browser/geolocation/gps_location_provider_unittest_linux.cc',
         'browser/geolocation/location_arbitrator_impl_unittest.cc',
         'browser/geolocation/network_location_provider_unittest.cc',
+        'browser/geolocation/wifi_data_provider_chromeos_unittest.cc',
         'browser/geolocation/wifi_data_provider_common_unittest.cc',
         'browser/geolocation/wifi_data_provider_linux_unittest.cc',
         'browser/geolocation/wifi_data_provider_unittest_win.cc',
@@ -299,6 +300,7 @@
         'browser/plugin_loader_posix_unittest.cc',
         'browser/renderer_host/gtk_key_bindings_handler_unittest.cc',
         'browser/renderer_host/media/audio_input_device_manager_unittest.cc',
+        'browser/renderer_host/media/audio_mirroring_manager_unittest.cc',
         'browser/renderer_host/media/audio_renderer_host_unittest.cc',
         'browser/renderer_host/media/media_stream_dispatcher_host_unittest.cc',
         'browser/renderer_host/media/media_stream_manager_unittest.cc',
@@ -341,7 +343,8 @@
         'browser/web_contents/web_drag_source_mac_unittest.mm',
         'browser/webui/web_ui_message_handler_unittest.cc',
         'common/android/address_parser_unittest.cc',
-	'common/cc_messages_unittest.cc',
+        'common/cc_messages_unittest.cc',
+        'common/common_param_traits_unittest.cc',
         'common/mac/attributed_string_coder_unittest.mm',
         'common/mac/font_descriptor_unittest.mm',
         'common/gpu/gpu_info_unittest.cc',
@@ -451,7 +454,17 @@
         '../webkit/fileapi/syncable/syncable_file_operation_runner_unittest.cc',
         '../webkit/fileapi/test_file_set.cc',
         '../webkit/fileapi/test_file_set.h',
+        '../webkit/fileapi/upload_file_system_file_element_reader_unittest.cc',
         '../webkit/fileapi/webfilewriter_base_unittest.cc',
+        '../webkit/glue/cpp_variant_unittest.cc',
+        '../webkit/glue/glue_serialize_unittest.cc',
+        '../webkit/glue/regular_expression_unittest.cc',
+        '../webkit/glue/resource_request_body_unittest.cc',
+        '../webkit/glue/multipart_response_delegate_unittest.cc',
+        '../webkit/glue/touch_fling_gesture_curve_unittest.cc',
+        '../webkit/glue/webcursor_unittest.cc',
+        '../webkit/glue/webkit_glue_unittest.cc',
+        '../webkit/glue/worker_task_runner_unittest.cc',
         '../webkit/media/buffered_data_source_unittest.cc',
         '../webkit/media/buffered_resource_loader_unittest.cc',
         '../webkit/media/cache_util_unittest.cc',
@@ -523,6 +536,7 @@
         }],
         ['enable_webrtc==1', {
           'sources': [
+            'browser/media/webrtc_internals_unittest.cc',
             'browser/renderer_host/p2p/socket_host_test_utils.h',
             'browser/renderer_host/p2p/socket_host_tcp_unittest.cc',
             'browser/renderer_host/p2p/socket_host_tcp_server_unittest.cc',
@@ -584,6 +598,7 @@
         ['chromeos==1', {
           'sources/': [
             ['exclude', '^browser/renderer_host/gtk_key_bindings_handler_unittest.cc'],
+            ['exclude', '^browser/geolocation/wifi_data_provider_linux_unittest.cc'],
           ],
         }],
         ['use_aura==1', {
@@ -599,6 +614,7 @@
             'browser/geolocation/device_data_provider_unittest.cc',
             'browser/geolocation/gps_location_provider_unittest_linux.cc',
             'browser/geolocation/network_location_provider_unittest.cc',
+            'browser/geolocation/wifi_data_provider_chromeos_unittest.cc',
             'browser/geolocation/wifi_data_provider_common_unittest.cc',
             'browser/geolocation/wifi_data_provider_linux_unittest.cc',
           ],
@@ -621,7 +637,7 @@
       'targets': [
         {
           'target_name': 'content_browsertests',
-          'type': 'executable',
+          'type': '<(gtest_target_type)',
           'defines!': ['CONTENT_IMPLEMENTATION'],
           'dependencies': [
             'content_common',
@@ -632,6 +648,7 @@
             'content_shell_pak',
             'test_support_content',
             '../base/base.gyp:test_support_base',
+            '../gpu/gpu.gyp:gpu',
             '../ipc/ipc.gyp:test_support_ipc',
             '../net/net.gyp:net_test_support',
             '../ppapi/ppapi_internal.gyp:ppapi_host',
@@ -685,6 +702,7 @@
             'browser/fileapi/blob_layout_browsertest.cc',
             'browser/fileapi/file_system_browsertest.cc',
             'browser/gpu/gpu_crash_browsertest.cc',
+            'browser/gpu/gpu_memory_test.cc',
             'browser/gpu/webgl_conformance_test.cc',
             'browser/gpu/webgl_conformance_test_list_autogen.h',
             'browser/in_process_webkit/indexed_db_browsertest.cc',
@@ -785,6 +803,26 @@
                 'browser/accessibility/dump_accessibility_tree_helper.cc',
               ],
             }],
+            ['OS=="android"', {
+              'sources!': [
+                'browser/accessibility/dump_accessibility_tree_browsertest.cc',
+                'browser/accessibility/dump_accessibility_tree_helper.cc',
+                # These are included via dependency on content_common and hence
+                # we get multiple definition errors in a shared library build.
+                # Other builds need it as the symbols are not exported.
+                'common/content_constants_internal.cc',
+                'common/content_constants_internal.h',
+              ],
+              'sources': [
+                'shell/android/shell_library_loader.cc',
+                'shell/android/shell_library_loader.cc',
+                'shell/android/shell_manager.cc',
+                'shell/android/shell_manager.h',
+              ],
+              'dependencies': [
+                'content_shell_jni_headers',
+              ],
+            }],
             ['OS=="mac"', {
               'dependencies': [
                 'content_shell',  # Needed for Content Shell.app's Helper.
@@ -810,8 +848,21 @@
             }],
             ['enable_webrtc==1', {
               'sources': [
-                'browser/webrtc_browsertest.cc',
+                'browser/media/webrtc_browsertest.cc',
               ],
+            }],
+            ['enable_plugins==0', {
+              'sources!': [
+                'browser/plugin_service_impl_browsertest.cc',
+                'browser/plugin_data_remover_impl_browsertest.cc',
+                'renderer/pepper/pepper_device_enumeration_host_helper_unittest.cc',
+                'renderer/pepper/pepper_file_chooser_host_unittest.cc',
+              ],
+            }],
+            ['input_speech==0', {
+              'sources/': [
+                ['exclude', '^browser/speech/'],
+              ]
             }],
           ],
         },

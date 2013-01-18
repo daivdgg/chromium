@@ -20,7 +20,7 @@
 
 using content::WebContents;
 
-DEFINE_WEB_CONTENTS_USER_DATA_KEY(prerender::PrerenderTabHelper)
+DEFINE_WEB_CONTENTS_USER_DATA_KEY(prerender::PrerenderTabHelper);
 
 namespace prerender {
 
@@ -203,6 +203,7 @@ void PrerenderTabHelper::DidStartProvisionalLoadForFrame(
       bool is_main_frame,
       const GURL& validated_url,
       bool is_error_page,
+      bool is_iframe_srcdoc,
       content::RenderViewHost* render_view_host) {
   if (is_main_frame) {
     // Record the beginning of a new PPLT navigation.

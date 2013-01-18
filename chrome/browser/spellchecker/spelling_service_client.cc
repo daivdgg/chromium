@@ -20,7 +20,7 @@
 #include "google_apis/google_api_keys.h"
 #include "net/base/load_flags.h"
 #include "net/url_request/url_fetcher.h"
-#include "unicode/uloc.h"
+#include "third_party/icu/public/common/unicode/uloc.h"
 
 // Use the public URL to the Spelling service on Chromium.
 #ifndef SPELLING_SERVICE_URL
@@ -115,7 +115,7 @@ bool SpellingServiceClient::IsAvailable(Profile* profile, ServiceType type) {
   // If we do not have the spelling service enabled, then we are only available
   // for SUGGEST.
   const CommandLine* command_line = CommandLine::ForCurrentProcess();
-  if (!command_line->HasSwitch(switches::kUseSpellingService))
+  if (command_line->HasSwitch(switches::kUseSpellingSuggestions))
     return type == SUGGEST;
 
   // Finally, if all options are available, we only enable only SUGGEST

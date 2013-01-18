@@ -6,11 +6,11 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/stringprintf.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/api/declarative_webrequest/request_stage.h"
 #include "chrome/browser/extensions/api/declarative_webrequest/webrequest_condition_attribute.h"
-#include "chrome/browser/extensions/api/declarative_webrequest/webrequest_constants.h"
 #include "chrome/browser/extensions/api/declarative_webrequest/webrequest_constants.h"
 #include "chrome/common/extensions/matcher/url_matcher.h"
 #include "chrome/common/extensions/matcher/url_matcher_factory.h"
@@ -49,7 +49,6 @@ WebRequestCondition::WebRequestCondition(
     : url_matcher_conditions_(url_matcher_conditions),
       condition_attributes_(condition_attributes),
       applicable_request_stages_(~0) {
-  CHECK(url_matcher_conditions.get());
   for (WebRequestConditionAttributes::const_iterator i =
        condition_attributes_.begin(); i != condition_attributes_.end(); ++i) {
     applicable_request_stages_ &= (*i)->GetStages();
@@ -59,13 +58,19 @@ WebRequestCondition::WebRequestCondition(
 WebRequestCondition::~WebRequestCondition() {}
 
 bool WebRequestCondition::IsFulfilled(
-    const WebRequestRule::RequestData& request_data) const {
-  // All condition attributes must be fulfilled for a fulfilled condition.
+    const std::set<URLMatcherConditionSet::ID>& url_matches,
+    const DeclarativeWebRequestData& request_data) const {
   if (!(request_data.stage & applicable_request_stages_)) {
     // A condition that cannot be evaluated is considered as violated.
     return false;
   }
 
+  // Check a UrlFilter attribute if present.
+  if (url_matcher_conditions_.get() &&
+      !ContainsKey(url_matches, url_matcher_conditions_->id()))
+    return false;
+
+  // All condition attributes must be fulfilled for a fulfilled condition.
   for (WebRequestConditionAttributes::const_iterator i =
        condition_attributes_.begin(); i != condition_attributes_.end(); ++i) {
     if (!(*i)->IsFulfilled(request_data))
@@ -132,13 +137,6 @@ scoped_ptr<WebRequestCondition> WebRequestCondition::Create(
       return scoped_ptr<WebRequestCondition>(NULL);
   }
 
-  if (!url_matcher_condition_set) {
-    URLMatcherConditionSet::Conditions url_matcher_conditions;
-    url_matcher_conditions.insert(
-        url_matcher_condition_factory->CreateHostPrefixCondition(""));
-    url_matcher_condition_set =
-        new URLMatcherConditionSet(++g_next_id, url_matcher_conditions);
-  }
   scoped_ptr<WebRequestCondition> result(
       new WebRequestCondition(url_matcher_condition_set, attributes));
 
@@ -148,62 +146,6 @@ scoped_ptr<WebRequestCondition> WebRequestCondition::Create(
   }
 
   return result.Pass();
-}
-
-
-//
-// WebRequestConditionSet
-//
-
-WebRequestConditionSet::WebRequestConditionSet(
-    const WebRequestConditionSet::Conditions& conditions)
-    : conditions_(conditions) {
-  for (Conditions::iterator i = conditions_.begin(); i != conditions_.end();
-       ++i) {
-    URLMatcherConditionSet::ID trigger_id =
-        (*i)->url_matcher_condition_set_id();
-    match_triggers_[trigger_id] = i->get();
-  }
-}
-
-WebRequestConditionSet::~WebRequestConditionSet() {}
-
-bool WebRequestConditionSet::IsFulfilled(
-    URLMatcherConditionSet::ID url_match,
-    const WebRequestRule::RequestData& request_data) const {
-  MatchTriggers::const_iterator trigger = match_triggers_.find(url_match);
-  DCHECK(trigger != match_triggers_.end());
-  DCHECK_EQ(url_match, trigger->second->url_matcher_condition_set_id());
-  return trigger->second->IsFulfilled(request_data);
-}
-
-void WebRequestConditionSet::GetURLMatcherConditionSets(
-    URLMatcherConditionSet::Vector* condition_sets) const {
-  for (Conditions::const_iterator i = conditions_.begin();
-       i != conditions_.end(); ++i) {
-    condition_sets->push_back((*i)->url_matcher_condition_set());
-  }
-}
-
-// static
-scoped_ptr<WebRequestConditionSet> WebRequestConditionSet::Create(
-    URLMatcherConditionFactory* url_matcher_condition_factory,
-    const AnyVector& conditions,
-    std::string* error) {
-  WebRequestConditionSet::Conditions result;
-
-  for (AnyVector::const_iterator i = conditions.begin();
-       i != conditions.end(); ++i) {
-    CHECK(i->get());
-    scoped_ptr<WebRequestCondition> condition =
-        WebRequestCondition::Create(url_matcher_condition_factory,
-                                    (*i)->value(), error);
-    if (!error->empty())
-      return scoped_ptr<WebRequestConditionSet>(NULL);
-    result.push_back(make_linked_ptr(condition.release()));
-  }
-
-  return scoped_ptr<WebRequestConditionSet>(new WebRequestConditionSet(result));
 }
 
 }  // namespace extensions

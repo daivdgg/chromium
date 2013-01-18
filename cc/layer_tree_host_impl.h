@@ -13,11 +13,15 @@
 #include "cc/cc_export.h"
 #include "cc/input_handler.h"
 #include "cc/output_surface_client.h"
+#include "cc/pinch_zoom_viewport.h"
 #include "cc/render_pass.h"
 #include "cc/render_pass_sink.h"
 #include "cc/renderer.h"
 #include "cc/tile_manager.h"
+#include "cc/top_controls_manager_client.h"
+#include "skia/ext/refptr.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "third_party/skia/include/core/SkPicture.h"
 #include "ui/gfx/rect.h"
 
 namespace cc {
@@ -30,8 +34,10 @@ class LayerImpl;
 class LayerTreeHostImplTimeSourceAdapter;
 class LayerTreeImpl;
 class PageScaleAnimation;
+class PaintTimeCounter;
 class RenderPassDrawQuad;
 class ResourceProvider;
+class TopControlsManager;
 struct RendererCapabilities;
 struct RenderingStats;
 
@@ -52,70 +58,12 @@ public:
     virtual void sendManagedMemoryStats() = 0;
 };
 
-// PinchZoomViewport models the bounds and offset of the viewport that is used during a pinch-zoom operation.
-// It tracks the layout-space dimensions of the viewport before any applied scale, and then tracks the layout-space
-// coordinates of the viewport respecting the pinch settings.
-class CC_EXPORT PinchZoomViewport {
-public:
-    PinchZoomViewport();
-
-    float totalPageScaleFactor() const;
-
-    void setPageScaleFactor(float factor) { m_pageScaleFactor = factor; }
-    float pageScaleFactor() const { return m_pageScaleFactor; }
-
-    void setPageScaleDelta(float delta);
-    float pageScaleDelta() const  { return m_pageScaleDelta; }
-
-    float minPageScaleFactor() const { return m_minPageScaleFactor; }
-    float maxPageScaleFactor() const { return m_maxPageScaleFactor; }
-
-    void setSentPageScaleDelta(float delta) { m_sentPageScaleDelta = delta; }
-    float sentPageScaleDelta() const { return m_sentPageScaleDelta; }
-
-    void setDeviceScaleFactor(float factor) { m_deviceScaleFactor = factor; }
-    float deviceScaleFactor() const { return m_deviceScaleFactor; }
-
-    // Returns true if the passed parameters were different from those previously
-    // cached.
-    bool setPageScaleFactorAndLimits(float pageScaleFactor,
-                                     float minPageScaleFactor,
-                                     float maxPageScaleFactor);
-
-    // Returns the bounds and offset of the scaled and translated viewport to use for pinch-zoom.
-    gfx::RectF bounds() const;
-    const gfx::Vector2dF& zoomedViewportOffset() const { return m_zoomedViewportOffset; }
-
-    void setLayoutViewportSize(const gfx::SizeF& size) { m_layoutViewportSize = size; }
-
-    // Apply the scroll offset in layout space to the offset of the pinch-zoom viewport. The viewport cannot be
-    // scrolled outside of the layout viewport bounds. Returns the component of the scroll that is un-applied due to
-    // this constraint.
-    gfx::Vector2dF applyScroll(const gfx::Vector2dF&);
-
-    // The implTransform goes from the origin of the unzoomedDeviceViewport to the
-    // origin of the zoomedDeviceViewport.
-    //
-    // implTransform = S[pageScale] * Tr[-zoomedDeviceViewportOffset]
-    gfx::Transform implTransform(bool pageScalePinchZoomEnabled) const;
-
-private:
-    float m_pageScaleFactor;
-    float m_pageScaleDelta;
-    float m_sentPageScaleDelta;
-    float m_maxPageScaleFactor;
-    float m_minPageScaleFactor;
-    float m_deviceScaleFactor;
-
-    gfx::Vector2dF m_zoomedViewportOffset;
-    gfx::SizeF m_layoutViewportSize;
-};
-
 // LayerTreeHostImpl owns the LayerImpl tree as well as associated rendering state
 class CC_EXPORT LayerTreeHostImpl : public InputHandlerClient,
                                     public RendererClient,
                                     public TileManagerClient,
-                                    public OutputSurfaceClient {
+                                    public OutputSurfaceClient,
+                                    public TopControlsManagerClient {
     typedef std::vector<LayerImpl*> LayerList;
 
 public:
@@ -132,6 +80,11 @@ public:
     virtual void startPageScaleAnimation(gfx::Vector2d targetOffset, bool anchorPoint, float pageScale, base::TimeTicks startTime, base::TimeDelta duration) OVERRIDE;
     virtual void scheduleAnimation() OVERRIDE;
     virtual bool haveTouchEventHandlersAt(const gfx::Point&) OVERRIDE;
+
+    // TopControlsManagerClient implementation.
+    virtual LayerTreeImpl* activeTree() OVERRIDE;
+    virtual void setNeedsUpdateDrawProperties() OVERRIDE;
+    virtual void setNeedsRedraw() OVERRIDE;
 
     struct CC_EXPORT FrameData : public RenderPassSink {
         FrameData();
@@ -178,7 +131,6 @@ public:
 
     // TileManagerClient implementation.
     virtual void ScheduleManageTiles() OVERRIDE;
-    virtual void ScheduleCheckForCompletedSetPixels() OVERRIDE;
 
     // OutputSurfaceClient implementation.
     virtual void OnVSyncParametersChanged(base::TimeTicks timebase, base::TimeDelta interval) OVERRIDE;
@@ -207,24 +159,16 @@ public:
 
     void readback(void* pixels, const gfx::Rect&);
 
-    LayerTreeImpl* activeTree() { return m_activeTree.get(); }
     const LayerTreeImpl* activeTree() const { return m_activeTree.get(); }
     LayerTreeImpl* pendingTree() { return m_pendingTree.get(); }
     const LayerTreeImpl* pendingTree() const { return m_pendingTree.get(); }
     void createPendingTree();
+    void checkForCompletedSetPixels();
     virtual void activatePendingTreeIfNeeded();
 
-    // TODO(nduca): Remove these in favor of LayerTreeImpl.
-    void setRootLayer(scoped_ptr<LayerImpl>);
+    // Shortcuts to layers on the active tree.
     LayerImpl* rootLayer() const;
-
-    // Release ownership of the current layer tree and replace it with an empty
-    // tree. Returns the root layer of the detached tree.
-    scoped_ptr<LayerImpl> detachLayerTree();
-
     LayerImpl* rootScrollLayer() const;
-
-    // TOOD(nduca): This goes away when scrolling moves to LayerTreeImpl.
     LayerImpl* currentlyScrollingLayer() const;
 
     bool visible() const { return m_visible; }
@@ -249,17 +193,9 @@ public:
 
     void startPageScaleAnimation(gfx::Vector2d targetOffset, bool useAnchor, float scale, base::TimeDelta duration);
 
-    SkColor backgroundColor() const { return m_backgroundColor; }
-    void setBackgroundColor(SkColor color) { m_backgroundColor = color; }
-
-    bool hasTransparentBackground() const { return m_hasTransparentBackground; }
-    void setHasTransparentBackground(bool transparent) { m_hasTransparentBackground = transparent; }
     bool needsAnimateLayers() const { return !m_animationRegistrar->active_animation_controllers().empty(); }
 
     bool needsUpdateDrawProperties() const { return m_needsUpdateDrawProperties; }
-    void setNeedsUpdateDrawProperties() { m_needsUpdateDrawProperties = true; }
-
-    void setNeedsRedraw();
 
     void renderingStats(RenderingStats*) const;
 
@@ -269,8 +205,10 @@ public:
        size_t memoryUseBytes);
 
     FrameRateCounter* fpsCounter() const { return m_fpsCounter.get(); }
+    PaintTimeCounter* paintTimeCounter() const { return m_paintTimeCounter.get(); }
     DebugRectHistory* debugRectHistory() const { return m_debugRectHistory.get(); }
     ResourceProvider* resourceProvider() const { return m_resourceProvider.get(); }
+    TopControlsManager* topControlsManager() const { return m_topControlsManager.get(); }
 
     Proxy* proxy() const { return m_proxy; }
 
@@ -278,6 +216,8 @@ public:
 
     void setDebugState(const LayerTreeDebugState& debugState) { m_debugState = debugState; }
     const LayerTreeDebugState& debugState() const { return m_debugState; }
+
+    void savePaintTime(const base::TimeDelta& totalPaintTime);
 
     class CC_EXPORT CullRenderPassesWithCachedTextures {
     public:
@@ -309,9 +249,13 @@ public:
     template<typename RenderPassCuller>
     static void removeRenderPasses(RenderPassCuller, FrameData&);
 
-    float totalPageScaleFactorForTesting() const { return m_pinchZoomViewport.totalPageScaleFactor(); }
+    float totalPageScaleFactorForTesting() const { return m_pinchZoomViewport.total_page_scale_factor(); }
 
     const PinchZoomViewport& pinchZoomViewport() const { return m_pinchZoomViewport; }
+
+    skia::RefPtr<SkPicture> capturePicture();
+
+    bool pinchGestureActive() const { return m_pinchGestureActive; }
 
 protected:
     LayerTreeHostImpl(const LayerTreeSettings&, LayerTreeHostImplClient*, Proxy*);
@@ -359,6 +303,8 @@ private:
 
     void dumpRenderSurfaces(std::string*, int indent, const LayerImpl*) const;
 
+    static LayerImpl* getNonCompositedContentLayerRecursive(LayerImpl* layer);
+
     scoped_ptr<OutputSurface> m_outputSurface;
     scoped_ptr<ResourceProvider> m_resourceProvider;
     scoped_ptr<Renderer> m_renderer;
@@ -377,12 +323,11 @@ private:
     bool m_contentsTexturesPurged;
     ManagedMemoryPolicy m_managedMemoryPolicy;
 
-    SkColor m_backgroundColor;
-    bool m_hasTransparentBackground;
-
     bool m_needsUpdateDrawProperties;
     bool m_pinchGestureActive;
     gfx::Point m_previousPinchAnchor;
+
+    scoped_ptr<TopControlsManager> m_topControlsManager;
 
     scoped_ptr<PageScaleAnimation> m_pageScaleAnimation;
 
@@ -392,6 +337,7 @@ private:
     PinchZoomViewport m_pinchZoomViewport;
 
     scoped_ptr<FrameRateCounter> m_fpsCounter;
+    scoped_ptr<PaintTimeCounter> m_paintTimeCounter;
     scoped_ptr<DebugRectHistory> m_debugRectHistory;
 
     int64 m_numImplThreadScrolls;

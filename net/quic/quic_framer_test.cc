@@ -225,13 +225,11 @@ class QuicFramerTest : public ::testing::Test {
     EXPECT_EQ(error_code, framer_.error()) << "len: " << len;
   }
 
-  void ValidateTruncatedAck(const QuicAckFrame* ack, int keys) {
-    for (int i = 1; i < keys; ++i) {
+  void ValidateTruncatedAck(const QuicAckFrame* ack, size_t keys) {
+    for (size_t i = 1; i < keys; ++i) {
       EXPECT_TRUE(ContainsKey(ack->received_info.missing_packets, i)) << i;
     }
-    // With no gaps in the missing packets, we can't admit to having received
-    // anything.
-    EXPECT_EQ(0u, ack->received_info.largest_received);
+    EXPECT_EQ(keys, ack->received_info.largest_observed);
   }
 
   test::TestEncrypter* encrypter_;
@@ -559,7 +557,7 @@ TEST_F(QuicFramerTest, AckFrame) {
     // least packet sequence number awaiting an ack
     0xA0, 0x9A, 0x78, 0x56,
     0x34, 0x12,
-    // largest received packet sequence number
+    // largest observed packet sequence number
     0xBF, 0x9A, 0x78, 0x56,
     0x34, 0x12,
     // num missing packets
@@ -579,7 +577,7 @@ TEST_F(QuicFramerTest, AckFrame) {
   EXPECT_EQ(0u, visitor_.stream_frames_.size());
   ASSERT_EQ(1u, visitor_.ack_frames_.size());
   const QuicAckFrame& frame = *visitor_.ack_frames_[0];
-  EXPECT_EQ(GG_UINT64_C(0x0123456789ABF), frame.received_info.largest_received);
+  EXPECT_EQ(GG_UINT64_C(0x0123456789ABF), frame.received_info.largest_observed);
   ASSERT_EQ(1u, frame.received_info.missing_packets.size());
   SequenceSet::const_iterator missing_iter =
       frame.received_info.missing_packets.begin();
@@ -596,7 +594,7 @@ TEST_F(QuicFramerTest, AckFrame) {
     } else if (i < 8) {
       expected_error = "Unable to read least unacked.";
     } else if (i < 14) {
-      expected_error = "Unable to read largest received.";
+      expected_error = "Unable to read largest observed.";
     } else if (i < 15) {
       expected_error = "Unable to read num missing packets.";
     } else if (i < 21) {
@@ -687,10 +685,6 @@ TEST_F(QuicFramerTest, CongestionFeedbackFrameInterArrival) {
     0x01,
     // accumulated_number_of_lost_packets
     0x02, 0x03,
-    // offset_time
-    0x04, 0x05,
-    // delta_time
-    0x06, 0x07,
     // num received packets
     0x03,
     // smallest ack sequence number
@@ -723,8 +717,6 @@ TEST_F(QuicFramerTest, CongestionFeedbackFrameInterArrival) {
   ASSERT_EQ(kInterArrival, frame.type);
   EXPECT_EQ(0x0302, frame.inter_arrival.
             accumulated_number_of_lost_packets);
-  EXPECT_EQ(0x0504, frame.inter_arrival.offset_time);
-  EXPECT_EQ(0x0706, frame.inter_arrival.delta_time);
   ASSERT_EQ(3u, frame.inter_arrival.received_packet_times.size());
   TimeMap::const_iterator iter =
       frame.inter_arrival.received_packet_times.begin();
@@ -741,7 +733,7 @@ TEST_F(QuicFramerTest, CongestionFeedbackFrameInterArrival) {
             iter->second);
 
   // Now test framing boundaries
-  for (size_t i = 0; i < 36; ++i) {
+  for (size_t i = 0; i < 32; ++i) {
     string expected_error;
     if (i < 1) {
       expected_error = "Unable to read frame count.";
@@ -751,23 +743,19 @@ TEST_F(QuicFramerTest, CongestionFeedbackFrameInterArrival) {
       expected_error = "Unable to read congestion feedback type.";
     } else if (i < 5) {
       expected_error = "Unable to read accumulated number of lost packets.";
-    } else if (i < 7) {
-      expected_error = "Unable to read offset time.";
-    } else if (i < 9) {
-      expected_error = "Unable to read delta time.";
-    } else if (i < 10) {
+    } else if (i < 6) {
       expected_error = "Unable to read num received packets.";
-    } else if (i < 16) {
+    } else if (i < 12) {
       expected_error = "Unable to read smallest received.";
-    } else if (i < 24) {
+    } else if (i < 20) {
       expected_error = "Unable to read time received.";
+    } else if (i < 22) {
+      expected_error = "Unable to read sequence delta in received packets.";
     } else if (i < 26) {
-      expected_error = "Unable to read sequence delta in received packets.";
-    } else if (i < 30) {
       expected_error = "Unable to read time delta in received packets.";
-    } else if (i < 32) {
+    } else if (i < 28) {
       expected_error = "Unable to read sequence delta in received packets.";
-    } else if (i < 36) {
+    } else if (i < 32) {
       expected_error = "Unable to read time delta in received packets.";
     }
     CheckProcessingFails(packet, i + kPacketHeaderSize, expected_error,
@@ -956,7 +944,7 @@ TEST_F(QuicFramerTest, ConnectionCloseFrame) {
     // least packet sequence number awaiting an ack
     0xA0, 0x9A, 0x78, 0x56,
     0x34, 0x12,
-    // largest received packet sequence number
+    // largest observed packet sequence number
     0xBF, 0x9A, 0x78, 0x56,
     0x34, 0x12,
     // num missing packets
@@ -988,7 +976,7 @@ TEST_F(QuicFramerTest, ConnectionCloseFrame) {
 
   ASSERT_EQ(1u, visitor_.ack_frames_.size());
   const QuicAckFrame& frame = *visitor_.ack_frames_[0];
-  EXPECT_EQ(GG_UINT64_C(0x0123456789ABF), frame.received_info.largest_received);
+  EXPECT_EQ(GG_UINT64_C(0x0123456789ABF), frame.received_info.largest_observed);
   ASSERT_EQ(1u, frame.received_info.missing_packets.size());
   SequenceSet::const_iterator missing_iter =
       frame.received_info.missing_packets.begin();
@@ -1110,7 +1098,7 @@ TEST_F(QuicFramerTest, ConstructAckFramePacket) {
   header.fec_group = 0;
 
   QuicAckFrame ack_frame;
-  ack_frame.received_info.largest_received = GG_UINT64_C(0x0123456789ABF);
+  ack_frame.received_info.largest_observed = GG_UINT64_C(0x0123456789ABF);
   ack_frame.received_info.missing_packets.insert(GG_UINT64_C(0x0123456789ABE));
   ack_frame.sent_info.least_unacked = GG_UINT64_C(0x0123456789AA0);
 
@@ -1136,7 +1124,7 @@ TEST_F(QuicFramerTest, ConstructAckFramePacket) {
     // least packet sequence number awaiting an ack
     0xA0, 0x9A, 0x78, 0x56,
     0x34, 0x12,
-    // largest received packet sequence number
+    // largest observed packet sequence number
     0xBF, 0x9A, 0x78, 0x56,
     0x34, 0x12,
     // num missing packets
@@ -1212,8 +1200,6 @@ TEST_F(QuicFramerTest, ConstructCongestionFeedbackFramePacketInterArrival) {
   frame.type = kInterArrival;
   frame.inter_arrival.accumulated_number_of_lost_packets
       = 0x0302;
-  frame.inter_arrival.offset_time = 0x0504;
-  frame.inter_arrival.delta_time = 0x0706;
   frame.inter_arrival.received_packet_times[GG_UINT64_C(0x0123456789ABA)] =
       QuicTime::FromMicroseconds(GG_UINT64_C(0x07E1D2C3B4A59687));
   frame.inter_arrival.received_packet_times[GG_UINT64_C(0x0123456789ABB)] =
@@ -1244,10 +1230,6 @@ TEST_F(QuicFramerTest, ConstructCongestionFeedbackFramePacketInterArrival) {
     0x01,
     // accumulated_number_of_lost_packets
     0x02, 0x03,
-    // offset_time
-    0x04, 0x05,
-    // delta_time
-    0x06, 0x07,
     // num received packets
     0x03,
     // smallest ack sequence number
@@ -1405,7 +1387,7 @@ TEST_F(QuicFramerTest, ConstructCloseFramePacket) {
   close_frame.error_details = "because I can";
 
   QuicAckFrame* ack_frame = &close_frame.ack_frame;
-  ack_frame->received_info.largest_received = GG_UINT64_C(0x0123456789ABF);
+  ack_frame->received_info.largest_observed = GG_UINT64_C(0x0123456789ABF);
   ack_frame->received_info.missing_packets.insert(GG_UINT64_C(0x0123456789ABE));
   ack_frame->sent_info.least_unacked = GG_UINT64_C(0x0123456789AA0);
 
@@ -1442,7 +1424,7 @@ TEST_F(QuicFramerTest, ConstructCloseFramePacket) {
     // least packet sequence number awaiting an ack
     0xA0, 0x9A, 0x78, 0x56,
     0x34, 0x12,
-    // largest received packet sequence number
+    // largest observed packet sequence number
     0xBF, 0x9A, 0x78, 0x56,
     0x34, 0x12,
     // num missing packets
@@ -1531,43 +1513,25 @@ TEST_F(QuicFramerTest, EncryptPacket) {
   EXPECT_TRUE(CheckEncryption(StringPiece(AsChars(packet), arraysize(packet))));
 }
 
-TEST_F(QuicFramerTest, CalculateLargestReceived) {
+// TODO(rch): re-enable after https://codereview.chromium.org/11820005/
+// lands.  Currently this is causing valgrind problems, but it should be
+// fixed in the followup CL.
+TEST_F(QuicFramerTest, DISABLED_CalculateLargestReceived) {
   SequenceSet missing;
   missing.insert(1);
   missing.insert(5);
   missing.insert(7);
-  missing.insert(8);
-  missing.insert(9);
 
   // These two we just walk to the next gap, and return the largest seen.
-  EXPECT_EQ(4u, QuicFramer::CalculateLargestReceived(missing, missing.find(1)));
-  EXPECT_EQ(6u, QuicFramer::CalculateLargestReceived(missing, missing.find(5)));
+  EXPECT_EQ(4u, QuicFramer::CalculateLargestObserved(missing, missing.find(1)));
+  EXPECT_EQ(6u, QuicFramer::CalculateLargestObserved(missing, missing.find(5)));
 
-  // 7+ are fun because there is no subsequent gap: we have to walk before
-  // them to find 6.
-  EXPECT_EQ(6u, QuicFramer::CalculateLargestReceived(missing, missing.find(7)));
-  EXPECT_EQ(6u, QuicFramer::CalculateLargestReceived(missing, missing.find(8)));
-  EXPECT_EQ(6u, QuicFramer::CalculateLargestReceived(missing, missing.find(9)));
-
-  // Fill in the gap of 6 to make sure we handle a gap of more than 1 by
-  // returning 4 rather than 3.
-  missing.insert(6);
-  EXPECT_EQ(4u, QuicFramer::CalculateLargestReceived(missing, missing.find(9)));
-
-  // Fill in the rest of the gaps: we should walk to 1 and return 0.
-  missing.insert(4);
-  missing.insert(3);
   missing.insert(2);
-  EXPECT_EQ(0u, QuicFramer::CalculateLargestReceived(missing, missing.find(7)));
-
-  // If we add a gap after 7-9, we will return that.
-  missing.insert(11);
-  EXPECT_EQ(10u, QuicFramer::CalculateLargestReceived(missing,
-                                                      missing.find(7)));
-  EXPECT_EQ(10u, QuicFramer::CalculateLargestReceived(missing,
-                                                      missing.find(8)));
-  EXPECT_EQ(10u, QuicFramer::CalculateLargestReceived(missing,
-                                                      missing.find(9)));
+  // For 1, we can't go forward as 2 would be implicitly acked so we return the
+  // largest missing packet.
+  EXPECT_EQ(1u, QuicFramer::CalculateLargestObserved(missing, missing.find(1)));
+  // For 2, we've seen 3 and 4, so can admit to a largest observed.
+  EXPECT_EQ(4u, QuicFramer::CalculateLargestObserved(missing, missing.find(2)));
 }
 
 TEST_F(QuicFramerTest, Truncation) {
@@ -1581,8 +1545,8 @@ TEST_F(QuicFramerTest, Truncation) {
   QuicAckFrame* ack_frame = &close_frame.ack_frame;
   close_frame.error_code = static_cast<QuicErrorCode>(0x05060708);
   close_frame.error_details = "because I can";
-  ack_frame->received_info.largest_received = 201;
-  for (uint64 i = 1; i < ack_frame->received_info.largest_received; ++i) {
+  ack_frame->received_info.largest_observed = 201;
+  for (uint64 i = 1; i < ack_frame->received_info.largest_observed; ++i) {
     ack_frame->received_info.missing_packets.insert(i);
   }
 
@@ -1628,8 +1592,8 @@ TEST_F(QuicFramerTest, Truncation) {
   EXPECT_EQ(0x05060708, visitor_.connection_close_frame_.error_code);
   EXPECT_EQ("because I can", visitor_.connection_close_frame_.error_details);
 
-  ValidateTruncatedAck(visitor_.ack_frames_[0], 190);
-  ValidateTruncatedAck(&visitor_.connection_close_frame_.ack_frame, 180);
+  ValidateTruncatedAck(visitor_.ack_frames_[0], 194);
+  ValidateTruncatedAck(&visitor_.connection_close_frame_.ack_frame, 191);
 }
 
 }  // namespace test

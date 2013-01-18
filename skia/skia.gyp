@@ -218,6 +218,7 @@
         'GR_STATIC_RECT_VB=1',
         'GR_AGGRESSIVE_SHADER_OPTS=1',
         'SK_DEFERRED_CANVAS_USES_GPIPE=1',
+        'SK_ENABLE_INST_COUNT=0',
 
         # this flag can be removed entirely once this has baked for a while
         'SK_ALLOW_OVER_32K_BITMAPS',
@@ -227,12 +228,6 @@
         # it ever gets used the processes that use it need to call
         # SkGraphics::Init().
         'SK_ALLOW_STATIC_GLOBAL_INITIALIZERS=0',
-
-        # Temporarily keep old int-srcrect behavior, until we determine if
-        # the few failures are a bug or not.
-        'SK_SUPPORT_INT_SRCRECT_DRAWBITMAPRECT',
-        'SK_IGNORE_QUAD_STROKE_FIX',
-        'SK_IGNORE_TREAT_AS_SPRITE',
       ],
       'sources!': [
         '../third_party/skia/include/core/SkTypes.h',
@@ -566,6 +561,7 @@
           'SK_DEFERRED_CANVAS_USES_GPIPE=1',
           'GR_GL_CUSTOM_SETUP_HEADER="GrGLConfig_chrome.h"',
           'GR_AGGRESSIVE_SHADER_OPTS=1',
+          'SK_ENABLE_INST_COUNT=0',
         ],
         'conditions': [
           [ 'chromeos == 1', {

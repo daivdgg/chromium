@@ -90,7 +90,8 @@ void SuspendRenderViewHost(RenderViewHost* rvh) {
 ShellWindow::CreateParams::CreateParams()
   : window_type(ShellWindow::WINDOW_TYPE_DEFAULT),
     frame(ShellWindow::FRAME_CHROME),
-    bounds(INT_MIN, INT_MIN, INT_MIN, INT_MIN),
+    transparent_background(false),
+    bounds(INT_MIN, INT_MIN, 0, 0),
     creator_process_id(0), hidden(false) {
 }
 
@@ -138,9 +139,9 @@ void ShellWindow::Init(const GURL& url,
 
   gfx::Rect bounds = params.bounds;
 
-  if (bounds.width() == INT_MIN)
+  if (bounds.width() == 0)
     bounds.set_width(kDefaultWidth);
-  if (bounds.height() == INT_MIN)
+  if (bounds.height() == 0)
     bounds.set_height(kDefaultHeight);
 
   // If left and top are left undefined, the native shell window will center
@@ -246,14 +247,14 @@ ShellWindow::~ShellWindow() {
 
 void ShellWindow::RequestMediaAccessPermission(
     content::WebContents* web_contents,
-    const content::MediaStreamRequest* request,
+    const content::MediaStreamRequest& request,
     const content::MediaResponseCallback& callback) {
   // Get the preferred default devices for the request.
   content::MediaStreamDevices devices;
   media::GetDefaultDevicesForProfile(
       profile_,
-      content::IsAudioMediaType(request->audio_type),
-      content::IsVideoMediaType(request->video_type),
+      content::IsAudioMediaType(request.audio_type),
+      content::IsVideoMediaType(request.video_type),
       &devices);
 
   RequestMediaAccessPermissionHelper::AuthorizeRequest(
@@ -448,7 +449,6 @@ void ShellWindow::OnImageLoaded(const gfx::Image& image,
 
 void ShellWindow::DidDownloadFavicon(int id,
                                      const GURL& image_url,
-                                     bool errored,
                                      int requested_size,
                                      const std::vector<SkBitmap>& bitmaps) {
   if (image_url != app_icon_url_ || bitmaps.empty())

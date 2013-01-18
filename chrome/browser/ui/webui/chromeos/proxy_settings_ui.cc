@@ -11,11 +11,12 @@
 #include "chrome/browser/chromeos/proxy_config_service_impl.h"
 #include "chrome/browser/chromeos/settings/cros_settings.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
 #include "chrome/browser/ui/webui/options/chromeos/core_chromeos_options_handler.h"
 #include "chrome/browser/ui/webui/options/chromeos/proxy_handler.h"
+#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/url_constants.h"
+#include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_message_handler.h"
@@ -27,15 +28,16 @@ using content::WebUIMessageHandler;
 
 namespace {
 
-class ProxySettingsHTMLSource : public ChromeURLDataManager::DataSource {
+class ProxySettingsHTMLSource : public content::URLDataSource {
  public:
   explicit ProxySettingsHTMLSource(DictionaryValue* localized_strings);
 
-  // Called when the network layer has requested a resource underneath
-  // the path we registered.
-  virtual void StartDataRequest(const std::string& path,
-                                bool is_incognito,
-                                int request_id) OVERRIDE;
+  // content::URLDataSource implementation.
+  virtual std::string GetSource() OVERRIDE;
+  virtual void StartDataRequest(
+      const std::string& path,
+      bool is_incognito,
+      const content::URLDataSource::GotDataCallback& callback) OVERRIDE;
   virtual std::string GetMimeType(const std::string&) const OVERRIDE {
     return "text/html";
   }
@@ -51,14 +53,18 @@ class ProxySettingsHTMLSource : public ChromeURLDataManager::DataSource {
 
 ProxySettingsHTMLSource::ProxySettingsHTMLSource(
     DictionaryValue* localized_strings)
-    : DataSource(chrome::kChromeUIProxySettingsHost, MessageLoop::current()),
-      localized_strings_(localized_strings) {
+    : localized_strings_(localized_strings) {
 }
 
-void ProxySettingsHTMLSource::StartDataRequest(const std::string& path,
-                                               bool is_incognito,
-                                               int request_id) {
-  SetFontAndTextDirection(localized_strings_.get());
+std::string ProxySettingsHTMLSource::GetSource() {
+  return chrome::kChromeUIProxySettingsHost;
+}
+
+void ProxySettingsHTMLSource::StartDataRequest(
+    const std::string& path,
+    bool is_incognito,
+    const content::URLDataSource::GotDataCallback& callback) {
+  web_ui_util::SetFontAndTextDirection(localized_strings_.get());
 
   static const base::StringPiece html(
       ResourceBundle::GetSharedInstance().GetRawDataResource(
@@ -66,7 +72,7 @@ void ProxySettingsHTMLSource::StartDataRequest(const std::string& path,
   std::string full_html = jstemplate_builder::GetI18nTemplateHtml(
       html, localized_strings_.get());
 
-  SendResponse(request_id, base::RefCountedString::TakeString(&full_html));
+  callback.Run(base::RefCountedString::TakeString(&full_html));
 }
 
 }  // namespace

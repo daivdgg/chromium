@@ -19,7 +19,7 @@
 #include "chrome/browser/extensions/extension_icon_image.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/app_list/app_list_controller.h"
+#include "chrome/browser/ui/app_list/app_list_controller_delegate.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
@@ -355,7 +355,7 @@ void SearchBuilder::OpenResult(const app_list::SearchResult& result,
     if (extension) {
       content::RecordAction(
           content::UserMetricsAction("AppList_ClickOnAppFromSearch"));
-      list_controller_->ActivateApp(profile_, extension->id(), event_flags);
+      list_controller_->ActivateApp(profile_, extension, event_flags);
     }
 #if defined(OS_CHROMEOS)
   } else if (match.type == AutocompleteMatch::CONTACT) {

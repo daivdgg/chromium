@@ -26,12 +26,23 @@ class CC_EXPORT PictureLayerTilingSet {
   void SetLayerBounds(gfx::Size layer_bounds);
   gfx::Size LayerBounds() const;
 
-  const PictureLayerTiling* AddTiling(
+  PictureLayerTiling* AddTiling(
       float contents_scale,
       gfx::Size tile_size);
   size_t num_tilings() const { return tilings_.size(); }
+  PictureLayerTiling* tiling_at(size_t idx) { return tilings_[idx]; }
+  const PictureLayerTiling* tiling_at(size_t idx) const {
+    return tilings_[idx];
+  }
 
-  void Reset();
+  // Remove all tilings.
+  void RemoveAllTilings();
+
+  // Remove one tiling.
+  void Remove(PictureLayerTiling* tiling);
+
+  // Remove all tiles; keep all tilings.
+  void RemoveAllTiles();
 
   void UpdateTilePriorities(
       WhichTree tree,
@@ -41,6 +52,10 @@ class CC_EXPORT PictureLayerTilingSet {
       const gfx::Transform& last_screen_transform,
       const gfx::Transform& current_screen_transform,
       double time_delta);
+
+  // Copies the src_tree priority into the dst_tree priority for all tiles.
+  // The src_tree priority is reset to the lowest priority possible.
+  void MoveTilePriorities(WhichTree src_tree, WhichTree dst_tree);
 
   // For a given rect, iterates through tiles that can fill it.  If no
   // set of tiles with resources can fill the rect, then it will iterate
@@ -52,7 +67,8 @@ class CC_EXPORT PictureLayerTilingSet {
     Iterator(
       const PictureLayerTilingSet* set,
       float contents_scale,
-      gfx::Rect rect);
+      gfx::Rect content_rect,
+      float ideal_contents_scale);
     ~Iterator();
 
     // Visible rect (no borders), always in the space of rect,
@@ -69,11 +85,17 @@ class CC_EXPORT PictureLayerTilingSet {
     Iterator& operator++();
     operator bool() const;
 
+    PictureLayerTiling* CurrentTiling();
+
    private:
+    int NextTiling() const;
+
     const PictureLayerTilingSet* set_;
     float contents_scale_;
+    float ideal_contents_scale_;
     PictureLayerTiling::Iterator tiling_iter_;
     int current_tiling_;
+    int ideal_tiling_;
 
     Region current_region_;
     Region missing_region_;

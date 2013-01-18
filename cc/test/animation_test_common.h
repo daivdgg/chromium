@@ -5,7 +5,7 @@
 #ifndef CC_TEST_ANIMATION_TEST_COMMON_H_
 #define CC_TEST_ANIMATION_TEST_COMMON_H_
 
-#include "cc/active_animation.h"
+#include "cc/animation.h"
 #include "cc/animation_curve.h"
 #include "cc/layer_animation_controller.h"
 #include "cc/layer_animation_value_observer.h"
@@ -69,6 +69,7 @@ public:
     // LayerAnimationValueObserver implementation
     virtual void OnOpacityAnimated(float) OVERRIDE;
     virtual void OnTransformAnimated(const gfx::Transform&) OVERRIDE;
+    virtual bool IsActive() const OVERRIDE;
 
     float opacity() const  { return m_opacity; }
     const gfx::Transform& transform() const { return m_transform; }

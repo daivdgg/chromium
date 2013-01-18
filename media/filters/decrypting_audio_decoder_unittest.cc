@@ -27,7 +27,9 @@ using ::testing::StrictMock;
 
 namespace media {
 
-static const int kFakeAudioFrameSize = 16;
+// Make sure the kFakeAudioFrameSize is a valid frame size for all audio decoder
+// configs used in this test.
+static const int kFakeAudioFrameSize = 48;
 static const uint8 kFakeKeyId[] = { 0x4b, 0x65, 0x79, 0x20, 0x49, 0x44 };
 static const uint8 kFakeIv[DecryptConfig::kDecryptionKeySize] = { 0 };
 
@@ -108,18 +110,19 @@ class DecryptingAudioDecoderTest : public testing::Test {
     EXPECT_CALL(*decryptor_, RegisterNewKeyCB(Decryptor::kAudio, _))
         .WillOnce(SaveArg<1>(&key_added_cb_));
 
-    AudioDecoderConfig config(kCodecVorbis, kSampleFormatPlanarF32,
-                              CHANNEL_LAYOUT_STEREO, 44100, NULL, 0, true);
-    InitializeAndExpectStatus(config, PIPELINE_OK);
+    config_.Initialize(kCodecVorbis, kSampleFormatPlanarF32,
+                       CHANNEL_LAYOUT_STEREO, 44100, NULL, 0, true, true);
+    InitializeAndExpectStatus(config_, PIPELINE_OK);
 
-    EXPECT_EQ(config.bits_per_channel(), decoder_->bits_per_channel());
-    EXPECT_EQ(config.channel_layout(), decoder_->channel_layout());
-    EXPECT_EQ(config.samples_per_second(), decoder_->samples_per_second());
+    EXPECT_EQ(DecryptingAudioDecoder::kSupportedBitsPerChannel,
+              decoder_->bits_per_channel());
+    EXPECT_EQ(config_.channel_layout(), decoder_->channel_layout());
+    EXPECT_EQ(config_.samples_per_second(), decoder_->samples_per_second());
   }
 
   void ReadAndExpectFrameReadyWith(
       AudioDecoder::Status status,
-      const scoped_refptr<Buffer>& audio_frame) {
+      const scoped_refptr<DataBuffer>& audio_frame) {
     if (status != AudioDecoder::kOk)
       EXPECT_CALL(*this, FrameReady(status, IsNull()));
     else if (audio_frame->IsEndOfStream())
@@ -214,13 +217,14 @@ class DecryptingAudioDecoderTest : public testing::Test {
   MOCK_METHOD1(RequestDecryptorNotification, void(const DecryptorReadyCB&));
 
   MOCK_METHOD2(FrameReady, void(AudioDecoder::Status,
-                                const scoped_refptr<Buffer>&));
+                                const scoped_refptr<DataBuffer>&));
 
   MessageLoop message_loop_;
   scoped_refptr<DecryptingAudioDecoder> decoder_;
   scoped_ptr<StrictMock<MockDecryptor> > decryptor_;
   scoped_refptr<StrictMock<MockDemuxerStream> > demuxer_;
   MockStatisticsCB statistics_cb_;
+  AudioDecoderConfig config_;
 
   DemuxerStream::ReadCB pending_demuxer_read_cb_;
   Decryptor::DecoderInitCB pending_init_cb_;
@@ -229,8 +233,8 @@ class DecryptingAudioDecoderTest : public testing::Test {
 
   // Constant buffer/frames to be returned by the |demuxer_| and |decryptor_|.
   scoped_refptr<DecoderBuffer> encrypted_buffer_;
-  scoped_refptr<Buffer> decoded_frame_;
-  scoped_refptr<Buffer> end_of_stream_frame_;
+  scoped_refptr<DataBuffer> decoded_frame_;
+  scoped_refptr<DataBuffer> end_of_stream_frame_;
   Decryptor::AudioBuffers decoded_frame_list_;
 
  private:
@@ -336,6 +340,64 @@ TEST_F(DecryptingAudioDecoderTest, DecryptAndDecode_EndOfStream) {
   EnterEndOfStreamState();
 }
 
+// Test aborted read on the demuxer stream.
+TEST_F(DecryptingAudioDecoderTest, DemuxerRead_Aborted) {
+  Initialize();
+
+  // ReturnBuffer() with NULL triggers aborted demuxer read.
+  EXPECT_CALL(*demuxer_, Read(_))
+      .WillOnce(ReturnBuffer(scoped_refptr<DecoderBuffer>()));
+
+  ReadAndExpectFrameReadyWith(AudioDecoder::kAborted, NULL);
+}
+
+// Test config change on the demuxer stream.
+TEST_F(DecryptingAudioDecoderTest, DemuxerRead_ConfigChange) {
+  Initialize();
+
+  // The new config is different from the initial config in bits-per-channel,
+  // channel layout and samples_per_second.
+  AudioDecoderConfig new_config(kCodecVorbis, kSampleFormatPlanarS16,
+                                CHANNEL_LAYOUT_5_1, 88200, NULL, 0, false);
+  EXPECT_NE(new_config.bits_per_channel(), config_.bits_per_channel());
+  EXPECT_NE(new_config.channel_layout(), config_.channel_layout());
+  EXPECT_NE(new_config.samples_per_second(), config_.samples_per_second());
+
+  EXPECT_CALL(*demuxer_, audio_decoder_config())
+      .WillRepeatedly(ReturnRef(new_config));
+  EXPECT_CALL(*decryptor_, DeinitializeDecoder(Decryptor::kAudio));
+  EXPECT_CALL(*decryptor_, InitializeAudioDecoderMock(_, _))
+      .WillOnce(RunCallback<1>(true));
+  EXPECT_CALL(*demuxer_, Read(_))
+      .WillOnce(RunCallback<0>(DemuxerStream::kConfigChanged,
+                               scoped_refptr<DecoderBuffer>()))
+      .WillRepeatedly(ReturnBuffer(encrypted_buffer_));
+  EXPECT_CALL(*decryptor_, DecryptAndDecodeAudio(_, _))
+      .WillRepeatedly(RunCallback<1>(Decryptor::kSuccess, decoded_frame_list_));
+  EXPECT_CALL(statistics_cb_, OnStatistics(_));
+
+  ReadAndExpectFrameReadyWith(AudioDecoder::kOk, decoded_frame_);
+
+  EXPECT_EQ(new_config.bits_per_channel(), decoder_->bits_per_channel());
+  EXPECT_EQ(new_config.channel_layout(), decoder_->channel_layout());
+  EXPECT_EQ(new_config.samples_per_second(), decoder_->samples_per_second());
+}
+
+// Test config change failure.
+TEST_F(DecryptingAudioDecoderTest, DemuxerRead_ConfigChangeFailed) {
+  Initialize();
+
+  EXPECT_CALL(*decryptor_, DeinitializeDecoder(Decryptor::kAudio));
+  EXPECT_CALL(*decryptor_, InitializeAudioDecoderMock(_, _))
+      .WillOnce(RunCallback<1>(false));
+  EXPECT_CALL(*demuxer_, Read(_))
+      .WillOnce(RunCallback<0>(DemuxerStream::kConfigChanged,
+                               scoped_refptr<DecoderBuffer>()))
+      .WillRepeatedly(ReturnBuffer(encrypted_buffer_));
+
+  ReadAndExpectFrameReadyWith(AudioDecoder::kDecodeError, NULL);
+}
+
 // Test the case where the a key is added when the decryptor is in
 // kWaitingForKey state.
 TEST_F(DecryptingAudioDecoderTest, KeyAdded_DuringWaitingForKey) {
@@ -383,8 +445,9 @@ TEST_F(DecryptingAudioDecoderTest, Reset_DuringIdleAfterDecodedOneFrame) {
   Reset();
 }
 
-// Test resetting when the decoder is in kPendingDemuxerRead state.
-TEST_F(DecryptingAudioDecoderTest, Reset_DuringPendingDemuxerRead) {
+// Test resetting when the decoder is in kPendingDemuxerRead state and the read
+// callback is returned with kOk.
+TEST_F(DecryptingAudioDecoderTest, Reset_DuringDemuxerRead_Ok) {
   Initialize();
   EnterPendingReadState();
 
@@ -393,6 +456,99 @@ TEST_F(DecryptingAudioDecoderTest, Reset_DuringPendingDemuxerRead) {
   Reset();
   base::ResetAndReturn(&pending_demuxer_read_cb_).Run(DemuxerStream::kOk,
                                                       encrypted_buffer_);
+  message_loop_.RunUntilIdle();
+}
+
+// Test resetting when the decoder is in kPendingDemuxerRead state and the read
+// callback is returned with kAborted.
+TEST_F(DecryptingAudioDecoderTest, Reset_DuringDemuxerRead_Aborted) {
+  Initialize();
+  EnterPendingReadState();
+
+  // Make sure we get a NULL audio frame returned.
+  EXPECT_CALL(*this, FrameReady(AudioDecoder::kAborted, IsNull()));
+
+  Reset();
+  base::ResetAndReturn(&pending_demuxer_read_cb_).Run(DemuxerStream::kAborted,
+                                                      NULL);
+  message_loop_.RunUntilIdle();
+}
+
+// Test resetting when the decoder is in kPendingDemuxerRead state and the read
+// callback is returned with kConfigChanged.
+TEST_F(DecryptingAudioDecoderTest, Reset_DuringDemuxerRead_ConfigChange) {
+  Initialize();
+  EnterPendingReadState();
+
+  Reset();
+
+  // The new config is different from the initial config in bits-per-channel,
+  // channel layout and samples_per_second.
+  AudioDecoderConfig new_config(kCodecVorbis, kSampleFormatPlanarS16,
+                                CHANNEL_LAYOUT_5_1, 88200, NULL, 0, false);
+  EXPECT_NE(new_config.bits_per_channel(), config_.bits_per_channel());
+  EXPECT_NE(new_config.channel_layout(), config_.channel_layout());
+  EXPECT_NE(new_config.samples_per_second(), config_.samples_per_second());
+
+  // Even during pending reset, the decoder still needs to be initialized with
+  // the new config.
+  EXPECT_CALL(*demuxer_, audio_decoder_config())
+      .WillRepeatedly(ReturnRef(new_config));
+  EXPECT_CALL(*decryptor_, DeinitializeDecoder(Decryptor::kAudio));
+  EXPECT_CALL(*decryptor_, InitializeAudioDecoderMock(_, _))
+      .WillOnce(RunCallback<1>(true));
+  EXPECT_CALL(*this, FrameReady(AudioDecoder::kAborted, IsNull()));
+
+  base::ResetAndReturn(&pending_demuxer_read_cb_)
+      .Run(DemuxerStream::kConfigChanged, NULL);
+  message_loop_.RunUntilIdle();
+
+  EXPECT_EQ(new_config.bits_per_channel(), decoder_->bits_per_channel());
+  EXPECT_EQ(new_config.channel_layout(), decoder_->channel_layout());
+  EXPECT_EQ(new_config.samples_per_second(), decoder_->samples_per_second());
+}
+
+// Test resetting when the decoder is in kPendingDemuxerRead state, the read
+// callback is returned with kConfigChanged and the config change fails.
+TEST_F(DecryptingAudioDecoderTest, Reset_DuringDemuxerRead_ConfigChangeFailed) {
+  Initialize();
+  EnterPendingReadState();
+
+  Reset();
+
+  // Even during pending reset, the decoder still needs to be initialized with
+  // the new config.
+  EXPECT_CALL(*decryptor_, DeinitializeDecoder(Decryptor::kAudio));
+  EXPECT_CALL(*decryptor_, InitializeAudioDecoderMock(_, _))
+      .WillOnce(RunCallback<1>(false));
+  EXPECT_CALL(*this, FrameReady(AudioDecoder::kDecodeError, IsNull()));
+
+  base::ResetAndReturn(&pending_demuxer_read_cb_)
+      .Run(DemuxerStream::kConfigChanged, NULL);
+  message_loop_.RunUntilIdle();
+}
+
+// Test resetting when the decoder is in kPendingConfigChange state.
+TEST_F(DecryptingAudioDecoderTest, Reset_DuringPendingConfigChange) {
+  Initialize();
+  EnterNormalDecodingState();
+
+  EXPECT_CALL(*demuxer_, Read(_))
+      .WillOnce(RunCallback<0>(DemuxerStream::kConfigChanged,
+                               scoped_refptr<DecoderBuffer>()));
+  EXPECT_CALL(*decryptor_, DeinitializeDecoder(Decryptor::kAudio));
+  EXPECT_CALL(*decryptor_, InitializeAudioDecoderMock(_, _))
+      .WillOnce(SaveArg<1>(&pending_init_cb_));
+
+  decoder_->Read(base::Bind(&DecryptingAudioDecoderTest::FrameReady,
+                            base::Unretained(this)));
+  message_loop_.RunUntilIdle();
+  EXPECT_FALSE(pending_init_cb_.is_null());
+
+  EXPECT_CALL(*this, FrameReady(AudioDecoder::kAborted, IsNull()));
+
+  Reset();
+  base::ResetAndReturn(&pending_init_cb_).Run(true);
   message_loop_.RunUntilIdle();
 }
 
@@ -431,44 +587,6 @@ TEST_F(DecryptingAudioDecoderTest, Reset_AfterReset) {
   EnterNormalDecodingState();
   Reset();
   Reset();
-}
-
-// Test aborted read on the demuxer stream.
-TEST_F(DecryptingAudioDecoderTest, DemuxerRead_Aborted) {
-  Initialize();
-
-  // ReturnBuffer() with NULL triggers aborted demuxer read.
-  EXPECT_CALL(*demuxer_, Read(_))
-      .WillOnce(ReturnBuffer(scoped_refptr<DecoderBuffer>()));
-
-  ReadAndExpectFrameReadyWith(AudioDecoder::kAborted, NULL);
-}
-
-// Test aborted read on the demuxer stream when the decoder is being reset.
-TEST_F(DecryptingAudioDecoderTest, DemuxerRead_AbortedDuringReset) {
-  Initialize();
-  EnterPendingReadState();
-
-  // Make sure we get a NULL audio frame returned.
-  EXPECT_CALL(*this, FrameReady(AudioDecoder::kAborted, IsNull()));
-
-  Reset();
-  base::ResetAndReturn(&pending_demuxer_read_cb_).Run(DemuxerStream::kAborted,
-                                                      NULL);
-  message_loop_.RunUntilIdle();
-}
-
-// Test config change on the demuxer stream.
-TEST_F(DecryptingAudioDecoderTest, DemuxerRead_ConfigChanged) {
-  Initialize();
-
-  EXPECT_CALL(*demuxer_, Read(_))
-      .WillOnce(RunCallback<0>(DemuxerStream::kConfigChanged,
-                               scoped_refptr<DecoderBuffer>()));
-
-  // TODO(xhwang): Update this test when kConfigChanged is supported in
-  // DecryptingAudioDecoder.
-  ReadAndExpectFrameReadyWith(AudioDecoder::kDecodeError, NULL);
 }
 
 }  // namespace media

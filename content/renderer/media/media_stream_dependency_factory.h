@@ -12,6 +12,7 @@
 #include "base/threading/thread.h"
 #include "content/common/content_export.h"
 #include "content/renderer/media/media_stream_extra_data.h"
+#include "content/renderer/media/webaudio_capturer_source.h"
 #include "content/renderer/p2p/socket_dispatcher.h"
 #include "third_party/libjingle/source/talk/app/webrtc/peerconnectioninterface.h"
 #include "third_party/libjingle/source/talk/app/webrtc/videosourceinterface.h"
@@ -105,11 +106,6 @@ class CONTENT_EXPORT MediaStreamDependencyFactory
                            webrtc::PeerConnectionObserver* observer);
 
   // Creates a libjingle representation of a Session description. Used by a
-  // PeerConnectionHandlerJsep instance.
-  virtual webrtc::SessionDescriptionInterface* CreateSessionDescription(
-      const std::string& sdp);
-
-  // Creates a libjingle representation of a Session description. Used by a
   // RTCPeerConnectionHandler instance.
   virtual webrtc::SessionDescriptionInterface* CreateSessionDescription(
       const std::string& type,
@@ -176,6 +172,9 @@ class CONTENT_EXPORT MediaStreamDependencyFactory
   talk_base::Thread* signaling_thread_;
   talk_base::Thread* worker_thread_;
   base::Thread chrome_worker_thread_;
+
+  // Handles audio from MediaStreamAudioDestinationNode.
+  scoped_refptr<WebAudioCapturerSource> webaudio_capturer_source_;
 
   DISALLOW_COPY_AND_ASSIGN(MediaStreamDependencyFactory);
 };

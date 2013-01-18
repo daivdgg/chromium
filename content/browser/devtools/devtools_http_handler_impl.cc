@@ -44,8 +44,8 @@
 #include "net/base/io_buffer.h"
 #include "net/base/ip_endpoint.h"
 #include "net/server/http_server_request_info.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDevToolsAgent.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
 #include "ui/base/layout.h"
 #include "webkit/user_agent/user_agent.h"
 #include "webkit/user_agent/user_agent_util.h"
@@ -612,8 +612,9 @@ void DevToolsHttpHandlerImpl::OnWebSocketRequestUI(
       Send500(connection_id, "Another client already attached");
       return;
     }
-    browser_target_.reset(new DevToolsBrowserTarget(connection_id));
-    browser_target_->RegisterHandler(new DevToolsTracingHandler());
+    browser_target_.reset(new DevToolsBrowserTarget(
+        thread_->message_loop_proxy().get(), server_.get(), connection_id));
+    browser_target_->RegisterDomainHandler(new DevToolsTracingHandler());
     AcceptWebSocket(connection_id, request);
     return;
   }

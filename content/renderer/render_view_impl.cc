@@ -83,11 +83,13 @@
 #include "content/renderer/input_tag_speech_dispatcher.h"
 #include "content/renderer/java/java_bridge_dispatcher.h"
 #include "content/renderer/load_progress_tracker.h"
+#include "content/renderer/media/audio_device_factory.h"
+#include "content/renderer/media/audio_renderer_mixer_manager.h"
 #include "content/renderer/media/media_stream_dependency_factory.h"
 #include "content/renderer/media/media_stream_dispatcher.h"
 #include "content/renderer/media/media_stream_impl.h"
-#include "content/renderer/media/render_audiosourceprovider.h"
 #include "content/renderer/media/render_media_log.h"
+#include "content/renderer/media/renderer_audio_output_device.h"
 #include "content/renderer/media/renderer_gpu_video_decoder_factories.h"
 #include "content/renderer/media/rtc_peer_connection_handler.h"
 #include "content/renderer/mhtml_generator.h"
@@ -113,6 +115,7 @@
 #include "content/renderer/web_ui_extension_data.h"
 #include "content/renderer/webplugin_delegate_proxy.h"
 #include "content/renderer/websharedworker_proxy.h"
+#include "media/base/audio_renderer_mixer_input.h"
 #include "media/base/filter_collection.h"
 #include "media/base/media_switches.h"
 #include "media/filters/audio_renderer_impl.h"
@@ -122,6 +125,21 @@
 #include "net/base/net_errors.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/http/http_util.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebCString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebDragData.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebGraphicsContext3D.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebHTTPBody.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebImage.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebPoint.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebRect.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebSize.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebSocketStreamHandle.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURL.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLError.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLRequest.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLResponse.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebVector.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebAccessibilityObject.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebColorName.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDOMEvent.h"
@@ -146,6 +164,7 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebIntentServiceInfo.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebMediaPlayerAction.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebMessagePortChannel.h"
+#include "third_party/WebKit/Source/WebKit/chromium/public/WebNavigationPolicy.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebNodeList.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebPageSerializer.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebPlugin.h"
@@ -164,22 +183,7 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebView.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebWindowFeatures.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/default/WebRenderTheme.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebCString.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebDragData.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebGraphicsContext3D.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebHTTPBody.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebImage.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebPoint.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebRect.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebSerializedScriptValue.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebSize.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebSocketStreamHandle.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURL.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURLError.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURLRequest.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURLResponse.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebVector.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/dialogs/selected_file_info.h"
 #include "ui/base/ui_base_switches.h"
@@ -217,9 +221,9 @@
 #include "content/renderer/android/phone_number_detector.h"
 #include "content/renderer/media/stream_texture_factory_impl_android.h"
 #include "content/renderer/media/webmediaplayer_proxy_impl_android.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebFloatPoint.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebFloatRect.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebHitTestResult.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebFloatPoint.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebFloatRect.h"
 #include "ui/gfx/rect_f.h"
 #include "webkit/media/android/media_player_bridge_manager_impl.h"
 #include "webkit/media/android/webmediaplayer_android.h"
@@ -503,6 +507,29 @@ static void NotifyTimezoneChange(WebKit::WebFrame* frame) {
   WebKit::WebFrame* child = frame->firstChild();
   for (; child; child = child->nextSibling())
     NotifyTimezoneChange(child);
+}
+
+static WindowOpenDisposition NavigationPolicyToDisposition(
+    WebNavigationPolicy policy) {
+  switch (policy) {
+    case WebKit::WebNavigationPolicyIgnore:
+      return IGNORE_ACTION;
+    case WebKit::WebNavigationPolicyDownload:
+      return SAVE_TO_DISK;
+    case WebKit::WebNavigationPolicyCurrentTab:
+      return CURRENT_TAB;
+    case WebKit::WebNavigationPolicyNewBackgroundTab:
+      return NEW_BACKGROUND_TAB;
+    case WebKit::WebNavigationPolicyNewForegroundTab:
+      return NEW_FOREGROUND_TAB;
+    case WebKit::WebNavigationPolicyNewWindow:
+      return NEW_WINDOW;
+    case WebKit::WebNavigationPolicyNewPopup:
+      return NEW_POPUP;
+  default:
+    NOTREACHED() << "Unexpected WebNavigationPolicy";
+    return IGNORE_ACTION;
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -868,8 +895,9 @@ WebKit::WebView* RenderViewImpl::webview() const {
   return static_cast<WebKit::WebView*>(webwidget());
 }
 
-void RenderViewImpl::PluginCrashed(const FilePath& plugin_path) {
-  Send(new ViewHostMsg_CrashedPlugin(routing_id_, plugin_path));
+void RenderViewImpl::PluginCrashed(const FilePath& plugin_path,
+                                   base::ProcessId plugin_pid) {
+  Send(new ViewHostMsg_CrashedPlugin(routing_id_, plugin_path, plugin_pid));
 }
 
 void RenderViewImpl::RegisterPluginDelegate(WebPluginDelegateProxy* delegate) {
@@ -940,6 +968,7 @@ bool RenderViewImpl::OnMessageReceived(const IPC::Message& message) {
     IPC_MESSAGE_HANDLER(ViewMsg_PasteAndMatchStyle, OnPasteAndMatchStyle)
     IPC_MESSAGE_HANDLER(ViewMsg_Replace, OnReplace)
     IPC_MESSAGE_HANDLER(ViewMsg_Delete, OnDelete)
+    IPC_MESSAGE_HANDLER(ViewMsg_SetName, OnSetName)
     IPC_MESSAGE_HANDLER(ViewMsg_SelectAll, OnSelectAll)
     IPC_MESSAGE_HANDLER(ViewMsg_Unselect, OnUnselect)
     IPC_MESSAGE_HANDLER(ViewMsg_SetEditableSelectionOffsets,
@@ -949,6 +978,7 @@ bool RenderViewImpl::OnMessageReceived(const IPC::Message& message) {
     IPC_MESSAGE_HANDLER(ViewMsg_ExtendSelectionAndDelete,
                         OnExtendSelectionAndDelete)
     IPC_MESSAGE_HANDLER(ViewMsg_SelectRange, OnSelectRange)
+    IPC_MESSAGE_HANDLER(ViewMsg_MoveCaret, OnMoveCaret)
     IPC_MESSAGE_HANDLER(ViewMsg_CopyImageAt, OnCopyImageAt)
     IPC_MESSAGE_HANDLER(ViewMsg_ExecuteEditCommand, OnExecuteEditCommand)
     IPC_MESSAGE_HANDLER(ViewMsg_Find, OnFind)
@@ -1362,6 +1392,13 @@ void RenderViewImpl::OnDelete() {
   webview()->focusedFrame()->executeCommand(WebString::fromUTF8("Delete"));
 }
 
+void RenderViewImpl::OnSetName(const std::string& name) {
+  if (!webview())
+    return;
+
+  webview()->mainFrame()->setName(WebString::fromUTF8(name));
+}
+
 void RenderViewImpl::OnSelectAll() {
   if (!webview())
     return;
@@ -1405,6 +1442,15 @@ void RenderViewImpl::OnSelectRange(const gfx::Point& start,
   handling_select_range_ = true;
   webview()->focusedFrame()->selectRange(start, end);
   handling_select_range_ = false;
+}
+
+void RenderViewImpl::OnMoveCaret(const gfx::Point& point) {
+  if (!webview())
+    return;
+
+  Send(new ViewHostMsg_MoveCaret_ACK(routing_id_));
+
+  webview()->focusedFrame()->moveCaretSelectionTowardsWindowPoint(point);
 }
 
 void RenderViewImpl::OnSetHistoryLengthAndPrune(int history_length,
@@ -2491,11 +2537,13 @@ bool RenderViewImpl::isPointerLocked() {
 }
 
 void RenderViewImpl::didActivateCompositor(int input_handler_identifier) {
+#if !defined(OS_WIN)  // http://crbug.com/160122
   CompositorThread* compositor_thread =
       RenderThreadImpl::current()->compositor_thread();
   if (compositor_thread)
     compositor_thread->AddInputHandler(
         routing_id_, input_handler_identifier, AsWeakPtr());
+#endif
 
   RenderWidget::didActivateCompositor(input_handler_identifier);
 
@@ -2616,14 +2664,29 @@ WebMediaPlayer* RenderViewImpl::createMediaPlayer(
           resource_context, gpu_channel_host, routing_id_));
 #endif
 
-  RenderMediaLog* render_media_log = new RenderMediaLog();
-
-  RenderAudioSourceProvider* audio_source_provider = NULL;
-
-  // |audio_source_provider| "provides" audio to WebKit and is a sink from the
-  // perspective of the audio renderer.
+  scoped_refptr<media::AudioRendererSink> sink;
   if (!cmd_line->HasSwitch(switches::kDisableAudio)) {
-    audio_source_provider = new RenderAudioSourceProvider(routing_id_);
+#if defined(OS_WIN) || defined(OS_MACOSX)
+    const bool use_mixing =
+        !cmd_line->HasSwitch(switches::kDisableRendererSideMixing);
+#else
+    const bool use_mixing =
+        cmd_line->HasSwitch(switches::kEnableRendererSideMixing);
+#endif
+    if (use_mixing) {
+      sink = RenderThreadImpl::current()->GetAudioRendererMixerManager()->
+          CreateInput(routing_id_);
+      DVLOG(1) << "Using AudioRendererMixerManager-provided sink: " << sink;
+    } else {
+      scoped_refptr<RendererAudioOutputDevice> device =
+          AudioDeviceFactory::NewOutputDevice();
+      // The RenderView creating AudioRendererSink will be the source of
+      // the audio (WebMediaPlayer is always associated with a document in a
+      // frame at the time RenderAudioSourceProvider is instantiated).
+      device->SetSourceRenderView(routing_id_);
+      sink = device;
+      DVLOG(1) << "Using AudioDeviceFactory-provided sink: " << sink;
+    }
   }
 
   scoped_refptr<media::GpuVideoDecoder::Factories> gpu_factories;
@@ -2644,8 +2707,7 @@ WebMediaPlayer* RenderViewImpl::createMediaPlayer(
   }
 
   webkit_media::WebMediaPlayerParams params(
-      audio_source_provider, audio_source_provider, gpu_factories,
-      media_stream_impl_, render_media_log);
+      sink, gpu_factories, media_stream_impl_, new RenderMediaLog());
   WebMediaPlayer* media_player =
       GetContentClient()->renderer()->OverrideCreateWebMediaPlayer(
           this, frame, client, AsWeakPtr(), params);
@@ -2704,6 +2766,17 @@ void RenderViewImpl::frameDetached(WebFrame* frame) {
 
 void RenderViewImpl::willClose(WebFrame* frame) {
   FOR_EACH_OBSERVER(RenderViewObserver, observers_, FrameWillClose(frame));
+}
+
+void RenderViewImpl::didChangeName(WebFrame* frame,
+                                   const WebString& name)  {
+  if (!renderer_preferences_.report_frame_name_changes)
+    return;
+
+  Send(new ViewHostMsg_UpdateFrameName(routing_id_,
+                                       frame->identifier(),
+                                       !frame->parent(),
+                                       UTF16ToUTF8(name)));
 }
 
 void RenderViewImpl::loadURLExternally(
@@ -3216,9 +3289,7 @@ void RenderViewImpl::ProcessViewLayoutFlags(const CommandLine& command_line) {
   webview()->enableFixedLayoutMode(enable_fixed_layout || enable_viewport);
   webview()->settings()->setFixedElementsLayoutRelativeToFrame(true);
 
-  if (enable_viewport) {
-    webview()->settings()->setViewportEnabled(true);
-  } else if (enable_fixed_layout) {
+  if (!enable_viewport && enable_fixed_layout) {
     std::string str =
         command_line.GetSwitchValueASCII(switches::kEnableFixedLayout);
     std::vector<std::string> tokens;
@@ -3240,7 +3311,8 @@ void RenderViewImpl::ProcessAcceleratedPinchZoomFlags(
     return;
 
   bool enable_viewport = command_line.HasSwitch(switches::kEnableViewport);
-  bool enable_pinch = command_line.HasSwitch(switches::kEnablePinch);
+  bool enable_pinch = command_line.HasSwitch(switches::kEnablePinch)
+      || command_line.HasSwitch(switches::kEnableCssTransformPinch);
 
   if (enable_viewport)
     return;
@@ -3253,6 +3325,12 @@ void RenderViewImpl::ProcessAcceleratedPinchZoomFlags(
 
 void RenderViewImpl::didStartProvisionalLoad(WebFrame* frame) {
   WebDataSource* ds = frame->provisionalDataSource();
+
+  // In fast/loader/stop-provisional-loads.html, we abort the load before this
+  // callback is invoked.
+  if (!ds)
+    return;
+
   DocumentState* document_state = DocumentState::FromDataSource(ds);
 
   // We should only navigate to swappedout:// when is_swapped_out_ is true.
@@ -4660,6 +4738,7 @@ void RenderViewImpl::SyncSelectionIfRequired() {
     selection_text_offset_ = offset;
     selection_range_ = range;
     Send(new ViewHostMsg_SelectionChanged(routing_id_, text, offset, range));
+    UpdateTextInputState(SHOW_IME_IF_NEEDED);
   }
 }
 
@@ -5886,7 +5965,7 @@ void RenderViewImpl::OnSetFocus(bool enable) {
   pepper_helper_->OnSetFocus(enable);
   // Notify all BrowserPlugins of the RenderView's focus state.
   if (browser_plugin_manager_)
-    browser_plugin_manager()->SetEmbedderFocus(this, enable);
+    browser_plugin_manager()->UpdateFocusState();
 }
 
 void RenderViewImpl::PpapiPluginFocusChanged() {

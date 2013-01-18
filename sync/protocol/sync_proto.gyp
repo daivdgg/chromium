@@ -28,6 +28,7 @@
         'nigori_specifics.proto',
         'password_specifics.proto',
         'preference_specifics.proto',
+        'priority_preference_specifics.proto',
         'search_engine_specifics.proto',
         'session_specifics.proto',
         'sync.proto',
@@ -36,6 +37,7 @@
         'test.proto',
         'theme_specifics.proto',
         'typed_url_specifics.proto',
+        'unique_position.proto',
       ],
       'variables': {
         'proto_out_dir': 'sync/protocol',

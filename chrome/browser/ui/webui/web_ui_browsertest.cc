@@ -28,6 +28,7 @@
 #include "chrome/test/base/test_tab_strip_model_observer.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/browser/web_ui_message_handler.h"
@@ -45,7 +46,10 @@ using content::WebUIMessageHandler;
 
 namespace {
 
-const FilePath::CharType kMockJS[] = FILE_PATH_LITERAL("mock4js.js");
+const FilePath::CharType kA11yAuditLibraryJSPath[] = FILE_PATH_LITERAL(
+    "third_party/accessibility-developer-tools/gen/axs_testing.js");
+const FilePath::CharType kMockJSPath[] =
+    FILE_PATH_LITERAL("chrome/third_party/mock4js/mock4js.js");
 const FilePath::CharType kWebUILibraryJS[] = FILE_PATH_LITERAL("test_api.js");
 const FilePath::CharType kWebUITestFolder[] = FILE_PATH_LITERAL("webui");
 base::LazyInstance<std::vector<std::string> > error_messages_ =
@@ -72,6 +76,17 @@ WebUIBrowserTest::~WebUIBrowserTest() {}
 
 void WebUIBrowserTest::AddLibrary(const FilePath& library_path) {
   user_libraries_.push_back(library_path);
+}
+
+// Add a helper JS library to the given WebUIBrowserTest from a path relative to
+// base::DIR_SOURCE_ROOT.
+// static
+void AddLibraryFromSourceRoot(WebUIBrowserTest* browser_test,
+                              const FilePath& path) {
+  FilePath filePath;
+  ASSERT_TRUE(PathService::Get(base::DIR_SOURCE_ROOT, &filePath));
+  filePath = filePath.Append(path);
+  browser_test->AddLibrary(filePath);
 }
 
 bool WebUIBrowserTest::RunJavascriptFunction(const std::string& function_name) {
@@ -253,21 +268,25 @@ namespace {
 // page is shown. While this doesn't matter for most tests, without it,
 // navigation to different anchors cannot be listened to (via the hashchange
 // event).
-class MockWebUIDataSource : public ChromeURLDataManager::DataSource {
+class MockWebUIDataSource : public content::URLDataSource {
  public:
-  MockWebUIDataSource()
-      : ChromeURLDataManager::DataSource("dummyurl", MessageLoop::current()) {}
+  MockWebUIDataSource() {}
 
  private:
   virtual ~MockWebUIDataSource() {}
 
-  virtual void StartDataRequest(const std::string& path,
-                                bool is_incognito,
-                                int request_id) OVERRIDE {
+  virtual std::string GetSource() OVERRIDE {
+    return "dummyurl";
+  }
+
+  virtual void StartDataRequest(
+      const std::string& path,
+      bool is_incognito,
+      const content::URLDataSource::GotDataCallback& callback) OVERRIDE {
     std::string dummy_html = "<html><body>Dummy</body></html>";
     scoped_refptr<base::RefCountedString> response =
         base::RefCountedString::TakeString(&dummy_html);
-    SendResponse(request_id, response);
+    callback.Run(response);
   }
 
   std::string GetMimeType(const std::string& path) const OVERRIDE {
@@ -329,13 +348,8 @@ void WebUIBrowserTest::SetUpInProcessBrowserTestFixture() {
   ResourceBundle::GetSharedInstance().AddDataPackFromPath(
       resources_pack_path, ui::SCALE_FACTOR_NONE);
 
-  FilePath mockPath;
-  ASSERT_TRUE(PathService::Get(base::DIR_SOURCE_ROOT, &mockPath));
-  mockPath = mockPath.AppendASCII("chrome");
-  mockPath = mockPath.AppendASCII("third_party");
-  mockPath = mockPath.AppendASCII("mock4js");
-  mockPath = mockPath.Append(kMockJS);
-  AddLibrary(mockPath);
+  AddLibraryFromSourceRoot(this, FilePath(kA11yAuditLibraryJSPath));
+  AddLibraryFromSourceRoot(this, FilePath(kMockJSPath));
   AddLibrary(FilePath(kWebUILibraryJS));
 }
 
@@ -517,7 +531,7 @@ IN_PROC_BROWSER_TEST_F(WebUIBrowserExpectFailTest, TestFailsFast) {
   AddLibrary(FilePath(FILE_PATH_LITERAL("sample_downloads.js")));
   ui_test_utils::NavigateToURL(browser(), GURL(chrome::kChromeUIDownloadsURL));
   EXPECT_FATAL_FAILURE(RunJavascriptTestNoReturn("DISABLED_BogusFunctionName"),
-                       "WebUITestHandler::Observe");
+                       "WebUITestHandler::JavaScriptComplete");
 }
 
 // Test that bogus javascript fails fast - no timeout waiting for result.
@@ -525,7 +539,7 @@ IN_PROC_BROWSER_TEST_F(WebUIBrowserExpectFailTest, TestRuntimeErrorFailsFast) {
   AddLibrary(FilePath(FILE_PATH_LITERAL("runtime_error.js")));
   ui_test_utils::NavigateToURL(browser(), GURL(kDummyURL));
   EXPECT_FATAL_FAILURE(RunJavascriptTestNoReturn("TestRuntimeErrorFailsFast"),
-                       "WebUITestHandler::Observe");
+                       "WebUITestHandler::JavaScriptComplete");
 }
 
 // Test that bogus javascript fails async test fast as well - no timeout waiting
@@ -535,7 +549,7 @@ IN_PROC_BROWSER_TEST_F(WebUIBrowserExpectFailTest, TestFailsAsyncFast) {
   ui_test_utils::NavigateToURL(browser(), GURL(chrome::kChromeUIDownloadsURL));
   EXPECT_FATAL_FAILURE(
       RunJavascriptAsyncTestNoReturn("DISABLED_BogusFunctionName"),
-      "WebUITestHandler::Observe");
+      "WebUITestHandler::JavaScriptComplete");
 }
 
 // Tests that the async framework works.

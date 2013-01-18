@@ -27,16 +27,19 @@ LayerTreeSettings::LayerTreeSettings()
     , canUseLCDText(true)
     , shouldClearRootRenderPass(true)
     , useLinearFadeScrollbarAnimator(false)
+    , calculateTopControlsPosition(false)
+    , minimumContentsScale(0.0625f)
+    , lowResContentsScaleFactor(0.125f)
     , refreshRate(0)
     , maxPartialTextureUpdates(std::numeric_limits<size_t>::max())
     , numRasterThreads(1)
+    , topControlsHeightPx(0)
     , defaultTileSize(gfx::Size(256, 256))
     , maxUntiledLayerSize(gfx::Size(512, 512))
     , minimumOcclusionTrackingSize(gfx::Size(160, 160))
 {
     // TODO(danakj): Move this to chromium when we don't go through the WebKit API anymore.
     compositorFrameMessage = CommandLine::ForCurrentProcess()->HasSwitch(cc::switches::kEnableCompositorFrameMessage);
-    implSidePainting = CommandLine::ForCurrentProcess()->HasSwitch(cc::switches::kEnableImplSidePainting);
     partialSwapEnabled = CommandLine::ForCurrentProcess()->HasSwitch(switches::kEnablePartialSwap);
     backgroundColorInsteadOfCheckerboard = CommandLine::ForCurrentProcess()->HasSwitch(switches::kBackgroundColorInsteadOfCheckerboard);
     showOverdrawInTracing = CommandLine::ForCurrentProcess()->HasSwitch(switches::kTraceOverdraw);

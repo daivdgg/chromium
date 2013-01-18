@@ -22,6 +22,7 @@ import org.chromium.content.browser.test.util.CallbackHelper;
 import org.chromium.content.browser.test.util.Criteria;
 import org.chromium.content.browser.test.util.CriteriaHelper;
 import org.chromium.content.browser.test.util.TestCallbackHelperContainer;
+import org.chromium.content.common.ProcessInitException;
 import org.chromium.ui.gfx.ActivityNativeWindow;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,11 +37,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class AndroidWebViewTestBase
         extends ActivityInstrumentationTestCase2<AndroidWebViewTestRunnerActivity> {
-    // TODO(boliu): Revert back to 15 seconds after crbug.com/167236 is fixed.
-    protected static int WAIT_TIMEOUT_SECONDS = 90;
+    protected static int WAIT_TIMEOUT_SECONDS = 15;
     private static final int CHECK_INTERVAL = 100;
-    protected static final boolean NORMAL_VIEW = false;
-    protected static final boolean INCOGNITO_VIEW = true;
 
     public AndroidWebViewTestBase() {
         super(AndroidWebViewTestRunnerActivity.class);
@@ -48,13 +46,18 @@ public class AndroidWebViewTestBase
 
     @Override
     protected void setUp() throws Exception {
+        super.setUp();
         final Context context = getActivity();
         getInstrumentation().runOnMainSync(new Runnable() {
             @Override
             public void run() {
                 AwTestResourceProvider.registerResources(context);
-                ContentViewCore.initChromiumBrowserProcess(
-                        context, ContentView.MAX_RENDERERS_SINGLE_PROCESS);
+                try {
+                    ContentViewCore.initChromiumBrowserProcess(
+                            context, ContentView.MAX_RENDERERS_SINGLE_PROCESS);
+                } catch (ProcessInitException e) {
+                    throw new Error("Failed to initialize browser process", e);
+                }
             }
         });
     }
@@ -203,19 +206,18 @@ public class AndroidWebViewTestBase
         });
     }
 
-    protected AwTestContainerView createAwTestContainerView(final boolean incognito,
+    protected AwTestContainerView createAwTestContainerView(
             final AwContentsClient awContentsClient) {
-        return createAwTestContainerView(incognito, new AwTestContainerView(getActivity()),
+        return createAwTestContainerView(new AwTestContainerView(getActivity()),
                 awContentsClient);
     }
 
-    protected AwTestContainerView createAwTestContainerView(final boolean incognito,
+    protected AwTestContainerView createAwTestContainerView(
             final AwTestContainerView testContainerView,
             final AwContentsClient awContentsClient) {
         testContainerView.initialize(new AwContents(testContainerView,
                 testContainerView.getInternalAccessDelegate(),
-                awContentsClient, new ActivityNativeWindow(getActivity()),
-                incognito, false));
+                awContentsClient, new ActivityNativeWindow(getActivity()), false));
         getActivity().addView(testContainerView);
         testContainerView.requestFocus();
         return testContainerView;
@@ -223,19 +225,12 @@ public class AndroidWebViewTestBase
 
     protected AwTestContainerView createAwTestContainerViewOnMainSync(
             final AwContentsClient client) throws Exception {
-        return createAwTestContainerViewOnMainSync(NORMAL_VIEW, client);
-    }
-
-    protected AwTestContainerView createAwTestContainerViewOnMainSync(
-            final boolean incognito,
-            final AwContentsClient client) throws Exception {
         final AtomicReference<AwTestContainerView> testContainerView =
                 new AtomicReference<AwTestContainerView>();
-        final Context context = getActivity();
         getInstrumentation().runOnMainSync(new Runnable() {
             @Override
             public void run() {
-                testContainerView.set(createAwTestContainerView(incognito, client));
+                testContainerView.set(createAwTestContainerView(client));
             }
         });
         return testContainerView.get();

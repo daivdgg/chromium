@@ -57,7 +57,6 @@ class BalloonViewAsh::ImageDownload
   // FaviconHelper callback.
   virtual void Downloaded(int download_id,
                           const GURL& image_url,
-                          bool errored,
                           int requested_size,
                           const std::vector<SkBitmap>& bitmaps);
 
@@ -99,7 +98,6 @@ BalloonViewAsh::ImageDownload::~ImageDownload() {
 void BalloonViewAsh::ImageDownload::Downloaded(
     int download_id,
     const GURL& image_url,
-    bool errored,
     int requested_size,
     const std::vector<SkBitmap>& bitmaps) {
   if (bitmaps.empty())
@@ -166,6 +164,11 @@ void BalloonViewAsh::SetNotificationIcon(const std::string& id,
   GetMessageCenter()->SetNotificationPrimaryIcon(id, image);
 }
 
+void BalloonViewAsh::SetNotificationImage(const std::string& id,
+                                          const gfx::ImageSkia& image) {
+  GetMessageCenter()->SetNotificationImage(id, image);
+}
+
 void BalloonViewAsh::DownloadImages(const Notification& notification) {
   // Cancel any previous downloads.
   downloads_.clear();
@@ -179,5 +182,20 @@ void BalloonViewAsh::DownloadImages(const Notification& notification) {
           message_center::kNotificationIconWidth,
           base::Bind(&BalloonViewAsh::SetNotificationIcon,
                      base::Unretained(this), notification.notification_id()))));
+  }
+
+  // Start a download for the notification's image if appropriate.
+  const base::DictionaryValue* optional_fields = notification.optional_fields();
+  if (optional_fields &&
+      optional_fields->HasKey(ui::notifications::kImageUrlKey)) {
+    string16 url;
+    optional_fields->GetString(ui::notifications::kImageUrlKey, &url);
+    if (!url.empty()) {
+      downloads_.push_back(linked_ptr<ImageDownload>(new ImageDownload(
+          notification, GURL(url),
+          message_center::kNotificationPreferredImageSize,
+          base::Bind(&BalloonViewAsh::SetNotificationImage,
+                     base::Unretained(this), notification.notification_id()))));
+    }
   }
 }

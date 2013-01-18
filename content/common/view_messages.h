@@ -253,6 +253,7 @@ IPC_STRUCT_TRAITS_BEGIN(content::RendererPreferences)
   IPC_STRUCT_TRAITS_MEMBER(default_zoom_level)
   IPC_STRUCT_TRAITS_MEMBER(user_agent_override)
   IPC_STRUCT_TRAITS_MEMBER(throttle_input_events)
+  IPC_STRUCT_TRAITS_MEMBER(report_frame_name_changes)
 IPC_STRUCT_TRAITS_END()
 
 IPC_STRUCT_TRAITS_BEGIN(webkit_glue::WebCookie)
@@ -693,6 +694,10 @@ IPC_STRUCT_END()
 
 // Messages sent from the browser to the renderer.
 
+// Set the top-level frame to the provided name.
+IPC_MESSAGE_ROUTED1(ViewMsg_SetName,
+                    std::string /* frame_name */)
+
 // Sent to the RenderView when a new tab is swapped into an existing
 // tab and the histories need to be merged. The existing tab has a history of
 // |merged_history_length| which precedes the history of the new tab. All
@@ -918,6 +923,11 @@ IPC_MESSAGE_ROUTED0(ViewMsg_Unselect)
 IPC_MESSAGE_ROUTED2(ViewMsg_SelectRange,
                     gfx::Point /* start */,
                     gfx::Point /* end */)
+
+// Requests the renderer to move the caret selection toward the point.
+// Expects a MoveCaret_ACK message when finished.
+IPC_MESSAGE_ROUTED1(ViewMsg_MoveCaret,
+                    gfx::Point /* location */)
 
 // Copies the image at location x, y to the clipboard (if there indeed is an
 // image at that location).
@@ -1532,11 +1542,6 @@ IPC_MESSAGE_ROUTED3(ViewHostMsg_UpdateTitle,
                     string16 /* title */,
                     WebKit::WebTextDirection /* title direction */)
 
-// Changes the icon url for the page in the UI.
-IPC_MESSAGE_ROUTED2(ViewHostMsg_UpdateIconURL,
-                    int32,
-                    GURL)
-
 // Change the encoding name of the page in UI when the page has detected
 // proper encoding name.
 IPC_MESSAGE_ROUTED1(ViewHostMsg_UpdateEncoding,
@@ -1932,6 +1937,7 @@ IPC_MESSAGE_ROUTED2(ViewHostMsg_SetTooltipText,
                     WebKit::WebTextDirection /* text direction hint */)
 
 IPC_MESSAGE_ROUTED0(ViewHostMsg_SelectRange_ACK)
+IPC_MESSAGE_ROUTED0(ViewHostMsg_MoveCaret_ACK)
 
 // Notification that the text selection has changed.
 // Note: The secound parameter is the character based offset of the string16
@@ -1979,6 +1985,11 @@ IPC_MESSAGE_ROUTED2(ViewHostMsg_EnumerateDirectory,
 IPC_MESSAGE_ROUTED1(ViewHostMsg_TakeFocus,
                     bool /* reverse */)
 
+// Required for opening a date/time dialog
+IPC_MESSAGE_ROUTED2(ViewHostMsg_OpenDateTimeDialog,
+                    int /* type */,
+                    std::string /* value */)
+
 // Required for updating text input state.
 IPC_MESSAGE_ROUTED1(ViewHostMsg_TextInputStateChanged,
                     ViewHostMsg_TextInputState_Params /* input state params */)
@@ -2002,10 +2013,14 @@ IPC_MESSAGE_ROUTED4(ViewHostMsg_AddMessageToConsole,
                     int32, /* line number */
                     string16 /* source id */)
 
-// Sent by the renderer process to indicate that a plugin instance has
-// crashed.
-IPC_MESSAGE_ROUTED1(ViewHostMsg_CrashedPlugin,
-                    FilePath /* plugin_path */)
+// Sent by the renderer process to indicate that a plugin instance has crashed.
+// Note: |plugin_pid| should not be trusted. The corresponding process has
+// probably died. Moreover, the ID may have been reused by a new process. Any
+// usage other than displaying it in a prompt to the user is very likely to be
+// wrong.
+IPC_MESSAGE_ROUTED2(ViewHostMsg_CrashedPlugin,
+                    FilePath /* plugin_path */,
+                    base::ProcessId /* plugin_pid */)
 
 // Displays a box to confirm that the user wants to navigate away from the
 // page. Replies true if yes, false otherwise, the reply string is ignored,
@@ -2016,11 +2031,6 @@ IPC_SYNC_MESSAGE_ROUTED3_2(ViewHostMsg_RunBeforeUnloadConfirm,
                            bool      /* in - is a reload */,
                            bool      /* out - success */,
                            string16  /* out - This is ignored.*/)
-
-// Sent when the renderer process is done processing a DataReceived
-// message.
-IPC_MESSAGE_ROUTED1(ViewHostMsg_DataReceived_ACK,
-                    int /* request_id */)
 
 // Sent when a provisional load on the main frame redirects.
 IPC_MESSAGE_ROUTED3(ViewHostMsg_DidRedirectProvisionalLoad,
@@ -2050,6 +2060,12 @@ IPC_MESSAGE_ROUTED3(ViewHostMsg_UpdateZoomLimits,
 // terminated.
 IPC_MESSAGE_CONTROL1(ViewHostMsg_SuddenTerminationChanged,
                      bool /* enabled */)
+
+// Informs the browser of updated frame names.
+IPC_MESSAGE_ROUTED3(ViewHostMsg_UpdateFrameName,
+                    int /* frame_id */,
+                    bool /* is_top_level */,
+                    std::string /* name */)
 
 #if defined(OS_MACOSX)
 // Request that the browser load a font into shared memory for us.

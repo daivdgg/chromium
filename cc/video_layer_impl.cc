@@ -14,42 +14,40 @@
 #include "cc/stream_video_draw_quad.h"
 #include "cc/texture_draw_quad.h"
 #include "cc/yuv_video_draw_quad.h"
+#include "gpu/GLES2/gl2extchromium.h"
 #include "media/filters/skcanvas_video_renderer.h"
 #include "third_party/khronos/GLES2/gl2.h"
 #include "third_party/khronos/GLES2/gl2ext.h"
 
 namespace cc {
 
-VideoLayerImpl::VideoLayerImpl(LayerTreeImpl* treeImpl, int id, WebKit::WebVideoFrameProvider* provider,
-                               const FrameUnwrapper& unwrapper)
+VideoLayerImpl::VideoLayerImpl(LayerTreeImpl* treeImpl, int id, VideoFrameProvider* provider)
     : LayerImpl(treeImpl, id)
     , m_provider(provider)
-    , m_unwrapper(unwrapper)
-    , m_webFrame(0)
     , m_frame(0)
     , m_format(GL_INVALID_VALUE)
     , m_convertYUV(false)
     , m_externalTextureResource(0)
 {
     // This matrix is the default transformation for stream textures, and flips on the Y axis.
-    m_streamTextureMatrix = MathUtil::createGfxTransform(
-        1, 0, 0, 0,
-        0, -1, 0, 0,
-        0, 0, 1, 0,
-        0, 1, 0, 1);
+    m_streamTextureMatrix = gfx::Transform(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, -1.0, 0.0, 1.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0);
 
     // This only happens during a commit on the compositor thread while the main
     // thread is blocked. That makes this a thread-safe call to set the video
     // frame provider client that does not require a lock. The same is true of
     // the call in the destructor.
-    m_provider->setVideoFrameProviderClient(this);
+    m_provider->SetVideoFrameProviderClient(this);
 }
 
 VideoLayerImpl::~VideoLayerImpl()
 {
     // See comment in constructor for why this doesn't need a lock.
     if (m_provider) {
-        m_provider->setVideoFrameProviderClient(0);
+        m_provider->SetVideoFrameProviderClient(0);
         m_provider = 0;
     }
     freePlaneData(layerTreeImpl()->resource_provider());
@@ -61,7 +59,7 @@ VideoLayerImpl::~VideoLayerImpl()
 #endif
 }
 
-void VideoLayerImpl::stopUsingProvider()
+void VideoLayerImpl::StopUsingProvider()
 {
     // Block the provider from shutting down until this client is done
     // using the frame.
@@ -143,8 +141,7 @@ void VideoLayerImpl::willDrawInternal(ResourceProvider* resourceProvider)
         return;
     }
 
-    m_webFrame = m_provider->getCurrentFrame();
-    m_frame = m_unwrapper.Run(m_webFrame);
+    m_frame = m_provider->GetCurrentFrame();
 
     if (!m_frame)
         return;
@@ -158,7 +155,7 @@ void VideoLayerImpl::willDrawInternal(ResourceProvider* resourceProvider)
     DCHECK_EQ(m_frame->visible_rect().y(), 0);
 
     if (m_format == GL_INVALID_VALUE) {
-        m_provider->putCurrentFrame(m_webFrame);
+        m_provider->PutCurrentFrame(m_frame);
         m_frame = 0;
         return;
     }
@@ -175,13 +172,13 @@ void VideoLayerImpl::willDrawInternal(ResourceProvider* resourceProvider)
         m_format = GL_RGBA;
 
     if (!allocatePlaneData(resourceProvider)) {
-        m_provider->putCurrentFrame(m_webFrame);
+        m_provider->PutCurrentFrame(m_frame);
         m_frame = 0;
         return;
     }
 
     if (!copyPlaneData(resourceProvider)) {
-        m_provider->putCurrentFrame(m_webFrame);
+        m_provider->PutCurrentFrame(m_frame);
         m_frame = 0;
         return;
     }
@@ -286,7 +283,7 @@ void VideoLayerImpl::didDraw(ResourceProvider* resourceProvider)
         m_externalTextureResource = 0;
     }
 
-    m_provider->putCurrentFrame(m_webFrame);
+    m_provider->PutCurrentFrame(m_frame);
     m_frame = 0;
 
     m_providerLock.Release();
@@ -398,18 +395,18 @@ void VideoLayerImpl::freeUnusedPlaneData(ResourceProvider* resourceProvider)
         m_framePlanes[i].freeData(resourceProvider);
 }
 
-void VideoLayerImpl::didReceiveFrame()
+void VideoLayerImpl::DidReceiveFrame()
 {
     setNeedsRedraw();
 }
 
-void VideoLayerImpl::didUpdateMatrix(const float matrix[16])
+void VideoLayerImpl::DidUpdateMatrix(const float matrix[16])
 {
-    m_streamTextureMatrix = MathUtil::createGfxTransform(
-        matrix[0], matrix[1], matrix[2], matrix[3],
-        matrix[4], matrix[5], matrix[6], matrix[7],
-        matrix[8], matrix[9], matrix[10], matrix[11],
-        matrix[12], matrix[13], matrix[14], matrix[15]);
+    m_streamTextureMatrix = gfx::Transform(
+        matrix[0], matrix[4], matrix[8], matrix[12],
+        matrix[1], matrix[5], matrix[9], matrix[13],
+        matrix[2], matrix[6], matrix[10], matrix[14],
+        matrix[3], matrix[7], matrix[11], matrix[15]);
     setNeedsRedraw();
 }
 

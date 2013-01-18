@@ -85,6 +85,7 @@
 #endif
 
 #if defined(OS_CHROMEOS)
+#include "ash/magnifier/magnifier_constants.h"
 #include "chrome/browser/chromeos/accessibility/accessibility_util.h"
 #include "chrome/browser/chromeos/extensions/wallpaper_manager_util.h"
 #include "chrome/browser/chromeos/login/user_manager.h"
@@ -219,11 +220,7 @@ void BrowserOptionsHandler::GetLocalizedValues(DictionaryValue* values) {
     { "importData", IDS_OPTIONS_IMPORT_DATA_BUTTON },
     { "improveBrowsingExperience", IDS_OPTIONS_IMPROVE_BROWSING_EXPERIENCE },
     { "languageAndSpellCheckSettingsButton",
-#if defined(OS_CHROMEOS)
-      IDS_OPTIONS_SETTINGS_LANGUAGES_CUSTOMIZE },
-#else
       IDS_OPTIONS_SETTINGS_LANGUAGE_AND_INPUT_SETTINGS },
-#endif
     { "linkDoctorPref", IDS_OPTIONS_LINKDOCTOR_PREF },
     { "manageAutofillSettings", IDS_OPTIONS_MANAGE_AUTOFILL_SETTINGS_LINK },
     { "managePasswords", IDS_OPTIONS_PASSWORDS_MANAGE_PASSWORDS_LINK },
@@ -427,6 +424,22 @@ void BrowserOptionsHandler::GetLocalizedValues(DictionaryValue* values) {
 
   values->SetString("accessibilityLearnMoreURL",
                     chrome::kChromeAccessibilityHelpURL);
+
+  // Creates magnifierList.
+  base::ListValue* magnifierList = new base::ListValue();
+  base::ListValue* option_full = new base::ListValue();
+  option_full->Append(base::Value::CreateIntegerValue(ash::MAGNIFIER_FULL));
+  option_full->Append(new base::StringValue(l10n_util::GetStringUTF16(
+      IDS_OPTIONS_SETTINGS_ACCESSIBILITY_SCREEN_MAGNIFIER_FULL)));
+  base::ListValue* option_partial = new base::ListValue();
+  option_partial->Append(base::Value::CreateIntegerValue(
+      ash::MAGNIFIER_PARTIAL));
+  option_partial->Append(new base::StringValue(l10n_util::GetStringUTF16(
+      IDS_OPTIONS_SETTINGS_ACCESSIBILITY_SCREEN_MAGNIFIER_PARTIAL)));
+  magnifierList->Append(option_full);
+  magnifierList->Append(option_partial);
+  values->Set("magnifierList", magnifierList);
+
 #endif
 #if defined(OS_MACOSX)
   values->SetString("macPasswordsWarning",

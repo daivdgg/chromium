@@ -37,16 +37,23 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.chromium.base.CalledByNative;
 import org.chromium.base.JNINamespace;
 import org.chromium.base.WeakContext;
 import org.chromium.content.R;
 import org.chromium.content.browser.ContentViewGestureHandler.MotionEventDelegate;
 import org.chromium.content.browser.accessibility.AccessibilityInjector;
+import org.chromium.content.common.ProcessInitException;
 import org.chromium.content.common.TraceEvent;
 import org.chromium.ui.gfx.NativeWindow;
 
 import java.lang.annotation.Annotation;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 
 /**
  * Provides a Java-side 'wrapper' around a WebContent (native) instance.
@@ -66,12 +73,37 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     // produce little visible difference.
     private static final float ZOOM_CONTROLS_EPSILON = 0.007f;
 
+    // Used to represent gestures for long press and long tap.
+    private static final int IS_LONG_PRESS = 1;
+    private static final int IS_LONG_TAP = 2;
+
     // To avoid checkerboard, we clamp the fling velocity based on the maximum number of tiles
     // should be allowed to upload per 100ms.
     private final int mMaxNumUploadTiles;
 
     // Personality of the ContentView.
     private final int mPersonality;
+
+    // If the embedder adds a JavaScript interface object that contains an indirect reference to
+    // the ContentViewCore, then storing a strong ref to the interface object on the native
+    // side would prevent garbage collection of the ContentViewCore (as that strong ref would
+    // create a new GC root).
+    // For that reason, we store only a weak reference to the interface object on the
+    // native side. However we still need a strong reference on the Java side to
+    // prevent garbage collection if the embedder doesn't maintain their own ref to the
+    // interface object - the Java side ref won't create a new GC root.
+    // This map stores those refernces. We put into the map on addJavaScriptInterface()
+    // and remove from it in removeJavaScriptInterface().
+    private Map<String, Object> mJavaScriptInterfaces = new HashMap<String, Object>();
+
+    // Additionally, we keep track of all Java bound JS objects that are in use on the
+    // current page to ensure that they are not garbage collected until the page is
+    // navigated. This includes interface objects that have been removed
+    // via the removeJavaScriptInterface API and transient objects returned from methods
+    // on the interface object.
+    // TODO(benm): Implement the transient object retention - likely by moving the
+    // management of this set into the native Java bridge. (crbug/169228) (crbug/169228)
+    private Set<Object> mRetainedJavaScriptObjects = new HashSet<Object>();
 
     /**
      * Interface that consumers of {@link ContentViewCore} must implement to allow the proper
@@ -129,10 +161,22 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
         boolean super_awakenScrollBars(int startDelay, boolean invalidate);
     }
 
+    /**
+     * Interface for subscribing to content size changes.
+     */
+    public static interface ContentSizeChangeListener {
+        /**
+         * Called when the content size changes.
+         * The containing view may want to adjust its size to match the content.
+         */
+        void onContentSizeChanged(int contentWidth, int contentHeight);
+    }
+
     private final Context mContext;
     private ViewGroup mContainerView;
     private InternalAccessDelegate mContainerViewInternals;
     private WebContentsObserverAndroid mWebContentsObserver;
+    private ContentSizeChangeListener mContentSizeChangeListener;
 
     private ContentViewClient mContentViewClient;
 
@@ -154,7 +198,7 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     private int mNativeScrollX;
     private int mNativeScrollY;
 
-    // Cached content size from the native
+    // Cached content size from native.
     private int mContentWidth;
     private int mContentHeight;
 
@@ -227,7 +271,8 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
      * maximum number of allowed renderers is capped by MAX_RENDERERS_LIMIT.
      * @return Whether the process actually needed to be initialized (false if already running).
      */
-    public static boolean enableMultiProcess(Context context, int maxRendererProcesses) {
+    public static boolean enableMultiProcess(Context context, int maxRendererProcesses)
+            throws ProcessInitException {
         return AndroidBrowserProcess.initContentViewProcess(context, maxRendererProcesses);
     }
 
@@ -239,7 +284,8 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
      * @param maxRendererProcesses Same as ContentView.enableMultiProcess()
      * @return Whether the process actually needed to be initialized (false if already running).
      */
-    public static boolean initChromiumBrowserProcess(Context context, int maxRendererProcesses) {
+    public static boolean initChromiumBrowserProcess(Context context, int maxRendererProcesses)
+            throws ProcessInitException {
         return AndroidBrowserProcess.initChromiumBrowserProcess(context, maxRendererProcesses);
     }
 
@@ -254,12 +300,6 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
         mContext = context;
 
         WeakContext.initializeWeakContext(context);
-        // By default, ContentView will initialize single process mode. The call to
-        // initContentViewProcess below is ignored if either the ContentView host called
-        // enableMultiProcess() or the platform browser called initChromiumBrowserProcess().
-        AndroidBrowserProcess.initContentViewProcess(
-                context, AndroidBrowserProcess.MAX_RENDERERS_SINGLE_PROCESS);
-
         mPersonality = personality;
         HeapStatsLogger.init(mContext.getApplicationContext());
 
@@ -492,6 +532,10 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
             public void didStartLoading(String url) {
                 hidePopupDialog();
                 resetGestureDetectors();
+                // TODO(benm): This isn't quite the right place to do this. Management
+                // of this set should be moving into the native java bridge in crbug/169228
+                // and until that's ready this will do.
+                mRetainedJavaScriptObjects.clear();
             }
         };
     }
@@ -572,6 +616,8 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
                 });
             }
         });
+        // TODO(yongsheng): LONG_TAP is not enabled in PopupZoomer. So need to dispatch a LONG_TAP
+        // gesture if a user completes a tap on PopupZoomer UI after a LONG_PRESS gesture.
         PopupZoomer.OnTapListener listener = new PopupZoomer.OnTapListener() {
             @Override
             public boolean onSingleTap(View v, MotionEvent e) {
@@ -623,6 +669,8 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
         }
         mNativeContentViewCore = 0;
         mContentSettings = null;
+        mJavaScriptInterfaces.clear();
+        mRetainedJavaScriptObjects.clear();
     }
 
     /**
@@ -670,6 +718,10 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
             // Null Object, since we cut down on the number of JNI calls.
         }
         return mContentViewClient;
+    }
+
+    public void setContentSizeChangeListener(ContentSizeChangeListener listener) {
+        mContentSizeChangeListener = listener;
     }
 
     public int getBackgroundColor() {
@@ -749,8 +801,8 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
      *
      * @param url The URL being blocked by the interstitial.
      * @param delegate The delegate handling the interstitial.
-     * @VisibleForTesting
      */
+    @VisibleForTesting
     public void showInterstitialPage(
             String url, InterstitialPageDelegateAndroid delegate) {
         if (mNativeContentViewCore == 0) return;
@@ -1007,11 +1059,14 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
                 nativeSingleTap(mNativeContentViewCore, timeMs, x, y, false);
                 return true;
             case ContentViewGestureHandler.GESTURE_SINGLE_TAP_CONFIRMED:
-                handleTapOrPress(timeMs, x, y, false,
+                handleTapOrPress(timeMs, x, y, 0,
                         b.getBoolean(ContentViewGestureHandler.SHOW_PRESS, false));
                 return true;
             case ContentViewGestureHandler.GESTURE_LONG_PRESS:
-                handleTapOrPress(timeMs, x, y, true, false);
+                handleTapOrPress(timeMs, x, y, IS_LONG_PRESS, false);
+                return true;
+            case ContentViewGestureHandler.GESTURE_LONG_TAP:
+                handleTapOrPress(timeMs, x, y, IS_LONG_TAP, false);
                 return true;
             case ContentViewGestureHandler.GESTURE_SCROLL_START:
                 nativeScrollBegin(mNativeContentViewCore, timeMs, x, y);
@@ -1048,18 +1103,26 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
         }
     }
 
+    public interface JavaScriptCallback {
+        void handleJavaScriptResult(String jsonResult);
+    }
+
     /**
-     * Injects the passed JavaScript code in the current page and evaluates it.
-     * Once evaluated, an asynchronous call to
-     * ContentViewClient.onJavaScriptEvaluationResult is made. Used in automation
-     * tests.
+     * Injects the passed Javascript code in the current page and evaluates it.
+     * If a result is required, pass in a callback.
+     * Used in automation tests.
      *
-     * @return an id that is passed along in the asynchronous onJavaScriptEvaluationResult callback
+     * @param script The Javascript to execute.
+     * @param message The callback to be fired off when a result is ready. The script's
+     *                result will be json encoded and passed as the parameter, and the call
+     *                will be made on the main thread.
+     *                If no result is required, pass null.
      * @throws IllegalStateException If the ContentView has been destroyed.
      */
-    public int evaluateJavaScript(String script) throws IllegalStateException {
+    public void evaluateJavaScript(
+            String script, JavaScriptCallback callback) throws IllegalStateException {
         checkIsAlive();
-        return nativeEvaluateJavaScript(script);
+        nativeEvaluateJavaScript(mNativeContentViewCore, script, callback);
     }
 
     /**
@@ -1529,16 +1592,22 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     }
 
     private void handleTapOrPress(
-            long timeMs, int x, int y, boolean isLongPress, boolean showPress) {
+            long timeMs, int x, int y, int isLongPressOrTap, boolean showPress) {
         if (!mContainerView.isFocused()) mContainerView.requestFocus();
 
         if (!mPopupZoomer.isShowing()) mPopupZoomer.setLastTouch(x, y);
 
-        if (isLongPress) {
+        if (isLongPressOrTap == IS_LONG_PRESS) {
             getInsertionHandleController().allowAutomaticShowing();
             getSelectionHandleController().allowAutomaticShowing();
             if (mNativeContentViewCore != 0) {
                 nativeLongPress(mNativeContentViewCore, timeMs, x, y, false);
+            }
+        } else if (isLongPressOrTap == IS_LONG_TAP) {
+            getInsertionHandleController().allowAutomaticShowing();
+            getSelectionHandleController().allowAutomaticShowing();
+            if (mNativeContentViewCore != 0) {
+                nativeLongTap(mNativeContentViewCore, timeMs, x, y, false);
             }
         } else {
             if (!showPress && mNativeContentViewCore != 0) {
@@ -1680,7 +1749,7 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
                 @Override
                 public void setCursorPosition(int x, int y) {
                     if (mNativeContentViewCore != 0) {
-                        nativeSelectBetweenCoordinates(mNativeContentViewCore, x, y, x, y);
+                        nativeMoveCaret(mNativeContentViewCore, x, y);
                     }
                 }
 
@@ -1838,6 +1907,10 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
             mPopupZoomer.hide(true);
             mContentWidth = newContentWidth;
             mContentHeight = newContentHeight;
+
+            if (mContentSizeChangeListener != null) {
+                mContentSizeChangeListener.onContentSizeChanged(width, height);
+            }
         }
     }
 
@@ -1990,8 +2063,9 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
 
     @SuppressWarnings("unused")
     @CalledByNative
-    private void onEvaluateJavaScriptResult(int id, String jsonResult) {
-        getContentViewClient().onEvaluateJavaScriptResult(id, jsonResult);
+    private static void onEvaluateJavaScriptResult(
+            String jsonResult, JavaScriptCallback callback) {
+        callback.handleJavaScriptResult(jsonResult);
     }
 
     @SuppressWarnings("unused")
@@ -2129,13 +2203,6 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
         return mZoomManager.getZoomControlsViewForTest();
     }
 
-    // TODO(joth): Remove in next patch.
-    @Deprecated
-    public void addJavascriptInterface(Object object, String name, boolean requireAnnotation) {
-        addPossiblyUnsafeJavascriptInterface(object, name,
-                requireAnnotation ? JavascriptInterface.class : null);
-    }
-
     /**
      * This will mimic {@link #addPossiblyUnsafeJavascriptInterface(Object, String, Class)}
      * and automatically pass in {@link JavascriptInterface} as the required annotation.
@@ -2193,6 +2260,7 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     public void addPossiblyUnsafeJavascriptInterface(Object object, String name,
             Class<? extends Annotation> requiredAnnotation) {
         if (mNativeContentViewCore != 0 && object != null) {
+            mJavaScriptInterfaces.put(name, object);
             nativeAddJavascriptInterface(mNativeContentViewCore, object, name, requiredAnnotation);
         }
     }
@@ -2203,6 +2271,10 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
      * @param name The name of the interface to remove.
      */
     public void removeJavascriptInterface(String name) {
+        // TODO(benm): Move the management of this retained object set
+        // into the native java bridge. (crbug/169228)
+        mRetainedJavaScriptObjects.add(mJavaScriptInterfaces.get(name));
+        mJavaScriptInterfaces.remove(name);
         if (mNativeContentViewCore != 0) {
             nativeRemoveJavascriptInterface(mNativeContentViewCore, name);
         }
@@ -2468,6 +2540,9 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     private native void nativeLongPress(int nativeContentViewCoreImpl, long timeMs, int x, int y,
             boolean linkPreviewTap);
 
+    private native void nativeLongTap(int nativeContentViewCoreImpl, long timeMs, int x, int y,
+            boolean linkPreviewTap);
+
     private native void nativePinchBegin(int nativeContentViewCoreImpl, long timeMs, int x, int y);
 
     private native void nativePinchEnd(int nativeContentViewCoreImpl, long timeMs);
@@ -2477,6 +2552,8 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
 
     private native void nativeSelectBetweenCoordinates(
             int nativeContentViewCoreImpl, int x1, int y1, int x2, int y2);
+
+    private native void nativeMoveCaret(int nativeContentViewCoreImpl, int x, int y);
 
     private native boolean nativeCanGoBack(int nativeContentViewCoreImpl);
     private native boolean nativeCanGoForward(int nativeContentViewCoreImpl);
@@ -2502,7 +2579,8 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
 
     private native void nativeClearHistory(int nativeContentViewCoreImpl);
 
-    private native int nativeEvaluateJavaScript(String script);
+    private native void nativeEvaluateJavaScript(int nativeContentViewCoreImpl,
+            String script, JavaScriptCallback callback);
 
     private native int nativeGetNativeImeAdapter(int nativeContentViewCoreImpl);
 

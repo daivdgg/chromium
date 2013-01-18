@@ -34,7 +34,6 @@
       'includes': [
         '../build/win_precompile.gypi',
         'content_components_navigation_interception.gypi',
-        'content_components_web_contents_delegate_android.gypi',
         'content_shell.gypi',
       ],
     }],
@@ -89,7 +88,16 @@
             'content_browser.gypi',
           ],
           'dependencies': [
-            'content_common', 'content_resources.gyp:content_resources',
+            'content_common',
+            'content_resources.gyp:content_resources',
+          ],
+          'conditions': [
+            ['OS != "ios"', {
+              'dependencies': [
+                'content_gpu',
+                'content_renderer',
+              ],
+            }],
           ],
         },
         {
@@ -295,11 +303,13 @@
             'has_java_resources': 1,
             'R_package': 'org.chromium.content',
             'R_package_relpath': 'org/chromium/content',
+            'java_strings_grd': 'android_content_strings.grd',
           },
           'conditions': [
             ['android_build_type == 0', {
               'dependencies': [
                 '../third_party/eyesfree/eyesfree.gyp:eyesfree_java',
+                '../third_party/guava/guava.gyp:guava_javalib',
               ],
             }],
           ],
@@ -344,6 +354,11 @@
             'surface_texture_jni_headers',
             'surface_jni_headers',
           ],
+          'direct_dependent_settings': {
+            'include_dirs': [
+              '<(SHARED_INTERMEDIATE_DIR)/content',
+            ],
+          },
           'includes': [ 'content_jni.gypi' ],
         },
       ],

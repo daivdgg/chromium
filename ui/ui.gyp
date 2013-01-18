@@ -498,6 +498,7 @@
         'gfx/size.cc',
         'gfx/size.h',
         'gfx/size_base.h',
+        'gfx/size_base_impl.h',
         'gfx/size_conversions.cc',
         'gfx/size_conversions.h',
         'gfx/size_f.cc',
@@ -531,13 +532,6 @@
         'gfx/video_decode_acceleration_support_mac.mm',
         'notifications/notification_types.h',
         'notifications/notification_types.cc',
-        'ui_controls/ui_controls.h',
-        'ui_controls/ui_controls_aura.cc',
-        'ui_controls/ui_controls_gtk.cc',
-        'ui_controls/ui_controls_internal_win.cc',
-        'ui_controls/ui_controls_internal_win.h',
-        'ui_controls/ui_controls_mac.mm',
-        'ui_controls/ui_controls_win.cc',
       ],
       'target_conditions': [
         ['OS == "ios"', {
@@ -606,7 +600,6 @@
             ['exclude', 'base/x/root_window_property_watcher_x.h'],
             ['exclude', 'base/x/work_area_watcher_x.cc'],
             ['exclude', 'base/x/work_area_watcher_x.h'],
-            ['exclude', 'ui_controls_win.cc'],
            ],
         }, {  # use_aura!=1
           'sources!': [
@@ -721,6 +714,10 @@
             '../',
             '../third_party/wtl/include',
           ],
+          # TODO(jschuh): C4267: http://crbug.com/167187 size_t -> int
+          # C4324 is structure was padded due to __declspec(align()), which is
+          # uninteresting.
+          'msvs_disabled_warnings': [ 4267, 4324 ],
           'msvs_settings': {
             'VCLinkerTool': {
               'DelayLoadDLLs': [
@@ -892,6 +889,7 @@
              'has_java_resources': 1,
              'R_package': 'org.chromium.ui',
              'R_package_relpath': 'org/chromium/ui',
+             'java_strings_grd': 'android_ui_strings.grd',
            },
            'dependencies': [
              '../base/base.gyp:base_java',
@@ -899,6 +897,62 @@
            'includes': [ '../build/java.gypi' ],
          },
        ],
+    }],
+    ['OS=="mac"', {
+      'targets': [
+        {
+          'target_name': 'ui_cocoa_third_party_toolkits',
+          'type': '<(component)',
+          'sources': [
+            # Build Apple sample code
+            '../third_party/apple_sample_code/ImageAndTextCell.h',
+            '../third_party/apple_sample_code/ImageAndTextCell.m',
+            # Build the necessary GTM sources
+            '../third_party/GTM/AppKit/GTMFadeTruncatingTextFieldCell.h',
+            '../third_party/GTM/AppKit/GTMFadeTruncatingTextFieldCell.m',
+            '../third_party/GTM/AppKit/GTMIBArray.h',
+            '../third_party/GTM/AppKit/GTMIBArray.m',
+            '../third_party/GTM/AppKit/GTMKeyValueAnimation.h',
+            '../third_party/GTM/AppKit/GTMKeyValueAnimation.m',
+            '../third_party/GTM/AppKit/GTMNSAnimation+Duration.h',
+            '../third_party/GTM/AppKit/GTMNSAnimation+Duration.m',
+            '../third_party/GTM/AppKit/GTMNSBezierPath+CGPath.h',
+            '../third_party/GTM/AppKit/GTMNSBezierPath+CGPath.m',
+            '../third_party/GTM/AppKit/GTMNSBezierPath+RoundRect.h',
+            '../third_party/GTM/AppKit/GTMNSBezierPath+RoundRect.m',
+            '../third_party/GTM/AppKit/GTMNSColor+Luminance.m',
+            '../third_party/GTM/AppKit/GTMUILocalizer.h',
+            '../third_party/GTM/AppKit/GTMUILocalizer.m',
+            '../third_party/GTM/AppKit/GTMUILocalizerAndLayoutTweaker.h',
+            '../third_party/GTM/AppKit/GTMUILocalizerAndLayoutTweaker.m',
+            '../third_party/GTM/Foundation/GTMNSNumber+64Bit.h',
+            '../third_party/GTM/Foundation/GTMNSNumber+64Bit.m',
+            '../third_party/GTM/Foundation/GTMNSObject+KeyValueObserving.h',
+            '../third_party/GTM/Foundation/GTMNSObject+KeyValueObserving.m',
+            # MolokoCacao additions
+            '../third_party/molokocacao/NSBezierPath+MCAdditions.h',
+            '../third_party/molokocacao/NSBezierPath+MCAdditions.m',
+            # Build necessary Mozilla sources
+            '../third_party/mozilla/NSScreen+Utils.h',
+            '../third_party/mozilla/NSScreen+Utils.m',
+            '../third_party/mozilla/NSWorkspace+Utils.h',
+            '../third_party/mozilla/NSWorkspace+Utils.m',
+          ],
+          'include_dirs': [
+            '..',
+            '../third_party/apple',
+            '../third_party/GTM',
+            '../third_party/GTM/AppKit',
+            '../third_party/GTM/DebugUtils',
+            '../third_party/GTM/Foundation',
+          ],
+          'link_settings': {
+            'libraries': [
+              '$(SDKROOT)/System/Library/Frameworks/Cocoa.framework',
+            ],
+          },
+        },
+      ],
     }],
   ],
 }

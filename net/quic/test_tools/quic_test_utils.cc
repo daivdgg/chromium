@@ -4,18 +4,21 @@
 
 #include "net/quic/test_tools/quic_test_utils.h"
 
+#include "base/stl_util.h"
 #include "net/quic/crypto/crypto_framer.h"
+#include "net/quic/crypto/crypto_utils.h"
 
 using std::max;
 using std::min;
 using std::string;
+using testing::_;
 
 namespace net {
 namespace test {
 
 MockFramerVisitor::MockFramerVisitor() {
   // By default, we want to accept packets.
-  ON_CALL(*this, OnPacketHeader(testing::_))
+  ON_CALL(*this, OnPacketHeader(_))
       .WillByDefault(testing::Return(true));
 }
 
@@ -79,6 +82,13 @@ MockConnection::MockConnection(QuicGuid guid, IPEndPoint address)
       helper_(helper()) {
 }
 
+MockConnection::MockConnection(QuicGuid guid,
+                               IPEndPoint address,
+                               QuicConnectionHelperInterface* helper)
+    : QuicConnection(guid, address, helper),
+      helper_(helper) {
+}
+
 MockConnection::~MockConnection() {
 }
 
@@ -88,6 +98,7 @@ PacketSavingConnection::PacketSavingConnection(QuicGuid guid,
 }
 
 PacketSavingConnection::~PacketSavingConnection() {
+  STLDeleteElements(&packets_);
 }
 
 bool PacketSavingConnection::SendPacket(QuicPacketSequenceNumber number,
@@ -101,6 +112,8 @@ bool PacketSavingConnection::SendPacket(QuicPacketSequenceNumber number,
 
 MockSession::MockSession(QuicConnection* connection, bool is_server)
     : QuicSession(connection, is_server) {
+  ON_CALL(*this, WriteData(_, _, _, _))
+      .WillByDefault(testing::Return(QuicConsumedData(0, false)));
 }
 
 MockSession::~MockSession() {
@@ -210,6 +223,37 @@ QuicPacket* ConstructHandshakePacket(QuicGuid guid, CryptoTag tag) {
   frames.push_back(frame);
   return quic_framer.ConstructFrameDataPacket(header, frames);
 }
+
+QuicPacket* ConstructClientHelloPacket(QuicGuid guid,
+                                       const QuicClock* clock,
+                                       QuicRandom* random_generator) {
+  QuicClientCryptoConfig config;
+  config.SetDefaults();
+  string nonce;
+  CryptoUtils::GenerateNonce(clock, random_generator, &nonce);
+
+  CryptoHandshakeMessage message;
+  CryptoUtils::FillClientHelloMessage(config, nonce, &message);
+  CryptoFramer crypto_framer;
+  scoped_ptr<QuicData> data(crypto_framer.ConstructHandshakeMessage(message));
+  QuicFramer quic_framer(QuicDecrypter::Create(kNULL),
+                         QuicEncrypter::Create(kNULL));
+
+  QuicPacketHeader header;
+  header.guid = guid;
+  header.packet_sequence_number = 1;
+  header.flags = PACKET_FLAGS_NONE;
+  header.fec_group = 0;
+
+  QuicStreamFrame stream_frame(kCryptoStreamId, false, 0,
+                               data->AsStringPiece());
+
+  QuicFrame frame(&stream_frame);
+  QuicFrames frames;
+  frames.push_back(frame);
+  return quic_framer.ConstructFrameDataPacket(header, frames);
+}
+
 
 }  // namespace test
 }  // namespace net

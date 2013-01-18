@@ -7,20 +7,28 @@ import logging
 import telemetry
 from telemetry import util
 
-def _WaitForFormToLoad(form_id, tab):
-  def IsFormLoaded():
-    return tab.runtime.Evaluate(
-        'document.querySelector("#%s")!== null' % form_id)
+
+def _IsAlreadyLoggedIn(already_logged_in_element_id, tab):
+  return tab.EvaluateJavaScript(
+      'document.getElementById("%s")!== null' % \
+          already_logged_in_element_id)
+
+def _WaitForLoginFormToLoad(login_form_id, already_logged_in_element_id, tab):
+  def IsFormLoadedOrAlreadyLoggedIn():
+    return tab.EvaluateJavaScript(
+        'document.querySelector("#%s")!== null' % login_form_id) or \
+            _IsAlreadyLoggedIn(already_logged_in_element_id, tab)
 
   # Wait until the form is submitted and the page completes loading.
-  util.WaitFor(lambda: IsFormLoaded(), 60) # pylint: disable=W0108
+  util.WaitFor(lambda: IsFormLoadedOrAlreadyLoggedIn(), # pylint: disable=W0108
+               60)
 
 def _SubmitFormAndWait(form_id, tab):
   js = 'document.getElementById("%s").submit();' % form_id
-  tab.runtime.Execute(js)
+  tab.ExecuteJavaScript(js)
 
   def IsLoginStillHappening():
-    return tab.runtime.Evaluate(
+    return tab.EvaluateJavaScript(
         'document.querySelector("#%s")!== null' % form_id)
 
   # Wait until the form is submitted and the page completes loading.
@@ -39,7 +47,7 @@ class FormBasedCredentialsBackend(object):
     raise NotImplementedError()
 
   @property
-  def form_id(self):
+  def login_form_id(self):
     raise NotImplementedError()
 
   @property
@@ -47,8 +55,21 @@ class FormBasedCredentialsBackend(object):
     raise NotImplementedError()
 
   @property
+  def already_logged_in_element_id(self):
+    raise NotImplementedError()
+
+  @property
   def password_input_id(self):
     raise NotImplementedError()
+
+  def IsLoggedIn(self):
+    return self._logged_in
+
+  def _ResetLoggedInState(self):
+    """Makes the backend think we're not logged in even though we are.
+    Should only be used in unit tests to simulate --dont-override-profile.
+    """
+    self._logged_in = False
 
   def LoginNeeded(self, tab, config):
     """Logs in to a test account.
@@ -68,8 +89,15 @@ class FormBasedCredentialsBackend(object):
 
     try:
       logging.info('Loading %s...', self.url)
-      tab.page.Navigate(self.url)
-      _WaitForFormToLoad(self.form_id, tab)
+      tab.Navigate(self.url)
+      _WaitForLoginFormToLoad(self.login_form_id,
+                              self.already_logged_in_element_id,
+                              tab)
+
+      if _IsAlreadyLoggedIn(self.already_logged_in_element_id, tab):
+        self._logged_in = True
+        return True
+
       tab.WaitForDocumentReadyStateToBeInteractiveOrBetter()
       logging.info('Loaded page: %s', self.url)
 
@@ -77,10 +105,10 @@ class FormBasedCredentialsBackend(object):
           self.login_input_id, config['username'])
       password = 'document.getElementById("%s").value = "%s"; ' % (
           self.password_input_id, config['password'])
-      tab.runtime.Execute(email_id)
-      tab.runtime.Execute(password)
+      tab.ExecuteJavaScript(email_id)
+      tab.ExecuteJavaScript(password)
 
-      _SubmitFormAndWait(self.form_id, tab)
+      _SubmitFormAndWait(self.login_form_id, tab)
 
       self._logged_in = True
       return True

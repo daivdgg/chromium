@@ -20,7 +20,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/shell_integration.h"
-#include "chrome/browser/ui/app_list/app_list_controller.h"
+#include "chrome/browser/ui/app_list/app_list_controller_delegate.h"
+#include "chrome/browser/ui/app_list/app_list_util.h"
 #include "chrome/browser/ui/app_list/app_list_view_delegate.h"
 #include "chrome/browser/ui/extensions/application_launch.h"
 #include "chrome/browser/ui/views/browser_dialogs.h"
@@ -32,8 +33,8 @@
 #include "grit/chromium_strings.h"
 #include "grit/generated_resources.h"
 #include "grit/google_chrome_strings.h"
-#include "ui/app_list/app_list_view.h"
 #include "ui/app_list/pagination_model.h"
+#include "ui/app_list/views/app_list_view.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/win/shell.h"
 #include "ui/gfx/display.h"
@@ -47,6 +48,8 @@ namespace {
 // if the arrow comes up right on top of the cursor, so it is offset by this
 // amount.
 static const int kAnchorOffset = 25;
+
+static const wchar_t kTrayClassName[] = L"Shell_TrayWnd";
 
 // Icons are added to the resources of the DLL using icon names. The icon index
 // for the app list icon is named IDR_X_APP_LIST. Creating shortcuts needs to
@@ -94,18 +97,19 @@ class AppListControllerDelegateWin : public AppListControllerDelegate {
   virtual void DismissView() OVERRIDE;
   virtual void ViewClosing() OVERRIDE;
   virtual void ViewActivationChanged(bool active) OVERRIDE;
+  virtual gfx::NativeWindow GetAppListWindow() OVERRIDE;
   virtual bool CanPin() OVERRIDE;
-  virtual void AboutToUninstallApp() OVERRIDE;
-  virtual void UninstallAppCompleted() OVERRIDE;
+  virtual void OnShowExtensionPrompt() OVERRIDE;
+  virtual void OnCloseExtensionPrompt() OVERRIDE;
   virtual bool CanShowCreateShortcutsDialog() OVERRIDE;
   virtual void ShowCreateShortcutsDialog(
       Profile* profile,
       const std::string& extension_id) OVERRIDE;
   virtual void ActivateApp(Profile* profile,
-                           const std::string& extension_id,
+                           const extensions::Extension* extension,
                            int event_flags) OVERRIDE;
   virtual void LaunchApp(Profile* profile,
-                         const std::string& extension_id,
+                         const extensions::Extension* extension,
                          int event_flags) OVERRIDE;
 
   DISALLOW_COPY_AND_ASSIGN(AppListControllerDelegateWin);
@@ -132,10 +136,12 @@ class AppListController {
 
  private:
   // Utility methods for showing the app list.
-  void GetArrowLocationAndUpdateAnchor(
+  bool SnapArrowLocationToTaskbarEdge(
       const gfx::Display& display,
-      int min_space_x,
-      int min_space_y,
+      views::BubbleBorder::ArrowLocation* arrow,
+      gfx::Point* anchor);
+  void UpdateAnchorLocationForCursor(
+      const gfx::Display& display,
       views::BubbleBorder::ArrowLocation* arrow,
       gfx::Point* anchor);
   void UpdateArrowPositionAndAnchorPoint(const gfx::Point& cursor);
@@ -186,15 +192,20 @@ void AppListControllerDelegateWin::ViewClosing() {
   g_app_list_controller.Get().AppListClosing();
 }
 
+gfx::NativeWindow AppListControllerDelegateWin::GetAppListWindow() {
+  app_list::AppListView* view = g_app_list_controller.Get().GetView();
+  return view ? view->GetWidget()->GetNativeWindow() : NULL;
+}
+
 bool AppListControllerDelegateWin::CanPin() {
   return false;
 }
 
-void AppListControllerDelegateWin::AboutToUninstallApp() {
+void AppListControllerDelegateWin::OnShowExtensionPrompt() {
   g_app_list_controller.Get().set_can_close(false);
 }
 
-void AppListControllerDelegateWin::UninstallAppCompleted() {
+void AppListControllerDelegateWin::OnCloseExtensionPrompt() {
   g_app_list_controller.Get().set_can_close(true);
 }
 
@@ -220,30 +231,15 @@ void AppListControllerDelegateWin::ShowCreateShortcutsDialog(
   chrome::ShowCreateChromeAppShortcutsDialog(parent_hwnd, profile, extension);
 }
 
-void AppListControllerDelegateWin::ActivateApp(Profile* profile,
-                                               const std::string& extension_id,
-                                               int event_flags) {
-  LaunchApp(profile, extension_id, event_flags);
+void AppListControllerDelegateWin::ActivateApp(
+    Profile* profile, const extensions::Extension* extension, int event_flags) {
+  LaunchApp(profile, extension, event_flags);
 }
 
-void AppListControllerDelegateWin::LaunchApp(Profile* profile,
-                                             const std::string& extension_id,
-                                             int event_flags) {
-  ExtensionService* service = profile->GetExtensionService();
-  DCHECK(service);
-  const extensions::Extension* extension = service->GetInstalledExtension(
-      extension_id);
-  DCHECK(extension);
-
-  // Look up the app preference to find out the right launch container. Default
-  // is to launch as a regular tab.
-  extension_misc::LaunchContainer launch_container =
-      service->extension_prefs()->GetLaunchContainer(extension,
-          extensions::ExtensionPrefs::LAUNCH_REGULAR);
-
-  application_launch::LaunchParams params(profile, extension, launch_container,
-      NEW_FOREGROUND_TAB);
-  application_launch::OpenApplication(params);
+void AppListControllerDelegateWin::LaunchApp(
+    Profile* profile, const extensions::Extension* extension, int event_flags) {
+  application_launch::OpenApplication(application_launch::LaunchParams(
+      profile, extension, NEW_FOREGROUND_TAB));
 }
 
 void AppListController::CreateAppList() {
@@ -272,6 +268,7 @@ void AppListController::CreateAppList() {
   ::SetWindowText(hwnd, app_name.c_str());
   string16 icon_path = GetAppListIconPath();
   ui::win::SetAppIconForWindow(icon_path, hwnd);
+  current_view_->GetWidget()->SetAlwaysOnTop(true);
 #endif
 }
 
@@ -317,43 +314,118 @@ void AppListController::AppListActivationChanged(bool active) {
                &AppListController::CheckTaskbarOrViewHasFocus);
 }
 
-void AppListController::GetArrowLocationAndUpdateAnchor(
+// Attempts to find the bounds of the Windows taskbar. Returns true on success.
+// |rect| is in screen coordinates. If the taskbar is in autohide mode and is
+// not visible, |rect| will be outside the current monitor's bounds, except for
+// one pixel of overlap where the edge of the taskbar is shown.
+bool GetTaskbarRect(gfx::Rect* rect) {
+#if !defined(USE_AURA)
+  HWND taskbar_hwnd = FindWindow(kTrayClassName, NULL);
+  if (!taskbar_hwnd)
+    return false;
+
+  RECT win_rect;
+  if (!GetWindowRect(taskbar_hwnd, &win_rect))
+    return false;
+
+  *rect = gfx::Rect(win_rect);
+  return true;
+#else
+  return false;
+#endif
+}
+
+bool AppListController::SnapArrowLocationToTaskbarEdge(
     const gfx::Display& display,
-    int min_space_x,
-    int min_space_y,
     views::BubbleBorder::ArrowLocation* arrow,
     gfx::Point* anchor) {
-  const gfx::Rect& work_area = display.work_area();
+  const int kSnapDistance = 50;
+  const int kSnapOffset = 5;
 
-  // First ensure anchor is within the work area.
-  if (!work_area.Contains(*anchor)) {
-    anchor->set_x(std::max(anchor->x(), work_area.x()));
-    anchor->set_x(std::min(anchor->x(), work_area.right()));
-    anchor->set_y(std::max(anchor->y(), work_area.y()));
-    anchor->set_y(std::min(anchor->y(), work_area.bottom()));
+  gfx::Rect taskbar_rect;
+  if (!GetTaskbarRect(&taskbar_rect))
+    return false;
+
+  // If the display size is the same as the work area, and does not contain the
+  // taskbar, either the taskbar is hidden or on another monitor, so don't snap.
+  if (display.work_area() == display.bounds() &&
+      !display.work_area().Contains(taskbar_rect)) {
+    return false;
   }
 
-  // Only consider bottom and top arrow locations if the taskbar is not on the
-  // sides. Otherwise it is easy to end up with the app list coming up under the
-  // taskbar.
-  if (work_area.width() == display.size().width()) {
-    // Prefer the bottom as it is the most natural position.
-    if (anchor->y() - work_area.y() >= min_space_y) {
+  const gfx::Rect& screen_rect = display.bounds();
+
+  // First handle taskbar on bottom.
+  if (taskbar_rect.width() == screen_rect.width()) {
+    if (taskbar_rect.bottom() == screen_rect.bottom()) {
+      if (taskbar_rect.y() - anchor->y() > kSnapDistance)
+        return false;
+
+      anchor->set_y(taskbar_rect.y() + kSnapOffset);
       *arrow = views::BubbleBorder::BOTTOM_CENTER;
-      anchor->Offset(0, -kAnchorOffset);
-      return;
+      return true;
     }
 
-    // The view won't fit above the cursor. Will it fit below?
-    if (work_area.bottom() - anchor->y() >= min_space_y) {
-      *arrow = views::BubbleBorder::TOP_CENTER;
-      anchor->Offset(0, kAnchorOffset);
-      return;
-    }
+    // Now try on the top.
+    if (anchor->y() - taskbar_rect.bottom() > kSnapDistance)
+      return false;
+
+    anchor->set_y(taskbar_rect.bottom() - kSnapOffset);
+    *arrow = views::BubbleBorder::TOP_CENTER;
+    return true;
   }
 
-  // Now try on the right.
-  if (work_area.right() - anchor->x() >= min_space_x) {
+  // Now try the left.
+  if (taskbar_rect.x() == screen_rect.x()) {
+    if (anchor->x() - taskbar_rect.right() > kSnapDistance)
+      return false;
+
+    anchor->set_x(taskbar_rect.right() - kSnapOffset);
+    *arrow = views::BubbleBorder::LEFT_CENTER;
+    return true;
+  }
+
+  // Finally, try the right.
+  if (taskbar_rect.x() - anchor->x() > kSnapDistance)
+    return false;
+
+  anchor->set_x(taskbar_rect.x() + kSnapOffset);
+  *arrow = views::BubbleBorder::RIGHT_CENTER;
+  return true;
+}
+
+void AppListController::UpdateAnchorLocationForCursor(
+    const gfx::Display& display,
+    views::BubbleBorder::ArrowLocation* arrow,
+    gfx::Point* anchor) {
+  const int kArrowSize = 10;
+  const int kPadding = 20;
+
+  // Add the size of the arrow to the space needed, as the preferred size is
+  // of the view excluding the arrow.
+  gfx::Size preferred = current_view_->GetPreferredSize();
+  int min_space_x = preferred.width() + kAnchorOffset + kPadding + kArrowSize;
+  int min_space_y = preferred.height() + kAnchorOffset + kPadding + kArrowSize;
+
+  const gfx::Rect& screen_rect = display.bounds();
+
+  // Position within the screen so that it is pointing at the cursor. Prefer the
+  // arrow on the bottom (i.e. launcher above the cursor).
+  if (anchor->y() - screen_rect.y() >= min_space_y) {
+    *arrow = views::BubbleBorder::BOTTOM_CENTER;
+    anchor->Offset(0, -kAnchorOffset);
+    return;
+  }
+
+  // The view won't fit above the cursor. Will it fit below?
+  if (screen_rect.bottom() - anchor->y() >= min_space_y) {
+    *arrow = views::BubbleBorder::TOP_CENTER;
+    anchor->Offset(0, kAnchorOffset);
+    return;
+  }
+
+  // Now try with the view on the right.
+  if (screen_rect.right() - anchor->x() >= min_space_x) {
     *arrow = views::BubbleBorder::LEFT_CENTER;
     anchor->Offset(kAnchorOffset, 0);
     return;
@@ -365,25 +437,21 @@ void AppListController::GetArrowLocationAndUpdateAnchor(
 
 void AppListController::UpdateArrowPositionAndAnchorPoint(
     const gfx::Point& cursor) {
-  const int kArrowSize = 10;
-  const int kPadding = 20;
-
   gfx::Point anchor(cursor);
-  gfx::Size preferred = current_view_->GetPreferredSize();
-  // Add the size of the arrow to the space needed, as the preferred size is
-  // of the view excluding the arrow.
-  int min_space_x = preferred.width() + kAnchorOffset + kPadding + kArrowSize;
-  int min_space_y = preferred.height() + kAnchorOffset + kPadding + kArrowSize;
-
   gfx::Screen* screen =
       gfx::Screen::GetScreenFor(current_view_->GetWidget()->GetNativeView());
   gfx::Display display = screen->GetDisplayNearestPoint(anchor);
   views::BubbleBorder::ArrowLocation arrow;
-  GetArrowLocationAndUpdateAnchor(display,
-                                  min_space_x,
-                                  min_space_y,
-                                  &arrow,
-                                  &anchor);
+
+  // If the cursor is in an appropriate location, snap it to the edge of the
+  // taskbar. Otherwise position near the cursor so the launcher is fully on
+  // screen.
+  if (!SnapArrowLocationToTaskbarEdge(display, &arrow, &anchor)) {
+    UpdateAnchorLocationForCursor(display,
+                                    &arrow,
+                                    &anchor);
+  }
+
   current_view_->SetBubbleArrowLocation(arrow);
   current_view_->SetAnchorPoint(anchor);
 }
@@ -411,7 +479,7 @@ void AppListController::CheckTaskbarOrViewHasFocus() {
   // First get the taskbar and jump lists windows (the jump list is the
   // context menu which the taskbar uses).
   HWND jump_list_hwnd = FindWindow(L"DV2ControlHost", NULL);
-  HWND taskbar_hwnd = FindWindow(L"Shell_TrayWnd", NULL);
+  HWND taskbar_hwnd = FindWindow(kTrayClassName, NULL);
   HWND app_list_hwnd =
       current_view_->GetWidget()->GetTopLevelWidget()->GetNativeWindow();
 
@@ -494,7 +562,7 @@ void CreateAppList() {
 
 }  // namespace
 
-namespace app_list_controller {
+namespace chrome {
 
 void InitAppList() {
   // Check that the presence of the app list shortcut matches the flag
@@ -527,4 +595,4 @@ void ShowAppList() {
   g_app_list_controller.Get().ShowAppList();
 }
 
-}  // namespace app_list_controller
+}  // namespace chrome

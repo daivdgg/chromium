@@ -21,6 +21,7 @@ extern const char kOnTabHighlightChanged[];
 extern const char kOnTabHighlighted[];
 extern const char kOnTabMoved[];
 extern const char kOnTabRemoved[];
+extern const char kOnTabReplaced[];
 extern const char kOnTabSelectionChanged[];
 extern const char kOnTabUpdated[];
 
@@ -96,6 +97,7 @@ extern const char kOnFileSynced[];
 // MediaGalleriesPrivate.
 extern const char kOnAttachEventName[];
 extern const char kOnDetachEventName[];
+extern const char kOnGalleryChangedEventName[];
 
 // Notifications.
 extern const char kOnNotificationDisplayed[];

@@ -247,10 +247,6 @@ class CONTENT_EXPORT RenderWidgetHostImpl : virtual public RenderWidgetHost,
   void ForwardGestureEventImmediately(
       const WebKit::WebGestureEvent& gesture_event);
 
-  // Give key press listeners a chance to handle this key press. This allow
-  // widgets that don't have focus to still handle key presses.
-  bool KeyPressListenersHandleEvent(const NativeWebKeyboardEvent& event);
-
   void CancelUpdateTextDirection();
 
   // Called when a mouse click/gesture tap activates the renderer.
@@ -371,6 +367,9 @@ class CONTENT_EXPORT RenderWidgetHostImpl : virtual public RenderWidgetHost,
 
   // Requests the renderer to select the region between two points.
   void SelectRange(const gfx::Point& start, const gfx::Point& end);
+
+  // Requests the renderer to move the caret selection towards the point.
+  void MoveCaret(const gfx::Point& point);
 
   // Called when the reponse to a pending mouse lock request has arrived.
   // Returns true if |allowed| is true and the mouse has been successfully
@@ -565,6 +564,7 @@ class CONTENT_EXPORT RenderWidgetHostImpl : virtual public RenderWidgetHost,
       int gesture_id,
       const ViewHostMsg_BeginSmoothScroll_Params &params);
   void OnSelectRangeAck();
+  void OnMsgMoveCaretAck();
   virtual void OnFocus();
   virtual void OnBlur();
   void OnHasTouchEventHandlers(bool has_handlers);
@@ -643,6 +643,10 @@ class CONTENT_EXPORT RenderWidgetHostImpl : virtual public RenderWidgetHost,
   void ScrollBackingStoreRect(const gfx::Vector2d& delta,
                               const gfx::Rect& clip_rect,
                               const gfx::Size& view_size);
+
+  // Give key press listeners a chance to handle this key press. This allow
+  // widgets that don't have focus to still handle key presses.
+  bool KeyPressListenersHandleEvent(const NativeWebKeyboardEvent& event);
 
   // Called by OnInputEventAck() to process a keyboard event ack message.
   void ProcessKeyboardEventAck(int type, bool processed);
@@ -761,6 +765,12 @@ class CONTENT_EXPORT RenderWidgetHostImpl : virtual public RenderWidgetHost,
     gfx::Point start, end;
   };
   scoped_ptr<SelectionRange> next_selection_range_;
+
+  // (Similar to |mouse_move_pending_|.) True while waiting for MoveCaret_ACK.
+  bool move_caret_pending_;
+
+  // (Similar to |next_mouse_move_|.) The next MoveCaret to send, if any.
+  scoped_ptr<gfx::Point> next_move_caret_;
 
   // The time when an input event was sent to the RenderWidget.
   base::TimeTicks input_event_start_time_;

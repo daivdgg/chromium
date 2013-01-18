@@ -49,6 +49,7 @@
         'include_dirs': [
           'src/include/',
           'src/',
+          '.',
         ],
         'conditions': [
           ['OS == "win"', {
@@ -64,11 +65,15 @@
       'msvs_disabled_warnings': [
         # Signed/unsigned comparison.
         4018,
+
+        # TODO(jschuh): http://crbug.com/167187 size_t -> int
+        4267,
       ],
       'sources': [
         # Include and then exclude so that all files show up in IDEs, even if
         # they don't build.
         'env_chromium.cc',
+        'env_idb.h',
         'port/port_chromium.cc',
         'port/port_chromium.h',
         'src/db/builder.cc',

@@ -25,13 +25,14 @@
 #include "chrome/browser/chromeos/mobile/mobile_activator.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
+#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/render_messages.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_view_host_observer.h"
+#include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_message_handler.h"
@@ -113,15 +114,16 @@ class PortalFrameLoadObserver : public content::RenderViewHostObserver {
   DISALLOW_COPY_AND_ASSIGN(PortalFrameLoadObserver);
 };
 
-class MobileSetupUIHTMLSource : public ChromeURLDataManager::DataSource {
+class MobileSetupUIHTMLSource : public content::URLDataSource {
  public:
   MobileSetupUIHTMLSource();
 
-  // Called when the network layer has requested a resource underneath
-  // the path we registered.
-  virtual void StartDataRequest(const std::string& path,
-                                bool is_incognito,
-                                int request_id);
+  // content::URLDataSource implementation.
+  virtual std::string GetSource() OVERRIDE;
+  virtual void StartDataRequest(
+      const std::string& path,
+      bool is_incognito,
+      const content::URLDataSource::GotDataCallback& callback);
   virtual std::string GetMimeType(const std::string&) const {
     return "text/html";
   }
@@ -171,20 +173,24 @@ class MobileSetupHandler
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MobileSetupUIHTMLSource::MobileSetupUIHTMLSource()
-    : DataSource(chrome::kChromeUIMobileSetupHost, MessageLoop::current()) {
+MobileSetupUIHTMLSource::MobileSetupUIHTMLSource() {
 }
 
-void MobileSetupUIHTMLSource::StartDataRequest(const std::string& path,
-                                               bool is_incognito,
-                                               int request_id) {
+std::string MobileSetupUIHTMLSource::GetSource() {
+  return chrome::kChromeUIMobileSetupHost;
+}
+
+void MobileSetupUIHTMLSource::StartDataRequest(
+    const std::string& path,
+    bool is_incognito,
+    const content::URLDataSource::GotDataCallback& callback) {
   CellularNetwork* network = !path.size() ? NULL :
       CrosLibrary::Get()->
           GetNetworkLibrary()->FindCellularNetworkByPath(path);
   if (!network || !network->SupportsActivation()) {
     LOG(WARNING) << "Can't find device to activate for service path " << path;
     scoped_refptr<base::RefCountedBytes> html_bytes(new base::RefCountedBytes);
-    SendResponse(request_id, html_bytes);
+    callback.Run(html_bytes);
     return;
   }
 
@@ -210,7 +216,7 @@ void MobileSetupUIHTMLSource::StartDataRequest(const std::string& path,
                     l10n_util::GetStringUTF16(IDS_CANCEL));
   strings.SetString("ok_button",
                     l10n_util::GetStringUTF16(IDS_OK));
-  SetFontAndTextDirection(&strings);
+  web_ui_util::SetFontAndTextDirection(&strings);
 
   static const base::StringPiece html(
       ResourceBundle::GetSharedInstance().GetRawDataResource(
@@ -219,7 +225,7 @@ void MobileSetupUIHTMLSource::StartDataRequest(const std::string& path,
   std::string full_html = jstemplate_builder::GetI18nTemplateHtml(html,
                                                                   &strings);
 
-  SendResponse(request_id, base::RefCountedString::TakeString(&full_html));
+  callback.Run(base::RefCountedString::TakeString(&full_html));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

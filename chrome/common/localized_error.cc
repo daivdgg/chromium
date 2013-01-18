@@ -18,7 +18,7 @@
 #include "grit/generated_resources.h"
 #include "net/base/escape.h"
 #include "net/base/net_errors.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURLError.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLError.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "webkit/glue/webkit_glue.h"
 
@@ -270,6 +270,13 @@ const LocalizedErrorMap net_error_options[] = {
    IDS_ERRORPAGES_SUMMARY_BLOCKED,
    IDS_ERRORPAGES_DETAILS_BLOCKED,
    SUGGEST_DISABLE_EXTENSION,
+  },
+  {net::ERR_NETWORK_CHANGED,
+   IDS_ERRORPAGES_TITLE_LOAD_FAILED,
+   IDS_ERRORPAGES_HEADING_NETWORK_ACCESS_DENIED,
+   IDS_ERRORPAGES_SUMMARY_NETWORK_CHANGED,
+   IDS_ERRORPAGES_DETAILS_NETWORK_CHANGED,
+   SUGGEST_RELOAD | SUGGEST_CHECK_CONNECTION,
   },
 };
 

@@ -34,7 +34,7 @@ DownloadRequestLimiter::TabDownloadState::TabDownloadState(
       host_(host),
       status_(DownloadRequestLimiter::ALLOW_ONE_DOWNLOAD),
       download_count_(0),
-      infobar_(NULL) {
+      factory_(ALLOW_THIS_IN_INITIALIZER_LIST(this)) {
   content::Source<NavigationController> notification_source(
       &contents->GetController());
   content::Source<content::WebContents> web_contents_source(contents);
@@ -54,8 +54,8 @@ DownloadRequestLimiter::TabDownloadState::~TabDownloadState() {
   // We should only be destroyed after the callbacks have been notified.
   DCHECK(callbacks_.empty());
 
-  // And we should have closed the infobar.
-  DCHECK(!infobar_);
+  // And we should have invalidated the back pointer.
+  DCHECK(!factory_.HasWeakPtrs());
 }
 
 void DownloadRequestLimiter::TabDownloadState::DidGetUserGesture() {
@@ -106,8 +106,8 @@ void DownloadRequestLimiter::TabDownloadState::PromptUserForDownload(
     Cancel();
     return;
   }
-  infobar_ = new DownloadRequestInfoBarDelegate(infobar_service, this);
-  infobar_service->AddInfoBar(infobar_);
+  DownloadRequestInfoBarDelegate::Create(infobar_service,
+                                         factory_.GetWeakPtr());
 }
 
 void DownloadRequestLimiter::TabDownloadState::Cancel() {
@@ -122,7 +122,7 @@ DownloadRequestLimiter::TabDownloadState::TabDownloadState()
     : host_(NULL),
       status_(DownloadRequestLimiter::ALLOW_ONE_DOWNLOAD),
       download_count_(0),
-      infobar_(NULL) {
+      factory_(ALLOW_THIS_IN_INITIALIZER_LIST(this)) {
 }
 
 void DownloadRequestLimiter::TabDownloadState::Observe(
@@ -180,11 +180,8 @@ void DownloadRequestLimiter::TabDownloadState::NotifyCallbacks(bool allow) {
   // don't close it. If allow is false, we send all the notifications to cancel
   // all remaining downloads and close the infobar.
   if (!allow || (callbacks_.size() < kMaxDownloadsAtOnce)) {
-    if (infobar_) {
-      // Reset the delegate so we don't get notified again.
-      infobar_->set_host(NULL);
-      infobar_ = NULL;
-    }
+    // Null the generated weak pointer so we don't get notified again.
+    factory_.InvalidateWeakPtrs();
     callbacks.swap(callbacks_);
   } else {
     std::vector<DownloadRequestLimiter::Callback>::iterator start, end;

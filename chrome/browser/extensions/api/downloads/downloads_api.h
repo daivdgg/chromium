@@ -5,8 +5,6 @@
 #ifndef CHROME_BROWSER_EXTENSIONS_API_DOWNLOADS_DOWNLOADS_API_H_
 #define CHROME_BROWSER_EXTENSIONS_API_DOWNLOADS_DOWNLOADS_API_H_
 
-#include <map>
-#include <set>
 #include <string>
 
 #include "base/file_path.h"
@@ -33,7 +31,7 @@ class ResourceDispatcherHost;
 
 namespace download_extension_errors {
 
-// Errors that can be returned through chrome.extension.lastError.message.
+// Errors that can be returned through chrome.runtime.lastError.message.
 extern const char kGenericError[];
 extern const char kIconNotFoundError[];
 extern const char kInvalidDangerTypeError[];

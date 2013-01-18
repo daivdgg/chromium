@@ -23,7 +23,7 @@ using content::RenderViewHost;
 using content::ResourceRequestInfo;
 using std::string;
 
-DEFINE_WEB_CONTENTS_USER_DATA_KEY(chrome_browser_net::LoadTimeStatsTabHelper)
+DEFINE_WEB_CONTENTS_USER_DATA_KEY(chrome_browser_net::LoadTimeStatsTabHelper);
 
 namespace {
 
@@ -271,6 +271,7 @@ void LoadTimeStatsTabHelper::DidStartProvisionalLoadForFrame(
     bool is_main_frame,
     const GURL& validated_url,
     bool is_error_page,
+    bool is_iframe_srcdoc,
     content::RenderViewHost* render_view_host) {
   if (!is_main_frame)
     return;

@@ -132,6 +132,12 @@ class ContentViewCoreImpl : public ContentViewCore,
                  jint x,
                  jint y,
                  jboolean disambiguation_popup_tap);
+  void LongTap(JNIEnv* env,
+               jobject obj,
+               jlong time_ms,
+               jint x,
+               jint y,
+               jboolean disambiguation_popup_tap);
   void PinchBegin(JNIEnv* env, jobject obj, jlong time_ms, jint x, jint y);
   void PinchEnd(JNIEnv* env, jobject obj, jlong time_ms);
   void PinchBy(JNIEnv* env,
@@ -143,6 +149,7 @@ class ContentViewCoreImpl : public ContentViewCore,
   void SelectBetweenCoordinates(JNIEnv* env, jobject obj,
                                         jint x1, jint y1,
                                         jint x2, jint y2);
+  void MoveCaret(JNIEnv* env, jobject obj, jint x, jint y);
 
   jboolean CanGoBack(JNIEnv* env, jobject obj);
   jboolean CanGoForward(JNIEnv* env, jobject obj);
@@ -157,7 +164,10 @@ class ContentViewCoreImpl : public ContentViewCore,
   void ContinuePendingReload(JNIEnv* env, jobject obj);
   jboolean NeedsReload(JNIEnv* env, jobject obj);
   void ClearHistory(JNIEnv* env, jobject obj);
-  jint EvaluateJavaScript(JNIEnv* env, jobject obj, jstring script);
+  void EvaluateJavaScript(JNIEnv* env,
+                          jobject obj,
+                          jstring script,
+                          jobject callback);
   int GetNativeImeAdapter(JNIEnv* env, jobject obj);
   void SetFocus(JNIEnv* env, jobject obj, jboolean focused);
   void ScrollFocusedEditableNodeIntoView(JNIEnv* env, jobject obj);
@@ -283,6 +293,8 @@ class ContentViewCoreImpl : public ContentViewCore,
   void UpdateVSyncFlagOnInputEvent(WebKit::WebInputEvent* event) const;
 
   void DeleteScaledSnapshotTexture();
+
+  void SendGestureEvent(const WebKit::WebGestureEvent& event);
 
   struct JavaObject;
   JavaObject* java_object_;

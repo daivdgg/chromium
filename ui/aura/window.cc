@@ -316,9 +316,6 @@ void Window::SchedulePaintInRect(const gfx::Rect& rect) {
 
 void Window::SetExternalTexture(ui::Texture* texture) {
   layer_->SetExternalTexture(texture);
-  gfx::Rect region(bounds().size());
-  FOR_EACH_OBSERVER(
-      WindowObserver, observers_, OnWindowPaintScheduled(this, region));
 }
 
 void Window::SetDefaultParentByRootWindow(RootWindow* root_window,
@@ -525,13 +522,13 @@ Window* Window::GetToplevelWindow() {
 void Window::Focus() {
   client::FocusClient* client = client::GetFocusClient(this);
   DCHECK(client);
-  client->FocusWindow(this, NULL);
+  client->FocusWindow(this);
 }
 
 void Window::Blur() {
   client::FocusClient* client = client::GetFocusClient(this);
   DCHECK(client);
-  client->FocusWindow(NULL, NULL);
+  client->FocusWindow(NULL);
 }
 
 bool Window::HasFocus() const {

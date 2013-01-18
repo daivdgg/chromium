@@ -34,6 +34,8 @@ static const char kPlatformName[] = "chromium-mac";
 static const char kPlatformName[] = "chromium-linux";
 #elif defined(OS_OPENBSD)
 static const char kPlatformName[] = "chromium-openbsd";
+#elif defined(OS_ANDROID)
+static const char kPlatformName[] = "chromium-android";
 #else
 #error No known OS defined
 #endif
@@ -152,7 +154,7 @@ void InProcessBrowserLayoutTest::RunLayoutTestInternal(
 
   LOG(INFO) << "Navigating to URL " << url << " and blocking.";
   ASSERT_TRUE(
-      test_controller_->PrepareForLayoutTest(url, FilePath(), false, ""));
+      test_controller_->PrepareForLayoutTest(url, layout_test_dir_, false, ""));
   base::RunLoop run_loop;
   run_loop.Run();
   LOG(INFO) << "Navigation completed.";

@@ -34,7 +34,7 @@ TEST(RenderPassTest, copyShouldBeIdenticalExceptIdAndQuads)
 {
     RenderPass::Id id(3, 2);
     gfx::Rect outputRect(45, 22, 120, 13);
-    gfx::Transform transformToRoot = MathUtil::createGfxTransform(1, 0.5, 0.5, -0.5, -1, 0);
+    gfx::Transform transformToRoot = gfx::Transform(1.0, 0.5, 0.5, -0.5, -1.0, 0.0);
     gfx::Rect damageRect(56, 123, 19, 43);
     bool hasTransparentBackground = true;
     bool hasOcclusionFromOutsideTargetSurface = true;
@@ -53,8 +53,8 @@ TEST(RenderPassTest, copyShouldBeIdenticalExceptIdAndQuads)
     pass->AppendSharedQuadState(sharedState.Pass());
 
     scoped_ptr<CheckerboardDrawQuad> checkerboardQuad = CheckerboardDrawQuad::Create();
-    checkerboardQuad->SetNew(pass->shared_quad_state_list.last(), gfx::Rect(), SkColor());
-    pass->quad_list.append(checkerboardQuad.PassAs<DrawQuad>());
+    checkerboardQuad->SetNew(pass->shared_quad_state_list.back(), gfx::Rect(), SkColor());
+    pass->quad_list.push_back(checkerboardQuad.PassAs<DrawQuad>());
 
     RenderPass::Id newId(63, 4);
 

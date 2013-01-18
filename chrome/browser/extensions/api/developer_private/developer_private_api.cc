@@ -17,6 +17,7 @@
 #include "chrome/browser/ui/webui/extensions/extension_icon_source.h"
 #include "chrome/browser/view_type_utils.h"
 #include "chrome/common/extensions/api/developer_private.h"
+#include "chrome/common/extensions/manifest_url_handler.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/web_contents.h"
@@ -63,17 +64,17 @@ scoped_ptr<developer::ItemInfo> DeveloperPrivateAPI::CreateItemInfo(
 
   if (item.is_app()) {
     if (item.is_legacy_packaged_app())
-      info->type = developer::DEVELOPER_PRIVATE_ITEM_TYPE_LEGACY_PACKAGED_APP;
+      info->type = developer::ITEM_TYPE_LEGACY_PACKAGED_APP;
     else if (item.is_hosted_app())
-      info->type = developer::DEVELOPER_PRIVATE_ITEM_TYPE_HOSTED_APP;
+      info->type = developer::ITEM_TYPE_HOSTED_APP;
     else if (item.is_platform_app())
-      info->type = developer::DEVELOPER_PRIVATE_ITEM_TYPE_PACKAGED_APP;
+      info->type = developer::ITEM_TYPE_PACKAGED_APP;
     else
       NOTREACHED();
   } else if (item.is_theme()) {
-    info->type = developer::DEVELOPER_PRIVATE_ITEM_TYPE_THEME;
+    info->type = developer::ITEM_TYPE_THEME;
   } else if (item.is_extension()) {
-    info->type = developer::DEVELOPER_PRIVATE_ITEM_TYPE_EXTENSION;
+    info->type = developer::ITEM_TYPE_EXTENSION;
   } else {
     NOTREACHED();
   }
@@ -97,14 +98,16 @@ scoped_ptr<developer::ItemInfo> DeveloperPrivateAPI::CreateItemInfo(
                                       NULL);
   info->icon = icon.spec();
 
-  info->homepage_url.reset(new std::string(item.GetHomepageURL().spec()));
-  if (!item.options_url().is_empty()) {
-    info->options_url.reset(new std::string(item.options_url().spec()));
+  info->homepage_url.reset(new std::string(
+      extensions::ManifestURL::GetHomepageURL(&item).spec()));
+  if (!ManifestURL::GetOptionsPage(&item).is_empty()) {
+    info->options_url.reset(
+        new std::string(ManifestURL::GetOptionsPage(&item).spec()));
   }
 
-  if (!item.update_url().is_empty()) {
-    info->update_url.reset(new std::string(
-        item.update_url().spec()));
+  if (!ManifestURL::GetUpdateURL(&item).is_empty()) {
+    info->update_url.reset(
+        new std::string(ManifestURL::GetUpdateURL(&item).spec()));
   }
 
   if (item.is_app()) {

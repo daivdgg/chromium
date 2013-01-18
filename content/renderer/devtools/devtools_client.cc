@@ -11,9 +11,9 @@
 #include "content/public/common/content_switches.h"
 #include "content/renderer/render_thread_impl.h"
 #include "content/renderer/render_view_impl.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebFloatPoint.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDevToolsFrontend.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebFloatPoint.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
 #include "ui/base/ui_base_switches.h"
 
 using WebKit::WebDevToolsFrontend;
@@ -88,6 +88,20 @@ void DevToolsClient::append(const WebKit::WebString& url,
                                   url.utf8(),
                                   content.utf8()));
 }
+
+void DevToolsClient::requestFileSystems() {
+  Send(new DevToolsHostMsg_RequestFileSystems(routing_id()));
+}
+
+void DevToolsClient::addFileSystem() {
+  Send(new DevToolsHostMsg_AddFileSystem(routing_id()));
+}
+
+void DevToolsClient::removeFileSystem(const WebString& fileSystemPath) {
+  Send(new DevToolsHostMsg_RemoveFileSystem(routing_id(),
+                                            fileSystemPath.utf8()));
+}
+
 
 void DevToolsClient::OnDispatchOnInspectorFrontend(const std::string& message) {
   web_tools_frontend_->dispatchOnInspectorFrontend(

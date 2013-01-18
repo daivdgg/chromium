@@ -18,6 +18,7 @@ import org.chromium.content.app.LibraryLoader;
 import org.chromium.content.browser.ContentView;
 import org.chromium.content.browser.DeviceUtils;
 import org.chromium.content.common.CommandLine;
+import org.chromium.content.common.ProcessInitException;
 import org.chromium.ui.gfx.ActivityNativeWindow;
 
 /**
@@ -40,9 +41,12 @@ public class ChromiumTestShellActivity extends ChromiumActivity {
         waitForDebuggerIfNeeded();
 
         DeviceUtils.addDeviceSpecificUserAgentSwitch(this);
-
-        ContentView.initChromiumBrowserProcess(this, ContentView.MAX_RENDERERS_AUTOMATIC);
-
+        try {
+            ContentView.initChromiumBrowserProcess(this, ContentView.MAX_RENDERERS_AUTOMATIC);
+        } catch (ProcessInitException e) {
+            Log.e(TAG, "Chromium browser process initialization failed", e);
+            finish();
+        }
         setContentView(R.layout.testshell_activity);
         mTabManager = (TabManager) findViewById(R.id.tab_manager);
         String startupUrl = getUrlFromIntent(getIntent());
@@ -128,6 +132,14 @@ public class ChromiumTestShellActivity extends ChromiumActivity {
     public ContentView getActiveContentView() {
         TabBase tab = getActiveTab();
         return tab != null ? tab.getContentView() : null;
+    }
+
+    /**
+     * Creates a {@link TabBase} with a URL specified by {@code url}.
+     * @param url The URL the new {@link TabBase} should start with.
+     */
+    public void createTab(String url) {
+        mTabManager.createTab(url);
     }
 
     private void waitForDebuggerIfNeeded() {

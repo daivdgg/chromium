@@ -44,10 +44,10 @@
 #include "ppapi/shared_impl/tracked_callback.h"
 #include "ppapi/thunk/ppb_gamepad_api.h"
 #include "ppapi/thunk/resource_creation_api.h"
-#include "third_party/skia/include/core/SkRefCnt.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebCanvas.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebCanvas.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebPlugin.h"
+#include "third_party/skia/include/core/SkRefCnt.h"
 #include "ui/base/ime/text_input_type.h"
 #include "ui/gfx/rect.h"
 #include "webkit/plugins/ppapi/plugin_delegate.h"
@@ -458,11 +458,19 @@ class WEBKIT_PLUGINS_EXPORT PluginInstance :
   virtual unsigned prepareTexture(cc::ResourceUpdateQueue&) OVERRIDE;
   virtual WebKit::WebGraphicsContext3D* context() OVERRIDE;
 
-  // Reset this instance as proxied. Resets cached interfaces to point to the
-  // proxy and re-sends DidCreate, DidChangeView, and HandleDocumentLoad (if
-  // necessary).
-  // This is for use with the NaCl proxy.
+  // Reset this instance as proxied. Assigns the instance a new module, resets
+  // cached interfaces to point to the out-of-process proxy and re-sends
+  // DidCreate, DidChangeView, and HandleDocumentLoad (if necessary).
+  // This should be used only when switching a trusted NaCl in-process instance
+  // to an untrusted NaCl out-of-process instance.
   PP_NaClResult ResetAsProxied(scoped_refptr<PluginModule> module);
+
+  // Checks whether this is a valid instance of the given module. After calling
+  // ResetAsProxied above, a NaCl plugin instance's module changes, so external
+  // hosts won't recognize it as a valid instance of the original module. This
+  // method fixes that be checking that either module_ or original_module_ match
+  // the given module.
+  bool IsValidInstanceOf(PluginModule* module);
 
  private:
   friend class PpapiUnittest;

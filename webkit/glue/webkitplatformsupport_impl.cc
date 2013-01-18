@@ -4,10 +4,6 @@
 
 #include "webkit/glue/webkitplatformsupport_impl.h"
 
-#if defined(OS_LINUX)
-#include <malloc.h>
-#endif
-
 #include <math.h>
 
 #include <vector>
@@ -32,20 +28,21 @@
 #include "grit/webkit_chromium_resources.h"
 #include "grit/webkit_resources.h"
 #include "grit/webkit_strings.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebCookie.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebData.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebGestureCurve.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURL.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebVector.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebFrameClient.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebInputEvent.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebPluginListBuilder.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebScreenInfo.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebCookie.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebData.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebURL.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebVector.h"
 #include "ui/base/layout.h"
 #include "webkit/base/file_path_string_conversions.h"
 #include "webkit/compositor_bindings/web_compositor_support_impl.h"
 #include "webkit/glue/touch_fling_gesture_curve.h"
+#include "webkit/glue/webkit_glue.h"
 #include "webkit/glue/websocketstreamhandle_impl.h"
 #include "webkit/glue/webthread_impl.h"
 #include "webkit/glue/weburlloader_impl.h"
@@ -57,10 +54,6 @@
 
 #if defined(OS_ANDROID)
 #include "webkit/glue/fling_animator_impl_android.h"
-#endif
-
-#if defined(OS_LINUX)
-#include "v8/include/v8.h"
 #endif
 
 using WebKit::WebAudioBus;
@@ -153,6 +146,84 @@ static int ToMessageID(WebLocalizedString::Name name) {
       return IDS_AX_ROLE_LINK;
     case WebLocalizedString::AXListMarkerText:
       return IDS_AX_ROLE_LIST_MARKER;
+    case WebLocalizedString::AXMediaDefault:
+      return IDS_AX_MEDIA_DEFAULT;
+    case WebLocalizedString::AXMediaAudioElement:
+      return IDS_AX_MEDIA_AUDIO_ELEMENT;
+    case WebLocalizedString::AXMediaVideoElement:
+      return IDS_AX_MEDIA_VIDEO_ELEMENT;
+    case WebLocalizedString::AXMediaMuteButton:
+      return IDS_AX_MEDIA_MUTE_BUTTON;
+    case WebLocalizedString::AXMediaUnMuteButton:
+      return IDS_AX_MEDIA_UNMUTE_BUTTON;
+    case WebLocalizedString::AXMediaPlayButton:
+      return IDS_AX_MEDIA_PLAY_BUTTON;
+    case WebLocalizedString::AXMediaPauseButton:
+      return IDS_AX_MEDIA_PAUSE_BUTTON;
+    case WebLocalizedString::AXMediaSlider:
+      return IDS_AX_MEDIA_SLIDER;
+    case WebLocalizedString::AXMediaSliderThumb:
+      return IDS_AX_MEDIA_SLIDER_THUMB;
+    case WebLocalizedString::AXMediaRewindButton:
+      return IDS_AX_MEDIA_REWIND_BUTTON;
+    case WebLocalizedString::AXMediaReturnToRealTime:
+      return IDS_AX_MEDIA_RETURN_TO_REALTIME_BUTTON;
+    case WebLocalizedString::AXMediaCurrentTimeDisplay:
+      return IDS_AX_MEDIA_CURRENT_TIME_DISPLAY;
+    case WebLocalizedString::AXMediaTimeRemainingDisplay:
+      return IDS_AX_MEDIA_TIME_REMAINING_DISPLAY;
+    case WebLocalizedString::AXMediaStatusDisplay:
+      return IDS_AX_MEDIA_STATUS_DISPLAY;
+    case WebLocalizedString::AXMediaEnterFullscreenButton:
+      return IDS_AX_MEDIA_ENTER_FULL_SCREEN_BUTTON;
+    case WebLocalizedString::AXMediaExitFullscreenButton:
+      return IDS_AX_MEDIA_EXIT_FULL_SCREEN_BUTTON;
+  case WebLocalizedString::AXMediaSeekForwardButton:
+    return IDS_AX_MEDIA_SEEK_FORWARD_BUTTON;
+    case WebLocalizedString::AXMediaSeekBackButton:
+      return IDS_AX_MEDIA_SEEK_BACK_BUTTON;
+    case WebLocalizedString::AXMediaShowClosedCaptionsButton:
+      return IDS_AX_MEDIA_SHOW_CLOSED_CAPTIONS_BUTTON;
+    case WebLocalizedString::AXMediaHideClosedCaptionsButton:
+      return IDS_AX_MEDIA_HIDE_CLOSED_CAPTIONS_BUTTON;
+    case WebLocalizedString::AXMediaAudioElementHelp:
+      return IDS_AX_MEDIA_AUDIO_ELEMENT_HELP;
+    case WebLocalizedString::AXMediaVideoElementHelp:
+      return IDS_AX_MEDIA_VIDEO_ELEMENT_HELP;
+    case WebLocalizedString::AXMediaMuteButtonHelp:
+      return IDS_AX_MEDIA_MUTE_BUTTON_HELP;
+    case WebLocalizedString::AXMediaUnMuteButtonHelp:
+      return IDS_AX_MEDIA_UNMUTE_BUTTON_HELP;
+    case WebLocalizedString::AXMediaPlayButtonHelp:
+      return IDS_AX_MEDIA_PLAY_BUTTON_HELP;
+    case WebLocalizedString::AXMediaPauseButtonHelp:
+      return IDS_AX_MEDIA_PAUSE_BUTTON_HELP;
+    case WebLocalizedString::AXMediaSliderHelp:
+      return IDS_AX_MEDIA_SLIDER_HELP;
+    case WebLocalizedString::AXMediaSliderThumbHelp:
+      return IDS_AX_MEDIA_SLIDER_THUMB_HELP;
+    case WebLocalizedString::AXMediaRewindButtonHelp:
+      return IDS_AX_MEDIA_REWIND_BUTTON_HELP;
+    case WebLocalizedString::AXMediaReturnToRealTimeHelp:
+      return IDS_AX_MEDIA_RETURN_TO_REALTIME_BUTTON_HELP;
+    case WebLocalizedString::AXMediaCurrentTimeDisplayHelp:
+      return IDS_AX_MEDIA_CURRENT_TIME_DISPLAY_HELP;
+    case WebLocalizedString::AXMediaTimeRemainingDisplayHelp:
+      return IDS_AX_MEDIA_TIME_REMAINING_DISPLAY_HELP;
+    case WebLocalizedString::AXMediaStatusDisplayHelp:
+      return IDS_AX_MEDIA_STATUS_DISPLAY_HELP;
+    case WebLocalizedString::AXMediaEnterFullscreenButtonHelp:
+      return IDS_AX_MEDIA_ENTER_FULL_SCREEN_BUTTON_HELP;
+    case WebLocalizedString::AXMediaExitFullscreenButtonHelp:
+      return IDS_AX_MEDIA_EXIT_FULL_SCREEN_BUTTON_HELP;
+  case WebLocalizedString::AXMediaSeekForwardButtonHelp:
+    return IDS_AX_MEDIA_SEEK_FORWARD_BUTTON_HELP;
+    case WebLocalizedString::AXMediaSeekBackButtonHelp:
+      return IDS_AX_MEDIA_SEEK_BACK_BUTTON_HELP;
+    case WebLocalizedString::AXMediaShowClosedCaptionsButtonHelp:
+      return IDS_AX_MEDIA_SHOW_CLOSED_CAPTIONS_BUTTON_HELP;
+    case WebLocalizedString::AXMediaHideClosedCaptionsButtonHelp:
+      return IDS_AX_MEDIA_HIDE_CLOSED_CAPTIONS_BUTTON_HELP;
     case WebLocalizedString::AXMillisecondFieldText:
       return IDS_AX_MILLISECOND_FIELD_TEXT;
     case WebLocalizedString::AXMinuteFieldText:
@@ -756,31 +827,6 @@ static scoped_ptr<base::ProcessMetrics> CurrentProcessMetrics() {
 #endif
 }
 
-#if defined(OS_LINUX) || defined(OS_ANDROID)
-static size_t memoryUsageMB() {
-  struct mallinfo minfo = mallinfo();
-  uint64_t mem_usage =
-#if defined(USE_TCMALLOC)
-      minfo.uordblks
-#else
-      (minfo.hblkhd + minfo.arena)
-#endif
-      >> 20;
-
-  v8::HeapStatistics stat;
-  v8::V8::GetHeapStatistics(&stat);
-  return mem_usage + (static_cast<uint64_t>(stat.total_heap_size()) >> 20);
-}
-#elif defined(OS_MACOSX)
-static size_t memoryUsageMB() {
-  return CurrentProcessMetrics()->GetWorkingSetSize() >> 20;
-}
-#else
-static size_t memoryUsageMB() {
-  return CurrentProcessMetrics()->GetPagefileUsage() >> 20;
-}
-#endif
-
 static size_t getMemoryUsageMB(bool bypass_cache) {
   size_t current_mem_usage = 0;
   MemoryUsageCache* mem_usage_cache_singleton = MemoryUsageCache::GetInstance();
@@ -788,7 +834,7 @@ static size_t getMemoryUsageMB(bool bypass_cache) {
       mem_usage_cache_singleton->IsCachedValueValid(&current_mem_usage))
     return current_mem_usage;
 
-  current_mem_usage = memoryUsageMB();
+  current_mem_usage = MemoryUsageKB() >> 10;
   mem_usage_cache_singleton->SetMemoryValue(current_mem_usage);
   return current_mem_usage;
 }

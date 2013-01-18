@@ -102,7 +102,7 @@ bool ShareHandleToSelLdr(
                        0,  // Unused given DUPLICATE_SAME_ACCESS.
                        FALSE,
                        flags)) {
-    DLOG(ERROR) << "DuplicateHandle() failed";
+    LOG(ERROR) << "DuplicateHandle() failed";
     return false;
   }
   handles_for_sel_ldr->push_back(
@@ -127,8 +127,12 @@ ppapi::PpapiPermissions GetNaClPermissions(uint32 permission_bits) {
 }  // namespace
 
 struct NaClProcessHost::NaClInternal {
-  std::vector<nacl::Handle> sockets_for_renderer;
-  std::vector<nacl::Handle> sockets_for_sel_ldr;
+  nacl::Handle socket_for_renderer;
+  nacl::Handle socket_for_sel_ldr;
+
+  NaClInternal()
+    : socket_for_renderer(nacl::kInvalidHandle),
+      socket_for_sel_ldr(nacl::kInvalidHandle) { }
 };
 
 // -----------------------------------------------------------------------------
@@ -145,6 +149,7 @@ bool NaClProcessHost::PluginListener::OnMessageReceived(
 NaClProcessHost::NaClProcessHost(const GURL& manifest_url,
                                  int render_view_id,
                                  uint32 permission_bits,
+                                 bool uses_irt,
                                  bool off_the_record)
     : manifest_url_(manifest_url),
       permissions_(GetNaClPermissions(permission_bits)),
@@ -161,6 +166,7 @@ NaClProcessHost::NaClProcessHost(const GURL& manifest_url,
       ALLOW_THIS_IN_INITIALIZER_LIST(weak_factory_(this)),
       enable_exception_handling_(false),
       enable_debug_stub_(false),
+      uses_irt_(uses_irt),
       off_the_record_(off_the_record),
       enable_ipc_proxy_(false),
       ALLOW_THIS_IN_INITIALIZER_LIST(ipc_plugin_listener_(this)),
@@ -204,13 +210,14 @@ NaClProcessHost::~NaClProcessHost() {
     LOG(ERROR) << message;
   }
 
-  for (size_t i = 0; i < internal_->sockets_for_renderer.size(); i++) {
-    if (nacl::Close(internal_->sockets_for_renderer[i]) != 0) {
+  if (internal_->socket_for_renderer != nacl::kInvalidHandle) {
+    if (nacl::Close(internal_->socket_for_renderer) != 0) {
       NOTREACHED() << "nacl::Close() failed";
     }
   }
-  for (size_t i = 0; i < internal_->sockets_for_sel_ldr.size(); i++) {
-    if (nacl::Close(internal_->sockets_for_sel_ldr[i]) != 0) {
+
+  if (internal_->socket_for_sel_ldr != nacl::kInvalidHandle) {
+    if (nacl::Close(internal_->socket_for_sel_ldr) != 0) {
       NOTREACHED() << "nacl::Close() failed";
     }
   }
@@ -252,27 +259,19 @@ void NaClProcessHost::EarlyStartup() {
 
 void NaClProcessHost::Launch(
     ChromeRenderMessageFilter* chrome_render_message_filter,
-    int socket_count,
     IPC::Message* reply_msg,
     scoped_refptr<ExtensionInfoMap> extension_info_map) {
   chrome_render_message_filter_ = chrome_render_message_filter;
   reply_msg_ = reply_msg;
   extension_info_map_ = extension_info_map;
 
-  // Place an arbitrary limit on the number of sockets to limit
-  // exposure in case the renderer is compromised.  We can increase
-  // this if necessary.
-  if (socket_count > 8) {
-    delete this;
-    return;
-  }
-
   // Start getting the IRT open asynchronously while we launch the NaCl process.
   // We'll make sure this actually finished in StartWithLaunchedProcess, below.
   NaClBrowser* nacl_browser = NaClBrowser::GetInstance();
   nacl_browser->EnsureAllResourcesAvailable();
   if (!nacl_browser->IsOk()) {
-    DLOG(ERROR) << "Cannot launch NaCl process";
+    LOG(ERROR) << "NaCl process launch failed: could not find all the "
+        "resources needed to launch the process";
     delete this;
     return;
   }
@@ -286,18 +285,17 @@ void NaClProcessHost::Launch(
   // This means the sandboxed renderer cannot send handles to the
   // browser process.
 
-  for (int i = 0; i < socket_count; i++) {
-    nacl::Handle pair[2];
-    // Create a connected socket
-    if (nacl::SocketPair(pair) == -1) {
-      delete this;
-      return;
-    }
-    internal_->sockets_for_renderer.push_back(pair[0]);
-    internal_->sockets_for_sel_ldr.push_back(pair[1]);
-    SetCloseOnExec(pair[0]);
-    SetCloseOnExec(pair[1]);
+  nacl::Handle pair[2];
+  // Create a connected socket
+  if (nacl::SocketPair(pair) == -1) {
+    LOG(ERROR) << "NaCl process launch failed: could not create a socket pair";
+    delete this;
+    return;
   }
+  internal_->socket_for_renderer = pair[0];
+  internal_->socket_for_sel_ldr = pair[1];
+  SetCloseOnExec(pair[0]);
+  SetCloseOnExec(pair[1]);
 
   // Launch the process
   if (!LaunchSelLdr()) {
@@ -325,7 +323,7 @@ void NaClProcessHost::OnChannelConnected(int32 peer_pid) {
         return;
       }
     } else {
-      DLOG(ERROR) << "Failed to get process handle";
+      LOG(ERROR) << "Failed to get process handle";
     }
   }
 }
@@ -494,8 +492,10 @@ FilePath NaClProcessHost::GetManifestPath() {
 
 bool NaClProcessHost::LaunchSelLdr() {
   std::string channel_id = process_->GetHost()->CreateChannel();
-  if (channel_id.empty())
+  if (channel_id.empty()) {
+    LOG(ERROR) << "NaCl process launch failed: could not create channel";
     return false;
+  }
 
   CommandLine::StringType nacl_loader_prefix;
 #if defined(OS_POSIX)
@@ -528,8 +528,10 @@ bool NaClProcessHost::LaunchSelLdr() {
   // On Windows 64-bit NaCl loader is called nacl64.exe instead of chrome.exe
   if (RunningOnWOW64()) {
     FilePath module_path;
-    if (!PathService::Get(base::FILE_MODULE, &module_path))
+    if (!PathService::Get(base::FILE_MODULE, &module_path)) {
+      LOG(ERROR) << "NaCl process launch failed: could not resolve module";
       return false;
+    }
     exe_path = module_path.DirName().Append(chrome::kNaClAppName);
   }
 #endif
@@ -570,8 +572,12 @@ bool NaClProcessHost::LaunchSelLdr() {
   // On Windows we might need to start the broker process to launch a new loader
 #if defined(OS_WIN)
   if (RunningOnWOW64()) {
-    return NaClBrokerService::GetInstance()->LaunchLoader(
-        weak_factory_.GetWeakPtr(), channel_id);
+    if (!NaClBrokerService::GetInstance()->LaunchLoader(
+            weak_factory_.GetWeakPtr(), channel_id)) {
+      LOG(ERROR) << "NaCl process launch failed: broker service did not launch "
+          "process";
+      return false;
+    }
   } else {
     process_->Launch(FilePath(), cmd_line.release());
   }
@@ -610,41 +616,42 @@ void NaClProcessHost::OnProcessLaunched() {
 // Called when the NaClBrowser singleton has been fully initialized.
 void NaClProcessHost::OnResourcesReady() {
   NaClBrowser* nacl_browser = NaClBrowser::GetInstance();
-  if (!nacl_browser->IsReady() || !SendStart()) {
-    DLOG(ERROR) << "Cannot launch NaCl process";
+  if (!nacl_browser->IsReady()) {
+    LOG(ERROR) << "NaCl process launch failed: could not acquire shared "
+        "resources needed by NaCl";
+    delete this;
+  } else if (!SendStart()) {
     delete this;
   }
 }
 
 bool NaClProcessHost::ReplyToRenderer(
     const IPC::ChannelHandle& channel_handle) {
-  std::vector<nacl::FileDescriptor> handles_for_renderer;
-  for (size_t i = 0; i < internal_->sockets_for_renderer.size(); i++) {
+  nacl::FileDescriptor handle_for_renderer;
 #if defined(OS_WIN)
-    // Copy the handle into the renderer process.
-    HANDLE handle_in_renderer;
-    if (!DuplicateHandle(base::GetCurrentProcessHandle(),
-                         reinterpret_cast<HANDLE>(
-                             internal_->sockets_for_renderer[i]),
-                         chrome_render_message_filter_->peer_handle(),
-                         &handle_in_renderer,
-                         0,  // Unused given DUPLICATE_SAME_ACCESS.
-                         FALSE,
-                         DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS)) {
-      DLOG(ERROR) << "DuplicateHandle() failed";
-      return false;
-    }
-    handles_for_renderer.push_back(
-        reinterpret_cast<nacl::FileDescriptor>(handle_in_renderer));
-#else
-    // No need to dup the imc_handle - we don't pass it anywhere else so
-    // it cannot be closed.
-    nacl::FileDescriptor imc_handle;
-    imc_handle.fd = internal_->sockets_for_renderer[i];
-    imc_handle.auto_close = true;
-    handles_for_renderer.push_back(imc_handle);
-#endif
+  // Copy the handle into the renderer process.
+  HANDLE handle_in_renderer;
+  if (!DuplicateHandle(base::GetCurrentProcessHandle(),
+                       reinterpret_cast<HANDLE>(
+                           internal_->socket_for_renderer),
+                       chrome_render_message_filter_->peer_handle(),
+                       &handle_in_renderer,
+                       0,  // Unused given DUPLICATE_SAME_ACCESS.
+                       FALSE,
+                       DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS)) {
+    LOG(ERROR) << "DuplicateHandle() failed";
+    return false;
   }
+  handle_for_renderer = reinterpret_cast<nacl::FileDescriptor>(
+      handle_in_renderer);
+#else
+  // No need to dup the imc_handle - we don't pass it anywhere else so
+  // it cannot be closed.
+  nacl::FileDescriptor imc_handle;
+  imc_handle.fd = internal_->socket_for_renderer;
+  imc_handle.auto_close = true;
+  handle_for_renderer = imc_handle;
+#endif
 
 #if defined(OS_WIN)
   // If we are on 64-bit Windows, the NaCl process's sandbox is
@@ -654,7 +661,7 @@ bool NaClProcessHost::ReplyToRenderer(
   // BrokerDuplicateHandle().
   if (RunningOnWOW64()) {
     if (!content::BrokerAddTargetPeer(process_->GetData().handle)) {
-      DLOG(ERROR) << "Failed to add NaCl process PID";
+      LOG(ERROR) << "Failed to add NaCl process PID";
       return false;
     }
   }
@@ -662,12 +669,12 @@ bool NaClProcessHost::ReplyToRenderer(
 
   const ChildProcessData& data = process_->GetData();
   ChromeViewHostMsg_LaunchNaCl::WriteReplyParams(
-      reply_msg_, handles_for_renderer,
+      reply_msg_, handle_for_renderer,
       channel_handle, base::GetProcId(data.handle), data.id);
   chrome_render_message_filter_->Send(reply_msg_);
   chrome_render_message_filter_ = NULL;
   reply_msg_ = NULL;
-  internal_->sockets_for_renderer.clear();
+  internal_->socket_for_renderer = nacl::kInvalidHandle;
   return true;
 }
 
@@ -714,22 +721,23 @@ bool NaClProcessHost::StartNaClExecution() {
   params.enable_debug_stub = enable_debug_stub_ &&
       NaClBrowser::GetInstance()->URLMatchesDebugPatterns(manifest_url_);
   params.enable_ipc_proxy = enable_ipc_proxy_;
-
-  base::PlatformFile irt_file = nacl_browser->IrtFile();
-  CHECK_NE(irt_file, base::kInvalidPlatformFileValue);
+  params.uses_irt = uses_irt_;
 
   const ChildProcessData& data = process_->GetData();
-  for (size_t i = 0; i < internal_->sockets_for_sel_ldr.size(); i++) {
-    if (!ShareHandleToSelLdr(data.handle,
-                             internal_->sockets_for_sel_ldr[i], true,
-                             &params.handles)) {
-      return false;
-    }
+  if (!ShareHandleToSelLdr(data.handle,
+                           internal_->socket_for_sel_ldr, true,
+                           &params.handles)) {
+    return false;
   }
 
-  // Send over the IRT file handle.  We don't close our own copy!
-  if (!ShareHandleToSelLdr(data.handle, irt_file, false, &params.handles))
-    return false;
+  if (params.uses_irt) {
+    base::PlatformFile irt_file = nacl_browser->IrtFile();
+    CHECK_NE(irt_file, base::kInvalidPlatformFileValue);
+
+    // Send over the IRT file handle.  We don't close our own copy!
+    if (!ShareHandleToSelLdr(data.handle, irt_file, false, &params.handles))
+      return false;
+  }
 
 #if defined(OS_MACOSX)
   // For dynamic loading support, NaCl requires a file descriptor that
@@ -766,7 +774,7 @@ bool NaClProcessHost::StartNaClExecution() {
 
   process_->Send(new NaClProcessMsg_Start(params));
 
-  internal_->sockets_for_sel_ldr.clear();
+  internal_->socket_for_sel_ldr = nacl::kInvalidHandle;
   return true;
 }
 
@@ -857,6 +865,8 @@ bool NaClProcessHost::StartWithLaunchedProcess() {
                    weak_factory_.GetWeakPtr()));
     return true;
   } else {
+    LOG(ERROR) << "NaCl process failed to launch: previously failed to acquire "
+        "shared resources";
     return false;
   }
 }
@@ -914,6 +924,7 @@ bool NaClProcessHost::AttachDebugExceptionHandler(const std::string& info,
            base::kProcessAccessVMOperation |
            base::kProcessAccessVMRead |
            base::kProcessAccessVMWrite |
+           base::kProcessAccessDuplicateHandle |
            base::kProcessAccessWaitForTermination,
            process_handle.Receive())) {
     LOG(ERROR) << "Failed to get process handle";

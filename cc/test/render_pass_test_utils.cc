@@ -15,14 +15,14 @@
 
 namespace cc {
 
-TestRenderPass* addRenderPass(ScopedPtrVector<RenderPass>& passList,
+TestRenderPass* addRenderPass(RenderPassList& passList,
                               RenderPass::Id id,
                               const gfx::Rect& outputRect,
                               const gfx::Transform& rootTransform) {
   scoped_ptr<TestRenderPass> pass(TestRenderPass::Create());
   pass->SetNew(id, outputRect, outputRect, rootTransform);
   TestRenderPass* saved = pass.get();
-  passList.append(pass.PassAs<RenderPass>());
+  passList.push_back(pass.PassAs<RenderPass>());
   return saved;
 }
 

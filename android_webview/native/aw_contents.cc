@@ -27,8 +27,6 @@
 #include "base/pickle.h"
 #include "base/supports_user_data.h"
 #include "cc/layer.h"
-#include "cc/picture_pile_impl.h"
-#include "cc/rendering_stats.h"
 #include "content/components/navigation_interception/intercept_navigation_delegate.h"
 #include "content/public/browser/android/content_view_core.h"
 #include "content/public/browser/browser_thread.h"
@@ -39,9 +37,11 @@
 #include "content/public/common/ssl_status.h"
 #include "jni/AwContents_jni.h"
 #include "net/base/x509_certificate.h"
+#include "skia/ext/refptr.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkDevice.h"
+#include "third_party/skia/include/core/SkPicture.h"
 #include "ui/gfx/transform.h"
 #include "ui/gl/gl_bindings.h"
 
@@ -105,44 +105,6 @@ class AwContentsUserData : public base::SupportsUserData::Data {
   AwContents* contents_;
 };
 
-// Work-around for http://crbug.com/161864. TODO(joth): Remove this class when
-// that bug is closed.
-class NullCompositor : public content::Compositor {
- public:
-  NullCompositor() {}
-  virtual ~NullCompositor() {}
-
-  // Compositor
-  virtual void SetRootLayer(scoped_refptr<cc::Layer> root) OVERRIDE {}
-  virtual void SetWindowBounds(const gfx::Size& size) OVERRIDE {}
-  virtual void SetVisible(bool visible) OVERRIDE {}
-  virtual void SetWindowSurface(ANativeWindow* window) OVERRIDE {}
-  virtual bool CompositeAndReadback(void *pixels, const gfx::Rect& rect)
-      OVERRIDE {
-    return false;
-  }
-  virtual void Composite() {}
-  virtual WebKit::WebGLId GenerateTexture(gfx::JavaBitmap& bitmap) OVERRIDE {
-    return 0;
-  }
-  virtual WebKit::WebGLId GenerateCompressedTexture(gfx::Size& size,
-                                                    int data_size,
-                                                    void* data) OVERRIDE {
-    return 0;
-  }
-  virtual void DeleteTexture(WebKit::WebGLId texture_id) OVERRIDE {}
-  virtual bool CopyTextureToBitmap(WebKit::WebGLId texture_id,
-                                   gfx::JavaBitmap& bitmap) OVERRIDE {
-    return false;
-  }
-  virtual bool CopyTextureToBitmap(WebKit::WebGLId texture_id,
-                                   const gfx::Rect& src_rect,
-                                   gfx::JavaBitmap& bitmap) OVERRIDE {
-    return false;
-  }
-  virtual void SetHasTransparentBackground(bool flag) OVERRIDE {}
-};
-
 }  // namespace
 
 // static
@@ -152,15 +114,13 @@ AwContents* AwContents::FromWebContents(WebContents* web_contents) {
 
 AwContents::AwContents(JNIEnv* env,
                        jobject obj,
-                       jobject web_contents_delegate,
-                       bool private_browsing)
+                       jobject web_contents_delegate)
     : java_ref_(env, obj),
       web_contents_delegate_(
           new AwWebContentsDelegate(env, web_contents_delegate)),
       view_visible_(false),
       compositor_visible_(false),
       is_composite_pending_(false),
-      last_scroll_x_(0), last_scroll_y_(0),
       last_frame_context_(NULL) {
   RendererPictureMap::CreateInstance();
   android_webview::AwBrowserDependencyFactory* dependency_factory =
@@ -169,18 +129,13 @@ AwContents::AwContents(JNIEnv* env,
   // TODO(joth): rather than create and set the WebContents here, expose the
   // factory method to java side and have that orchestrate the construction
   // order.
-  SetWebContents(dependency_factory->CreateWebContents(private_browsing));
+  SetWebContents(dependency_factory->CreateWebContents());
 }
 
 void AwContents::ResetCompositor() {
-  if (UseCompositorDirectDraw()) {
-    compositor_.reset(content::Compositor::Create(this));
-    if (scissor_clip_layer_.get())
-      AttachLayerTree();
-  } else {
-    LOG(WARNING) << "Running on unsupported device: using null Compositor";
-    compositor_.reset(new NullCompositor);
-  }
+  compositor_.reset(content::Compositor::Create(this));
+  if (scissor_clip_layer_.get())
+    AttachLayerTree();
 }
 
 void AwContents::SetWebContents(content::WebContents* web_contents) {
@@ -313,7 +268,6 @@ void AwContents::DrawGL(AwDrawGLInfo* draw_info) {
     last_frame_context_ = current_context;
   }
 
-  gfx::Transform transform;
   compositor_->SetWindowBounds(gfx::Size(draw_info->width, draw_info->height));
 
   if (draw_info->is_layer) {
@@ -322,6 +276,7 @@ void AwContents::DrawGL(AwDrawGLInfo* draw_info) {
     // The Android framework will composite us afterwards.
     compositor_->SetHasTransparentBackground(false);
     view_clip_layer_->setMasksToBounds(false);
+    transform_layer_->setTransform(gfx::Transform());
     scissor_clip_layer_->setMasksToBounds(false);
     scissor_clip_layer_->setPosition(gfx::PointF());
     scissor_clip_layer_->setBounds(gfx::Size());
@@ -346,14 +301,16 @@ void AwContents::DrawGL(AwDrawGLInfo* draw_info) {
     undo_clip_position.Translate(-clip_rect.x(), -clip_rect.y());
     scissor_clip_layer_->setSublayerTransform(undo_clip_position);
 
+    gfx::Transform transform;
     transform.matrix().setColMajorf(draw_info->transform);
+
+    // The scrolling values of the Android Framework affect the transformation
+    // matrix. This needs to be undone to let the compositor handle scrolling.
+    transform.Translate(hw_rendering_scroll_.x(), hw_rendering_scroll_.y());
+    transform_layer_->setTransform(transform);
+
     view_clip_layer_->setMasksToBounds(true);
   }
-
-  // The scrolling values of the Android Framework affect the transformation
-  // matrix. This needs to be undone to let the compositor handle scrolling.
-  transform.Translate(last_scroll_x_, last_scroll_y_);
-  transform_layer_->setTransform(transform);
 
   compositor_->Composite();
   is_composite_pending_ = false;
@@ -422,7 +379,7 @@ void AwContents::DrawGL(AwDrawGLInfo* draw_info) {
 }
 
 bool AwContents::DrawSW(JNIEnv* env, jobject obj, jobject java_canvas) {
-  scoped_refptr<cc::PicturePileImpl> picture =
+  skia::RefPtr<SkPicture> picture =
       RendererPictureMap::GetInstance()->GetRendererPicture(
           web_contents_->GetRoutingID());
   if (!picture)
@@ -445,9 +402,8 @@ bool AwContents::DrawSW(JNIEnv* env, jobject obj, jobject java_canvas) {
     SkDevice device(bitmap);
     SkCanvas canvas(&device);
     SkMatrix matrix;
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < 9; i++)
       matrix.set(i, pixels->matrix[i]);
-    }
     canvas.setMatrix(matrix);
 
     SkRegion clip;
@@ -459,12 +415,7 @@ bool AwContents::DrawSW(JNIEnv* env, jobject obj, jobject java_canvas) {
       clip.setRect(SkIRect::MakeWH(pixels->width, pixels->height));
     }
 
-    SkIRect sk_clip_rect = clip.getBounds();
-    gfx::Rect clip_rect(sk_clip_rect.x(), sk_clip_rect.y(),
-                        sk_clip_rect.width(), sk_clip_rect.height());
-
-    cc::RenderingStats stats;
-    picture->Raster(&canvas, clip_rect, 1.0, &stats);
+    picture->draw(&canvas);
   }
 
   g_draw_sw_functions->release_pixels(pixels);
@@ -654,15 +605,29 @@ void AwContents::SetInterceptNavigationDelegate(JNIEnv* env,
 
 static jint Init(JNIEnv* env,
                  jobject obj,
-                 jobject web_contents_delegate,
-                 jboolean private_browsing) {
-  AwContents* tab = new AwContents(env, obj, web_contents_delegate,
-                                   private_browsing);
+                 jobject web_contents_delegate) {
+  AwContents* tab = new AwContents(env, obj, web_contents_delegate);
   return reinterpret_cast<jint>(tab);
 }
 
 bool RegisterAwContents(JNIEnv* env) {
   return RegisterNativesImpl(env) >= 0;
+}
+
+void AwContents::OnGeolocationShowPrompt(int render_process_id,
+                                       int render_view_id,
+                                       int bridge_id,
+                                       const GURL& requesting_frame) {
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jstring> j_requesting_frame(
+      ConvertUTF8ToJavaString(env, requesting_frame.spec()));
+  Java_AwContents_onGeolocationPermissionsShowPrompt(env,
+      java_ref_.get(env).obj(), render_process_id, render_view_id, bridge_id,
+      j_requesting_frame.obj());
+}
+
+void AwContents::OnGeolocationHidePrompt() {
+  // TODO(kristianm): Implement this
 }
 
 jint AwContents::FindAllSync(JNIEnv* env, jobject obj, jstring search_string) {
@@ -860,8 +825,7 @@ jboolean AwContents::RestoreFromOpaqueState(
 
 void AwContents::SetScrollForHWFrame(JNIEnv* env, jobject obj,
                                      int scroll_x, int scroll_y) {
-  last_scroll_x_ = scroll_x;
-  last_scroll_y_ = scroll_y;
+  hw_rendering_scroll_ = gfx::Point(scroll_x, scroll_y);
 }
 
 void AwContents::SetPendingWebContentsForPopup(
@@ -889,6 +853,8 @@ void AwContents::OnPictureUpdated(int process_id, int render_view_id) {
   if (render_view_id != web_contents_->GetRoutingID())
     return;
 
+  // TODO(leandrogracia): delete when sw rendering uses Ubercompositor.
+  // Invalidation should be provided by the compositor only.
   Invalidate();
 }
 

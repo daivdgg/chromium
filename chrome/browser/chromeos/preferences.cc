@@ -4,6 +4,7 @@
 
 #include "chrome/browser/chromeos/preferences.h"
 
+#include "ash/magnifier/magnifier_constants.h"
 #include "base/chromeos/chromeos_version.h"
 #include "base/command_line.h"
 #include "base/i18n/time_formatting.h"
@@ -13,6 +14,7 @@
 #include "base/string_util.h"
 #include "base/utf_string_conversions.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/chromeos/accessibility/magnification_manager.h"
 #include "chrome/browser/chromeos/drive/drive_file_system_util.h"
 #include "chrome/browser/chromeos/input_method/input_method_configuration.h"
 #include "chrome/browser/chromeos/input_method/input_method_manager.h"
@@ -31,9 +33,9 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "googleurl/src/gurl.h"
+#include "third_party/icu/public/i18n/unicode/timezone.h"
 #include "ui/base/events/event_constants.h"
 #include "ui/base/events/event_utils.h"
-#include "unicode/timezone.h"
 
 namespace chromeos {
 
@@ -93,9 +95,9 @@ void Preferences::RegisterUserPrefs(PrefServiceSyncable* prefs) {
   prefs->RegisterBooleanPref(prefs::kLabsAdvancedFilesystemEnabled,
                              false,
                              PrefServiceSyncable::UNSYNCABLE_PREF);
-  // Check if the accessibility pref is already registered, which can happen
+  // Check if the accessibility prefs are already registered, which can happen
   // in WizardController::RegisterPrefs. We still want to try to register
-  // the pref here in case of Chrome/Linux with ChromeOS=1.
+  // the prefs here in case of Chrome/Linux with ChromeOS=1.
   if (prefs->FindPreference(prefs::kSpokenFeedbackEnabled) == NULL) {
     prefs->RegisterBooleanPref(prefs::kSpokenFeedbackEnabled,
                                false,
@@ -106,27 +108,23 @@ void Preferences::RegisterUserPrefs(PrefServiceSyncable* prefs) {
                                false,
                                PrefServiceSyncable::UNSYNCABLE_PREF);
   }
-  if (prefs->FindPreference(prefs::kScreenMagnifierEnabled) == NULL) {
-    prefs->RegisterBooleanPref(prefs::kScreenMagnifierEnabled,
-                               false,
-                               PrefServiceSyncable::SYNCABLE_PREF);
-  }
-  if (prefs->FindPreference(prefs::kScreenMagnifierScale) == NULL) {
-    prefs->RegisterDoublePref(prefs::kScreenMagnifierScale,
-                              std::numeric_limits<double>::min(),
-                              PrefServiceSyncable::UNSYNCABLE_PREF);
-  }
-  if (prefs->FindPreference(prefs::kShouldAlwaysShowAccessibilityMenu) ==
-      NULL) {
-    prefs->RegisterBooleanPref(prefs::kShouldAlwaysShowAccessibilityMenu,
-                               false,
-                               PrefServiceSyncable::UNSYNCABLE_PREF);
-  }
   if (prefs->FindPreference(prefs::kVirtualKeyboardEnabled) == NULL) {
     prefs->RegisterBooleanPref(prefs::kVirtualKeyboardEnabled,
                                false,
                                PrefServiceSyncable::UNSYNCABLE_PREF);
   }
+  prefs->RegisterBooleanPref(prefs::kScreenMagnifierEnabled,
+                             false,
+                             PrefServiceSyncable::SYNCABLE_PREF);
+  prefs->RegisterIntegerPref(prefs::kScreenMagnifierType,
+                             ash::kDefaultMagnifierType,
+                             PrefServiceSyncable::SYNCABLE_PREF);
+  prefs->RegisterDoublePref(prefs::kScreenMagnifierScale,
+                            std::numeric_limits<double>::min(),
+                            PrefServiceSyncable::UNSYNCABLE_PREF);
+  prefs->RegisterBooleanPref(prefs::kShouldAlwaysShowAccessibilityMenu,
+                             false,
+                             PrefServiceSyncable::UNSYNCABLE_PREF);
   prefs->RegisterIntegerPref(prefs::kMouseSensitivity,
                              3,
                              PrefServiceSyncable::SYNCABLE_PREF);
@@ -276,13 +274,15 @@ void Preferences::RegisterUserPrefs(PrefServiceSyncable* prefs) {
                             "0.0.0.0",
                             PrefServiceSyncable::SYNCABLE_PREF);
 
-  // OAuth1 all access token and secret pair.
-  prefs->RegisterStringPref(prefs::kOAuth1Token,
-                            "",
-                            PrefServiceSyncable::UNSYNCABLE_PREF);
-  prefs->RegisterStringPref(prefs::kOAuth1Secret,
-                            "",
-                            PrefServiceSyncable::UNSYNCABLE_PREF);
+  if (CommandLine::ForCurrentProcess()->HasSwitch(switches::kForceOAuth1)) {
+    // Legacy OAuth1 all access token and secret pair.
+    prefs->RegisterStringPref(prefs::kOAuth1Token,
+                              "",
+                              PrefServiceSyncable::UNSYNCABLE_PREF);
+    prefs->RegisterStringPref(prefs::kOAuth1Secret,
+                              "",
+                              PrefServiceSyncable::UNSYNCABLE_PREF);
+  }
 
   // TODO(wad): Once UI is connected, a final default can be set. At that point
   // change this pref from UNSYNCABLE to SYNCABLE.
@@ -311,13 +311,14 @@ void Preferences::InitUserPrefs(PrefServiceSyncable* prefs) {
   accessibility_enabled_.Init(prefs::kSpokenFeedbackEnabled, prefs, callback);
   screen_magnifier_enabled_.Init(prefs::kScreenMagnifierEnabled,
                                  prefs, callback);
+  screen_magnifier_type_.Init(prefs::kScreenMagnifierType, prefs, callback);
   screen_magnifier_scale_.Init(prefs::kScreenMagnifierScale, prefs, callback);
   mouse_sensitivity_.Init(prefs::kMouseSensitivity, prefs, callback);
   touchpad_sensitivity_.Init(prefs::kTouchpadSensitivity, prefs, callback);
   use_24hour_clock_.Init(prefs::kUse24HourClock, prefs, callback);
   disable_drive_.Init(prefs::kDisableDrive, prefs, callback);
   disable_drive_over_cellular_.Init(prefs::kDisableDriveOverCellular,
-                                   prefs, callback);
+                                    prefs, callback);
   disable_drive_hosted_files_.Init(prefs::kDisableDriveHostedFiles,
                                    prefs, callback);
   download_default_directory_.Init(prefs::kDownloadDefaultDirectory,

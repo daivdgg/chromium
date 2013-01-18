@@ -57,8 +57,10 @@ cr.define('login', function() {
    */
   var OAuthTokenStatus = {
     UNKNOWN: 0,
-    INVALID: 1,
-    VALID: 2
+    INVALID_OLD: 1,
+    VALID_OLD: 2,
+    INVALID_NEW: 3,
+    VALID_NEW: 4
   };
 
   /**
@@ -277,8 +279,10 @@ cr.define('login', function() {
     get needGaiaSignin() {
       // Gaia signin is performed if the user has an invalid oauth token and is
       // not currently signed in (i.e. not the lock screen).
-      return this.user.oauthTokenStatus != OAuthTokenStatus.VALID &&
-          !this.user.signedIn;
+      // Locally managed users never require GAIA signin.
+      return this.user.oauthTokenStatus != OAuthTokenStatus.VALID_OLD &&
+          this.user.oauthTokenStatus != OAuthTokenStatus.VALID_NEW &&
+          !this.user.signedIn && !this.user.locallyManagedUser;
     },
 
     /**
@@ -972,7 +976,7 @@ cr.define('login', function() {
     resetUserOAuthTokenStatus: function(username) {
       var pod = this.getPodWithUsername_(username);
       if (pod) {
-        pod.user.oauthTokenStatus = OAuthTokenStatus.INVALID;
+        pod.user.oauthTokenStatus = OAuthTokenStatus.INVALID_OLD;
         pod.update();
       } else {
         console.log('Failed to update Gaia state for: ' + username);

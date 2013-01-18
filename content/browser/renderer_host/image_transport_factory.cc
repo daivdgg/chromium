@@ -26,8 +26,9 @@
 #include "content/common/gpu/gpu_process_launch_causes.h"
 #include "content/common/webkitplatformsupport_impl.h"
 #include "content/public/common/content_switches.h"
+#include "gpu/GLES2/gl2extchromium.h"
 #include "gpu/ipc/command_buffer_proxy.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebGraphicsContext3D.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebGraphicsContext3D.h"
 #include "third_party/khronos/GLES2/gl2.h"
 #include "third_party/khronos/GLES2/gl2ext.h"
 #include "ui/compositor/compositor.h"
@@ -171,7 +172,7 @@ class ImageTransportClientTexture : public OwnedTexture {
         GL_TEXTURE_2D,
         reinterpret_cast<const signed char*>(mailbox_name.c_str()));
     size_ = new_size;
-    host_context_->flush();
+    host_context_->shallowFlushCHROMIUM();
   }
 
   virtual std::string Produce() OVERRIDE {
@@ -340,7 +341,7 @@ class BrowserCompositorOutputSurface
   }
 
   virtual void SendFrameToParentCompositor(
-      const cc::CompositorFrame&) OVERRIDE {
+      cc::CompositorFrame*) OVERRIDE {
   }
 
   void OnUpdateVSyncParameters(

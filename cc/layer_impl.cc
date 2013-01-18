@@ -74,16 +74,16 @@ void LayerImpl::addChild(scoped_ptr<LayerImpl> child)
 {
     child->setParent(this);
     DCHECK_EQ(layerTreeImpl(), child->layerTreeImpl());
-    m_children.append(child.Pass());
+    m_children.push_back(child.Pass());
     layerTreeImpl()->SetNeedsUpdateDrawProperties();
 }
 
 scoped_ptr<LayerImpl> LayerImpl::removeChild(LayerImpl* child)
 {
-    for (size_t i = 0; i < m_children.size(); ++i) {
-        if (m_children[i] == child) {
-            scoped_ptr<LayerImpl> ret = m_children.take(i);
-            m_children.remove(i);
+    for (ScopedPtrVector<LayerImpl>::iterator it = m_children.begin(); it != m_children.end(); ++it) {
+        if (*it == child) {
+            scoped_ptr<LayerImpl> ret = m_children.take(it);
+            m_children.erase(it);
             layerTreeImpl()->SetNeedsUpdateDrawProperties();
             return ret.Pass();
         }
@@ -99,7 +99,7 @@ void LayerImpl::removeAllChildren()
 
 void LayerImpl::clearChildList()
 {
-    if (m_children.isEmpty())
+    if (m_children.empty())
         return;
 
     m_children.clear();
@@ -245,7 +245,14 @@ InputHandlerClient::ScrollStatus LayerImpl::tryScroll(const gfx::PointF& screenS
 
     if (!nonFastScrollableRegion().IsEmpty()) {
         bool clipped = false;
-        gfx::PointF hitTestPointInContentSpace = MathUtil::projectPoint(MathUtil::inverse(screenSpaceTransform()), screenSpacePoint, clipped);
+        gfx::Transform inverseScreenSpaceTransform(gfx::Transform::kSkipInitialization);
+        if (!screenSpaceTransform().GetInverse(&inverseScreenSpaceTransform)) {
+            // TODO(shawnsingh): We shouldn't be applying a projection if screen space
+            // transform is uninvertible here. Perhaps we should be returning
+            // ScrollOnMainThread in this case?
+        }
+
+        gfx::PointF hitTestPointInContentSpace = MathUtil::projectPoint(inverseScreenSpaceTransform, screenSpacePoint, clipped);
         gfx::PointF hitTestPointInLayerSpace = gfx::ScalePoint(hitTestPointInContentSpace, 1 / contentsScaleX(), 1 / contentsScaleY());
         if (!clipped && nonFastScrollableRegion().Contains(gfx::ToRoundedPoint(hitTestPointInLayerSpace))) {
             TRACE_EVENT0("cc", "LayerImpl::tryScroll: Failed nonFastScrollableRegion");
@@ -278,6 +285,21 @@ gfx::Rect LayerImpl::layerRectToContentRect(const gfx::RectF& layerRect) const
     // values x and y, ceil((x / y) * y) may be x + 1.
     contentRect.Intersect(gfx::Rect(gfx::Point(), contentBounds()));
     return gfx::ToEnclosingRect(contentRect);
+}
+
+skia::RefPtr<SkPicture> LayerImpl::getPicture()
+{
+    return skia::RefPtr<SkPicture>();
+}
+
+bool LayerImpl::canClipSelf() const
+{
+    return false;
+}
+
+bool LayerImpl::areVisibleResourcesReady() const
+{
+    return true;
 }
 
 std::string LayerImpl::indentString(int indent)
@@ -478,6 +500,11 @@ void LayerImpl::OnTransformAnimated(const gfx::Transform& transform)
     setTransform(transform);
 }
 
+bool LayerImpl::IsActive() const
+{
+    return m_layerTreeImpl->IsActiveTree();
+}
+
 void LayerImpl::setBounds(const gfx::Size& bounds)
 {
     if (m_bounds == bounds)
@@ -632,7 +659,7 @@ float LayerImpl::opacity() const
 
 bool LayerImpl::opacityIsAnimating() const
 {
-    return m_layerAnimationController->isAnimatingProperty(ActiveAnimation::Opacity);
+    return m_layerAnimationController->isAnimatingProperty(Animation::Opacity);
 }
 
 void LayerImpl::setPosition(const gfx::PointF& position)
@@ -679,7 +706,7 @@ const gfx::Transform& LayerImpl::transform() const
 
 bool LayerImpl::transformIsAnimating() const
 {
-    return m_layerAnimationController->isAnimatingProperty(ActiveAnimation::Transform);
+    return m_layerAnimationController->isAnimatingProperty(Animation::Transform);
 }
 
 void LayerImpl::setContentBounds(const gfx::Size& contentBounds)
@@ -701,6 +728,19 @@ void LayerImpl::setContentsScale(float contentsScaleX, float contentsScaleY)
     noteLayerPropertyChanged();
 }
 
+void LayerImpl::calculateContentsScale(
+    float idealContentsScale,
+    float* contentsScaleX,
+    float* contentsScaleY,
+    gfx::Size* contentBounds)
+{
+    // Base LayerImpl has all of its content scales and content bounds pushed
+    // from its Layer during commit and just reuses those values as-is.
+    *contentsScaleX = this->contentsScaleX();
+    *contentsScaleY = this->contentsScaleY();
+    *contentBounds = this->contentBounds();
+}
+
 void LayerImpl::setScrollOffset(gfx::Vector2d scrollOffset)
 {
     if (m_scrollOffset == scrollOffset)
@@ -708,6 +748,9 @@ void LayerImpl::setScrollOffset(gfx::Vector2d scrollOffset)
 
     m_scrollOffset = scrollOffset;
     noteLayerPropertyChangedForSubtree();
+
+    if (m_scrollbarAnimationController)
+        m_scrollbarAnimationController->updateScrollOffset(this);
 }
 
 void LayerImpl::setScrollDelta(const gfx::Vector2dF& scrollDelta)
@@ -730,9 +773,10 @@ void LayerImpl::setScrollDelta(const gfx::Vector2dF& scrollDelta)
     }
 
     m_scrollDelta = scrollDelta;
+    noteLayerPropertyChangedForSubtree();
+
     if (m_scrollbarAnimationController)
         m_scrollbarAnimationController->updateScrollOffset(this);
-    noteLayerPropertyChangedForSubtree();
 }
 
 void LayerImpl::setImplTransform(const gfx::Transform& transform)
@@ -772,9 +816,8 @@ void LayerImpl::setMaxScrollOffset(gfx::Vector2d maxScrollOffset)
 
     layerTreeImpl()->SetNeedsUpdateDrawProperties();
 
-    if (!m_scrollbarAnimationController)
-        return;
-    m_scrollbarAnimationController->updateScrollOffset(this);
+    if (m_scrollbarAnimationController)
+        m_scrollbarAnimationController->updateScrollOffset(this);
 }
 
 ScrollbarLayerImpl* LayerImpl::horizontalScrollbarLayer()
@@ -803,7 +846,6 @@ void LayerImpl::setHorizontalScrollbarLayer(ScrollbarLayerImpl* scrollbarLayer)
             m_scrollbarAnimationController = ScrollbarAnimationController::create(this);
     }
     m_scrollbarAnimationController->setHorizontalScrollbarLayer(scrollbarLayer);
-    m_scrollbarAnimationController->updateScrollOffset(this);
 }
 
 ScrollbarLayerImpl* LayerImpl::verticalScrollbarLayer()
@@ -825,7 +867,6 @@ void LayerImpl::setVerticalScrollbarLayer(ScrollbarLayerImpl* scrollbarLayer)
             m_scrollbarAnimationController = ScrollbarAnimationController::create(this);
     }
     m_scrollbarAnimationController->setVerticalScrollbarLayer(scrollbarLayer);
-    m_scrollbarAnimationController->updateScrollOffset(this);
 }
 
 }  // namespace cc

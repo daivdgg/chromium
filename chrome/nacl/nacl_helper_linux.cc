@@ -43,14 +43,8 @@ void BecomeNaClLoader(const std::vector<int>& child_fds,
   // don't need zygote FD any more
   if (HANDLE_EINTR(close(kNaClZygoteDescriptor)) != 0)
     LOG(ERROR) << "close(kNaClZygoteDescriptor) failed.";
-  // Set up browser descriptor on fd 3 and IPC as expected by Chrome.
   base::GlobalDescriptors::GetInstance()->Set(kPrimaryIPCChannel,
-      kPrimaryIPCChannel + base::GlobalDescriptors::kBaseDescriptor);
-  int zfd = dup2(child_fds[kNaClBrowserFDIndex], kNaClBrowserDescriptor);
-  if (zfd != kNaClBrowserDescriptor) {
-    LOG(ERROR) << "Could not initialize kNaClBrowserDescriptor";
-    _exit(-1);
-  }
+                                              child_fds[kNaClBrowserFDIndex]);
 
   MessageLoopForIO main_message_loop;
   NaClListener listener;
@@ -145,14 +139,14 @@ static const char kNaClHelperRDebug[] = "r_debug";
 // dynamic linker's structure into the address provided by the option.
 // Hereafter, if someone attaches a debugger (or examines a core dump),
 // the debugger will find all the symbols in the normal way.
-static void CheckRDebug(char *argv0) {
+static void CheckRDebug(char* argv0) {
   std::string r_debug_switch_value =
       CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kNaClHelperRDebug);
   if (!r_debug_switch_value.empty()) {
-    char *endp;
+    char* endp;
     uintptr_t r_debug_addr = strtoul(r_debug_switch_value.c_str(), &endp, 0);
     if (r_debug_addr != 0 && *endp == '\0') {
-      struct r_debug *bootstrap_r_debug = (struct r_debug *) r_debug_addr;
+      r_debug* bootstrap_r_debug = reinterpret_cast<r_debug*>(r_debug_addr);
       *bootstrap_r_debug = _r_debug;
 
       // Since the main executable (the bootstrap program) does not
@@ -163,7 +157,7 @@ static void CheckRDebug(char *argv0) {
       // normal for the main executable.  So the debugger doesn't
       // know which file it is.  Fill in the actual file name, which
       // came in as our argv[0].
-      struct link_map *l = _r_debug.r_map;
+      link_map* l = _r_debug.r_map;
       if (l->l_name[0] == '\0')
         l->l_name = argv0;
     }
@@ -182,7 +176,7 @@ static size_t CheckReservedAtZero() {
       CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
           kNaClHelperReservedAtZero);
   if (!reserved_at_zero_switch_value.empty()) {
-    char *endp;
+    char* endp;
     prereserved_sandbox_size =
         strtoul(reserved_at_zero_switch_value.c_str(), &endp, 0);
     if (*endp != '\0')
@@ -202,12 +196,12 @@ static const char kAsanDefaultOptionsNaCl[] = "handle_segv=0";
 // before ASan is initialized.
 extern "C"
 __attribute__((no_address_safety_analysis))
-const char *__asan_default_options() {
+const char* __asan_default_options() {
   return kAsanDefaultOptionsNaCl;
 }
 #endif
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   CommandLine::Init(argc, argv);
   base::AtExitManager exit_manager;
   base::RandUint64();  // acquire /dev/urandom fd before sandbox is raised

@@ -10,6 +10,8 @@
 #include "cc/picture_layer_tiling_set.h"
 #include "cc/picture_pile_impl.h"
 #include "cc/scoped_ptr_vector.h"
+#include "skia/ext/refptr.h"
+#include "third_party/skia/include/core/SkPicture.h"
 
 namespace cc {
 
@@ -30,6 +32,14 @@ public:
   virtual void appendQuads(QuadSink&, AppendQuadsData&) OVERRIDE;
   virtual void dumpLayerProperties(std::string*, int indent) const OVERRIDE;
   virtual void didUpdateTransforms() OVERRIDE;
+  virtual void didBecomeActive() OVERRIDE;
+  virtual void didLoseOutputSurface() OVERRIDE;
+  virtual void calculateContentsScale(
+      float ideal_contents_scale,
+      float* contents_scale_x,
+      float* contents_scale_y,
+      gfx::Size* content_bounds) OVERRIDE;
+  virtual skia::RefPtr<SkPicture> getPicture() OVERRIDE;
 
   // PictureLayerTilingClient overrides.
   virtual scoped_refptr<Tile> CreateTile(PictureLayerTiling*,
@@ -43,11 +53,15 @@ public:
   void SetIsMask(bool is_mask);
   virtual ResourceProvider::ResourceId contentsResourceId() const OVERRIDE;
 
+  virtual bool areVisibleResourcesReady() const OVERRIDE;
+
 protected:
   PictureLayerImpl(LayerTreeImpl* treeImpl, int id);
-  void AddTiling(float contents_scale, gfx::Size tile_size);
+  PictureLayerTiling* AddTiling(float contents_scale);
   void SyncFromActiveLayer(const PictureLayerImpl* other);
   gfx::Size TileSize() const;
+  void ManageTilings(float ideal_contents_scale);
+  void CleanUpUnusedTilings(std::vector<PictureLayerTiling*> used_tilings);
 
   PictureLayerTilingSet tilings_;
   scoped_refptr<PicturePileImpl> pile_;
@@ -57,8 +71,8 @@ protected:
   double last_update_time_;
   gfx::Size last_bounds_;
   gfx::Size last_content_bounds_;
-  float last_content_scale_x_;
-  float last_content_scale_y_;
+  float last_content_scale_;
+  float ideal_contents_scale_;
   bool is_mask_;
 
   friend class PictureLayer;

@@ -119,10 +119,40 @@ void LabelButton::SetDefaultButton(bool default_button) {
 
 void LabelButton::SetNativeTheme(bool native_theme) {
   native_theme_ = native_theme;
-  static_cast<LabelButtonBorder*>(border())->set_native_theme(native_theme);
+  LabelButtonBorder* border = new LabelButtonBorder();
+  border->set_native_theme(native_theme);
+  set_border(border);
   // Invalidate the layout to pickup the new insets from the border.
   InvalidateLayout();
   ResetColorsFromNativeTheme();
+}
+
+gfx::Size LabelButton::GetPreferredSize() {
+  // Resize multi-line labels paired with images to use their available width.
+  const gfx::Size image_size(image_->GetPreferredSize());
+  if (GetTextMultiLine() && !image_size.IsEmpty() && !GetText().empty() &&
+      GetHorizontalAlignment() == gfx::ALIGN_CENTER) {
+    label_->SizeToFit(GetLocalBounds().width() - image_size.width() - kSpacing);
+  }
+
+  // Calculate the required size.
+  gfx::Size size(label_->GetPreferredSize());
+  if (image_size.width() > 0 && size.width() > 0)
+    size.Enlarge(kSpacing, 0);
+  size.set_height(std::max(size.height(), image_size.height()));
+  size.Enlarge(image_size.width() + GetInsets().width(), GetInsets().height());
+
+  // Increase the minimum size monotonically with the preferred size.
+  size.SetSize(std::max(min_size_.width(), size.width()),
+               std::max(min_size_.height(), size.height()));
+  min_size_ = size;
+
+  // Return the largest known size clamped to the maximum size (if valid).
+  if (max_size_.width() > 0)
+    size.set_width(std::min(max_size_.width(), size.width()));
+  if (max_size_.height() > 0)
+    size.set_height(std::min(max_size_.height(), size.height()));
+  return size;
 }
 
 void LabelButton::ResetColorsFromNativeTheme() {
@@ -157,34 +187,6 @@ void LabelButton::StateChanged() {
     Layout();
 }
 
-gfx::Size LabelButton::GetPreferredSize() {
-  // Resize multi-line labels paired with images to use their available width.
-  const gfx::Size image_size(image_->GetPreferredSize());
-  if (GetTextMultiLine() && !image_size.IsEmpty() && !GetText().empty() &&
-      GetHorizontalAlignment() == gfx::ALIGN_CENTER) {
-    label_->SizeToFit(GetLocalBounds().width() - image_size.width() - kSpacing);
-  }
-
-  // Calculate the required size.
-  gfx::Size size(label_->GetPreferredSize());
-  if (image_size.width() > 0 && size.width() > 0)
-    size.Enlarge(kSpacing, 0);
-  size.set_height(std::max(size.height(), image_size.height()));
-  size.Enlarge(image_size.width() + GetInsets().width(), GetInsets().height());
-
-  // Increase the minimum size monotonically with the preferred size.
-  size.SetSize(std::max(min_size_.width(), size.width()),
-               std::max(min_size_.height(), size.height()));
-  min_size_ = size;
-
-  // Return the largest known size clamped to the maximum size (if valid).
-  if (max_size_.width() > 0)
-    size.set_width(std::min(max_size_.width(), size.width()));
-  if (max_size_.height() > 0)
-    size.set_height(std::min(max_size_.height(), size.height()));
-  return size;
-}
-
 void LabelButton::Layout() {
   gfx::Rect child_area(GetLocalBounds());
   child_area.Inset(GetInsets());
@@ -198,7 +200,8 @@ void LabelButton::Layout() {
   // avoids wasted space within the label that would look like awkward padding.
   gfx::Size label_size(child_area.size());
   if (!image_size.IsEmpty() && !label_size.IsEmpty()) {
-    label_size.set_width(child_area.width() - image_size.width() - kSpacing);
+    label_size.set_width(
+        std::max(child_area.width() - image_size.width() - kSpacing, 0));
     if (GetHorizontalAlignment() == gfx::ALIGN_CENTER) {
       // Ensure multi-line labels paired with images use their available width.
       if (GetTextMultiLine())

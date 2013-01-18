@@ -61,6 +61,7 @@ class WebNavigationTabObserver
       bool is_main_frame,
       const GURL& validated_url,
       bool is_error_page,
+      bool is_iframe_srcdoc,
       content::RenderViewHost* render_view_host) OVERRIDE;
   virtual void DidCommitProvisionalLoadForFrame(
       int64 frame_num,
@@ -200,15 +201,15 @@ class WebNavigationEventRouter : public TabStripModelObserver,
 };
 
 // API function that returns the state of a given frame.
-class GetFrameFunction : public SyncExtensionFunction {
-  virtual ~GetFrameFunction() {}
+class WebNavigationGetFrameFunction : public SyncExtensionFunction {
+  virtual ~WebNavigationGetFrameFunction() {}
   virtual bool RunImpl() OVERRIDE;
   DECLARE_EXTENSION_FUNCTION_NAME("webNavigation.getFrame")
 };
 
 // API function that returns the states of all frames in a given tab.
-class GetAllFramesFunction : public SyncExtensionFunction {
-  virtual ~GetAllFramesFunction() {}
+class WebNavigationGetAllFramesFunction : public SyncExtensionFunction {
+  virtual ~WebNavigationGetAllFramesFunction() {}
   virtual bool RunImpl() OVERRIDE;
   DECLARE_EXTENSION_FUNCTION_NAME("webNavigation.getAllFrames")
 };
@@ -221,6 +222,9 @@ class WebNavigationAPI : public ProfileKeyedAPI,
 
   // ProfileKeyedService implementation.
   virtual void Shutdown() OVERRIDE;
+
+  // ProfileKeyedAPI implementation.
+  static ProfileKeyedAPIFactory<WebNavigationAPI>* GetFactoryInstance();
 
   // EventRouter::Observer implementation.
   virtual void OnListenerAdded(const extensions::EventListenerInfo& details)
@@ -242,10 +246,6 @@ class WebNavigationAPI : public ProfileKeyedAPI,
 
   DISALLOW_COPY_AND_ASSIGN(WebNavigationAPI);
 };
-
-template <>
-ProfileKeyedAPIFactory<WebNavigationAPI>*
-ProfileKeyedAPIFactory<WebNavigationAPI>::GetInstance();
 
 }  // namespace extensions
 

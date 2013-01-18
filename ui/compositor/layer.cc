@@ -28,15 +28,10 @@
 
 namespace {
 
-const float EPSILON = 1e-3f;
-
-bool IsApproximateMultipleOf(float value, float base) {
-  float remainder = fmod(fabs(value), base);
-  return remainder < EPSILON || base - remainder < EPSILON;
-}
-
 const ui::Layer* GetRoot(const ui::Layer* layer) {
-  return layer->parent() ? GetRoot(layer->parent()) : layer;
+  while (layer->parent())
+    layer = layer->parent();
+  return layer;
 }
 
 }  // namespace
@@ -581,7 +576,7 @@ void Layer::StackRelativeTo(Layer* child, Layer* other, bool above) {
 bool Layer::ConvertPointForAncestor(const Layer* ancestor,
                                     gfx::Point* point) const {
   gfx::Transform transform;
-  bool result = GetTransformRelativeTo(ancestor, &transform);
+  bool result = GetTargetTransformRelativeTo(ancestor, &transform);
   gfx::Point3F p(*point);
   transform.TransformPoint(p);
   *point = gfx::ToFlooredPoint(p.AsPointF());
@@ -591,22 +586,24 @@ bool Layer::ConvertPointForAncestor(const Layer* ancestor,
 bool Layer::ConvertPointFromAncestor(const Layer* ancestor,
                                      gfx::Point* point) const {
   gfx::Transform transform;
-  bool result = GetTransformRelativeTo(ancestor, &transform);
+  bool result = GetTargetTransformRelativeTo(ancestor, &transform);
   gfx::Point3F p(*point);
   transform.TransformPointReverse(p);
   *point = gfx::ToFlooredPoint(p.AsPointF());
   return result;
 }
 
-bool Layer::GetTransformRelativeTo(const Layer* ancestor,
+bool Layer::GetTargetTransformRelativeTo(const Layer* ancestor,
                                    gfx::Transform* transform) const {
   const Layer* p = this;
   for (; p && p != ancestor; p = p->parent()) {
     gfx::Transform translation;
     translation.Translate(static_cast<float>(p->bounds().x()),
                           static_cast<float>(p->bounds().y()));
-    if (!p->transform().IsIdentity())
-      transform->ConcatTransform(p->transform());
+    // Use target transform so that result will be correct once animation is
+    // finished.
+    if (!p->GetTargetTransform().IsIdentity())
+      transform->ConcatTransform(p->GetTargetTransform());
     transform->ConcatTransform(translation);
   }
   return p == ancestor;

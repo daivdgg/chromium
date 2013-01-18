@@ -60,7 +60,6 @@
 #include "grit/generated_resources.h"
 #include "ipc/ipc_message_macros.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebAutofillClient.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebFormElement.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/rect.h"
 
@@ -68,6 +67,7 @@ typedef PersonalDataManager::GUIDPair GUIDPair;
 using base::TimeTicks;
 using content::BrowserThread;
 using content::RenderViewHost;
+using WebKit::WebFormElement;
 
 namespace {
 
@@ -83,8 +83,6 @@ const size_t kMaxRecentFormSignaturesToRemember = 3;
 // Set a conservative upper bound on the number of forms we are willing to
 // cache, simply to prevent unbounded memory consumption.
 const size_t kMaxFormCacheSize = 100;
-
-const string16::value_type kCreditCardPrefix[] = {'*', 0};
 
 // Removes duplicate suggestions whilst preserving their original order.
 void RemoveDuplicateSuggestions(std::vector<string16>* values,
@@ -363,6 +361,8 @@ bool AutofillManager::OnMessageReceived(const IPC::Message& message) {
                         OnSetDataList)
     IPC_MESSAGE_HANDLER(AutofillHostMsg_RequestAutocomplete,
                         OnRequestAutocomplete)
+    IPC_MESSAGE_HANDLER(AutofillHostMsg_ClickFailed,
+                        OnClickFailed)
     IPC_MESSAGE_UNHANDLED(handled = false)
   IPC_END_MESSAGE_MAP()
 
@@ -522,7 +522,7 @@ void AutofillManager::OnQueryFormFieldAutofill(int query_id,
         (AutofillType(type).group() == AutofillType::CREDIT_CARD);
     if (is_filling_credit_card) {
       GetCreditCardSuggestions(
-          form_structure, field, type, &values, &labels, &icons, &unique_ids);
+          field, type, &values, &labels, &icons, &unique_ids);
     } else {
       GetProfileSuggestions(
           form_structure, field, type, &values, &labels, &icons, &unique_ids);
@@ -768,6 +768,11 @@ void AutofillManager::OnSetDataList(const std::vector<string16>& values,
                                     const std::vector<string16>& labels,
                                     const std::vector<string16>& icons,
                                     const std::vector<int>& unique_ids) {
+  if (labels.size() != values.size() ||
+      icons.size() != values.size() ||
+      unique_ids.size() != values.size()) {
+    return;
+  }
   if (external_delegate_) {
     external_delegate_->SetCurrentDataListValues(values,
                                                  labels,
@@ -781,7 +786,8 @@ void AutofillManager::OnRequestAutocomplete(
     const GURL& frame_url,
     const content::SSLStatus& ssl_status) {
   if (!IsAutofillEnabled()) {
-    ReturnAutocompleteError();
+    ReturnAutocompleteResult(WebFormElement::AutocompleteResultErrorDisabled,
+                             FormData());
     return;
   }
 
@@ -796,12 +802,15 @@ void AutofillManager::OnRequestAutocomplete(
   controller->Show();
 }
 
-void AutofillManager::ReturnAutocompleteError() {
+void AutofillManager::ReturnAutocompleteResult(
+    WebFormElement::AutocompleteResult result, const FormData& form_data) {
   RenderViewHost* host = web_contents()->GetRenderViewHost();
   if (!host)
     return;
 
-  host->Send(new AutofillMsg_RequestAutocompleteError(host->GetRoutingID()));
+  host->Send(new AutofillMsg_RequestAutocompleteResult(host->GetRoutingID(),
+                                                       result,
+                                                       form_data));
 }
 
 void AutofillManager::ReturnAutocompleteData(const FormStructure* result) {
@@ -810,17 +819,13 @@ void AutofillManager::ReturnAutocompleteData(const FormStructure* result) {
   if (!web_contents())
     return;
 
-  RenderViewHost* host = web_contents()->GetRenderViewHost();
-  if (!host)
-    return;
-
   if (!result) {
-    ReturnAutocompleteError();
-    return;
+    ReturnAutocompleteResult(WebFormElement::AutocompleteResultErrorCancel,
+                             FormData());
+  } else {
+    ReturnAutocompleteResult(WebFormElement::AutocompleteResultSuccess,
+                             result->ToFormData());
   }
-
-  host->Send(new AutofillMsg_RequestAutocompleteSuccess(host->GetRoutingID(),
-                                                        result->ToFormData()));
 }
 
 void AutofillManager::OnLoadedServerPredictions(
@@ -837,6 +842,10 @@ void AutofillManager::OnLoadedServerPredictions(
 void AutofillManager::OnDidEndTextFieldEditing() {
   if (external_delegate_)
     external_delegate_->DidEndTextFieldEditing();
+}
+
+void AutofillManager::OnClickFailed(autofill::AutocheckoutStatus status) {
+  // TODO(ahutter): Plug into WalletClient.
 }
 
 bool AutofillManager::IsAutofillEnabled() const {
@@ -869,12 +878,8 @@ void AutofillManager::ImportFormData(const FormStructure& submitted_form) {
   // it.
   scoped_ptr<const CreditCard> scoped_credit_card(imported_credit_card);
   if (imported_credit_card && web_contents()) {
-    InfoBarService* infobar_service = manager_delegate_->GetInfoBarService();
-    infobar_service->AddInfoBar(
-        new AutofillCCInfoBarDelegate(infobar_service,
-                                      scoped_credit_card.release(),
-                                      personal_data_,
-                                      metric_logger_.get()));
+    AutofillCCInfoBarDelegate::Create(manager_delegate_->GetInfoBarService(),
+        scoped_credit_card.release(), personal_data_, metric_logger_.get());
   }
 }
 
@@ -1148,41 +1153,18 @@ void AutofillManager::GetProfileSuggestions(
 }
 
 void AutofillManager::GetCreditCardSuggestions(
-    FormStructure* form,
     const FormFieldData& field,
     AutofillFieldType type,
     std::vector<string16>* values,
     std::vector<string16>* labels,
     std::vector<string16>* icons,
     std::vector<int>* unique_ids) const {
-  const std::string app_locale = AutofillCountry::ApplicationLocale();
-  for (std::vector<CreditCard*>::const_iterator iter =
-           personal_data_->credit_cards().begin();
-       iter != personal_data_->credit_cards().end(); ++iter) {
-    CreditCard* credit_card = *iter;
+  std::vector<GUIDPair> guid_pairs;
+  personal_data_->GetCreditCardSuggestions(
+      type, field.value, values, labels, icons, &guid_pairs);
 
-    // The value of the stored data for this field type in the |credit_card|.
-    string16 creditcard_field_value = credit_card->GetInfo(type, app_locale);
-    if (!creditcard_field_value.empty() &&
-        StartsWith(creditcard_field_value, field.value, false)) {
-      if (type == CREDIT_CARD_NUMBER)
-        creditcard_field_value = credit_card->ObfuscatedNumber();
-
-      string16 label;
-      if (credit_card->number().empty()) {
-        // If there is no CC number, return name to show something.
-        label = credit_card->GetInfo(CREDIT_CARD_NAME, app_locale);
-      } else {
-        label = kCreditCardPrefix;
-        label.append(credit_card->LastFourDigits());
-      }
-
-      values->push_back(creditcard_field_value);
-      labels->push_back(label);
-      icons->push_back(UTF8ToUTF16(credit_card->type()));
-      unique_ids->push_back(PackGUIDs(GUIDPair(credit_card->guid(), 0),
-                                      GUIDPair(std::string(), 0)));
-    }
+  for (size_t i = 0; i < guid_pairs.size(); ++i) {
+    unique_ids->push_back(PackGUIDs(guid_pairs[i], GUIDPair(std::string(), 0)));
   }
 }
 

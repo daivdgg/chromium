@@ -68,6 +68,7 @@ bool V8UnitTest::ExecuteJavascriptLibraries() {
       library_file = file_util::PathExists(gen_file) ? gen_file :
           test_data_directory.Append(*user_libraries_iterator);
     }
+    file_util::AbsolutePath(&library_file);
     if (!file_util::ReadFileToString(library_file, &library_content)) {
       ADD_FAILURE() << library_file.value();
       return false;
@@ -134,6 +135,15 @@ void V8UnitTest::InitPathsAndLibraries() {
   mockPath = mockPath.AppendASCII("mock4js");
   mockPath = mockPath.AppendASCII("mock4js.js");
   AddLibrary(mockPath);
+
+  FilePath accessibilityAuditPath;
+  ASSERT_TRUE(PathService::Get(base::DIR_SOURCE_ROOT, &accessibilityAuditPath));
+  accessibilityAuditPath = accessibilityAuditPath.AppendASCII("third_party");
+  accessibilityAuditPath =
+      accessibilityAuditPath.AppendASCII("accessibility-developer-tools");
+  accessibilityAuditPath = accessibilityAuditPath.AppendASCII("gen");
+  accessibilityAuditPath = accessibilityAuditPath.AppendASCII("axs_testing.js");
+  AddLibrary(accessibilityAuditPath);
 
   FilePath testApiPath;
   ASSERT_TRUE(PathService::Get(chrome::DIR_TEST_DATA, &testApiPath));

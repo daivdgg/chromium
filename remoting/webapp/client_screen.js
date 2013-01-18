@@ -94,15 +94,6 @@ remoting.cancelConnect = function() {
 */
 
 /**
- * Toggle the scale-to-fit feature for the current client session.
- *
- * @return {void} Nothing.
- */
-remoting.toggleScaleToFit = function() {
-  remoting.clientSession.setScaleToFit(!remoting.clientSession.getScaleToFit());
-};
-
-/**
  * Update the remoting client layout in response to a resize event.
  *
  * @return {void} Nothing.
@@ -216,7 +207,7 @@ function onClientStateChange_(oldState, newState) {
     showConnectError_(remoting.Error.BAD_PLUGIN_VERSION);
 
   } else if (newState == remoting.ClientSession.State.CONNECTING) {
-    console.log('Connecting as ' + remoting.oauth2.getCachedEmail());
+    console.log('Connecting as ' + remoting.identity.getCachedEmail());
 
   } else if (newState == remoting.ClientSession.State.INITIALIZING) {
     console.log('Initializing connection');

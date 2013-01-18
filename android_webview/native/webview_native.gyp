@@ -11,7 +11,7 @@
       'type': 'static_library',
       'dependencies': [
         '../../base/base.gyp:base_static',
-        '../../content/content.gyp:web_contents_delegate_android',
+        '../../components/components.gyp:web_contents_delegate_android',
         '../../skia/skia.gyp:skia',
         '../../ui/gl/gl.gyp:gl',
         'android_webview_native_jni',
@@ -32,6 +32,8 @@
         'aw_contents.h',
         'aw_contents_io_thread_client_impl.cc',
         'aw_contents_io_thread_client_impl.h',
+        'aw_geolocation_permission_context.cc',
+        'aw_geolocation_permission_context.h',
         'aw_http_auth_handler.cc',
         'aw_http_auth_handler.h',
         'aw_javascript_dialog_creator.cc',

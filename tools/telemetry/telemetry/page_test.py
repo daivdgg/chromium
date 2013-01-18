@@ -1,6 +1,8 @@
 # Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
+import sys
+
 class Failure(Exception):
   """Exception that can be thrown from MultiPageBenchmark to indicate an
   undesired but designed-for problem."""
@@ -28,7 +30,10 @@ class PageTestResults(object):
 class PageTest(object):
   """A class styled on unittest.TestCase for creating page-specific tests."""
 
-  def __init__(self, test_method_name, interaction_name_to_run=''):
+  def __init__(self,
+               test_method_name,
+               interaction_name_to_run='',
+               needs_browser_restart_after_each_run=False):
     self.options = None
     try:
       self._test_method = getattr(self, test_method_name)
@@ -36,12 +41,18 @@ class PageTest(object):
       raise ValueError, 'No such method %s.%s' % (
         self.__class_, test_method_name) # pylint: disable=E1101
     self._interaction_name_to_run = interaction_name_to_run
+    self._needs_browser_restart_after_each_run = (
+        needs_browser_restart_after_each_run)
+
+  @property
+  def needs_browser_restart_after_each_run(self):
+    return self._needs_browser_restart_after_each_run
 
   def AddCommandLineOptions(self, parser):
     """Override to expose command-line options for this benchmark.
 
     The provided parser is an optparse.OptionParser instance and accepts all
-    normal results. The parsed options are available in MeasurePage as
+    normal results. The parsed options are available in Run as
     self.options."""
     pass
 
@@ -65,6 +76,15 @@ class PageTest(object):
     """Override to customize if the test can be ran for the given page."""
     return True
 
+  def WillNavigateToPage(self, page, tab):
+    """Override to do operations before the page is navigated."""
+    pass
+
+  def DidNavigateToPage(self, page, tab):
+    """Override to do operations right after the page is navigated, but before
+    any waiting for completion has occurred."""
+    pass
+
   def WillRunInteraction(self, page, tab):
     """Override to do operations before running the interaction on the page."""
     pass
@@ -77,9 +97,9 @@ class PageTest(object):
     self.options = options
     interaction = self.GetInteraction(page)
     if interaction:
-      tab.WaitForDocumentReadyStateToBeInteractiveOrBetter()
+      interaction.WillRunInteraction(page, tab)
       self.WillRunInteraction(page, tab)
-      interaction.PerformInteraction(page, tab)
+      interaction.RunInteraction(page, tab)
       self.DidRunInteraction(page, tab)
     try:
       self._test_method(page, tab, results)
@@ -91,8 +111,15 @@ class PageTest(object):
       return None
     interaction_data = getattr(page, self._interaction_name_to_run)
     from telemetry import all_page_interactions
-    return all_page_interactions.FindClassWithName(
-        interaction_data['action'])(interaction_data)
+    cls = all_page_interactions.FindClassWithName(interaction_data['action'])
+    if not cls:
+      sys.stderr.write('Could not find interaction named %s\n' %
+                       interaction_data['action'])
+      sys.stderr.write('Check the pageset for a typo and check the error log' +
+                       'for possible python loading/compilation errors\n')
+      raise Exception('%s not found' % interaction_data['action'])
+    assert cls
+    return cls(interaction_data)
 
   @property
   def interaction_name_to_run(self):

@@ -12,9 +12,9 @@
 #include "base/sys_string_conversions.h"
 #include "base/utf_string_conversions.h"
 #include "googleurl/src/gurl.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebCString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebCString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSecurityOrigin.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
 #include "webkit/fileapi/file_system_types.h"
 
 namespace fileapi {
@@ -271,6 +271,22 @@ bool CrackIsolatedFileSystemName(const std::string& filesystem_name,
     return false;
 
   return true;
+}
+
+std::string GetIsolatedFileSystemRootURIString(
+    const GURL& origin_url,
+    const std::string& filesystem_id,
+    const std::string& optional_root_name) {
+  std::string root = GetFileSystemRootURI(origin_url,
+                                          kFileSystemTypeIsolated).spec();
+  root.append(filesystem_id);
+  root.append("/");
+  if (!optional_root_name.empty()) {
+    DCHECK(!FilePath::FromUTF8Unsafe(optional_root_name).ReferencesParent());
+    root.append(optional_root_name);
+    root.append("/");
+  }
+  return root;
 }
 
 }  // namespace fileapi

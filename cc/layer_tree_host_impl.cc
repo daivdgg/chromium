@@ -26,6 +26,7 @@
 #include "cc/math_util.h"
 #include "cc/overdraw_metrics.h"
 #include "cc/page_scale_animation.h"
+#include "cc/paint_time_counter.h"
 #include "cc/prioritized_resource_manager.h"
 #include "cc/quad_culler.h"
 #include "cc/render_pass_draw_quad.h"
@@ -37,6 +38,7 @@
 #include "cc/software_renderer.h"
 #include "cc/solid_color_draw_quad.h"
 #include "cc/texture_uploader.h"
+#include "cc/top_controls_manager.h"
 #include "cc/util.h"
 #include "ui/gfx/size_conversions.h"
 #include "ui/gfx/vector2d_conversions.h"
@@ -57,105 +59,6 @@ void didVisibilityChange(cc::LayerTreeHostImpl* id, bool visible)
 
 namespace cc {
 
-PinchZoomViewport::PinchZoomViewport()
-    : m_pageScaleFactor(1)
-    , m_pageScaleDelta(1)
-    , m_sentPageScaleDelta(1)
-    , m_minPageScaleFactor(0)
-    , m_maxPageScaleFactor(0)
-    , m_deviceScaleFactor(1)
-{
-}
-
-float PinchZoomViewport::totalPageScaleFactor() const
-{
-    return m_pageScaleFactor * m_pageScaleDelta;
-}
-
-void PinchZoomViewport::setPageScaleDelta(float delta)
-{
-    // Clamp to the current min/max limits.
-    float totalPageScaleFactor = m_pageScaleFactor * delta;
-    if (m_minPageScaleFactor && totalPageScaleFactor < m_minPageScaleFactor)
-        delta = m_minPageScaleFactor / m_pageScaleFactor;
-    else if (m_maxPageScaleFactor && totalPageScaleFactor > m_maxPageScaleFactor)
-        delta = m_maxPageScaleFactor / m_pageScaleFactor;
-
-    if (delta == m_pageScaleDelta)
-        return;
-
-    m_pageScaleDelta = delta;
-}
-
-bool PinchZoomViewport::setPageScaleFactorAndLimits(float pageScaleFactor, float minPageScaleFactor, float maxPageScaleFactor)
-{
-    DCHECK(pageScaleFactor);
-
-    if (m_sentPageScaleDelta == 1 && pageScaleFactor == m_pageScaleFactor && minPageScaleFactor == m_minPageScaleFactor && maxPageScaleFactor == m_maxPageScaleFactor)
-        return false;
-
-    m_minPageScaleFactor = minPageScaleFactor;
-    m_maxPageScaleFactor = maxPageScaleFactor;
-
-    m_pageScaleFactor = pageScaleFactor;
-    return true;
-}
-
-gfx::RectF PinchZoomViewport::bounds() const
-{
-    gfx::RectF bounds(gfx::PointF(), m_layoutViewportSize);
-    bounds.Scale(1 / totalPageScaleFactor());
-    bounds += m_zoomedViewportOffset;
-    return bounds;
-}
-
-gfx::Vector2dF PinchZoomViewport::applyScroll(const gfx::Vector2dF& delta)
-{
-    gfx::Vector2dF overflow;
-    gfx::RectF pinchedBounds = bounds() + delta;
-
-    if (pinchedBounds.x() < 0) {
-        overflow.set_x(pinchedBounds.x());
-        pinchedBounds.set_x(0);
-    }
-
-    if (pinchedBounds.y() < 0) {
-        overflow.set_y(pinchedBounds.y());
-        pinchedBounds.set_y(0);
-    }
-
-    if (pinchedBounds.right() > m_layoutViewportSize.width()) {
-        overflow.set_x(pinchedBounds.right() - m_layoutViewportSize.width());
-        pinchedBounds += gfx::Vector2dF(m_layoutViewportSize.width() - pinchedBounds.right(), 0);
-    }
-
-    if (pinchedBounds.bottom() > m_layoutViewportSize.height()) {
-        overflow.set_y(pinchedBounds.bottom() - m_layoutViewportSize.height());
-        pinchedBounds += gfx::Vector2dF(0, m_layoutViewportSize.height() - pinchedBounds.bottom());
-    }
-    m_zoomedViewportOffset = pinchedBounds.OffsetFromOrigin();
-
-    return overflow;
-}
-
-gfx::Transform PinchZoomViewport::implTransform(bool pageScalePinchZoomEnabled) const
-{
-    gfx::Transform transform;
-    transform.Scale(m_pageScaleDelta, m_pageScaleDelta);
-
-    // If the pinch state is applied in the impl, then push it to the
-    // impl transform, otherwise the scale is handled by WebCore.
-    if (pageScalePinchZoomEnabled) {
-        transform.Scale(m_pageScaleFactor, m_pageScaleFactor);
-        // The offset needs to be scaled by deviceScaleFactor as this transform
-        // needs to work with physical pixels.
-        gfx::Vector2dF zoomedDeviceViewportOffset = gfx::ScaleVector2d(m_zoomedViewportOffset, m_deviceScaleFactor);
-        transform.Translate(-zoomedDeviceViewportOffset.x(), -zoomedDeviceViewportOffset.y());
-    }
-
-    return transform;
-}
-
 class LayerTreeHostImplTimeSourceAdapter : public TimeSourceClient {
 public:
     static scoped_ptr<LayerTreeHostImplTimeSourceAdapter> create(LayerTreeHostImpl* layerTreeHostImpl, scoped_refptr<DelayBasedTimeSource> timeSource)
@@ -170,6 +73,25 @@ public:
 
     virtual void onTimerTick() OVERRIDE
     {
+        // In single threaded mode we attempt to simulate changing the current
+        // thread by maintaining a fake thread id. When we switch from one
+        // thread to another, we construct DebugScopedSetXXXThread objects that
+        // update the thread id. This lets DCHECKS that ensure we're on the
+        // right thread to work correctly in single threaded mode. The problem
+        // here is that the timer tasks are run via the message loop, and when
+        // they run, we've had no chance to construct a DebugScopedSetXXXThread
+        // object. The result is that we report that we're running on the main
+        // thread. In multi-threaded mode, this timer is run on the compositor
+        // thread, so to keep this consistent in single-threaded mode, we'll
+        // construct a DebugScopedSetImplThread object. There is no need to do
+        // this in multi-threaded mode since the real thread id's will be
+        // correct. In fact, setting fake thread id's interferes with the real
+        // thread id's and causes breakage.
+        scoped_ptr<DebugScopedSetImplThread> setImplThread;
+        if (!m_layerTreeHostImpl->proxy()->hasImplThread())
+            setImplThread.reset(new DebugScopedSetImplThread(m_layerTreeHostImpl->proxy()));
+
+        m_layerTreeHostImpl->activatePendingTreeIfNeeded();
         m_layerTreeHostImpl->animate(base::TimeTicks::Now(), base::Time::Now());
     }
 
@@ -219,11 +141,10 @@ LayerTreeHostImpl::LayerTreeHostImpl(const LayerTreeSettings& settings, LayerTre
                             ManagedMemoryPolicy::CUTOFF_ALLOW_EVERYTHING,
                             0,
                             ManagedMemoryPolicy::CUTOFF_ALLOW_NOTHING)
-    , m_backgroundColor(0)
-    , m_hasTransparentBackground(false)
     , m_needsUpdateDrawProperties(false)
     , m_pinchGestureActive(false)
     , m_fpsCounter(FrameRateCounter::create(m_proxy->hasImplThread()))
+    , m_paintTimeCounter(PaintTimeCounter::create())
     , m_debugRectHistory(DebugRectHistory::create())
     , m_numImplThreadScrolls(0)
     , m_numMainThreadScrolls(0)
@@ -236,6 +157,9 @@ LayerTreeHostImpl::LayerTreeHostImpl(const LayerTreeSettings& settings, LayerTre
 {
     DCHECK(m_proxy->isImplThread());
     didVisibilityChange(this, m_visible);
+
+    if (settings.calculateTopControlsPosition)
+        m_topControlsManager = TopControlsManager::Create(this, settings.topControlsHeightPx);
 
     // LTHI always has an active tree.
     m_activeTree = LayerTreeImpl::create(this);
@@ -283,14 +207,6 @@ bool LayerTreeHostImpl::canDraw()
     // affect the result of canDraw, make sure to call m_client->onCanDrawStateChanged
     // in the proper places and update the notifyIfCanDrawChanged test.
 
-    // TODO(enne): Since prepareToDraw is the only place that currently does
-    // tree activiation, this allows prepareToDraw to be entered even if the
-    // active tree can't draw.  This could cause flashing, though.  This should
-    // probably be refactored such that the scheduler handles the tree
-    // activation rather than prepareToDrwa.
-    if (pendingTree())
-        return true;
-
     if (!rootLayer()) {
         TRACE_EVENT_INSTANT0("cc", "LayerTreeHostImpl::canDraw no root layer");
         return false;
@@ -320,6 +236,8 @@ void LayerTreeHostImpl::animate(base::TimeTicks monotonicTime, base::Time wallCl
     animatePageScale(monotonicTime);
     animateLayers(monotonicTime, wallClockTime);
     animateScrollbars(monotonicTime);
+    if (m_topControlsManager)
+        m_topControlsManager->Animate(monotonicTime);
 }
 
 void LayerTreeHostImpl::manageTiles()
@@ -346,13 +264,13 @@ void LayerTreeHostImpl::startPageScaleAnimation(gfx::Vector2d targetOffset, bool
     gfx::Vector2dF scrollTotal = rootScrollLayer()->scrollOffset() + rootScrollLayer()->scrollDelta();
     gfx::SizeF scaledContentSize = contentSize();
     if (!m_settings.pageScalePinchZoomEnabled) {
-        scrollTotal.Scale(1 / m_pinchZoomViewport.pageScaleFactor());
-        scaledContentSize.Scale(1 / m_pinchZoomViewport.pageScaleFactor());
+        scrollTotal.Scale(1 / m_pinchZoomViewport.page_scale_factor());
+        scaledContentSize.Scale(1 / m_pinchZoomViewport.page_scale_factor());
     }
     gfx::SizeF viewportSize = gfx::ScaleSize(m_deviceViewportSize, 1 / m_deviceScaleFactor);
 
     double startTimeSeconds = (startTime - base::TimeTicks()).InSecondsF();
-    m_pageScaleAnimation = PageScaleAnimation::create(scrollTotal, m_pinchZoomViewport.totalPageScaleFactor(), viewportSize, scaledContentSize, startTimeSeconds);
+    m_pageScaleAnimation = PageScaleAnimation::create(scrollTotal, m_pinchZoomViewport.total_page_scale_factor(), viewportSize, scaledContentSize, startTimeSeconds);
 
     if (anchorPoint) {
         gfx::Vector2dF anchor(targetOffset);
@@ -378,6 +296,8 @@ void LayerTreeHostImpl::scheduleAnimation()
 
 bool LayerTreeHostImpl::haveTouchEventHandlersAt(const gfx::Point& viewportPoint)
 {
+    if (!ensureRenderSurfaceLayerList())
+      return false;
 
     gfx::PointF deviceViewportPoint = gfx::ScalePoint(viewportPoint, m_deviceScaleFactor);
 
@@ -419,6 +339,8 @@ void LayerTreeHostImpl::updateDrawProperties()
       return;
     }
 
+    if (m_topControlsManager)
+      m_topControlsManager->UpdateDrawPositions();
     activeTree()->UpdateDrawProperties();
     if (pendingTree())
       pendingTree()->UpdateDrawProperties();
@@ -429,7 +351,7 @@ void LayerTreeHostImpl::updateDrawProperties()
 void LayerTreeHostImpl::FrameData::appendRenderPass(scoped_ptr<RenderPass> renderPass)
 {
     renderPassesById[renderPass->id] = renderPass.get();
-    renderPasses.append(renderPass.Pass());
+    renderPasses.push_back(renderPass.Pass());
 }
 
 static void appendQuadsForLayer(RenderPass* targetRenderPass, LayerImpl* layer, OcclusionTrackerImpl& occlusionTracker, AppendQuadsData& appendQuadsData)
@@ -491,8 +413,6 @@ static void appendQuadsToFillScreen(RenderPass* targetRenderPass, LayerImpl* roo
     // doesn't have any bounds and so can't generate this itself.
     // FIXME: Make the gutter quads generated by the solid color layer (make it smarter about generating quads to fill unoccluded areas).
 
-    DCHECK(rootLayer->screenSpaceTransform().IsInvertible());
-
     gfx::Rect rootTargetRect = rootLayer->renderSurface()->contentRect();
     float opacity = 1;
     SharedQuadState* sharedQuadState = quadCuller.useSharedQuadState(SharedQuadState::Create());
@@ -504,10 +424,13 @@ static void appendQuadsToFillScreen(RenderPass* targetRenderPass, LayerImpl* roo
                             opacity);
 
     AppendQuadsData appendQuadsData;
-    gfx::Transform transformToLayerSpace = MathUtil::inverse(rootLayer->screenSpaceTransform());
+
+    gfx::Transform transformToLayerSpace(gfx::Transform::kSkipInitialization);
+    bool didInvert = rootLayer->screenSpaceTransform().GetInverse(&transformToLayerSpace);
+    DCHECK(didInvert);
     for (Region::Iterator fillRects(fillRegion); fillRects.has_rect(); fillRects.next()) {
         // The root layer transform is composed of translations and scales only,
-        // no perspective, so mapping is sufficient.
+        // no perspective, so mapping is sufficient (as opposed to projecting).
         gfx::Rect layerRect = MathUtil::mapClippedRect(transformToLayerSpace, fillRects.rect());
         // Skip the quad culler and just append the quads directly to avoid
         // occlusion checks.
@@ -519,7 +442,7 @@ static void appendQuadsToFillScreen(RenderPass* targetRenderPass, LayerImpl* roo
 
 bool LayerTreeHostImpl::calculateRenderPasses(FrameData& frame)
 {
-    DCHECK(frame.renderPasses.isEmpty());
+    DCHECK(frame.renderPasses.empty());
 
     if (!canDraw() || !rootLayer())
       return false;
@@ -550,6 +473,9 @@ bool LayerTreeHostImpl::calculateRenderPasses(FrameData& frame)
     // checkerboarded is moving due to an impl-animation, we drop the frame to avoid flashing due to the texture suddenly appearing
     // in the future.
     bool drawFrame = true;
+
+    // Make sure we have the most recent info regarding which textures have been uploaded.
+    checkForCompletedSetPixels();
 
     LayerIteratorType end = LayerIteratorType::end(frame.renderSurfaceLayerList);
     for (LayerIteratorType it = LayerIteratorType::begin(frame.renderSurfaceLayerList); it != end; ++it) {
@@ -614,9 +540,9 @@ bool LayerTreeHostImpl::calculateRenderPasses(FrameData& frame)
     }
 #endif
 
-    if (!m_hasTransparentBackground) {
-        frame.renderPasses.last()->has_transparent_background = false;
-        appendQuadsToFillScreen(frame.renderPasses.last(), rootLayer(), m_backgroundColor, occlusionTracker);
+    if (!activeTree()->has_transparent_background()) {
+        frame.renderPasses.back()->has_transparent_background = false;
+        appendQuadsToFillScreen(frame.renderPasses.back(), rootLayer(), activeTree()->background_color(), occlusionTracker);
     }
 
     if (drawFrame)
@@ -660,9 +586,8 @@ static void removeRenderPassesRecursive(RenderPass::Id removeRenderPassId, Layer
 
     DCHECK(toRemove != renderPasses.end());
 
-    size_t index = toRemove - renderPasses.begin();
-    scoped_ptr<RenderPass> removedPass = renderPasses.take(index);
-    frame.renderPasses.remove(index);
+    scoped_ptr<RenderPass> removedPass = renderPasses.take(toRemove);
+    frame.renderPasses.erase(toRemove);
     frame.renderPassesById.erase(removeRenderPassId);
 
     // Now follow up for all RenderPass quads and remove their RenderPasses recursively.
@@ -752,10 +677,6 @@ bool LayerTreeHostImpl::prepareToDraw(FrameData& frame)
 {
     TRACE_EVENT0("cc", "LayerTreeHostImpl::prepareToDraw");
 
-    if (m_tileManager)
-        m_tileManager->CheckForCompletedSetPixels();
-
-    activatePendingTreeIfNeeded();
     updateDrawProperties();
 
     frame.renderSurfaceLayerList = &activeTree()->RenderSurfaceLayerList();
@@ -784,7 +705,6 @@ void LayerTreeHostImpl::enforceManagedMemoryPolicy(const ManagedMemoryPolicy& po
     m_client->sendManagedMemoryStats();
 
     if (m_tileManager) {
-      LOG(INFO) << "Setting up initial tile manager policy";
       GlobalStateThatImpactsTilePriority new_state(m_tileManager->GlobalState());
       new_state.memory_limit_in_bytes = m_visible ? policy.bytesLimitWhenVisible : policy.bytesLimitWhenNotVisible;
       new_state.memory_limit_policy = ManagedMemoryPolicy::priorityCutoffToTileMemoryLimitPolicy(
@@ -802,16 +722,6 @@ void LayerTreeHostImpl::ScheduleManageTiles()
 {
     if (m_client)
       m_client->setNeedsManageTilesOnImplThread();
-}
-
-void LayerTreeHostImpl::ScheduleCheckForCompletedSetPixels()
-{
-    // CheckForCompletedSetPixels() should be called before we draw and
-    // preferably only once per vsync interval. For now just make sure
-    // a redraw is scheduled and call CheckForCompletedSetPixels() in
-    // prepareToDraw().
-    if (m_client)
-      m_client->setNeedsRedrawOnImplThread();
 }
 
 bool LayerTreeHostImpl::shouldClearRootRenderPass() const
@@ -860,20 +770,23 @@ void LayerTreeHostImpl::OnCanDrawStateChangedForTree(LayerTreeImpl*)
 
 CompositorFrameMetadata LayerTreeHostImpl::makeCompositorFrameMetadata() const
 {
-    if (!rootScrollLayer())
-        return CompositorFrameMetadata();
-
     CompositorFrameMetadata metadata;
-    metadata.root_scroll_offset = rootScrollLayer()->scrollOffset() + rootScrollLayer()->scrollDelta();
-    metadata.page_scale_factor = m_pinchZoomViewport.totalPageScaleFactor();
-    metadata.viewport_size = m_pinchZoomViewport.bounds().size();
-    metadata.root_layer_size = rootScrollLayer()->bounds();
-    metadata.min_page_scale_factor = m_pinchZoomViewport.minPageScaleFactor();
-    metadata.max_page_scale_factor = m_pinchZoomViewport.maxPageScaleFactor();
-    if (!m_settings.pageScalePinchZoomEnabled) {
-        metadata.root_scroll_offset.Scale(1 / m_pinchZoomViewport.pageScaleFactor());
-        metadata.root_layer_size.Scale(1 / m_pinchZoomViewport.pageScaleFactor());
+    metadata.page_scale_factor = m_pinchZoomViewport.total_page_scale_factor();
+    metadata.viewport_size = m_pinchZoomViewport.Bounds().size();
+    metadata.root_layer_size = contentSize();
+    metadata.min_page_scale_factor = m_pinchZoomViewport.min_page_scale_factor();
+    metadata.max_page_scale_factor = m_pinchZoomViewport.max_page_scale_factor();
+    if (m_topControlsManager) {
+        metadata.location_bar_offset = gfx::Vector2dF(0.f, m_topControlsManager->controls_top_offset());
+        metadata.location_bar_content_translation = gfx::Vector2dF(0.f, m_topControlsManager->content_top_offset());
     }
+
+    if (!rootScrollLayer())
+      return metadata;
+
+    metadata.root_scroll_offset = rootScrollLayer()->scrollOffset() + rootScrollLayer()->scrollDelta();
+    if (!m_settings.pageScalePinchZoomEnabled)
+        metadata.root_scroll_offset.Scale(1 / m_pinchZoomViewport.page_scale_factor());
 
     return metadata;
 }
@@ -882,12 +795,12 @@ void LayerTreeHostImpl::drawLayers(FrameData& frame)
 {
     TRACE_EVENT0("cc", "LayerTreeHostImpl::drawLayers");
     DCHECK(canDraw());
-    DCHECK(!frame.renderPasses.isEmpty());
+    DCHECK(!frame.renderPasses.empty());
 
     // FIXME: use the frame begin time from the overall compositor scheduler.
     // This value is currently inaccessible because it is up in Chromium's
     // RenderWidget.
-    m_fpsCounter->markBeginningOfFrame(base::TimeTicks::Now());
+    m_fpsCounter->saveTimeStamp(base::TimeTicks::Now());
 
     if (m_debugState.showHudRects())
         m_debugRectHistory->saveDebugRectsForCurrentFrame(rootLayer(), *frame.renderSurfaceLayerList, frame.occludingScreenSpaceRects, frame.nonOccludingScreenSpaceRects, m_debugState);
@@ -899,7 +812,7 @@ void LayerTreeHostImpl::drawLayers(FrameData& frame)
 
     m_renderer->drawFrame(frame.renderPasses);
     // The render passes should be consumed by the renderer.
-    DCHECK(frame.renderPasses.isEmpty());
+    DCHECK(frame.renderPasses.empty());
     frame.renderPassesById.clear();
 
     // The next frame should start by assuming nothing has changed, and changes are noted as they occur.
@@ -937,8 +850,6 @@ const RendererCapabilities& LayerTreeHostImpl::rendererCapabilities() const
 bool LayerTreeHostImpl::swapBuffers()
 {
     DCHECK(m_renderer);
-
-    m_fpsCounter->markEndOfFrame();
     return m_renderer->swapBuffers();
 }
 
@@ -1000,10 +911,9 @@ static LayerImpl* findScrollLayerForContentLayer(LayerImpl* layerImpl)
     return 0;
 }
 
-void LayerTreeHostImpl::setRootLayer(scoped_ptr<LayerImpl> layer)
+LayerTreeImpl* LayerTreeHostImpl::activeTree()
 {
-    m_activeTree->SetRootLayer(layer.Pass());
-    setNeedsUpdateDrawProperties();
+    return m_activeTree.get();
 }
 
 void LayerTreeHostImpl::createPendingTree()
@@ -1014,42 +924,41 @@ void LayerTreeHostImpl::createPendingTree()
     m_client->onHasPendingTreeStateChanged(pendingTree());
 }
 
+void LayerTreeHostImpl::checkForCompletedSetPixels()
+{
+    if (m_tileManager)
+        m_tileManager->CheckForCompletedSetPixels();
+}
+
 void LayerTreeHostImpl::activatePendingTreeIfNeeded()
 {
     if (!pendingTree())
         return;
 
-    int total_pending = m_tileManager->GetTilesInBinCount(NOW_BIN, PENDING_TREE);
-    int total_active = m_tileManager->GetTilesInBinCount(NOW_BIN, ACTIVE_TREE);
-    int drawable_pending = m_tileManager->GetDrawableTilesInBinCount(NOW_BIN, PENDING_TREE);
-    int drawable_active = m_tileManager->GetDrawableTilesInBinCount(NOW_BIN, ACTIVE_TREE);
+    checkForCompletedSetPixels();
 
-    if (total_pending && total_active) {
-        float percent_pending = drawable_pending / static_cast<float>(total_pending);
-        float percent_active = drawable_active / static_cast<float>(total_active);
-        if (percent_pending < percent_active)
-            return;
-    }
+    // It's always fine to activate to an empty tree.  Otherwise, only
+    // activate once all visible resources in pending tree are ready.
+    if (activeTree()->RootLayer() &&
+        !pendingTree()->AreVisibleResourcesReady())
+      return;
 
-    // If there are no pending total tiles (i.e. an empty tree), we should
-    // commit immediately.  Similarly, if there are no active tree tiles.
     activatePendingTree();
 }
 
 void LayerTreeHostImpl::activatePendingTree()
 {
     CHECK(m_pendingTree);
+
+    m_activeTree->PushPersistedState(m_pendingTree.get());
     m_activeTree.swap(m_pendingTree);
     // TODO(enne): consider recycling this tree to prevent layer churn
     m_pendingTree.reset();
+    m_activeTree->DidBecomeActive();
+
     m_client->onCanDrawStateChanged(canDraw());
     m_client->onHasPendingTreeStateChanged(pendingTree());
-}
-
-scoped_ptr<LayerImpl> LayerTreeHostImpl::detachLayerTree()
-{
-    scoped_ptr<LayerImpl> layer = m_activeTree->DetachLayerTree();
-    return layer.Pass();
+    m_client->setNeedsRedrawOnImplThread();
 }
 
 void LayerTreeHostImpl::setVisible(bool visible)
@@ -1075,10 +984,13 @@ bool LayerTreeHostImpl::initializeRenderer(scoped_ptr<OutputSurface> outputSurfa
     // Since we will create a new resource provider, we cannot continue to use
     // the old resources (i.e. renderSurfaces and texture IDs). Clear them
     // before we destroy the old resource provider.
-    if (rootLayer()) {
+    if (rootLayer())
         clearRenderSurfaces();
-        sendDidLoseOutputSurfaceRecursive(rootLayer());
-    }
+    if (activeTree()->RootLayer())
+        sendDidLoseOutputSurfaceRecursive(activeTree()->RootLayer());
+    if (pendingTree() && pendingTree()->RootLayer())
+        sendDidLoseOutputSurfaceRecursive(pendingTree()->RootLayer());
+
     // Note: order is important here.
     m_renderer.reset();
     m_tileManager.reset();
@@ -1096,7 +1008,7 @@ bool LayerTreeHostImpl::initializeRenderer(scoped_ptr<OutputSurface> outputSurfa
       m_tileManager.reset(new TileManager(this, resourceProvider.get(), m_settings.numRasterThreads));
 
     if (outputSurface->Capabilities().has_parent_compositor)
-        m_renderer = DelegatingRenderer::Create(this, resourceProvider.get());
+        m_renderer = DelegatingRenderer::Create(this, outputSurface.get(), resourceProvider.get());
     else if (outputSurface->Context3D())
         m_renderer = GLRenderer::create(this, outputSurface.get(), resourceProvider.get());
     else if (outputSurface->SoftwareDevice())
@@ -1136,7 +1048,7 @@ void LayerTreeHostImpl::setViewportSize(const gfx::Size& layoutViewportSize, con
     m_layoutViewportSize = layoutViewportSize;
     m_deviceViewportSize = deviceViewportSize;
 
-    m_pinchZoomViewport.setLayoutViewportSize(layoutViewportSize);
+    m_pinchZoomViewport.set_layout_viewport_size(layoutViewportSize);
 
     updateMaxScrollOffset();
 
@@ -1167,14 +1079,14 @@ void LayerTreeHostImpl::setDeviceScaleFactor(float deviceScaleFactor)
     if (deviceScaleFactor == m_deviceScaleFactor)
         return;
     m_deviceScaleFactor = deviceScaleFactor;
-    m_pinchZoomViewport.setDeviceScaleFactor(m_deviceScaleFactor);
+    m_pinchZoomViewport.set_device_scale_factor(m_deviceScaleFactor);
 
     updateMaxScrollOffset();
 }
 
 float LayerTreeHostImpl::pageScaleFactor() const
 {
-    return m_pinchZoomViewport.pageScaleFactor();
+    return m_pinchZoomViewport.page_scale_factor();
 }
 
 void LayerTreeHostImpl::setPageScaleFactorAndLimits(float pageScaleFactor, float minPageScaleFactor, float maxPageScaleFactor)
@@ -1182,20 +1094,20 @@ void LayerTreeHostImpl::setPageScaleFactorAndLimits(float pageScaleFactor, float
     if (!pageScaleFactor)
       return;
 
-    float pageScaleChange = pageScaleFactor / m_pinchZoomViewport.pageScaleFactor();
-    m_pinchZoomViewport.setPageScaleFactorAndLimits(pageScaleFactor, minPageScaleFactor, maxPageScaleFactor);
+    float pageScaleChange = pageScaleFactor / m_pinchZoomViewport.page_scale_factor();
+    m_pinchZoomViewport.SetPageScaleFactorAndLimits(pageScaleFactor, minPageScaleFactor, maxPageScaleFactor);
 
     if (!m_settings.pageScalePinchZoomEnabled && pageScaleChange != 1)
         adjustScrollsForPageScaleChange(rootScrollLayer(), pageScaleChange);
 
     // Clamp delta to limits and refresh display matrix.
-    setPageScaleDelta(m_pinchZoomViewport.pageScaleDelta() / m_pinchZoomViewport.sentPageScaleDelta());
-    m_pinchZoomViewport.setSentPageScaleDelta(1);
+    setPageScaleDelta(m_pinchZoomViewport.page_scale_delta() / m_pinchZoomViewport.sent_page_scale_delta());
+    m_pinchZoomViewport.set_sent_page_scale_delta(1);
 }
 
 void LayerTreeHostImpl::setPageScaleDelta(float delta)
 {
-    m_pinchZoomViewport.setPageScaleDelta(delta);
+    m_pinchZoomViewport.set_page_scale_delta(delta);
 
     updateMaxScrollOffset();
 }
@@ -1205,6 +1117,11 @@ void LayerTreeHostImpl::updateMaxScrollOffset()
     activeTree()->UpdateMaxScrollOffset();
     if (pendingTree())
         pendingTree()->UpdateMaxScrollOffset();
+}
+
+void LayerTreeHostImpl::setNeedsUpdateDrawProperties()
+{
+    m_needsUpdateDrawProperties = true;
 }
 
 void LayerTreeHostImpl::setNeedsRedraw()
@@ -1221,6 +1138,9 @@ bool LayerTreeHostImpl::ensureRenderSurfaceLayerList()
 InputHandlerClient::ScrollStatus LayerTreeHostImpl::scrollBegin(gfx::Point viewportPoint, InputHandlerClient::ScrollInputType type)
 {
     TRACE_EVENT0("cc", "LayerTreeHostImpl::scrollBegin");
+
+    if (m_topControlsManager)
+        m_topControlsManager->ScrollBegin();
 
     DCHECK(!currentlyScrollingLayer());
     clearCurrentlyScrollingLayer();
@@ -1277,7 +1197,11 @@ static gfx::Vector2dF scrollLayerWithViewportSpaceDelta(PinchZoomViewport* viewp
     // Layers with non-invertible screen space transforms should not have passed the scroll hit
     // test in the first place.
     DCHECK(layerImpl.screenSpaceTransform().IsInvertible());
-    gfx::Transform inverseScreenSpaceTransform = MathUtil::inverse(layerImpl.screenSpaceTransform());
+    gfx::Transform inverseScreenSpaceTransform(gfx::Transform::kSkipInitialization);
+    bool didInvert = layerImpl.screenSpaceTransform().GetInverse(&inverseScreenSpaceTransform);
+    // TODO: With the advent of impl-side crolling for non-root layers, we may
+    // need to explicitly handle uninvertible transforms here.
+    DCHECK(didInvert);
 
     gfx::PointF screenSpacePoint = gfx::ScalePoint(viewportPoint, scaleFromViewportToScreenSpace);
 
@@ -1310,7 +1234,7 @@ static gfx::Vector2dF scrollLayerWithViewportSpaceDelta(PinchZoomViewport* viewp
 
     gfx::Vector2dF viewportAppliedPan;
     if (viewport)
-        viewportAppliedPan = unscrolled - viewport->applyScroll(unscrolled);
+        viewportAppliedPan = unscrolled - viewport->ApplyScroll(unscrolled);
 
     // Get the end point in the layer's content space so we can apply its screenSpaceTransform.
     gfx::PointF actualLocalEndPoint = localStartPoint + layerImpl.scrollDelta() + viewportAppliedPan - previousDelta;
@@ -1350,6 +1274,9 @@ bool LayerTreeHostImpl::scrollBy(const gfx::Point& viewportPoint,
         if (m_settings.pageScalePinchZoomEnabled && layerImpl == rootScrollLayer())
             viewport = &m_pinchZoomViewport;
         gfx::Vector2dF appliedDelta;
+        if (m_topControlsManager && layerImpl == rootScrollLayer())
+            pendingDelta = m_topControlsManager->ScrollBy(pendingDelta);
+
         if (m_scrollDeltaIsInViewportSpace) {
             float scaleFromViewportToScreenSpace = m_deviceScaleFactor;
             appliedDelta = scrollLayerWithViewportSpaceDelta(viewport, *layerImpl, scaleFromViewportToScreenSpace, viewportPoint, pendingDelta);
@@ -1394,6 +1321,8 @@ void LayerTreeHostImpl::clearCurrentlyScrollingLayer()
 
 void LayerTreeHostImpl::scrollEnd()
 {
+    if (m_topControlsManager)
+        m_topControlsManager->ScrollEnd();
     clearCurrentlyScrollingLayer();
 }
 
@@ -1415,10 +1344,10 @@ void LayerTreeHostImpl::pinchGestureUpdate(float magnifyDelta, gfx::Point anchor
 
     // Keep the center-of-pinch anchor specified by (x, y) in a stable
     // position over the course of the magnify.
-    float pageScaleDelta = m_pinchZoomViewport.pageScaleDelta();
+    float pageScaleDelta = m_pinchZoomViewport.page_scale_delta();
     gfx::PointF previousScaleAnchor = gfx::ScalePoint(anchor, 1 / pageScaleDelta);
     setPageScaleDelta(pageScaleDelta * magnifyDelta);
-    pageScaleDelta = m_pinchZoomViewport.pageScaleDelta();
+    pageScaleDelta = m_pinchZoomViewport.page_scale_delta();
     gfx::PointF newScaleAnchor = gfx::ScalePoint(anchor, 1 / pageScaleDelta);
     gfx::Vector2dF move = previousScaleAnchor - newScaleAnchor;
 
@@ -1426,10 +1355,10 @@ void LayerTreeHostImpl::pinchGestureUpdate(float magnifyDelta, gfx::Point anchor
 
     if (m_settings.pageScalePinchZoomEnabled) {
         // Compute the application of the delta with respect to the current page zoom of the page.
-        move.Scale(1 / m_pinchZoomViewport.pageScaleFactor());
+        move.Scale(1 / m_pinchZoomViewport.page_scale_factor());
     }
 
-    gfx::Vector2dF scrollOverflow = m_settings.pageScalePinchZoomEnabled ? m_pinchZoomViewport.applyScroll(move) : move;
+    gfx::Vector2dF scrollOverflow = m_settings.pageScalePinchZoomEnabled ? m_pinchZoomViewport.ApplyScroll(move) : move;
     rootScrollLayer()->scrollBy(scrollOverflow);
 
     if (rootScrollLayer()->scrollbarAnimationController())
@@ -1454,7 +1383,7 @@ void LayerTreeHostImpl::computeDoubleTapZoomDeltas(ScrollAndScaleSet* scrollInfo
 {
     gfx::Vector2dF scaledScrollOffset = m_pageScaleAnimation->targetScrollOffset();
     if (!m_settings.pageScalePinchZoomEnabled)
-        scaledScrollOffset.Scale(m_pinchZoomViewport.pageScaleFactor());
+        scaledScrollOffset.Scale(m_pinchZoomViewport.page_scale_factor());
     makeScrollAndScaleSet(scrollInfo, ToFlooredVector2d(scaledScrollOffset), m_pageScaleAnimation->targetPageScaleFactor());
 }
 
@@ -1467,27 +1396,27 @@ void LayerTreeHostImpl::computePinchZoomDeltas(ScrollAndScaleSet* scrollInfo)
     // significant amount. This also ensures only one fake delta set will be
     // sent.
     const float pinchZoomOutSensitivity = 0.95f;
-    if (m_pinchZoomViewport.pageScaleDelta() > pinchZoomOutSensitivity)
+    if (m_pinchZoomViewport.page_scale_delta() > pinchZoomOutSensitivity)
         return;
 
     // Compute where the scroll offset/page scale would be if fully pinch-zoomed
     // out from the anchor point.
     gfx::Vector2dF scrollBegin = rootScrollLayer()->scrollOffset() + rootScrollLayer()->scrollDelta();
-    scrollBegin.Scale(m_pinchZoomViewport.pageScaleDelta());
-    float scaleBegin = m_pinchZoomViewport.totalPageScaleFactor();
-    float pageScaleDeltaToSend = m_pinchZoomViewport.minPageScaleFactor() / m_pinchZoomViewport.pageScaleFactor();
+    scrollBegin.Scale(m_pinchZoomViewport.page_scale_delta());
+    float scaleBegin = m_pinchZoomViewport.total_page_scale_factor();
+    float pageScaleDeltaToSend = m_pinchZoomViewport.min_page_scale_factor() / m_pinchZoomViewport.page_scale_factor();
     gfx::SizeF scaledContentsSize = gfx::ScaleSize(contentSize(), pageScaleDeltaToSend);
 
     gfx::Vector2d anchorOffset = m_previousPinchAnchor.OffsetFromOrigin();
     gfx::Vector2dF scrollEnd = scrollBegin + anchorOffset;
-    scrollEnd.Scale(m_pinchZoomViewport.minPageScaleFactor() / scaleBegin);
+    scrollEnd.Scale(m_pinchZoomViewport.min_page_scale_factor() / scaleBegin);
     scrollEnd -= anchorOffset;
     scrollEnd.ClampToMax(gfx::RectF(scaledContentsSize).bottom_right() - gfx::Rect(m_deviceViewportSize).bottom_right());
     scrollEnd.ClampToMin(gfx::Vector2d());
     scrollEnd.Scale(1 / pageScaleDeltaToSend);
     scrollEnd.Scale(m_deviceScaleFactor);
 
-    makeScrollAndScaleSet(scrollInfo, gfx::ToRoundedVector2d(scrollEnd), m_pinchZoomViewport.minPageScaleFactor());
+    makeScrollAndScaleSet(scrollInfo, gfx::ToRoundedVector2d(scrollEnd), m_pinchZoomViewport.min_page_scale_factor());
 }
 
 void LayerTreeHostImpl::makeScrollAndScaleSet(ScrollAndScaleSet* scrollInfo, gfx::Vector2d scrollOffset, float pageScale)
@@ -1500,8 +1429,8 @@ void LayerTreeHostImpl::makeScrollAndScaleSet(ScrollAndScaleSet* scrollInfo, gfx
     scroll.scrollDelta = scrollOffset - rootScrollLayer()->scrollOffset();
     scrollInfo->scrolls.push_back(scroll);
     activeTree()->root_scroll_layer()->setSentScrollDelta(scroll.scrollDelta);
-    scrollInfo->pageScaleDelta = pageScale / m_pinchZoomViewport.pageScaleFactor();
-    m_pinchZoomViewport.setSentPageScaleDelta(scrollInfo->pageScaleDelta);
+    scrollInfo->pageScaleDelta = pageScale / m_pinchZoomViewport.page_scale_factor();
+    m_pinchZoomViewport.set_sent_page_scale_delta(scrollInfo->pageScaleDelta);
 }
 
 static void collectScrollDeltas(ScrollAndScaleSet* scrollInfo, LayerImpl* layerImpl)
@@ -1528,7 +1457,7 @@ scoped_ptr<ScrollAndScaleSet> LayerTreeHostImpl::processScrollDeltas()
 
     if (m_pinchGestureActive || m_pageScaleAnimation) {
         scrollInfo->pageScaleDelta = 1;
-        m_pinchZoomViewport.setSentPageScaleDelta(1);
+        m_pinchZoomViewport.set_sent_page_scale_delta(1);
         // FIXME(aelias): Make pinch-zoom painting optimization compatible with
         // compositor-side scaling.
         if (!m_settings.pageScalePinchZoomEnabled && m_pinchGestureActive)
@@ -1539,15 +1468,15 @@ scoped_ptr<ScrollAndScaleSet> LayerTreeHostImpl::processScrollDeltas()
     }
 
     collectScrollDeltas(scrollInfo.get(), rootLayer());
-    scrollInfo->pageScaleDelta = m_pinchZoomViewport.pageScaleDelta();
-    m_pinchZoomViewport.setSentPageScaleDelta(scrollInfo->pageScaleDelta);
+    scrollInfo->pageScaleDelta = m_pinchZoomViewport.page_scale_delta();
+    m_pinchZoomViewport.set_sent_page_scale_delta(scrollInfo->pageScaleDelta);
 
     return scrollInfo.Pass();
 }
 
 gfx::Transform LayerTreeHostImpl::implTransform() const
 {
-    return m_pinchZoomViewport.implTransform(m_settings.pageScalePinchZoomEnabled);
+    return m_pinchZoomViewport.ImplTransform(m_settings.pageScalePinchZoomEnabled);
 }
 
 void LayerTreeHostImpl::setFullRootLayerDamage()
@@ -1567,11 +1496,11 @@ void LayerTreeHostImpl::animatePageScale(base::TimeTicks time)
     double monotonicTime = (time - base::TimeTicks()).InSecondsF();
     gfx::Vector2dF scrollTotal = rootScrollLayer()->scrollOffset() + rootScrollLayer()->scrollDelta();
 
-    setPageScaleDelta(m_pageScaleAnimation->pageScaleFactorAtTime(monotonicTime) / m_pinchZoomViewport.pageScaleFactor());
+    setPageScaleDelta(m_pageScaleAnimation->pageScaleFactorAtTime(monotonicTime) / m_pinchZoomViewport.page_scale_factor());
     gfx::Vector2dF nextScroll = m_pageScaleAnimation->scrollOffsetAtTime(monotonicTime);
 
     if (!m_settings.pageScalePinchZoomEnabled)
-        nextScroll.Scale(m_pinchZoomViewport.pageScaleFactor());
+        nextScroll.Scale(m_pinchZoomViewport.page_scale_factor());
     rootScrollLayer()->scrollBy(nextScroll - scrollTotal);
     m_client->setNeedsRedrawOnImplThread();
     setNeedsUpdateDrawProperties();
@@ -1722,6 +1651,37 @@ void LayerTreeHostImpl::animateScrollbarsRecursive(LayerImpl* layer, base::TimeT
 
     for (size_t i = 0; i < layer->children().size(); ++i)
         animateScrollbarsRecursive(layer->children()[i], time);
+}
+
+// static
+LayerImpl* LayerTreeHostImpl::getNonCompositedContentLayerRecursive(LayerImpl* layer)
+{
+    if (!layer)
+        return NULL;
+
+    if (layer->drawsContent())
+        return layer;
+
+    for (LayerImpl::LayerList::const_iterator it = layer->children().begin();
+            it != layer->children().end(); ++it) {
+        LayerImpl* nccr = getNonCompositedContentLayerRecursive(*it);
+        if (nccr)
+            return nccr;
+    }
+
+    return NULL;
+}
+
+skia::RefPtr<SkPicture> LayerTreeHostImpl::capturePicture()
+{
+    LayerTreeImpl* tree = pendingTree() ? pendingTree() : activeTree();
+    LayerImpl* layer = getNonCompositedContentLayerRecursive(tree->RootLayer());
+    return layer ? layer->getPicture() : skia::RefPtr<SkPicture>();
+}
+
+void LayerTreeHostImpl::savePaintTime(const base::TimeDelta& totalPaintTime)
+{
+    m_paintTimeCounter->SavePaintTime(totalPaintTime);
 }
 
 }  // namespace cc

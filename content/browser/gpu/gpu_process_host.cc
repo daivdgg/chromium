@@ -85,8 +85,8 @@ void SendGpuProcessMessage(GpuProcessHost::GpuProcessKind kind,
 
 void AcceleratedSurfaceBuffersSwappedCompletedForGPU(int host_id,
                                                      int route_id,
-                                                     uint64 surface_handle,
-                                                     bool alive) {
+                                                     bool alive,
+                                                     uint64 surface_handle) {
   if (!BrowserThread::CurrentlyOn(BrowserThread::IO)) {
     BrowserThread::PostTask(
         BrowserThread::IO,
@@ -94,8 +94,8 @@ void AcceleratedSurfaceBuffersSwappedCompletedForGPU(int host_id,
         base::Bind(&AcceleratedSurfaceBuffersSwappedCompletedForGPU,
                    host_id,
                    route_id,
-                   surface_handle,
-                   alive));
+                   alive,
+                   surface_handle));
     return;
   }
 
@@ -143,6 +143,19 @@ void AcceleratedSurfaceBuffersSwappedCompletedForRenderer(
   RenderWidgetHostImpl::From(rwh)->AcknowledgeSwapBuffersToRenderer();
   if (interval != base::TimeDelta())
     RenderWidgetHostImpl::From(rwh)->UpdateVSyncParameters(timebase, interval);
+}
+
+void AcceleratedSurfaceBuffersSwappedCompleted(int host_id,
+                                               int route_id,
+                                               int surface_id,
+                                               uint64 surface_handle,
+                                               bool alive,
+                                               base::TimeTicks timebase,
+                                               base::TimeDelta interval) {
+  AcceleratedSurfaceBuffersSwappedCompletedForGPU(host_id, route_id,
+                                                  alive, surface_handle);
+  AcceleratedSurfaceBuffersSwappedCompletedForRenderer(surface_id, timebase,
+                                                       interval);
 }
 #endif  // defined(OS_WIN)
 
@@ -501,8 +514,12 @@ bool GpuProcessHost::Send(IPC::Message* msg) {
   }
 
   bool result = process_->Send(msg);
-  if (!result)
-    valid_ = false;
+  if (!result) {
+    // Channel is hosed, but we may not get destroyed for a while. Send
+    // outstanding channel creation failures now so that the caller can restart
+    // with a new process/channel without waiting.
+    SendOutstandingReplies();
+  }
   return result;
 }
 
@@ -688,7 +705,7 @@ void GpuProcessHost::OnDestroyCommandBuffer(int32 surface_id) {
 void GpuProcessHost::OnImageCreated(const gfx::Size size) {
   TRACE_EVENT0("gpu", "GpuProcessHost::OnImageCreated");
 
-  if (!create_image_requests_.empty())
+  if (create_image_requests_.empty())
     return;
 
   CreateImageCallback callback = create_image_requests_.front();
@@ -765,7 +782,7 @@ void GpuProcessHost::OnAcceleratedSurfaceBuffersSwapped(
   base::ScopedClosureRunner scoped_completion_runner(
       base::Bind(&AcceleratedSurfaceBuffersSwappedCompletedForGPU,
                  host_id_, params.route_id,
-                 params.surface_handle, true /* alive */));
+                 true /* alive */, params.surface_handle));
 
   int render_process_id = 0;
   int render_widget_id = 0;
@@ -798,17 +815,10 @@ void GpuProcessHost::OnAcceleratedSurfaceBuffersSwapped(
     const GpuHostMsg_AcceleratedSurfaceBuffersSwapped_Params& params) {
   TRACE_EVENT0("gpu", "GpuProcessHost::OnAcceleratedSurfaceBuffersSwapped");
 
-  base::ScopedClosureRunner scoped_present_completion_runner(
-      base::Bind(&AcceleratedSurfaceBuffersSwappedCompletedForRenderer,
-                 params.surface_id,
-                 base::TimeTicks(),
-                 base::TimeDelta()));
-  base::ScopedClosureRunner scoped_copy_completion_runner(
-      base::Bind(&AcceleratedSurfaceBuffersSwappedCompletedForGPU,
-                 host_id_,
-                 params.route_id,
-                 params.surface_handle,
-                 true));
+  base::ScopedClosureRunner scoped_completion_runner(
+      base::Bind(&AcceleratedSurfaceBuffersSwappedCompleted,
+          host_id_, params.route_id, params.surface_id, params.surface_handle,
+          true, base::TimeTicks(), base::TimeDelta()));
 
   gfx::PluginWindowHandle handle =
       GpuSurfaceTracker::Get()->GetSurfaceWindowHandle(params.surface_id);
@@ -818,8 +828,7 @@ void GpuProcessHost::OnAcceleratedSurfaceBuffersSwapped(
                  "surface_id", params.surface_id);
 #if defined(USE_AURA)
     // This is a content area swap, send it on to the UI thread.
-    scoped_copy_completion_runner.Release();
-    scoped_present_completion_runner.Release();
+    scoped_completion_runner.Release();
     RouteOnUIThread(GpuHostMsg_AcceleratedSurfaceBuffersSwapped(params));
 #endif
     return;
@@ -834,17 +843,15 @@ void GpuProcessHost::OnAcceleratedSurfaceBuffersSwapped(
     return;
   }
 
-  scoped_copy_completion_runner.Release();
-  scoped_present_completion_runner.Release();
+  scoped_completion_runner.Release();
   presenter->AsyncPresentAndAcknowledge(
       params.size,
       params.surface_handle,
-      base::Bind(&AcceleratedSurfaceBuffersSwappedCompletedForGPU,
+      base::Bind(&AcceleratedSurfaceBuffersSwappedCompleted,
                  host_id_,
                  params.route_id,
-                 params.surface_handle),
-      base::Bind(&AcceleratedSurfaceBuffersSwappedCompletedForRenderer,
-                 params.surface_id));
+                 params.surface_id,
+                 params.surface_handle));
 }
 
 void GpuProcessHost::OnAcceleratedSurfacePostSubBuffer(
@@ -970,7 +977,6 @@ bool GpuProcessHost::LaunchGpuProcess(const std::string& channel_id) {
     switches::kEnableGpuSandbox,
     switches::kEnableGPUServiceLogging,
     switches::kEnableLogging,
-    switches::kEnableUIReleaseFrontSurface,
     switches::kEnableVirtualGLContexts,
     switches::kGpuNoContextLost,
     switches::kGpuStartupDialog,
@@ -988,6 +994,7 @@ bool GpuProcessHost::LaunchGpuProcess(const std::string& channel_id) {
 #if defined(USE_AURA)
     switches::kUIPrioritizeInGpuProcess,
 #endif
+    switches::kUseExynosVda,
   };
   cmd_line->CopySwitchesFrom(browser_command_line, kSwitchNames,
                              arraysize(kSwitchNames));
@@ -1032,6 +1039,7 @@ bool GpuProcessHost::LaunchGpuProcess(const std::string& channel_id) {
 }
 
 void GpuProcessHost::SendOutstandingReplies() {
+  valid_ = false;
   // First send empty channel handles for all EstablishChannel requests.
   while (!channel_requests_.empty()) {
     EstablishChannelCallback callback = channel_requests_.front();

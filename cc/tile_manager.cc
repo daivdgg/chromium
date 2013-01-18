@@ -5,35 +5,22 @@
 #include "cc/tile_manager.h"
 
 #include <algorithm>
-#include <set>
 
 #include "base/bind.h"
-#include "base/command_line.h"
 #include "base/debug/trace_event.h"
 #include "base/logging.h"
-#include "base/stringprintf.h"
-#include "base/threading/thread.h"
 #include "cc/platform_color.h"
-#include "cc/rendering_stats.h"
+#include "cc/raster_worker_pool.h"
 #include "cc/resource_pool.h"
-#include "cc/switches.h"
 #include "cc/tile.h"
-#include "third_party/skia/include/core/SkDevice.h"
+
+namespace cc {
 
 namespace {
 
-const char* kRasterThreadNamePrefix = "CompositorRaster";
-
-const int kMaxRasterThreads = 64;
-const int kDefaultNumberOfRasterThreads = 1;
-
-// Allow two pending raster tasks per thread. This keeps resource usage
-// low while making sure raster threads aren't unnecessarily idle.
-const int kNumPendingRasterTasksPerThread = 2;
-
 // Determine bin based on three categories of tiles: things we need now,
 // things we need soon, and eventually.
-cc::TileManagerBin BinFromTilePriority(const cc::TilePriority& prio) {
+TileManagerBin BinFromTilePriority(const TilePriority& prio) {
 
   // The amount of time for which we want to have prepainting coverage.
   const double prepainting_window_time_seconds = 1.0;
@@ -52,107 +39,22 @@ cc::TileManagerBin BinFromTilePriority(const cc::TilePriority& prio) {
   }
 
   if (prio.time_to_needed_in_seconds() == std::numeric_limits<float>::max())
-    return cc::NEVER_BIN;
+    return NEVER_BIN;
 
-  if (prio.resolution == cc::NON_IDEAL_RESOLUTION)
-    return cc::EVENTUALLY_BIN;
+  if (prio.resolution == NON_IDEAL_RESOLUTION)
+    return EVENTUALLY_BIN;
 
   if (prio.time_to_needed_in_seconds() == 0 ||
       prio.distance_to_visible_in_pixels < backfling_guard_distance_pixels)
-    return cc::NOW_BIN;
+    return NOW_BIN;
 
   if (prio.time_to_needed_in_seconds() < prepainting_window_time_seconds)
-    return cc::SOON_BIN;
+    return SOON_BIN;
 
-  return cc::EVENTUALLY_BIN;
+  return EVENTUALLY_BIN;
 }
 
 }  // namespace
-
-namespace cc {
-
-class RasterThread : public base::Thread {
- public:
-  RasterThread(const std::string name)
-      : base::Thread(name.c_str()),
-        num_pending_tasks_(0) {
-    Start();
-  }
-  virtual ~RasterThread() {
-    Stop();
-  }
-
-  int num_pending_tasks() { return num_pending_tasks_; }
-
-  void PostRasterTaskAndReply(const tracked_objects::Location& from_here,
-                              PicturePileImpl* picture_pile,
-                              uint8_t* mapped_buffer,
-                              const gfx::Rect& rect,
-                              float contents_scale,
-                              RenderingStats* stats,
-                              const base::Closure& reply) {
-    ++num_pending_tasks_;
-    message_loop_proxy()->PostTaskAndReply(
-        from_here,
-        base::Bind(&RunRasterTask,
-                   base::Unretained(picture_pile),
-                   mapped_buffer,
-                   rect,
-                   contents_scale,
-                   stats),
-        base::Bind(&RasterThread::RunReply, base::Unretained(this), reply));
-  }
-
-  void PostImageDecodingTaskAndReply(const tracked_objects::Location& from_here,
-                                     skia::LazyPixelRef* pixel_ref,
-                                     RenderingStats* stats,
-                                     const base::Closure& reply) {
-    ++num_pending_tasks_;
-    message_loop_proxy()->PostTaskAndReply(
-        from_here,
-        base::Bind(&RunImageDecodeTask, pixel_ref, stats),
-        base::Bind(&RasterThread::RunReply, base::Unretained(this), reply));
-  }
-
- private:
-  static void RunRasterTask(PicturePileImpl* picture_pile,
-                            uint8_t* mapped_buffer,
-                            const gfx::Rect& rect,
-                            float contents_scale,
-                            RenderingStats* stats) {
-    TRACE_EVENT0("cc", "RasterThread::RunRasterTask");
-    DCHECK(picture_pile);
-    DCHECK(mapped_buffer);
-    SkBitmap bitmap;
-    bitmap.setConfig(SkBitmap::kARGB_8888_Config, rect.width(), rect.height());
-    bitmap.setPixels(mapped_buffer);
-    SkDevice device(bitmap);
-    SkCanvas canvas(&device);
-    picture_pile->Raster(
-        &canvas,
-        rect,
-        contents_scale,
-        stats);
-  }
-
-  static void RunImageDecodeTask(skia::LazyPixelRef* pixel_ref,
-                                 RenderingStats* stats) {
-    TRACE_EVENT0("cc", "RasterThread::RunImageDecodeTask");
-    base::TimeTicks decodeBeginTime = base::TimeTicks::Now();
-    pixel_ref->Decode();
-    stats->totalDeferredImageDecodeTimeInSeconds +=
-        (base::TimeTicks::Now() - decodeBeginTime).InSecondsF();
-  }
-
-  void RunReply(const base::Closure& reply) {
-    --num_pending_tasks_;
-    reply.Run();
-  }
-
-  int num_pending_tasks_;
-
-  DISALLOW_COPY_AND_ASSIGN(RasterThread);
-};
 
 ManagedTileState::ManagedTileState()
     : can_use_gpu_memory(false),
@@ -174,20 +76,9 @@ TileManager::TileManager(
     size_t num_raster_threads)
     : client_(client),
       resource_pool_(ResourcePool::Create(resource_provider)),
+      raster_worker_pool_(RasterWorkerPool::Create(num_raster_threads)),
       manage_tiles_pending_(false),
-      manage_tiles_call_count_(0),
-      check_for_completed_set_pixels_pending_(false) {
-  // Initialize all threads.
-  const std::string thread_name_prefix = kRasterThreadNamePrefix;
-  while (raster_threads_.size() < num_raster_threads) {
-    int thread_number = raster_threads_.size() + 1;
-    scoped_ptr<RasterThread> thread = make_scoped_ptr(
-        new RasterThread(thread_name_prefix +
-                         StringPrintf("Worker%d", thread_number).c_str()));
-    raster_threads_.append(thread.Pass());
-  }
-
-  ResetBinCounts();
+      manage_tiles_call_count_(0) {
 }
 
 TileManager::~TileManager() {
@@ -195,14 +86,16 @@ TileManager::~TileManager() {
   // our memory usage to drop to zero.
   global_state_ = GlobalStateThatImpactsTilePriority();
   AssignGpuMemoryToTiles();
-  // This should finish all pending raster tasks and release any
-  // uninitialized resources.
-  raster_threads_.clear();
-  ManageTiles();
+  // This should finish all pending tasks and release any uninitialized
+  // resources.
+  raster_worker_pool_.reset();
+  CheckForCompletedSetPixels();
+  DCHECK(tiles_with_pending_set_pixels_.size() == 0);
   DCHECK(tiles_.size() == 0);
 }
 
-void TileManager::SetGlobalState(const GlobalStateThatImpactsTilePriority& global_state) {
+void TileManager::SetGlobalState(
+    const GlobalStateThatImpactsTilePriority& global_state) {
   global_state_ = global_state;
   resource_pool_->SetMaxMemoryUsageBytes(global_state_.memory_limit_in_bytes);
   ScheduleManageTiles();
@@ -218,7 +111,7 @@ void TileManager::UnregisterTile(Tile* tile) {
        it != tiles_with_image_decoding_tasks_.end(); it++) {
     if (*it == tile) {
       tiles_with_image_decoding_tasks_.erase(it);
-      break;;
+      break;
     }
   }
   for (TileVector::iterator it = tiles_that_need_to_be_rasterized_.begin();
@@ -238,7 +131,8 @@ void TileManager::UnregisterTile(Tile* tile) {
   DCHECK(false) << "Could not find tile version.";
 }
 
-void TileManager::WillModifyTilePriority(Tile*, WhichTree tree, const TilePriority& new_priority) {
+void TileManager::WillModifyTilePriority(
+    Tile* tile, WhichTree tree, const TilePriority& new_priority) {
   // TODO(nduca): Do something smarter if reprioritization turns out to be
   // costly.
   ScheduleManageTiles();
@@ -251,29 +145,34 @@ void TileManager::ScheduleManageTiles() {
   manage_tiles_pending_ = true;
 }
 
-void TileManager::ScheduleCheckForCompletedSetPixels() {
-  if (check_for_completed_set_pixels_pending_)
-    return;
-  client_->ScheduleCheckForCompletedSetPixels();
-  check_for_completed_set_pixels_pending_ = true;
-}
-
 class BinComparator {
 public:
   bool operator() (const Tile* a, const Tile* b) const {
     const ManagedTileState& ams = a->managed_state();
     const ManagedTileState& bms = b->managed_state();
-    if (ams.raster_bin != bms.raster_bin)
-      return ams.raster_bin < bms.raster_bin;
+    if (ams.bin != bms.bin)
+      return ams.bin < bms.bin;
 
     if (ams.resolution != bms.resolution)
       return ams.resolution < bms.resolution;
 
-    return
-      ams.time_to_needed_in_seconds <
-      bms.time_to_needed_in_seconds;
+    if (ams.time_to_needed_in_seconds !=  bms.time_to_needed_in_seconds)
+      return ams.time_to_needed_in_seconds < bms.time_to_needed_in_seconds;
+
+    gfx::Rect a_rect = a->content_rect();
+    gfx::Rect b_rect = b->content_rect();
+    if (a_rect.y() != b_rect.y())
+      return a_rect.y() < b_rect.y();
+    return a_rect.x() < b_rect.x();
   }
 };
+
+void TileManager::SortTiles() {
+  TRACE_EVENT0("cc", "TileManager::SortTiles");
+
+  // Sort by bin, resolution and time until needed.
+  std::sort(tiles_.begin(), tiles_.end(), BinComparator());
+}
 
 void TileManager::ManageTiles() {
   TRACE_EVENT0("cc", "TileManager::ManageTiles");
@@ -287,8 +186,6 @@ void TileManager::ManageTiles() {
   for (TileVector::iterator it = tiles_.begin(); it != tiles_.end(); ++it) {
     Tile* tile = *it;
     ManagedTileState& mts = tile->managed_state();
-    mts.bin[ACTIVE_TREE] = BinFromTilePriority(tile->priority(ACTIVE_TREE));
-    mts.bin[PENDING_TREE] = BinFromTilePriority(tile->priority(PENDING_TREE));
 
     TilePriority prio;
     if (smoothness_takes_priority)
@@ -298,7 +195,7 @@ void TileManager::ManageTiles() {
 
     mts.resolution = prio.resolution;
     mts.time_to_needed_in_seconds = prio.time_to_needed_in_seconds();
-    mts.raster_bin = BinFromTilePriority(prio);
+    mts.bin = BinFromTilePriority(prio);
     mts.gpu_memmgr_stats_bin = BinFromTilePriority(tile->combined_priority());
   }
 
@@ -328,28 +225,10 @@ void TileManager::ManageTiles() {
   for (TileVector::iterator it = tiles_.begin(); it != tiles_.end(); ++it) {
     Tile* tile = *it;
     ManagedTileState& mts = tile->managed_state();
-    mts.bin[ACTIVE_TREE] = bin_map[mts.bin[ACTIVE_TREE]];
-    mts.bin[PENDING_TREE] = bin_map[mts.bin[PENDING_TREE]];
-    mts.raster_bin = bin_map[mts.raster_bin];
+    mts.bin = bin_map[mts.bin];
   }
 
-  // Update bin counts.
-  ResetBinCounts();
-  for (TileVector::iterator it = tiles_.begin(); it != tiles_.end(); ++it) {
-    Tile* tile = *it;
-    ManagedTileState& mts = tile->managed_state();
-    for (int i = 0; i < NUM_TREES; ++i)
-      tiles_in_bin_count_[mts.bin[i]][i]++;
-
-    // Increment drawable count if GetResourceId() doesn't return 0.
-    if (tile->GetResourceId()) {
-      for (int i = 0; i < NUM_TREES; ++i)
-        drawable_tiles_in_bin_count_[mts.bin[i]][i]++;
-    }
-  }
-
-  // Sort by bin.
-  std::sort(tiles_.begin(), tiles_.end(), BinComparator());
+  SortTiles();
 
   // Assign gpu memory and determine what tiles need to be rasterized.
   AssignGpuMemoryToTiles();
@@ -359,8 +238,6 @@ void TileManager::ManageTiles() {
 }
 
 void TileManager::CheckForCompletedSetPixels() {
-  check_for_completed_set_pixels_pending_ = false;
-
   while (!tiles_with_pending_set_pixels_.empty()) {
     Tile* tile = tiles_with_pending_set_pixels_.front();
     DCHECK(tile->managed_state().resource);
@@ -368,7 +245,6 @@ void TileManager::CheckForCompletedSetPixels() {
     // Set pixel tasks complete in the order they are posted.
     if (!resource_pool_->resource_provider()->didSetPixelsComplete(
           tile->managed_state().resource->id())) {
-      ScheduleCheckForCompletedSetPixels();
       break;
     }
 
@@ -382,35 +258,12 @@ void TileManager::CheckForCompletedSetPixels() {
 }
 
 void TileManager::GetRenderingStats(RenderingStats* stats) {
-  stats->totalRasterizeTimeInSeconds =
-      rendering_stats_.totalRasterizeTimeInSeconds;
-  stats->totalPixelsRasterized = rendering_stats_.totalPixelsRasterized;
-  stats->totalDeferredImageDecodeCount =
-      rendering_stats_.totalDeferredImageDecodeCount;
+  raster_worker_pool_->GetRenderingStats(stats);
   stats->totalDeferredImageCacheHitCount =
       rendering_stats_.totalDeferredImageCacheHitCount;
   stats->totalImageGatheringCount = rendering_stats_.totalImageGatheringCount;
-  stats->totalDeferredImageDecodeTimeInSeconds =
-      rendering_stats_.totalDeferredImageDecodeTimeInSeconds;
-  stats->totalImageGatheringTimeInSeconds =
-      rendering_stats_.totalImageGatheringTimeInSeconds;
-}
-
-int TileManager::GetTilesInBinCount(TileManagerBin bin, WhichTree tree) {
-  DCHECK(bin >= 0);
-  DCHECK(bin < NUM_BINS);
-  DCHECK(tree >= 0);
-  DCHECK(tree < NUM_TREES);
-  return tiles_in_bin_count_[bin][tree];
-}
-
-int TileManager::GetDrawableTilesInBinCount(
-    TileManagerBin bin, WhichTree tree) {
-  DCHECK(bin >= 0);
-  DCHECK(bin < NUM_BINS);
-  DCHECK(tree >= 0);
-  DCHECK(tree < NUM_TREES);
-  return drawable_tiles_in_bin_count_[bin][tree];
+  stats->totalImageGatheringTime =
+      rendering_stats_.totalImageGatheringTime;
 }
 
 void TileManager::GetMemoryStats(
@@ -431,12 +284,6 @@ void TileManager::GetMemoryStats(
     if (mts.can_use_gpu_memory)
       *memoryUsedBytes += tile_bytes;
   }
-}
-
-void TileManager::ResetBinCounts() {
-  for (int i = 0; i < NUM_BINS; ++i)
-    for (int j = 0; j < NUM_TREES; ++j)
-      tiles_in_bin_count_[i][j] = drawable_tiles_in_bin_count_[i][j] = 0;
 }
 
 void TileManager::AssignGpuMemoryToTiles() {
@@ -467,7 +314,7 @@ void TileManager::AssignGpuMemoryToTiles() {
     ManagedTileState& managed_tile_state = tile->managed_state();
     if (!managed_tile_state.can_be_freed)
       continue;
-    if (managed_tile_state.raster_bin == NEVER_BIN) {
+    if (managed_tile_state.bin == NEVER_BIN) {
       managed_tile_state.can_use_gpu_memory = false;
       FreeResourcesForTile(tile);
       continue;
@@ -498,32 +345,18 @@ void TileManager::FreeResourcesForTile(Tile* tile) {
     resource_pool_->ReleaseResource(managed_tile_state.resource.Pass());
 }
 
-RasterThread* TileManager::GetFreeRasterThread() {
-  RasterThread* thread = 0;
-  for (RasterThreadVector::iterator it = raster_threads_.begin();
-       it != raster_threads_.end(); ++it) {
-    if ((*it)->num_pending_tasks() == kNumPendingRasterTasksPerThread)
-      continue;
-    // Check if this is the best thread we've found so far.
-    if (!thread || (*it)->num_pending_tasks() < thread->num_pending_tasks())
-      thread = *it;
-  }
-  return thread;
-}
-
 void TileManager::DispatchMoreTasks() {
   // Because tiles in the image decoding list have higher priorities, we
   // need to process those tiles first before we start to handle the tiles
   // in the need_to_be_rasterized queue.
   std::list<Tile*>::iterator it = tiles_with_image_decoding_tasks_.begin();
   while (it != tiles_with_image_decoding_tasks_.end()) {
-    DispatchImageDecodingTasksForTile(*it);
+    DispatchImageDecodeTasksForTile(*it);
     ManagedTileState& managed_state = (*it)->managed_state();
     if (managed_state.pending_pixel_refs.empty()) {
-      RasterThread* thread = GetFreeRasterThread();
-      if (!thread)
+      if (raster_worker_pool_->IsBusy())
         return;
-      DispatchOneRasterTask(thread, *it);
+      DispatchOneRasterTask(*it);
       tiles_with_image_decoding_tasks_.erase(it++);
     } else {
       ++it;
@@ -534,15 +367,14 @@ void TileManager::DispatchMoreTasks() {
   // image decoding tasks, put it to the back of the image decoding list.
   while (!tiles_that_need_to_be_rasterized_.empty()) {
     Tile* tile = tiles_that_need_to_be_rasterized_.back();
-    DispatchImageDecodingTasksForTile(tile);
+    DispatchImageDecodeTasksForTile(tile);
     ManagedTileState& managed_state = tile->managed_state();
     if (!managed_state.pending_pixel_refs.empty()) {
       tiles_with_image_decoding_tasks_.push_back(tile);
     } else {
-      RasterThread* thread = GetFreeRasterThread();
-      if (!thread)
+      if (raster_worker_pool_->IsBusy())
         return;
-      DispatchOneRasterTask(thread, tile);
+      DispatchOneRasterTask(tile);
     }
     tiles_that_need_to_be_rasterized_.pop_back();
   }
@@ -556,13 +388,13 @@ void TileManager::GatherPixelRefsForTile(Tile* tile) {
     const_cast<PicturePileImpl *>(tile->picture_pile())->GatherPixelRefs(
         tile->content_rect_, managed_state.pending_pixel_refs);
     rendering_stats_.totalImageGatheringCount++;
-    rendering_stats_.totalImageGatheringTimeInSeconds +=
-        (base::TimeTicks::Now() - gather_begin_time).InSecondsF();
+    rendering_stats_.totalImageGatheringTime +=
+        base::TimeTicks::Now() - gather_begin_time;
     managed_state.need_to_gather_pixel_refs = false;
   }
 }
 
-void TileManager::DispatchImageDecodingTasksForTile(Tile* tile) {
+void TileManager::DispatchImageDecodeTasksForTile(Tile* tile) {
   GatherPixelRefsForTile(tile);
   std::list<skia::LazyPixelRef*>& pending_pixel_refs =
       tile->managed_state().pending_pixel_refs;
@@ -578,45 +410,35 @@ void TileManager::DispatchImageDecodingTasksForTile(Tile* tile) {
       rendering_stats_.totalDeferredImageCacheHitCount++;
       pending_pixel_refs.erase(it++);
     } else {
-      RasterThread* thread = GetFreeRasterThread();
-      if (!thread)
+      if (raster_worker_pool_->IsBusy())
         return;
-      DispatchOneImageDecodingTask(thread, tile, *it);
+      DispatchOneImageDecodeTask(tile, *it);
       ++it;
     }
   }
 }
 
-void TileManager::DispatchOneImageDecodingTask(RasterThread* thread,
-                                               scoped_refptr<Tile> tile,
-                                               skia::LazyPixelRef* pixel_ref) {
-  TRACE_EVENT0("cc", "TileManager::DispatchOneImageDecodingTask");
+void TileManager::DispatchOneImageDecodeTask(
+    scoped_refptr<Tile> tile, skia::LazyPixelRef* pixel_ref) {
+  TRACE_EVENT0("cc", "TileManager::DispatchOneImageDecodeTask");
   uint32_t pixel_ref_id = pixel_ref->getGenerationID();
   DCHECK(pending_decode_tasks_.end() ==
       pending_decode_tasks_.find(pixel_ref_id));
   pending_decode_tasks_[pixel_ref_id] = pixel_ref;
-  RenderingStats* stats = new RenderingStats();
 
-  thread->PostImageDecodingTaskAndReply(
-          FROM_HERE,
-          pixel_ref,
-          stats,
-          base::Bind(&TileManager::OnImageDecodingTaskCompleted,
-                     base::Unretained(this),
-                     tile,
-                     pixel_ref_id,
-                     stats));
+  raster_worker_pool_->PostImageDecodeTaskAndReply(
+      pixel_ref,
+      base::Bind(&TileManager::OnImageDecodeTaskCompleted,
+                 base::Unretained(this),
+                 tile,
+                 pixel_ref_id));
 }
 
-void TileManager::OnImageDecodingTaskCompleted(scoped_refptr<Tile> tile,
-                                               uint32_t pixel_ref_id,
-                                               RenderingStats* stats) {
-  TRACE_EVENT0("cc", "TileManager::OnImageDecoded");
+void TileManager::OnImageDecodeTaskCompleted(
+    scoped_refptr<Tile> tile, uint32_t pixel_ref_id) {
+  TRACE_EVENT0("cc", "TileManager::OnImageDecodeTaskCompleted");
   pending_decode_tasks_.erase(pixel_ref_id);
-  rendering_stats_.totalDeferredImageDecodeTimeInSeconds +=
-      stats->totalDeferredImageDecodeTimeInSeconds;
-  rendering_stats_.totalDeferredImageDecodeCount++;
-  delete stats;
+
   for (TileList::iterator it = tiles_with_image_decoding_tasks_.begin();
       it != tiles_with_image_decoding_tasks_.end(); ++it) {
     std::list<skia::LazyPixelRef*>& pixel_refs =
@@ -629,11 +451,11 @@ void TileManager::OnImageDecodingTaskCompleted(scoped_refptr<Tile> tile,
       }
     }
   }
+
   DispatchMoreTasks();
 }
 
-void TileManager::DispatchOneRasterTask(
-    RasterThread* thread, scoped_refptr<Tile> tile) {
+void TileManager::DispatchOneRasterTask(scoped_refptr<Tile> tile) {
   TRACE_EVENT0("cc", "TileManager::DispatchOneRasterTask");
   ManagedTileState& managed_tile_state = tile->managed_state();
   DCHECK(managed_tile_state.can_use_gpu_memory);
@@ -645,37 +467,24 @@ void TileManager::DispatchOneRasterTask(
   managed_tile_state.can_be_freed = false;
 
   ResourceProvider::ResourceId resource_id = resource->id();
-  scoped_refptr<PicturePileImpl> picture_pile_clone =
-      tile->picture_pile()->GetCloneForDrawingOnThread(thread);
-  RenderingStats* stats = new RenderingStats();
 
-  thread->PostRasterTaskAndReply(
-      FROM_HERE,
-      picture_pile_clone.get(),
+  raster_worker_pool_->PostRasterTaskAndReply(
+      tile->picture_pile(),
       resource_pool_->resource_provider()->mapPixelBuffer(resource_id),
       tile->content_rect_,
       tile->contents_scale(),
-      stats,
       base::Bind(&TileManager::OnRasterTaskCompleted,
                  base::Unretained(this),
                  tile,
                  base::Passed(&resource),
-                 picture_pile_clone,
-                 manage_tiles_call_count_,
-                 stats));
+                 manage_tiles_call_count_));
 }
 
 void TileManager::OnRasterTaskCompleted(
     scoped_refptr<Tile> tile,
     scoped_ptr<ResourcePool::Resource> resource,
-    scoped_refptr<PicturePileImpl> picture_pile_clone,
-    int manage_tiles_call_count_when_dispatched,
-    RenderingStats* stats) {
+    int manage_tiles_call_count_when_dispatched) {
   TRACE_EVENT0("cc", "TileManager::OnRasterTaskCompleted");
-  rendering_stats_.totalRasterizeTimeInSeconds +=
-    stats->totalRasterizeTimeInSeconds;
-  rendering_stats_.totalPixelsRasterized += stats->totalPixelsRasterized;
-  delete stats;
 
   // Release raster resources.
   resource_pool_->resource_provider()->unmapPixelBuffer(resource->id());
@@ -704,15 +513,15 @@ void TileManager::OnRasterTaskCompleted(
     managed_tile_state.can_be_freed = false;
 
     resource_pool_->resource_provider()->beginSetPixels(resource->id());
+    resource_pool_->resource_provider()->shallowFlushIfSupported();
     managed_tile_state.resource = resource.Pass();
     tiles_with_pending_set_pixels_.push(tile);
-
-    ScheduleCheckForCompletedSetPixels();
   } else {
     resource_pool_->resource_provider()->releasePixelBuffer(resource->id());
     resource_pool_->ReleaseResource(resource.Pass());
     managed_tile_state.resource_is_being_initialized = false;
   }
+
   DispatchMoreTasks();
 }
 
@@ -721,8 +530,6 @@ void TileManager::DidFinishTileInitialization(Tile* tile) {
   DCHECK(managed_tile_state.resource);
   managed_tile_state.resource_is_being_initialized = false;
   managed_tile_state.can_be_freed = true;
-  for (int i = 0; i < NUM_TREES; ++i)
-    drawable_tiles_in_bin_count_[managed_tile_state.bin[i]][i]++;
 }
 
-}
+}  // namespace cc

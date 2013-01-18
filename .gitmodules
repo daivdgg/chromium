@@ -42,6 +42,10 @@
 	path = chrome_frame/tools/test/reference_build/chrome_win
 	url = https://chromium.googlesource.com/chromium/reference_builds/chrome_win.git
 	os = win
+[submodule "content/test/data/layout_tests/LayoutTests/editing/pasteboard/resources"]
+	path = content/test/data/layout_tests/LayoutTests/editing/pasteboard/resources
+	url = 
+	os = ios
 [submodule "content/test/data/layout_tests/LayoutTests/fast/events"]
 	path = content/test/data/layout_tests/LayoutTests/fast/events
 	url = 

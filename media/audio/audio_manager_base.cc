@@ -47,12 +47,21 @@ AudioManagerBase::AudioManagerBase()
       max_num_input_streams_(kDefaultMaxInputStreams),
       num_output_streams_(0),
       num_input_streams_(0),
+      output_listeners_(
+          ObserverList<AudioDeviceListener>::NOTIFY_EXISTING_ONLY),
       audio_thread_(new base::Thread("AudioThread")),
       virtual_audio_input_stream_(NULL) {
 #if defined(OS_WIN)
   audio_thread_->init_com_with_mta(true);
 #endif
+#if defined(OS_MACOSX)
+  // On Mac, use a UI loop to get native message pump so that CoreAudio property
+  // listener callbacks fire.
+  CHECK(audio_thread_->StartWithOptions(
+      base::Thread::Options(MessageLoop::TYPE_UI, 0)));
+#else
   CHECK(audio_thread_->Start());
+#endif
   message_loop_ = audio_thread_->message_loop_proxy();
 }
 
@@ -194,6 +203,12 @@ AudioOutputStream* AudioManagerBase::MakeAudioOutputStreamProxy(
   return NULL;
 #else
   DCHECK(message_loop_->BelongsToCurrentThread());
+
+  if (virtual_audio_input_stream_) {
+    // Do not attempt to resample, nor cache via AudioOutputDispatcher, when
+    // opening output streams for browser-wide audio mirroring.
+    return MakeAudioOutputStream(params);
+  }
 
   bool use_audio_output_resampler =
       !CommandLine::ForCurrentProcess()->HasSwitch(

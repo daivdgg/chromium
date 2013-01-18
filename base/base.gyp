@@ -141,6 +141,9 @@
           'sources!': [
             'debug/stack_trace_posix.cc',
           ],
+          'includes': [
+            '../build/android/cpufeatures.gypi',
+          ],
         }],
         ['OS == "android" and _toolset == "target" and android_build_type == 0', {
           'dependencies': [
@@ -206,6 +209,11 @@
             }],
           ],
         }],
+        ['use_system_nspr==1', {
+          'dependencies': [
+            'third_party/nspr/nspr.gyp:nspr',
+          ],
+        }],
       ],
       'sources': [
         'third_party/nspr/prcpucfg.h',
@@ -263,6 +271,12 @@
           'dependencies': [
             # i18n/rtl.cc uses gtk
             '../build/linux/system.gyp:gtk',
+          ],
+        }],
+        ['OS == "win"', {
+          # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
+          'msvs_disabled_warnings': [
+            4267,
           ],
         }],
       ],
@@ -337,6 +351,21 @@
         'prefs/public/pref_service_base.h',
         'prefs/value_map_pref_store.cc',
         'prefs/value_map_pref_store.h',
+      ],
+    },
+    {
+      'target_name': 'base_prefs_test_support',
+      'type': 'static_library',
+      'dependencies': [
+        'base',
+        'base_prefs',
+        '../testing/gmock.gyp:gmock',
+      ],
+      'sources': [
+        'prefs/pref_store_observer_mock.cc',
+        'prefs/pref_store_observer_mock.h',
+        'prefs/testing_pref_store.cc',
+        'prefs/testing_pref_store.h',
       ],
     },
     {
@@ -430,6 +459,7 @@
         'containers/small_map_unittest.cc',
         'containers/stack_container_unittest.cc',
         'cpu_unittest.cc',
+        'debug/crash_logging_unittest.cc',
         'debug/leak_tracker_unittest.cc',
         'debug/stack_trace_unittest.cc',
         'debug/trace_event_unittest.cc',
@@ -493,6 +523,7 @@
         'metrics/sample_vector_unittest.cc',
         'metrics/bucket_ranges_unittest.cc',
         'metrics/field_trial_unittest.cc',
+        'metrics/histogram_base_unittest.cc',
         'metrics/histogram_unittest.cc',
         'metrics/sparse_histogram_unittest.cc',
         'metrics/stats_table_unittest.cc',
@@ -504,14 +535,19 @@
         'platform_file_unittest.cc',
         'posix/file_descriptor_shuffle_unittest.cc',
         'pr_time_unittest.cc',
+        'prefs/overlay_user_pref_store_unittest.cc',
+        'prefs/pref_value_map_unittest.cc',
         'process_util_unittest.cc',
         'process_util_unittest_ios.cc',
         'process_util_unittest_mac.h',
         'process_util_unittest_mac.mm',
         'profiler/tracked_time_unittest.cc',
         'rand_util_unittest.cc',
+        'safe_numerics_unittest.cc',
+        'safe_numerics_unittest.nc',
         'scoped_native_library_unittest.cc',
         'scoped_observer.h',
+        'security_unittest.cc',
         'sequence_checker_unittest.cc',
         'sequence_checker_impl_unittest.cc',
         'sha1_unittest.cc',
@@ -586,6 +622,7 @@
       'dependencies': [
         'base',
         'base_i18n',
+        'base_prefs_test_support',
         'base_static',
         'run_all_unittests',
         'test_support_base',
@@ -703,6 +740,10 @@
             'threading/worker_pool_posix_unittest.cc',
             'message_pump_libevent_unittest.cc',
           ],
+          # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
+          'msvs_disabled_warnings': [
+            4267,
+          ],
         }, {  # OS != "win"
           'dependencies': [
             '../third_party/libevent/libevent.gyp:libevent'
@@ -714,6 +755,11 @@
             'debug/trace_event_win_unittest.cc',
             'time_win_unittest.cc',
             'win/win_util_unittest.cc',
+          ],
+        }],
+        ['use_system_nspr==1', {
+          'dependencies': [
+            'third_party/nspr/nspr.gyp:nspr',
           ],
         }],
       ],  # conditions
@@ -1027,6 +1073,7 @@
           'type': 'none',
           'sources': [
             'android/java/src/org/chromium/base/BuildInfo.java',
+            'android/java/src/org/chromium/base/CpuFeatures.java',
             'android/java/src/org/chromium/base/LocaleUtils.java',
             'android/java/src/org/chromium/base/PathService.java',
             'android/java/src/org/chromium/base/PathUtils.java',

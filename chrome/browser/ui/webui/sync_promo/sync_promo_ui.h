@@ -13,11 +13,13 @@ class PrefServiceSyncable;
 // The Web UI handler for chrome://signin.
 class SyncPromoUI : public content::WebUIController {
  public:
+  // Please keep this in sync with enums in sync_promo_trial.cc.
   enum Source {
     SOURCE_START_PAGE = 0, // This must be first.
     SOURCE_NTP_LINK,
     SOURCE_MENU,
     SOURCE_SETTINGS,
+    SOURCE_EXTENSION_INSTALL_BUBBLE,
     SOURCE_UNKNOWN, // This must be last.
   };
 
@@ -71,6 +73,9 @@ class SyncPromoUI : public content::WebUIController {
   // chrome should use the ClientLogin flow.  This function will return true
   // only for platforms where |ENABLE_ONE_CLICK_SIGNIN| is defined.
   static bool UseWebBasedSigninFlow();
+
+  // Forces UseWebBasedSigninFlow() to return true when set; used in tests only.
+  static void ForceWebBasedSigninFlowForTesting(bool force);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(SyncPromoUI);

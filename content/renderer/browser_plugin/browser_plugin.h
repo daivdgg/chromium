@@ -26,6 +26,7 @@ struct BrowserPluginMsg_UpdateRect_Params;
 
 namespace content {
 
+class BrowserPluginCompositingHelper;
 class BrowserPluginManager;
 class MockBrowserPlugin;
 
@@ -41,6 +42,10 @@ class CONTENT_EXPORT BrowserPlugin :
   void UpdateDOMAttribute(const std::string& attribute_name,
                           const std::string& attribute_value);
 
+  // Get the name attribute value.
+  std::string name_attribute() const { return name_; }
+  // Set the name attribute value.
+  void SetNameAttribute(const std::string& name);
   // Get the src attribute value of the BrowserPlugin instance.
   std::string src_attribute() const { return src_; }
   // Set the src attribute value of the BrowserPlugin instance.
@@ -84,8 +89,6 @@ class CONTENT_EXPORT BrowserPlugin :
   bool SetPartitionAttribute(const std::string& partition_id,
                              std::string* error_message);
 
-  // Inform the BrowserPlugin of the focus state of the embedder RenderView.
-  void SetEmbedderFocus(bool focused);
   // Informs the guest of an updated focus state.
   void UpdateGuestFocusState();
   // Indicates whether the guest should be focused.
@@ -241,6 +244,11 @@ class CONTENT_EXPORT BrowserPlugin :
   // IPC message handlers.
   // Please keep in alphabetical order.
   void OnAdvanceFocus(int instance_id, bool reverse);
+  void OnBuffersSwapped(int instance_id,
+                        const gfx::Size& size,
+                        std::string mailbox_name,
+                        int gpu_route_id,
+                        int gpu_host_id);
   void OnGuestContentWindowReady(int instance_id,
                                  int content_window_routing_id);
   void OnGuestGone(int instance_id, int process_id, int status);
@@ -260,6 +268,7 @@ class CONTENT_EXPORT BrowserPlugin :
   void OnLoadStop(int instance_id);
   void OnSetCursor(int instance_id, const WebCursor& cursor);
   void OnShouldAcceptTouchEvents(int instance_id, bool accept);
+  void OnUpdatedName(int instance_id, const std::string& name);
   void OnUpdateRect(int instance_id,
                     const BrowserPluginMsg_UpdateRect_Params& params);
 
@@ -295,10 +304,10 @@ class CONTENT_EXPORT BrowserPlugin :
   bool valid_partition_id_;
   int content_window_routing_id_;
   bool plugin_focused_;
-  bool embedder_focused_;
   // Tracks the visibility of the browser plugin regardless of the whole
   // embedder RenderView's visibility.
   bool visible_;
+  std::string name_;
 
   WebCursor cursor_;
 
@@ -325,6 +334,7 @@ class CONTENT_EXPORT BrowserPlugin :
 
   // Used for HW compositing.
   bool compositing_enabled_;
+  scoped_ptr<BrowserPluginCompositingHelper> compositing_helper_;
 
   DISALLOW_COPY_AND_ASSIGN(BrowserPlugin);
 };

@@ -18,12 +18,13 @@
 #include "chrome/browser/chromeos/cros/network_library.h"
 #include "chrome/browser/chromeos/sim_dialog_delegate.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
+#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/notification_service.h"
+#include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_message_handler.h"
@@ -70,15 +71,16 @@ const chromeos::NetworkDevice* GetCellularDevice() {
 
 namespace chromeos {
 
-class SimUnlockUIHTMLSource : public ChromeURLDataManager::DataSource {
+class SimUnlockUIHTMLSource : public content::URLDataSource {
  public:
   SimUnlockUIHTMLSource();
 
-  // Called when the network layer has requested a resource underneath
-  // the path we registered.
-  virtual void StartDataRequest(const std::string& path,
-                                bool is_incognito,
-                                int request_id) OVERRIDE;
+  // content::URLDataSource implementation.
+  virtual std::string GetSource() OVERRIDE;
+  virtual void StartDataRequest(
+      const std::string& path,
+      bool is_incognito,
+      const content::URLDataSource::GotDataCallback& callback) OVERRIDE;
   virtual std::string GetMimeType(const std::string&) const OVERRIDE {
     return "text/html";
   }
@@ -245,13 +247,17 @@ class SimUnlockHandler : public WebUIMessageHandler,
 
 // SimUnlockUIHTMLSource -------------------------------------------------------
 
-SimUnlockUIHTMLSource::SimUnlockUIHTMLSource()
-    : DataSource(chrome::kChromeUISimUnlockHost, MessageLoop::current()) {
+SimUnlockUIHTMLSource::SimUnlockUIHTMLSource() {
 }
 
-void SimUnlockUIHTMLSource::StartDataRequest(const std::string& path,
-                                             bool is_incognito,
-                                             int request_id) {
+std::string SimUnlockUIHTMLSource::GetSource() {
+  return chrome::kChromeUISimUnlockHost;
+}
+
+void SimUnlockUIHTMLSource::StartDataRequest(
+    const std::string& path,
+    bool is_incognito,
+    const content::URLDataSource::GotDataCallback& callback) {
   DictionaryValue strings;
   strings.SetString("title",
       l10n_util::GetStringUTF16(IDS_SIM_UNLOCK_ENTER_PIN_TITLE));
@@ -305,7 +311,7 @@ void SimUnlockUIHTMLSource::StartDataRequest(const std::string& path,
   strings.SetString("oldPin", l10n_util::GetStringUTF16(
       IDS_OPTIONS_SETTINGS_INTERNET_CELLULAR_CHANGE_PIN_OLD_PIN));
 
-  SetFontAndTextDirection(&strings);
+  web_ui_util::SetFontAndTextDirection(&strings);
 
   static const base::StringPiece html(
       ResourceBundle::GetSharedInstance().GetRawDataResource(
@@ -314,7 +320,7 @@ void SimUnlockUIHTMLSource::StartDataRequest(const std::string& path,
   std::string full_html = jstemplate_builder::GetI18nTemplateHtml(html,
                                                                   &strings);
 
-  SendResponse(request_id, base::RefCountedString::TakeString(&full_html));
+  callback.Run(base::RefCountedString::TakeString(&full_html));
 }
 
 // SimUnlockHandler ------------------------------------------------------------

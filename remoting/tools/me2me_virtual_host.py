@@ -26,14 +26,6 @@ import tempfile
 import time
 import uuid
 
-# By default this script will try to determine the most appropriate X session
-# command for the system.  To use a specific session instead, set this variable
-# to the executable filename, or a list containing the executable and any
-# arguments, for example:
-# XSESSION_COMMAND = "/usr/bin/gnome-session-fallback"
-# XSESSION_COMMAND = ["/usr/bin/gnome-session", "--session=ubuntu-2d"]
-XSESSION_COMMAND = None
-
 LOG_FILE_ENV_VAR = "CHROME_REMOTE_DESKTOP_LOG_FILE"
 
 # This script has a sensible default for the initial and maximum desktop size,
@@ -81,29 +73,41 @@ class Config:
     self.changed = False
 
   def load(self):
-    try:
-      settings_file = open(self.path, 'r')
-      self.data = json.load(settings_file)
-      self.changed = False
-      settings_file.close()
-    except Exception:
-      return False
-    return True
+    """Loads the config from file.
+
+    Raises:
+      IOError: Error reading data
+      ValueError: Error parsing JSON
+    """
+    settings_file = open(self.path, 'r')
+    self.data = json.load(settings_file)
+    self.changed = False
+    settings_file.close()
 
   def save(self):
+    """Saves the config to file.
+
+    Raises:
+      IOError: Error writing data
+      TypeError: Error serialising JSON
+    """
     if not self.changed:
-      return True
+      return
     old_umask = os.umask(0066)
     try:
       settings_file = open(self.path, 'w')
       settings_file.write(json.dumps(self.data, indent=2))
       settings_file.close()
-    except Exception:
-      return False
+      self.changed = False
     finally:
       os.umask(old_umask)
-    self.changed = False
-    return True
+
+  def save_and_log_errors(self):
+    """Calls save(self), trapping and logging any errors."""
+    try:
+      save(self)
+    except (IOError, TypeError) as e:
+      logging.error("Failed to save config: " + str(e))
 
   def get(self, key):
     return self.data.get(key)
@@ -199,6 +203,7 @@ class Desktop:
     # Create clean environment for new session, so it is cleanly separated from
     # the user's console X session.
     self.child_env = {}
+
     for key in [
         "HOME",
         "LANG",
@@ -210,6 +215,26 @@ class Desktop:
         LOG_FILE_ENV_VAR]:
       if os.environ.has_key(key):
         self.child_env[key] = os.environ[key]
+
+    # Read from /etc/environment if it exists, as it is a standard place to
+    # store system-wide environment settings. During a normal login, this would
+    # typically be done by the pam_env PAM module, depending on the local PAM
+    # configuration.
+    env_filename = "/etc/environment"
+    try:
+      with open(env_filename, "r") as env_file:
+        for line in env_file:
+          line = line.rstrip("\n")
+          # Split at the first "=", leaving any further instances in the value.
+          key_value_pair = line.split("=", 1)
+          if len(key_value_pair) == 2:
+            key, value = tuple(key_value_pair)
+            # The file stores key=value assignments, but the value may be
+            # quoted, so strip leading & trailing quotes from it.
+            value = value.strip("'\"")
+            self.child_env[key] = value
+    except IOError:
+      logging.info("Failed to read %s, skipping." % env_filename)
 
   def _setup_pulseaudio(self):
     self.pulseaudio_pipe = None
@@ -330,22 +355,22 @@ class Desktop:
       label = "%dx%d" % (width, height)
       args = ["xrandr", "--newmode", label, "0", str(width), "0", "0", "0",
               str(height), "0", "0", "0"]
-      proc = subprocess.Popen(args, env=self.child_env, stdout=devnull,
-                              stderr=devnull)
-      proc.wait()
+      subprocess.call(args, env=self.child_env, stdout=devnull, stderr=devnull)
       args = ["xrandr", "--addmode", "screen", label]
-      proc = subprocess.Popen(args, env=self.child_env, stdout=devnull,
-                              stderr=devnull)
-      proc.wait()
+      subprocess.call(args, env=self.child_env, stdout=devnull, stderr=devnull)
 
     # Set the initial mode to the first size specified, otherwise the X server
     # would default to (max_width, max_height), which might not even be in the
     # list.
     label = "%dx%d" % self.sizes[0]
     args = ["xrandr", "-s", label]
-    proc = subprocess.Popen(args, env=self.child_env, stdout=devnull,
-                            stderr=devnull)
-    proc.wait()
+    subprocess.call(args, env=self.child_env, stdout=devnull, stderr=devnull)
+
+    # Set the physical size of the display so that the initial mode is running
+    # at approximately 96 DPI, since some desktops require the DPI to be set to
+    # something realistic.
+    args = ["xrandr", "--dpi", "96"]
+    subprocess.call(args, env=self.child_env, stdout=devnull, stderr=devnull)
 
     devnull.close()
 
@@ -356,8 +381,12 @@ class Desktop:
     # terminal, any reading from stdin causes the job to be suspended.
     # Daemonization would solve this problem by separating the process from the
     # controlling terminal.
-    logging.info("Launching X session: %s" % XSESSION_COMMAND)
-    self.session_proc = subprocess.Popen(XSESSION_COMMAND,
+    xsession_command = choose_x_session()
+    if xsession_command is None:
+      raise Exception("Unable to choose suitable X session command.")
+
+    logging.info("Launching X session: %s" % xsession_command)
+    self.session_proc = subprocess.Popen(xsession_command,
                                          stdin=open(os.devnull, "r"),
                                          cwd=HOME_DIR,
                                          env=self.child_env)
@@ -472,18 +501,12 @@ class PidFile:
 def choose_x_session():
   """Chooses the most appropriate X session command for this system.
 
-  If XSESSION_COMMAND is already set, its value is returned directly.
-  Otherwise, a session is chosen for this system.
-
   Returns:
     A string containing the command to run, or a list of strings containing
     the executable program and its arguments, which is suitable for passing as
     the first parameter of subprocess.Popen().  If a suitable session cannot
     be found, returns None.
   """
-  if XSESSION_COMMAND is not None:
-    return XSESSION_COMMAND
-
   # If the session wrapper script (see below) is given a specific session as an
   # argument (such as ubuntu-2d on Ubuntu 12.04), the wrapper will run that
   # session instead of looking for custom .xsession files in the home directory.
@@ -635,7 +658,10 @@ class SignalHandler:
   def __call__(self, signum, _stackframe):
     if signum == signal.SIGHUP:
       logging.info("SIGHUP caught, restarting host.")
-      self.host_config.load()
+      try:
+        self.host_config.load()
+      except (IOError, ValueError) as e:
+        logging.error("Failed to load config: " + str(e))
       for desktop in g_desktops:
         if desktop.host_proc:
           desktop.host_proc.send_signal(signal.SIGTERM)
@@ -872,26 +898,15 @@ Web Store: https://chrome.google.com/remotedesktop"""
 
     sizes.append((width, height))
 
-  # Determine the command-line to run the user's preferred X environment.
-  global XSESSION_COMMAND
-  XSESSION_COMMAND = choose_x_session()
-  if XSESSION_COMMAND is None:
-    print >> sys.stderr, "Unable to choose suitable X session command."
-    return 1
-
-  if "--session=ubuntu-2d" in XSESSION_COMMAND:
-    print >> sys.stderr, (
-      "The Unity 2D desktop session will be used.\n"
-      "If you encounter problems with this choice of desktop, please install\n"
-      "the gnome-session-fallback package, and restart this script.\n")
-
   # Register an exit handler to clean up session process and the PID file.
   atexit.register(cleanup)
 
   # Load the initial host configuration.
   host_config = Config(options.config)
-  if (not host_config.load()):
-    print >> sys.stderr, "Failed to load " + config_filename
+  try:
+    host_config.load()
+  except (IOError, ValueError) as e:
+    print >> sys.stderr, "Failed to load config: " + str(e)
     return 1
 
   # Register handler to re-load the configuration in response to signals.
@@ -1031,30 +1046,30 @@ Web Store: https://chrome.google.com/remotedesktop"""
         logging.info("Host configuration is invalid - exiting.")
         host_config.clear_auth()
         host_config.clear_host_info()
-        host_config.save()
+        host_config.save_and_log_errors()
         return 0
       elif os.WEXITSTATUS(status) == 101:
         logging.info("Host ID has been deleted - exiting.")
         host_config.clear_host_info()
-        host_config.save()
+        host_config.save_and_log_errors()
         return 0
       elif os.WEXITSTATUS(status) == 102:
         logging.info("OAuth credentials are invalid - exiting.")
         host_config.clear_auth()
-        host_config.save()
+        host_config.save_and_log_errors()
         return 0
       elif os.WEXITSTATUS(status) == 103:
         logging.info("Host domain is blocked by policy - exiting.")
         host_config.clear_auth()
         host_config.clear_host_info()
-        host_config.save()
+        host_config.save_and_log_errors()
         return 0
       # Nothing to do for Mac-only status 104 (login screen unsupported)
       elif os.WEXITSTATUS(status) == 105:
         logging.info("Username is blocked by policy - exiting.")
         host_config.clear_auth()
         host_config.clear_host_info()
-        host_config.save()
+        host_config.save_and_log_errors()
         return 0
 
 

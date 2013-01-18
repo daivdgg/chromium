@@ -13,6 +13,7 @@
 #include "cc/layer_impl.h"
 #include "cc/layer_tree_host_impl.h"
 #include "cc/layer_tree_impl.h"
+#include "cc/picture_layer.h"
 #include "cc/scrollbar_layer.h"
 #include "cc/single_thread_proxy.h"
 #include "cc/test/fake_content_layer.h"
@@ -20,7 +21,6 @@
 #include "cc/test/fake_content_layer_impl.h"
 #include "cc/test/fake_output_surface.h"
 #include "cc/test/fake_scrollbar_theme_painter.h"
-#include "cc/test/fake_video_frame.h"
 #include "cc/test/fake_video_frame_provider.h"
 #include "cc/test/fake_web_graphics_context_3d.h"
 #include "cc/test/fake_web_scrollbar.h"
@@ -611,25 +611,22 @@ class LayerTreeHostContextTestDontUseLostResources :
     content_with_mask_->setMaskLayer(mask_.get());
     root_->addChild(content_with_mask_);
 
-    VideoLayerImpl::FrameUnwrapper unwrapper =
-        base::Bind(FakeVideoFrame::ToVideoFrame);
-
     scoped_refptr<VideoLayer> video_color_ = VideoLayer::create(
-        &color_frame_provider_, unwrapper);
+        &color_frame_provider_);
     video_color_->setBounds(gfx::Size(10, 10));
     video_color_->setAnchorPoint(gfx::PointF());
     video_color_->setIsDrawable(true);
     root_->addChild(video_color_);
 
     scoped_refptr<VideoLayer> video_hw_ = VideoLayer::create(
-        &hw_frame_provider_, unwrapper);
+        &hw_frame_provider_);
     video_hw_->setBounds(gfx::Size(10, 10));
     video_hw_->setAnchorPoint(gfx::PointF());
     video_hw_->setIsDrawable(true);
     root_->addChild(video_hw_);
 
     scoped_refptr<VideoLayer> video_scaled_hw_ = VideoLayer::create(
-        &scaled_hw_frame_provider_, unwrapper);
+        &scaled_hw_frame_provider_);
     video_scaled_hw_->setBounds(gfx::Size(10, 10));
     video_scaled_hw_->setAnchorPoint(gfx::PointF());
     video_scaled_hw_->setIsDrawable(true);
@@ -694,42 +691,39 @@ class LayerTreeHostContextTestDontUseLostResources :
           gfx::Rect(0, 0, 10, 10),
           gfx::Rect(0, 0, 10, 10),
           gfx::Transform());
-      pass->AppendOneOfEveryQuadType(resource_provider);
+      pass->AppendOneOfEveryQuadType(resource_provider, RenderPass::Id(2, 1));
 
       ScopedPtrVector<RenderPass> pass_list;
-      pass_list.append(pass_for_quad.PassAs<RenderPass>());
-      pass_list.append(pass.PassAs<RenderPass>());
+      pass_list.push_back(pass_for_quad.PassAs<RenderPass>());
+      pass_list.push_back(pass.PassAs<RenderPass>());
 
       // First child is the delegated layer.
       DelegatedRendererLayerImpl* delegated_impl =
           static_cast<DelegatedRendererLayerImpl*>(
               host_impl->rootLayer()->children()[0]);
       delegated_impl->setRenderPasses(pass_list);
-      EXPECT_TRUE(pass_list.isEmpty());
+      EXPECT_TRUE(pass_list.empty());
 
-      color_video_frame_ = make_scoped_ptr(new FakeVideoFrame(
-          VideoFrame::CreateColorFrame(
-              gfx::Size(4, 4), 0x80, 0x80, 0x80, base::TimeDelta())));
-      hw_video_frame_ = make_scoped_ptr(new FakeVideoFrame(
-          VideoFrame::WrapNativeTexture(
-              resource_provider->graphicsContext3D()->createTexture(),
-              GL_TEXTURE_2D,
-              gfx::Size(4, 4), gfx::Rect(0, 0, 4, 4), gfx::Size(4, 4),
-              base::TimeDelta(),
-              VideoFrame::ReadPixelsCB(),
-              base::Closure())));
-      scaled_hw_video_frame_ = make_scoped_ptr(new FakeVideoFrame(
-          VideoFrame::WrapNativeTexture(
-              resource_provider->graphicsContext3D()->createTexture(),
-              GL_TEXTURE_2D,
-              gfx::Size(4, 4), gfx::Rect(0, 0, 3, 2), gfx::Size(4, 4),
-              base::TimeDelta(),
-              VideoFrame::ReadPixelsCB(),
-              base::Closure())));
+      color_video_frame_ = VideoFrame::CreateColorFrame(
+          gfx::Size(4, 4), 0x80, 0x80, 0x80, base::TimeDelta());
+      hw_video_frame_ = VideoFrame::WrapNativeTexture(
+          resource_provider->graphicsContext3D()->createTexture(),
+          GL_TEXTURE_2D,
+          gfx::Size(4, 4), gfx::Rect(0, 0, 4, 4), gfx::Size(4, 4),
+          base::TimeDelta(),
+          VideoFrame::ReadPixelsCB(),
+          base::Closure());
+      scaled_hw_video_frame_ = VideoFrame::WrapNativeTexture(
+          resource_provider->graphicsContext3D()->createTexture(),
+          GL_TEXTURE_2D,
+          gfx::Size(4, 4), gfx::Rect(0, 0, 3, 2), gfx::Size(4, 4),
+          base::TimeDelta(),
+          VideoFrame::ReadPixelsCB(),
+          base::Closure());
 
-      color_frame_provider_.set_frame(color_video_frame_.get());
-      hw_frame_provider_.set_frame(hw_video_frame_.get());
-      scaled_hw_frame_provider_.set_frame(scaled_hw_video_frame_.get());
+      color_frame_provider_.set_frame(color_video_frame_);
+      hw_frame_provider_.set_frame(hw_video_frame_);
+      scaled_hw_frame_provider_.set_frame(scaled_hw_video_frame_);
       return;
     }
 
@@ -742,7 +736,10 @@ class LayerTreeHostContextTestDontUseLostResources :
     }
   }
 
-  virtual bool prepareToDrawOnThread(LayerTreeHostImpl* host_impl) {
+  virtual bool prepareToDrawOnThread(
+      LayerTreeHostImpl* host_impl,
+      LayerTreeHostImpl::FrameData& frame,
+      bool result) OVERRIDE {
     if (host_impl->activeTree()->source_frame_number() == 2) {
       // Lose the context during draw on the second commit. This will cause
       // a third commit to recover.
@@ -776,9 +773,9 @@ class LayerTreeHostContextTestDontUseLostResources :
   scoped_refptr<HeadsUpDisplayLayer> hud_;
   scoped_refptr<ScrollbarLayer> scrollbar_;
 
-  scoped_ptr<FakeVideoFrame> color_video_frame_;
-  scoped_ptr<FakeVideoFrame> hw_video_frame_;
-  scoped_ptr<FakeVideoFrame> scaled_hw_video_frame_;
+  scoped_refptr<VideoFrame> color_video_frame_;
+  scoped_refptr<VideoFrame> hw_video_frame_;
+  scoped_refptr<VideoFrame> scaled_hw_video_frame_;
 
   FakeVideoFrameProvider color_frame_provider_;
   FakeVideoFrameProvider hw_frame_provider_;
@@ -786,6 +783,83 @@ class LayerTreeHostContextTestDontUseLostResources :
 };
 
 SINGLE_AND_MULTI_THREAD_TEST_F(LayerTreeHostContextTestDontUseLostResources)
+
+class LayerTreeHostContextTestFailsImmediately :
+    public LayerTreeHostContextTest {
+ public:
+  LayerTreeHostContextTestFailsImmediately()
+      : LayerTreeHostContextTest() {
+  }
+
+  virtual ~LayerTreeHostContextTestFailsImmediately() {}
+
+  virtual void beginTest() OVERRIDE {
+    postSetNeedsCommitToMainThread();
+  }
+
+  virtual void afterTest() OVERRIDE {
+  }
+
+  virtual scoped_ptr<FakeWebGraphicsContext3D> CreateContext3d() OVERRIDE {
+    scoped_ptr<FakeWebGraphicsContext3D> context =
+        LayerTreeHostContextTest::CreateContext3d();
+    context->loseContextCHROMIUM();
+    return context.Pass();
+  }
+
+  virtual void didRecreateOutputSurface(bool succeeded) OVERRIDE {
+    EXPECT_FALSE(succeeded);
+    // If we make it this far without crashing, we pass!
+    endTest();
+  }
+};
+
+SINGLE_AND_MULTI_THREAD_TEST_F(LayerTreeHostContextTestFailsImmediately);
+
+class ImplSidePaintingLayerTreeHostContextTest
+    : public LayerTreeHostContextTest {
+ public:
+  virtual void initializeSettings(LayerTreeSettings& settings) OVERRIDE {
+    settings.implSidePainting = true;
+  }
+};
+
+class LayerTreeHostContextTestImplSidePainting :
+    public ImplSidePaintingLayerTreeHostContextTest {
+ public:
+  virtual void setupTree() OVERRIDE {
+    scoped_refptr<Layer> root = Layer::create();
+    root->setBounds(gfx::Size(10, 10));
+    root->setAnchorPoint(gfx::PointF());
+    root->setIsDrawable(true);
+
+    scoped_refptr<PictureLayer> picture = PictureLayer::create(&client_);
+    picture->setBounds(gfx::Size(10, 10));
+    picture->setAnchorPoint(gfx::PointF());
+    picture->setIsDrawable(true);
+    root->addChild(picture);
+
+    m_layerTreeHost->setRootLayer(root);
+    LayerTreeHostContextTest::setupTree();
+  }
+
+  virtual void beginTest() OVERRIDE {
+    times_to_lose_during_commit_ = 1;
+    postSetNeedsCommitToMainThread();
+  }
+
+  virtual void afterTest() OVERRIDE {}
+
+  virtual void didRecreateOutputSurface(bool succeeded) OVERRIDE {
+    EXPECT_TRUE(succeeded);
+    endTest();
+  }
+
+ private:
+  FakeContentLayerClient client_;
+};
+
+MULTI_THREAD_TEST_F(LayerTreeHostContextTestImplSidePainting)
 
 }  // namespace
 }  // namespace cc

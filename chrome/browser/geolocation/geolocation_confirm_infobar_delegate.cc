@@ -17,6 +17,25 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 
+#if defined(OS_ANDROID)
+#include "chrome/browser/geolocation/geolocation_confirm_infobar_delegate_android.h"
+typedef GeolocationConfirmInfoBarDelegateAndroid DelegateType;
+#else
+typedef GeolocationConfirmInfoBarDelegate DelegateType;
+#endif
+
+
+// static
+InfoBarDelegate* GeolocationConfirmInfoBarDelegate::Create(
+    InfoBarService* infobar_service,
+    GeolocationInfoBarQueueController* controller,
+    const GeolocationPermissionRequestID& id,
+    const GURL& requesting_frame,
+    const std::string& display_languages) {
+  return infobar_service->AddInfoBar(scoped_ptr<InfoBarDelegate>(
+      new DelegateType(infobar_service, controller, id, requesting_frame,
+                       display_languages)));
+}
 
 GeolocationConfirmInfoBarDelegate::GeolocationConfirmInfoBarDelegate(
     InfoBarService* infobar_service,
@@ -31,7 +50,7 @@ GeolocationConfirmInfoBarDelegate::GeolocationConfirmInfoBarDelegate(
       display_languages_(display_languages) {
   const content::NavigationEntry* committed_entry = infobar_service->
       GetWebContents()->GetController().GetLastCommittedEntry();
-  set_contents_unique_id(committed_entry ? committed_entry->GetUniqueID() : 0);
+   contents_unique_id_ = committed_entry ? committed_entry->GetUniqueID() : 0;
 }
 
 gfx::Image* GeolocationConfirmInfoBarDelegate::GetIcon() const {
@@ -42,6 +61,17 @@ gfx::Image* GeolocationConfirmInfoBarDelegate::GetIcon() const {
 InfoBarDelegate::Type
     GeolocationConfirmInfoBarDelegate::GetInfoBarType() const {
   return PAGE_ACTION_TYPE;
+}
+
+bool GeolocationConfirmInfoBarDelegate::ShouldExpireInternal(
+    const content::LoadCommittedDetails& details) const {
+  // This implementation matches InfoBarDelegate::ShouldExpireInternal(), but
+  // uses the unique ID we set in the constructor instead of that stored in the
+  // base class.
+  return (contents_unique_id_ != details.entry->GetUniqueID()) ||
+      (content::PageTransitionStripQualifier(
+          details.entry->GetTransitionType()) ==
+              content::PAGE_TRANSITION_RELOAD);
 }
 
 string16 GeolocationConfirmInfoBarDelegate::GetMessageText() const {

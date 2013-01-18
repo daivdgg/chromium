@@ -138,6 +138,7 @@ RenderWidgetHostImpl::RenderWidgetHostImpl(RenderWidgetHostDelegate* delegate,
       mouse_move_pending_(false),
       mouse_wheel_pending_(false),
       select_range_pending_(false),
+      move_caret_pending_(false),
       needs_repainting_on_restore_(false),
       is_unresponsive_(false),
       in_flight_event_count_(0),
@@ -339,6 +340,7 @@ bool RenderWidgetHostImpl::OnMessageReceived(const IPC::Message &msg) {
     IPC_MESSAGE_HANDLER(ViewHostMsg_HandleInputEvent_ACK, OnInputEventAck)
     IPC_MESSAGE_HANDLER(ViewHostMsg_BeginSmoothScroll, OnBeginSmoothScroll)
     IPC_MESSAGE_HANDLER(ViewHostMsg_SelectRange_ACK, OnSelectRangeAck)
+    IPC_MESSAGE_HANDLER(ViewHostMsg_MoveCaret_ACK, OnMsgMoveCaretAck)
     IPC_MESSAGE_HANDLER(ViewHostMsg_Focus, OnFocus)
     IPC_MESSAGE_HANDLER(ViewHostMsg_Blur, OnBlur)
     IPC_MESSAGE_HANDLER(ViewHostMsg_HasTouchEventHandlers,
@@ -1033,6 +1035,11 @@ void RenderWidgetHostImpl::ForwardKeyboardEvent(
   if (ignore_input_events_ || process_->IgnoreInputEvents())
     return;
 
+  // First, let keypress listeners take a shot at handling the event.  If a
+  // listener handles the event, it should not be propagated to the renderer.
+  if (KeyPressListenersHandleEvent(key_event))
+    return;
+
   if (key_event.type == WebKeyboardEvent::Char &&
       (key_event.windowsKeyCode == ui::VKEY_RETURN ||
        key_event.windowsKeyCode == ui::VKEY_SPACE)) {
@@ -1163,20 +1170,6 @@ void RenderWidgetHostImpl::ForwardTouchEvent(
   touch_event_queue_->QueueEvent(touch_event);
 }
 
-bool RenderWidgetHostImpl::KeyPressListenersHandleEvent(
-    const NativeWebKeyboardEvent& event) {
-  if (event.type != WebKeyboardEvent::RawKeyDown)
-    return false;
-
-  for (std::list<KeyboardListener*>::iterator it = keyboard_listeners_.begin();
-       it != keyboard_listeners_.end(); ++it) {
-    if ((*it)->HandleKeyPressEvent(event))
-      return true;
-  }
-
-  return false;
-}
-
 void RenderWidgetHostImpl::AddKeyboardListener(KeyboardListener* listener) {
   keyboard_listeners_.push_back(listener);
 }
@@ -1215,6 +1208,10 @@ void RenderWidgetHostImpl::RendererExited(base::TerminationStatus status,
   // Must reset these to ensure that SelectRange works with a new renderer.
   select_range_pending_ = false;
   next_selection_range_.reset();
+
+  // Must reset these to ensure that MoveCaret works with a new renderer.
+  move_caret_pending_ = false;
+  next_move_caret_.reset();
 
   touch_event_queue_->Reset();
 
@@ -1525,7 +1522,9 @@ void RenderWidgetHostImpl::OnSwapCompositorFrame(
         frame.metadata.page_scale_factor,
         frame.metadata.min_page_scale_factor,
         frame.metadata.max_page_scale_factor,
-        gfx::ToCeiledSize(content_size));
+        gfx::ToCeiledSize(content_size),
+        frame.metadata.location_bar_offset,
+        frame.metadata.location_bar_content_translation);
   }
 #endif
 }
@@ -1851,6 +1850,14 @@ void RenderWidgetHostImpl::OnSelectRangeAck() {
   }
 }
 
+void RenderWidgetHostImpl::OnMsgMoveCaretAck() {
+  move_caret_pending_ = false;
+  if (next_move_caret_.get()) {
+    scoped_ptr<gfx::Point> next(next_move_caret_.Pass());
+    MoveCaret(*next);
+  }
+}
+
 void RenderWidgetHostImpl::ProcessWheelAck(bool processed) {
   mouse_wheel_pending_ = false;
 
@@ -2086,6 +2093,20 @@ void RenderWidgetHostImpl::SetIgnoreInputEvents(bool ignore_input_events) {
   ignore_input_events_ = ignore_input_events;
 }
 
+bool RenderWidgetHostImpl::KeyPressListenersHandleEvent(
+    const NativeWebKeyboardEvent& event) {
+  if (event.skip_in_browser || event.type != WebKeyboardEvent::RawKeyDown)
+    return false;
+
+  for (std::list<KeyboardListener*>::iterator it = keyboard_listeners_.begin();
+       it != keyboard_listeners_.end(); ++it) {
+    if ((*it)->HandleKeyPressEvent(event))
+      return true;
+  }
+
+  return false;
+}
+
 void RenderWidgetHostImpl::ProcessKeyboardEventAck(int type, bool processed) {
   if (key_queue_.empty()) {
     LOG(ERROR) << "Got a KeyEvent back from the renderer but we "
@@ -2218,6 +2239,16 @@ void RenderWidgetHostImpl::SelectRange(const gfx::Point& start,
 
   select_range_pending_ = true;
   Send(new ViewMsg_SelectRange(GetRoutingID(), start, end));
+}
+
+void RenderWidgetHostImpl::MoveCaret(const gfx::Point& point) {
+  if (move_caret_pending_) {
+    next_move_caret_.reset(new gfx::Point(point));
+    return;
+  }
+
+  move_caret_pending_ = true;
+  Send(new ViewMsg_MoveCaret(GetRoutingID(), point));
 }
 
 void RenderWidgetHostImpl::Undo() {

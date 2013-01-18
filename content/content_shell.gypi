@@ -43,6 +43,7 @@
         '../ui/gl/gl.gyp:gl',
         '../ui/ui.gyp:ui',
         '../v8/tools/gyp/v8.gyp:v8',
+        '../webkit/support/webkit_support.gyp:webkit_resources',
         '../webkit/support/webkit_support.gyp:webkit_support',
         '<(webkit_src_dir)/Source/WebKit/chromium/WebKit.gyp:webkit',
         '<(webkit_src_dir)/Source/WebKit/chromium/WebKit.gyp:webkit_test_support',
@@ -145,7 +146,6 @@
             '<(SHARED_INTERMEDIATE_DIR)/webkit',
           ],
           'dependencies': [
-            '<(DEPTH)/webkit/support/webkit_support.gyp:webkit_resources',
             '<(DEPTH)/webkit/support/webkit_support.gyp:webkit_strings',
           ],
           'configurations': {
@@ -166,9 +166,6 @@
         ['OS=="android"', {
           'dependencies': [
             'content_shell_jni_headers',
-          ],
-          'include_dirs': [
-            '<(SHARED_INTERMEDIATE_DIR)/content/shell',
           ],
         }, {  # else: OS!="android"
           'dependencies': [
@@ -560,6 +557,11 @@
             'shell/android/java/src/org/chromium/content_shell/ShellManager.java',
             'shell/android/java/src/org/chromium/content_shell/Shell.java',
           ],
+          'direct_dependent_settings': {
+            'include_dirs': [
+              '<(SHARED_INTERMEDIATE_DIR)/content/shell',
+            ],
+          },
           'variables': {
             'jni_gen_dir': 'content/shell',
           },
@@ -576,9 +578,6 @@
             # WebContents are included.
             '../skia/skia.gyp:skia',
             '<(DEPTH)/media/media.gyp:player_android',
-          ],
-          'include_dirs': [
-            '<(SHARED_INTERMEDIATE_DIR)/content/shell',
           ],
           'sources': [
             'shell/android/shell_library_loader.cc',

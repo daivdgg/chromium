@@ -173,7 +173,8 @@ class HistoryBackend : public base::RefCountedThreadSafe<HistoryBackend>,
   void ScheduleAutocomplete(HistoryURLProvider* provider,
                             HistoryURLProviderParams* params);
 
-  void IterateURLs(HistoryService::URLEnumerator* enumerator);
+  void IterateURLs(
+      const scoped_refptr<VisitedLinkDelegate::URLEnumerator>& enumerator);
   void QueryURL(scoped_refptr<QueryURLRequest> request,
                 const GURL& url,
                 bool want_visits);
@@ -702,6 +703,11 @@ class HistoryBackend : public base::RefCountedThreadSafe<HistoryBackend>,
   // sizes are not contained in |favicon_sizes|.
   void SetFaviconSizes(FaviconID icon_id,
                        const FaviconSizes& favicon_sizes);
+
+  // Returns true if the bitmap data at |bitmap_id| equals |new_bitmap_data|.
+  bool IsFaviconBitmapDataEqual(
+      FaviconBitmapID bitmap_id,
+      const scoped_refptr<base::RefCountedMemory>& new_bitmap_data);
 
   // Returns true if there are favicons for |page_url| and one of the types in
   // |icon_types|.

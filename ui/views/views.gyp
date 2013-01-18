@@ -181,8 +181,6 @@
         'controls/scrollbar/bitmap_scroll_bar.h',
         'controls/scrollbar/native_scroll_bar_views.cc',
         'controls/scrollbar/native_scroll_bar_views.h',
-        'controls/scrollbar/native_scroll_bar_win.cc',
-        'controls/scrollbar/native_scroll_bar_win.h',
         'controls/scrollbar/native_scroll_bar_wrapper.h',
         'controls/scrollbar/native_scroll_bar.cc',
         'controls/scrollbar/native_scroll_bar.h',
@@ -448,9 +446,6 @@
       ],
       'conditions': [
         ['use_aura==1', {
-          'sources/': [
-            ['exclude', 'controls/menu/menu_2.*'],
-          ],
           'sources!': [
             'controls/native_control.cc',
             'controls/native_control.h',
@@ -476,10 +471,17 @@
             }],
             ['OS=="win"', {
               'sources/': [
+                ['include', 'controls/menu/native_menu_win.cc'],
+                ['include', 'controls/menu/native_menu_win.h'],
                 ['include', 'widget/desktop_aura/desktop_screen_win.cc'],
                 ['include', 'widget/desktop_aura/desktop_drag_drop_client_win.cc'],
                 ['include', 'widget/desktop_aura/desktop_drop_target_win.cc'],
                 ['include', 'widget/desktop_aura/desktop_root_window_host_win.cc'],
+              ],
+            }],
+            ['OS!="win"', {
+              'sources/': [
+                ['exclude', 'controls/menu/menu_2.*'],
               ],
             }],
           ],
@@ -587,6 +589,8 @@
         'test/desktop_test_views_delegate.h',
         'test/test_views_delegate.cc',
         'test/test_views_delegate.h',
+        'test/test_widget_observer.cc',
+        'test/test_widget_observer.h',
         'test/views_test_base.cc',
         'test/views_test_base.h',
       ],

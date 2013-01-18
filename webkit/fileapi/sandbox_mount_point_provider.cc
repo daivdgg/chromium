@@ -255,11 +255,13 @@ FileSystemFileUtil* SandboxMountPointProvider::GetFileUtil(
   return sandbox_file_util_.get();
 }
 
-FilePath SandboxMountPointProvider::GetPathForPermissionsCheck(
-    const FilePath& virtual_path) const {
-  // Sandbox provider shouldn't directly grant permissions for its
-  // data directory.
-  return FilePath();
+FilePermissionPolicy SandboxMountPointProvider::GetPermissionPolicy(
+    const FileSystemURL& url, int permissions) const {
+  // Access to the sandbox directory (and only to the directory) should be
+  // always allowed.
+  CHECK(CanHandleType(url.type()));
+  CHECK(!url.path().ReferencesParent());
+  return FILE_PERMISSION_ALWAYS_ALLOW;
 }
 
 FileSystemOperation* SandboxMountPointProvider::CreateFileSystemOperation(
@@ -435,8 +437,6 @@ int64 SandboxMountPointProvider::GetOriginUsageOnFileThread(
   int64 usage = 0;
 
   while (!(file_path_each = enumerator->Next()).empty()) {
-    base::PlatformFileInfo file_info;
-    FilePath platform_file_path;
     usage += enumerator->Size();
     usage += ObfuscatedFileUtil::ComputeFilePathCost(file_path_each);
   }

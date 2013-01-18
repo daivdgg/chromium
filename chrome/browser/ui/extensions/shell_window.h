@@ -60,10 +60,12 @@ class ShellWindow : public content::NotificationObserver,
 
     WindowType window_type;
     Frame frame;
+    bool transparent_background;  // Only supported on ash.
 
     // Specify the initial content bounds of the window (excluding any window
-    // decorations). INT_MIN designates 'unspecified' for any coordinate, and
-    // should be replaced with a default value.
+    // decorations). INT_MIN designates 'unspecified' for the position
+    // components, and 0 for the size components. When unspecified, they should
+    // be replaced with a default value.
     gfx::Rect bounds;
 
     gfx::Size minimum_size;
@@ -157,7 +159,7 @@ class ShellWindow : public content::NotificationObserver,
       const content::WebContents* source) const OVERRIDE;
   virtual void RequestMediaAccessPermission(
       content::WebContents* web_contents,
-      const content::MediaStreamRequest* request,
+      const content::MediaStreamRequest& request,
       const content::MediaResponseCallback& callback) OVERRIDE;
   virtual content::WebContents* OpenURLFromTab(
       content::WebContents* source,
@@ -213,7 +215,6 @@ class ShellWindow : public content::NotificationObserver,
   // Callback from web_contents()->DownloadFavicon.
   void DidDownloadFavicon(int id,
                           const GURL& image_url,
-                          bool errored,
                           int requested_size,
                           const std::vector<SkBitmap>& bitmaps);
 

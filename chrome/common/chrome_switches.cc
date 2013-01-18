@@ -430,7 +430,7 @@ const char kDisableWebsiteSettings[]         = "disable-website-settings";
 // for ChromeOS Aura, disable "zero window mode".
 // TODO(pkotwicz): Investigate if this bug can be removed.
 // (http://crbug.com/119175)
-extern const char kDisableZeroBrowsersOpenForTests[] =
+const char kDisableZeroBrowsersOpenForTests[] =
     "disable-zero-browsers-open-for-tests";
 
 // Use a specific disk cache location, rather than one derived from the
@@ -449,9 +449,6 @@ const char kDnsPrefetchDisable[]            = "dns-prefetch-disable";
 // logging to be enabled to really do anything). Used by developers and test
 // scripts.
 const char kDumpHistogramsOnExit[]          = "dump-histograms-on-exit";
-
-// Enables the opt-in UI for the app list.
-const char kEnableAppListOptIn[]            = "enable-app-list-opt-in";
 
 // Enables the experimental asynchronous DNS client.
 const char kEnableAsyncDns[]                = "enable-async-dns";
@@ -545,7 +542,7 @@ const char kEnableIPPooling[]               = "enable-ip-pooling";
 
 // Enables support for user profiles that are managed by another user and can
 // have restrictions applied.
-extern const char kEnableManagedUsers[]     = "enable-managed-users";
+const char kEnableManagedUsers[]     = "enable-managed-users";
 
 // Allows reporting memory info (JS heap size) to page.
 const char kEnableMemoryInfo[]              = "enable-memory-info";
@@ -607,14 +604,6 @@ const char kEnablePanelStacking[]           = "enable-panel-stacking";
 // account creation.
 const char kEnablePasswordGeneration[]      = "enable-password-generation";
 
-// Enables content settings based on host *and* plug-in in the user
-// preferences.
-const char kEnableResourceContentSettings[] =
-    "enable-resource-content-settings";
-
-// Enables rich templated notifications and NotificationCenter.
-const char kEnableRichNotifications[]       = "enable-rich-notifications";
-
 // Enables the installation and usage of Portable Native Client.
 const char kEnablePnacl[]                   = "enable-pnacl";
 
@@ -625,6 +614,16 @@ const char kEnablePnacl[]                   = "enable-pnacl";
 // during chrome_browser_main.
 const char kEnableProfiling[]               = "enable-profiling";
 
+// Enables query extraction in the omnibox.
+const char kEnableQueryExtraction[]         = "enable-query-extraction";
+
+// Enables content settings based on host *and* plug-in in the user
+// preferences.
+const char kEnableResourceContentSettings[] =
+    "enable-resource-content-settings";
+
+// Enables rich templated notifications and NotificationCenter.
+const char kEnableRichNotifications[]       = "enable-rich-notifications";
 
 // Controls the support for SDCH filtering (dictionary based expansion of
 // content). By default SDCH filtering is enabled. To disable SDCH filtering,
@@ -678,6 +677,12 @@ const char kExtensionProcess[]              = "extension-process";
 
 // Frequency in seconds for Extensions auto-update.
 const char kExtensionsUpdateFrequency[]     = "extensions-update-frequency";
+
+// Fakes the channel of the browser for purposes of Variations filtering. This
+// is to be used for testing only. Possible values are "stable", "beta", "dev"
+// and "canary". Note that this only applies if the browser's reported channel
+// is UNKNOWN.
+const char kFakeVariationsChannel[] =       "fake-variations-channel";
 
 // These two flags are added around the switches about:flags adds to the
 // command line. This is useful to see which switches were added by about:flags
@@ -1309,16 +1314,13 @@ const char kTryChromeAgain[]                = "try-chrome-again";
 // Runs un-installation steps that were done by chrome first-run.
 const char kUninstall[]                     = "uninstall";
 
-// Use hardware gpu, if available, for tests.
-const char kUseGpuInTests[] = "use-gpu-in-tests";
-
 // Uses Spdy for the transport protocol instead of HTTP. This is a temporary
 // testing flag.
 const char kUseSpdy[]                       = "use-spdy";
 
-// Enables use of the spelling web service. This will only work if asynchronous
-// spell checking is not disabled.
-const char kUseSpellingService[]            = "use-spelling-service";
+// Disables use of the spelling web service and only provides suggestions.
+// This will only work if asynchronous spell checking is not disabled.
+const char kUseSpellingSuggestions[]            = "use-spelling-suggestions";
 
 // Sets the maximum SPDY sessions per domain.
 const char kMaxSpdySessionsPerDomain[]      = "max-spdy-sessions-per-domain";
@@ -1334,7 +1336,8 @@ const char kUserDataDir[]                   = "user-data-dir";
 const char kUseWebBasedSigninFlow[]         = "use-web-based-signin-flow";
 
 // Specifies a custom URL for the server which reports variation data to the
-// client. See variations_service.cc.
+// client. Specifying this switch enables the Variations service on
+// unofficial builds. See variations_service.cc.
 const char kVariationsServerURL[]            = "variations-server-url";
 
 // Prints version information and quits.
@@ -1347,8 +1350,8 @@ const char kViewerConnection[]              = "viewer-connection";
 // Cycle through a series of URLs listed in the specified file.
 const char kVisitURLs[]                     = "visit-urls";
 
-// Secure service URL for Online Wallet service. Used for encyption of one time
-// pads and to escrow credit card numbers.
+// Secure service URL for Online Wallet service. Used as the base url to escrow
+// credit card numbers.
 const char kWalletSecureServiceUrl[]        = "wallet-secure-service-url";
 
 // Service URL for Online Wallet service. Used as the base url for Online Wallet
@@ -1425,6 +1428,9 @@ const char kDisableOobeAnimation[]          = "disable-oobe-animation";
 // Disables fake ethernet network on the login screen.
 const char kDisableStubEthernet[]           = "disable-stub-ethernet";
 
+// Enable "interactive" mode for stub implemenations (e.g. NetworkLibrary)
+const char kEnableStubInteractive[]         = "enable-stub-interactive";
+
 // Enables component extension that initializes background pages of
 // certain hosted applications.
 const char kEnableBackgroundLoader[]        = "enable-background-loader";
@@ -1434,6 +1440,9 @@ const char kEnableBackgroundLoader[]        = "enable-background-loader";
 const char kEnableChromeCaptivePortalDetector[] =
     "enable-chrome-captive-portal-detector";
 
+// Enables metadata prefetching in Google Drive Client for Chrome OS.
+const char kEnableDriveMetadataPrefetch[]   = "enable-drive-metadata-prefetch";
+
 // Enables touchpad three-finger-click as middle button.
 const char kEnableTouchpadThreeFingerClick[]
     = "enable-touchpad-three-finger-click";
@@ -1441,9 +1450,6 @@ const char kEnableTouchpadThreeFingerClick[]
 // Enables touchpad three-finger swipe.
 const char kEnableTouchpadThreeFingerSwipe[]
     = "enable-touchpad-three-finger-swipe";
-
-// Skips OAuth part of ChromeOS login process.
-const char kSkipOAuthLogin[]                = "skip-oauth-login";
 
 // Enable Kiosk mode for ChromeOS.
 const char kEnableKioskMode[]               = "enable-kiosk-mode";
@@ -1461,9 +1467,16 @@ const char kEnableStaticIPConfig[]          = "enable-static-ip-config";
 // Passed to Chrome on first boot. Not passed on restart after sign out.
 const char kFirstBoot[] = "first-boot";
 
+// Forces driving authentication through the legacy OAuth1 flow instead of
+// new flow based on OAuth2.
+const char kForceOAuth1[]                  = "force-oauth1";
+
 // If true, the Chromebook has a Chrome OS keyboard. Don't use the flag for
 // Chromeboxes.
 const char kHasChromeOSKeyboard[]           = "has-chromeos-keyboard";
+
+// If true, the Chromebook has a keyboard with a diamond key.
+const char kHasChromeOSDiamondKey[]         = "has-chromeos-diamond-key";
 
 // Path for the screensaver used in Kiosk mode
 const char kKioskModeScreensaverPath[]      = "kiosk-mode-screensaver-path";
@@ -1564,10 +1577,6 @@ const char kUseMockKeychain[]               = "use-mock-keychain";
 #endif
 
 #if defined(OS_WIN)
-// Disables profile desktop shortcuts handling, preventing their creation,
-// modification or removal.
-const char kDisableDesktopShortcuts[]       = "disable-desktop-shortcuts";
-
 // For the DelegateExecute verb handler to launch Chrome in metro mode on
 // Windows 8 and higher.  Used when relaunching metro Chrome.
 const char kForceImmersive[]                 = "force-immersive";

@@ -108,6 +108,7 @@ struct WEBKIT_GLUE_EXPORT WebPreferences {
   bool show_fps_counter;
   bool accelerated_compositing_for_overflow_scroll_enabled;
   bool accelerated_compositing_for_scrollable_frames_enabled;
+  bool composited_scrolling_for_frames_enabled;
   bool show_paint_rects;
   bool render_vsync_enabled;
   bool asynchronous_spell_checking_enabled;
@@ -120,6 +121,7 @@ struct WEBKIT_GLUE_EXPORT WebPreferences {
   bool accelerated_compositing_for_video_enabled;
   bool accelerated_2d_canvas_enabled;
   bool deferred_2d_canvas_enabled;
+  bool antialiased_2d_canvas_disabled;
   bool accelerated_painting_enabled;
   bool accelerated_filters_enabled;
   bool gesture_tap_highlight_enabled;
@@ -151,6 +153,7 @@ struct WEBKIT_GLUE_EXPORT WebPreferences {
   int number_of_cpu_cores;
   EditingBehavior editing_behavior;
   bool supports_multiple_windows;
+  bool viewport_enabled;
 
   // This flags corresponds to a Page's Settings' setCookieEnabled state. It
   // only controls whether or not the "document.cookie" field is properly

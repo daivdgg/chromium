@@ -10,7 +10,6 @@
 #include "ui/aura/client/default_capture_client.h"
 #include "ui/aura/focus_manager.h"
 #include "ui/aura/root_window.h"
-#include "ui/aura/ui_controls_aura.h"
 #include "ui/aura/window_property.h"
 #include "ui/base/cursor/cursor_loader_win.h"
 #include "ui/base/ime/input_method_win.h"
@@ -19,7 +18,6 @@
 #include "ui/gfx/path_win.h"
 #include "ui/native_theme/native_theme_aura.h"
 #include "ui/native_theme/native_theme_win.h"
-#include "ui/ui_controls/ui_controls.h"
 #include "ui/views/corewm/compound_event_filter.h"
 #include "ui/views/corewm/input_method_event_filter.h"
 #include "ui/views/ime/input_method_bridge.h"
@@ -142,10 +140,9 @@ aura::RootWindow* DesktopRootWindowHostWin::Init(
                                                        GetHWND()));
   aura::client::SetDragDropClient(root_window_, drag_drop_client_.get());
 
-  focus_client_->FocusWindow(content_window_, NULL);
+  focus_client_->FocusWindow(content_window_);
   root_window_->SetProperty(kContentWindowForRootWindow, content_window_);
 
-  ui_controls::InstallUIControlsAura(CreateUIControlsAura(root_window_));
   return root_window_;
 }
 
@@ -678,6 +675,12 @@ bool DesktopRootWindowHostWin::HandleUntranslatedKeyEvent(
   scoped_ptr<ui::KeyEvent> duplicate_event(event.Copy());
   return static_cast<aura::RootWindowHostDelegate*>(root_window_)->
       OnHostKeyEvent(duplicate_event.get());
+}
+
+bool DesktopRootWindowHostWin::HandleTouchEvent(
+    const ui::TouchEvent& event) {
+  return root_window_host_delegate_->OnHostTouchEvent(
+      const_cast<ui::TouchEvent*>(&event));
 }
 
 bool DesktopRootWindowHostWin::HandleIMEMessage(UINT message,

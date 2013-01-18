@@ -442,11 +442,12 @@ NavigationEntry* NavigationControllerImpl::GetLastCommittedEntry() const {
 }
 
 bool NavigationControllerImpl::CanViewSource() const {
-  bool is_supported_mime_type = net::IsSupportedNonImageMimeType(
-      web_contents_->GetContentsMimeType().c_str());
+  const std::string& mime_type = web_contents_->GetContentsMimeType();
+  bool is_viewable_mime_type = net::IsSupportedNonImageMimeType(mime_type) &&
+      !net::IsSupportedMediaMimeType(mime_type);
   NavigationEntry* active_entry = GetActiveEntry();
   return active_entry && !active_entry->IsViewSourceMode() &&
-    is_supported_mime_type && !web_contents_->GetInterstitialPage();
+      is_viewable_mime_type && !web_contents_->GetInterstitialPage();
 }
 
 int NavigationControllerImpl::GetLastCommittedEntryIndex() const {
@@ -492,6 +493,9 @@ void NavigationControllerImpl::TakeScreenshot() {
   if (!view)
     return;
 
+  if (!take_screenshot_callback_.is_null())
+    take_screenshot_callback_.Run(render_view_host);
+
   skia::PlatformBitmap* temp_bitmap = new skia::PlatformBitmap;
   render_view_host->CopyFromBackingStore(gfx::Rect(),
       view->GetViewBounds().size(),
@@ -506,12 +510,6 @@ void NavigationControllerImpl::OnScreenshotTaken(
     int unique_id,
     skia::PlatformBitmap* bitmap,
     bool success) {
-  if (!success) {
-    LOG(ERROR) << "Taking snapshot was unsuccessful for "
-               << unique_id;
-    return;
-  }
-
   NavigationEntryImpl* entry = NULL;
   for (NavigationEntries::iterator i = entries_.begin();
        i != entries_.end();
@@ -527,9 +525,18 @@ void NavigationControllerImpl::OnScreenshotTaken(
     return;
   }
 
+  if (!success) {
+    LOG(ERROR) << "Taking snapshot was unsuccessful for "
+               << unique_id;
+    entry->SetScreenshotPNGData(std::vector<unsigned char>());
+    return;
+  }
+
   std::vector<unsigned char> data;
   if (gfx::PNGCodec::EncodeBGRASkBitmap(bitmap->GetBitmap(), true, &data))
     entry->SetScreenshotPNGData(data);
+  else
+    entry->SetScreenshotPNGData(std::vector<unsigned char>());
 }
 
 bool NavigationControllerImpl::CanGoBack() const {
@@ -752,12 +759,6 @@ void NavigationControllerImpl::DocumentLoadedInFrame() {
 bool NavigationControllerImpl::RendererDidNavigate(
     const ViewHostMsg_FrameNavigate_Params& params,
     LoadCommittedDetails* details) {
-  // When navigating away from the current page, take a screenshot of it in the
-  // current state so that it can be used during an overscroll-navigation
-  // gesture.
-  if (details->is_main_frame)
-    TakeScreenshot();
-
   // Save the previous state before we clobber it.
   if (GetLastCommittedEntry()) {
     details->previous_url = GetLastCommittedEntry()->GetURL();
@@ -1680,6 +1681,11 @@ void NavigationControllerImpl::InsertEntriesFrom(
 void NavigationControllerImpl::SetGetTimestampCallbackForTest(
     const base::Callback<base::Time()>& get_timestamp_callback) {
   get_timestamp_callback_ = get_timestamp_callback;
+}
+
+void NavigationControllerImpl::SetTakeScreenshotCallbackForTest(
+    const base::Callback<void(RenderViewHost*)>& take_screenshot_callback) {
+  take_screenshot_callback_ = take_screenshot_callback;
 }
 
 }  // namespace content

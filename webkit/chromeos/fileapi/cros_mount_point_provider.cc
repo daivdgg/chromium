@@ -12,10 +12,10 @@
 #include "base/stringprintf.h"
 #include "base/synchronization/lock.h"
 #include "base/utf_string_conversions.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebCString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebFileSystem.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSecurityOrigin.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebCString.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebFileSystem.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
 #include "webkit/chromeos/fileapi/file_access_permissions.h"
 #include "webkit/chromeos/fileapi/remote_file_stream_writer.h"
 #include "webkit/chromeos/fileapi/remote_file_system_operation.h"
@@ -235,9 +235,14 @@ fileapi::FileSystemFileUtil* CrosMountPointProvider::GetFileUtil(
   return local_file_util_.get();
 }
 
-FilePath CrosMountPointProvider::GetPathForPermissionsCheck(
-    const FilePath& virtual_path) const {
-  return virtual_path;
+fileapi::FilePermissionPolicy CrosMountPointProvider::GetPermissionPolicy(
+    const fileapi::FileSystemURL& url, int permissions) const {
+  if (url.mount_type() == fileapi::kFileSystemTypeIsolated) {
+    // Permissions in isolated filesystems should be examined with
+    // FileSystem permission.
+    return fileapi::FILE_PERMISSION_USE_FILESYSTEM_PERMISSION;
+  }
+  return fileapi::FILE_PERMISSION_USE_FILE_PERMISSION;
 }
 
 fileapi::FileSystemOperation* CrosMountPointProvider::CreateFileSystemOperation(

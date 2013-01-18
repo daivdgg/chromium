@@ -14,8 +14,11 @@
 #include "base/values.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/extensions/extension_function_test_utils.h"
+#include "chrome/browser/extensions/extension_service.h"
+#include "chrome/browser/extensions/extension_system.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/common/extensions/extension.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/browser_context.h"
@@ -64,7 +67,7 @@ void ExpectFileContentEquals(const FilePath& selected_path,
   EXPECT_EQ(expected_contents, test_file_contents);
 }
 
-// Mocks FileSelector used by FileHandlerSelectFileFunction.
+// Mocks FileSelector used by FileBrowserHandlerInternalSelectFileFunction.
 // When |SelectFile| is called, it will check that file name suggestion is as
 // expected, and respond to the extension function with specified selection
 // results.
@@ -83,10 +86,11 @@ class MockFileSelector : public file_handler::FileSelector {
 
   // file_handler::FileSelector implementation.
   // |browser| is not used.
-  virtual void SelectFile(const FilePath& suggested_name,
-                          const std::vector<std::string>& allowed_extensions,
-                          Browser* browser,
-                          FileHandlerSelectFileFunction* function) OVERRIDE {
+  virtual void SelectFile(
+      const FilePath& suggested_name,
+      const std::vector<std::string>& allowed_extensions,
+      Browser* browser,
+      FileBrowserHandlerInternalSelectFileFunction* function) OVERRIDE {
     // Confirm that the function suggested us the right name.
     EXPECT_EQ(suggested_name_, suggested_name);
     // Confirm that the function allowed us the right extensions.
@@ -100,8 +104,9 @@ class MockFileSelector : public file_handler::FileSelector {
     // Send response to the extension function.
     // The callback will take a reference to the function and keep it alive.
     base::MessageLoopProxy::current()->PostTask(FROM_HERE,
-        base::Bind(&FileHandlerSelectFileFunction::OnFilePathSelected,
-            function, success_, selected_path_));
+        base::Bind(&FileBrowserHandlerInternalSelectFileFunction::
+                       OnFilePathSelected,
+                   function, success_, selected_path_));
     delete this;
   }
 
@@ -171,9 +176,13 @@ class FileBrowserHandlerExtensionTest : public ExtensionApiTest {
   }
 
   // Creates new, test mount point.
-  void AddTmpMountPoint() {
+  void AddTmpMountPoint(const std::string& extension_id) {
+    Profile* profile = browser()->profile();
+
+    GURL site = extensions::ExtensionSystem::Get(profile)->
+        extension_service()->GetSiteForExtensionId(extension_id);
     fileapi::ExternalFileSystemMountPointProvider* provider =
-        BrowserContext::GetDefaultStoragePartition(browser()->profile())->
+        BrowserContext::GetStoragePartitionForSite(profile, site)->
             GetFileSystemContext()->external_provider();
     provider->AddLocalMountPoint(tmp_mount_point_);
   }
@@ -182,10 +191,10 @@ class FileBrowserHandlerExtensionTest : public ExtensionApiTest {
     return tmp_mount_point_.Append(relative_path);
   }
 
-  // Creates a new FileHandlerSelectFileFunction to be used in the test.
-  // This function will be called from ExtensionFunctinoDispatcher whenever
-  // an extension function for fileBrowserHandlerInternal.selectFile will be
-  // needed.
+  // Creates a new FileBrowserHandlerInternalSelectFileFunction to be used in
+  // the test.  This function will be called from ExtensionFunctinoDispatcher
+  // whenever an extension function for fileBrowserHandlerInternal.selectFile
+  // will be needed.
   static ExtensionFunction* TestSelectFileFunctionFactory() {
     EXPECT_TRUE(test_cases_);
     EXPECT_TRUE(current_test_case_ < test_cases_->size());
@@ -193,14 +202,15 @@ class FileBrowserHandlerExtensionTest : public ExtensionApiTest {
     // If this happens, test failed. But, we still don't want to crash, so
     // return valid extension function.
     if (!test_cases_ && current_test_case_ >= test_cases_->size())
-      return new FileHandlerSelectFileFunction();
+      return new FileBrowserHandlerInternalSelectFileFunction();
 
     // Create file creator factory for the current test case.
     MockFileSelectorFactory* mock_factory =
         new MockFileSelectorFactory(test_cases_->at(current_test_case_));
     current_test_case_++;
 
-    return new FileHandlerSelectFileFunction(mock_factory, false);
+    return new FileBrowserHandlerInternalSelectFileFunction(
+        mock_factory, false);
   }
 
   // Sets up test parameters for extension function invocations that will be
@@ -235,8 +245,6 @@ size_t FileBrowserHandlerExtensionTest::current_test_case_ = 0;
 // time. When the file is selected the test extension will verify that it can
 // create, read and write the file under the selected file path.
 IN_PROC_BROWSER_TEST_F(FileBrowserHandlerExtensionTest, EndToEnd) {
-  AddTmpMountPoint();
-
   // Path that will be "selected" by file selector.
   const FilePath selected_path =
       GetFullPathOnTmpMountPoint(FilePath("test_file.txt"));
@@ -267,8 +275,18 @@ IN_PROC_BROWSER_TEST_F(FileBrowserHandlerExtensionTest, EndToEnd) {
   // Selected path should still not exist.
   ASSERT_FALSE(file_util::PathExists(selected_path));
 
-  // Run the extension test.
-  ASSERT_TRUE(RunExtensionTest("file_browser/filehandler_create")) << message_;
+  const Extension* extension = LoadExtension(
+      test_data_dir_.AppendASCII("file_browser/filehandler_create"));
+  ASSERT_TRUE(extension) << message_;
+
+  AddTmpMountPoint(extension->id());
+
+  ResultCatcher catcher;
+
+  GURL url = extension->GetResourceURL("test.html");
+  ui_test_utils::NavigateToURL(browser(), url);
+
+  ASSERT_TRUE(catcher.GetNextResult()) << message_;
 
   // Selected path should have been created by the test extension after the
   // extension function call.
@@ -289,8 +307,9 @@ IN_PROC_BROWSER_TEST_F(FileBrowserHandlerExtensionTest, EndToEnd) {
 // Tests that verifies the fileBrowserHandlerInternal.selectFile function fails
 // when invoked without user gesture.
 IN_PROC_BROWSER_TEST_F(FileBrowserHandlerExtensionTest, NoUserGesture) {
-  scoped_refptr<FileHandlerSelectFileFunction> select_file_function(
-      new FileHandlerSelectFileFunction());
+  scoped_refptr<FileBrowserHandlerInternalSelectFileFunction>
+      select_file_function(
+          new FileBrowserHandlerInternalSelectFileFunction());
 
   std::string error =
       utils::RunFunctionAndReturnError(
@@ -313,9 +332,11 @@ IN_PROC_BROWSER_TEST_F(FileBrowserHandlerExtensionTest, SelectionFailed) {
                      false,
                      FilePath());
 
-  scoped_refptr<FileHandlerSelectFileFunction> select_file_function(
-      new FileHandlerSelectFileFunction(new MockFileSelectorFactory(test_case),
-                                        false));
+  scoped_refptr<FileBrowserHandlerInternalSelectFileFunction>
+      select_file_function(
+          new FileBrowserHandlerInternalSelectFileFunction(
+              new MockFileSelectorFactory(test_case),
+              false));
 
   select_file_function->set_has_callback(true);
   select_file_function->set_user_gesture(true);
@@ -340,9 +361,11 @@ IN_PROC_BROWSER_TEST_F(FileBrowserHandlerExtensionTest, SuggestedFullPath) {
                      false,
                      FilePath());
 
-  scoped_refptr<FileHandlerSelectFileFunction> select_file_function(
-      new FileHandlerSelectFileFunction(new MockFileSelectorFactory(test_case),
-                                        false));
+  scoped_refptr<FileBrowserHandlerInternalSelectFileFunction>
+      select_file_function(
+          new FileBrowserHandlerInternalSelectFileFunction(
+              new MockFileSelectorFactory(test_case),
+              false));
 
   select_file_function->set_has_callback(true);
   select_file_function->set_user_gesture(true);

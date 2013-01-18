@@ -18,6 +18,7 @@
 #include "ui/aura/test/event_generator.h"
 #include "ui/aura/root_window.h"
 #include "ui/aura/window.h"
+#include "ui/base/events/event_utils.h"
 #include "ui/base/gestures/gesture_configuration.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/test/test_views_delegate.h"
@@ -78,6 +79,7 @@ class CustomFrameViewAshTest : public ash::test::AshTestBase {
   views::Widget* CreateWidget() {
     views::Widget::InitParams params(views::Widget::InitParams::TYPE_WINDOW);
     views::Widget* widget = new views::Widget;
+    params.context = CurrentContext();
     params.delegate = new TestWidgetDelegate;
     widget->Init(params);
     widget->Show();
@@ -474,13 +476,17 @@ TEST_F(CustomFrameViewAshTest, MaximizeTap) {
   ui::GestureConfiguration::set_default_radius(0);
 
   const int kTouchId = 2;
-  ui::TouchEvent press(ui::ET_TOUCH_PRESSED, button_pos, kTouchId,
-      base::Time::NowFromSystemTime() - base::Time());
+  ui::TouchEvent press(ui::ET_TOUCH_PRESSED,
+                       button_pos,
+                       kTouchId,
+                       ui::EventTimeForNow());
   root_window->AsRootWindowHostDelegate()->OnHostTouchEvent(&press);
 
   button_pos.Offset(9, 8);
   ui::TouchEvent release(
-      ui::ET_TOUCH_RELEASED, button_pos, kTouchId,
+      ui::ET_TOUCH_RELEASED,
+      button_pos,
+      kTouchId,
       press.time_stamp() + base::TimeDelta::FromMilliseconds(50));
   root_window->AsRootWindowHostDelegate()->OnHostTouchEvent(&release);
 

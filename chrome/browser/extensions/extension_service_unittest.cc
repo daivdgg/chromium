@@ -66,6 +66,7 @@
 #include "chrome/common/extensions/extension_l10n_util.h"
 #include "chrome/common/extensions/extension_manifest_constants.h"
 #include "chrome/common/extensions/extension_resource.h"
+#include "chrome/common/extensions/manifest_url_handler.h"
 #include "chrome/common/extensions/permissions/permission_set.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
@@ -100,6 +101,10 @@
 #include "webkit/database/database_util.h"
 #include "webkit/plugins/npapi/mock_plugin_list.h"
 #include "webkit/quota/quota_manager.h"
+
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/extensions/install_limiter.h"
+#endif
 
 using content::BrowserContext;
 using content::BrowserThread;
@@ -460,6 +465,10 @@ void ExtensionServiceTestBase::InitializeExtensionService(
   // interfere with the tests. Those tests that need an external provider
   // will register one specifically.
   service_->ClearProvidersForTesting();
+
+#if defined(OS_CHROMEOS)
+  extensions::InstallLimiter::Get(profile_.get())->DisableForTest();
+#endif
 
   expected_extensions_count_ = 0;
 }
@@ -2938,8 +2947,9 @@ TEST_F(ExtensionServiceTest, UpdatePendingExtensionAlreadyInstalled) {
 
   // Use AddExtensionImpl() as AddFrom*() would balk.
   service_->pending_extension_manager()->AddExtensionImpl(
-      good->id(), good->update_url(), Version(), &IsExtension,
-      kGoodIsFromSync, kGoodInstallSilently, Extension::INTERNAL);
+      good->id(), extensions::ManifestURL::GetUpdateURL(good),
+      Version(), &IsExtension, kGoodIsFromSync,
+      kGoodInstallSilently, Extension::INTERNAL);
   UpdateExtension(good->id(), path, ENABLED);
 
   EXPECT_FALSE(service_->pending_extension_manager()->IsIdPending(kGoodId));
@@ -4722,7 +4732,8 @@ TEST_F(ExtensionServiceTest, GetSyncData) {
   EXPECT_EQ(service_->IsExtensionEnabled(good_crx), data.enabled());
   EXPECT_EQ(service_->IsIncognitoEnabled(good_crx), data.incognito_enabled());
   EXPECT_TRUE(data.version().Equals(*extension->version()));
-  EXPECT_EQ(extension->update_url(), data.update_url());
+  EXPECT_EQ(extensions::ManifestURL::GetUpdateURL(extension),
+            data.update_url());
   EXPECT_EQ(extension->name(), data.name());
 }
 
@@ -4747,7 +4758,8 @@ TEST_F(ExtensionServiceTest, GetSyncDataTerminated) {
   EXPECT_EQ(service_->IsExtensionEnabled(good_crx), data.enabled());
   EXPECT_EQ(service_->IsIncognitoEnabled(good_crx), data.incognito_enabled());
   EXPECT_TRUE(data.version().Equals(*extension->version()));
-  EXPECT_EQ(extension->update_url(), data.update_url());
+  EXPECT_EQ(extensions::ManifestURL::GetUpdateURL(extension),
+            data.update_url());
   EXPECT_EQ(extension->name(), data.name());
 }
 

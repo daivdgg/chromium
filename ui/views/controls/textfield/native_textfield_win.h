@@ -75,6 +75,7 @@ class NativeTextfieldWin
   virtual void SelectAll(bool reversed) OVERRIDE;
   virtual void ClearSelection() OVERRIDE;
   virtual void UpdateBorder() OVERRIDE;
+  virtual void UpdateBorderColor() OVERRIDE;
   virtual void UpdateTextColor() OVERRIDE;
   virtual void UpdateBackgroundColor() OVERRIDE;
   virtual void UpdateReadOnly() OVERRIDE;
@@ -217,6 +218,9 @@ class NativeTextfieldWin
   void OnSetFocus(HWND hwnd);
   void OnKillFocus(HWND hwnd);
   void OnSysChar(TCHAR ch, UINT repeat_count, UINT flags);
+
+  // CWindowImpl overrides:
+  virtual void OnFinalMessage(HWND hwnd) OVERRIDE;
 
   // Helper function for OnChar() and OnKeyDown() that handles keystrokes that
   // could change the text in the edit.

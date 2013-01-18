@@ -4,6 +4,7 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 #include "base/bind.h"
 #include "base/file_path.h"
@@ -229,12 +230,17 @@ class ObfuscatedFileUtilTest : public testing::Test {
   }
 
   int64 SizeInUsageFile() {
+    MessageLoop::current()->RunUntilIdle();
     return FileSystemUsageCache::GetUsage(test_helper_.GetUsageCachePath());
   }
 
   bool PathExists(const FileSystemURL& url) {
     scoped_ptr<FileSystemOperationContext> context(NewContext(NULL));
-    return FileUtilHelper::PathExists(context.get(), ofu(), url);
+    base::PlatformFileInfo file_info;
+    FilePath platform_path;
+    base::PlatformFileError error = ofu()->GetFileInfo(
+        context.get(), url, &file_info, &platform_path);
+    return error == base::PLATFORM_FILE_OK;
   }
 
   bool DirectoryExists(const FileSystemURL& url) {
@@ -263,7 +269,7 @@ class ObfuscatedFileUtilTest : public testing::Test {
   }
 
   void CheckFileAndCloseHandle(
-      const FileSystemURL& url, PlatformFile file_handle) {
+      const FileSystemURL& url, base::PlatformFile file_handle) {
     scoped_ptr<FileSystemOperationContext> context(NewContext(NULL));
     FilePath local_path;
     EXPECT_EQ(base::PLATFORM_FILE_OK, ofu()->GetLocalFilePath(
@@ -282,7 +288,7 @@ class ObfuscatedFileUtilTest : public testing::Test {
 
     if (base::kInvalidPlatformFileValue == file_handle) {
       bool created = true;
-      PlatformFileError error;
+      base::PlatformFileError error;
       file_handle = base::CreatePlatformFile(
           data_path,
           base::PLATFORM_FILE_OPEN | base::PLATFORM_FILE_WRITE,
@@ -353,6 +359,7 @@ class ObfuscatedFileUtilTest : public testing::Test {
           expected_usage_(expected_usage) {}
 
     ~UsageVerifyHelper() {
+      MessageLoop::current()->RunUntilIdle();
       Check();
     }
 
@@ -1697,7 +1704,7 @@ TEST_F(ObfuscatedFileUtilTest, TestDirectoryTimestampForCreation) {
 
   // CreateOrOpen, create case.
   url = dir_url.WithPath(dir_url.path().AppendASCII("CreateOrOpen_file"));
-  PlatformFile file_handle = base::kInvalidPlatformFileValue;
+  base::PlatformFile file_handle = base::kInvalidPlatformFileValue;
   created = false;
   ClearTimestamp(dir_url);
   context.reset(NewContext(NULL));

@@ -6,6 +6,7 @@
 
 #include "cc/picture_pile.h"
 #include "cc/picture_pile_impl.h"
+#include "cc/region.h"
 
 namespace {
 // Maximum number of pictures that can overlap before we collapse them into
@@ -19,17 +20,6 @@ const float kResetThreshold = 0.7f;
 namespace cc {
 
 PicturePile::PicturePile() {
-}
-
-PicturePile::~PicturePile() {
-}
-
-void PicturePile::Resize(gfx::Size size) {
-  if (size_ == size)
-    return;
-
-  pile_.clear();
-  size_ = size;
 }
 
 void PicturePile::Update(
@@ -62,6 +52,16 @@ public:
 void PicturePile::InvalidateRect(gfx::Rect invalidation) {
   if (invalidation.IsEmpty())
     return;
+
+  // Inflate all recordings from invalidations with a margin so that when
+  // scaled down to at least min_contents_scale, any final pixel touched by an
+  // invalidation can be fully rasterized by this picture.
+  invalidation.Inset(
+      -buffer_pixels_,
+      -buffer_pixels_,
+      -buffer_pixels_,
+      -buffer_pixels_);
+  invalidation.Intersect(gfx::Rect(size_));
 
   std::vector<Pile::iterator> overlaps;
   for (Pile::iterator i = pile_.begin(); i != pile_.end(); ++i) {
@@ -97,7 +97,8 @@ void PicturePile::ResetPile(ContentLayerClient* painter,
 }
 
 void PicturePile::PushPropertiesTo(PicturePileImpl* other) {
-  other->pile_ = pile_;
+  PicturePileBase::PushPropertiesTo(other);
+
   // Remove all old clones.
   other->clones_.clear();
 }

@@ -21,6 +21,7 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/extensions/extension.h"
 #include "chrome/common/extensions/extension_constants.h"
+#include "chrome/common/extensions/manifest_url_handler.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/web_contents.h"
@@ -57,7 +58,7 @@ GURL UrlForExtension(const Extension* extension,
 
   // For extensions lacking launch urls, determine a reasonable fallback.
   if (!url.is_valid()) {
-    url = extension->options_url();
+    url = extensions::ManifestURL::GetOptionsPage(extension);
     if (!url.is_valid())
       url = GURL(chrome::kChromeUIExtensionsURL);
   }
@@ -142,9 +143,9 @@ WebContents* OpenApplicationTab(Profile* profile,
                                 const Extension* extension,
                                 const GURL& override_url,
                                 WindowOpenDisposition disposition) {
-  Browser* browser = browser::FindTabbedBrowser(profile,
-                                                false,
-                                                chrome::GetActiveDesktop());
+  Browser* browser = chrome::FindTabbedBrowser(profile,
+                                               false,
+                                               chrome::GetActiveDesktop());
   WebContents* contents = NULL;
   if (!browser) {
     // No browser for this profile, need to open a new one.
@@ -238,6 +239,24 @@ LaunchParams::LaunchParams(Profile* profile,
       disposition(disposition),
       override_url(),
       command_line(NULL) {}
+
+LaunchParams::LaunchParams(Profile* profile,
+                           const extensions::Extension* extension,
+                           WindowOpenDisposition disposition)
+    : profile(profile),
+      extension(extension),
+      container(extension_misc::LAUNCH_NONE),
+      disposition(disposition),
+      override_url(),
+      command_line(NULL) {
+  ExtensionService* service = profile->GetExtensionService();
+  DCHECK(service);
+
+  // Look up the app preference to find out the right launch container. Default
+  // is to launch as a regular tab.
+  container = service->extension_prefs()->GetLaunchContainer(
+      extension, extensions::ExtensionPrefs::LAUNCH_REGULAR);
+}
 
 WebContents* OpenApplication(const LaunchParams& params) {
   Profile* profile = params.profile;

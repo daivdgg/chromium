@@ -68,6 +68,7 @@
 #if defined(OS_MACOSX)
 #include "content/common/mac/font_descriptor.h"
 #else
+#include "gpu/GLES2/gl2extchromium.h"
 #include "third_party/khronos/GLES2/gl2.h"
 #include "third_party/khronos/GLES2/gl2ext.h"
 #endif
@@ -827,6 +828,7 @@ void RenderMessageFilter::OnDownloadUrl(const IPC::Message& message,
       message.routing_id(),
       false,
       save_info.Pass(),
+      content::DownloadId::Invalid(),
       ResourceDispatcherHostImpl::DownloadStartedCallback());
 }
 

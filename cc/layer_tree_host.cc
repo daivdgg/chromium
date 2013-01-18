@@ -23,10 +23,12 @@
 #include "cc/math_util.h"
 #include "cc/occlusion_tracker.h"
 #include "cc/overdraw_metrics.h"
+#include "cc/prioritized_resource_manager.h"
 #include "cc/single_thread_proxy.h"
 #include "cc/switches.h"
 #include "cc/thread.h"
 #include "cc/thread_proxy.h"
+#include "cc/top_controls_manager.h"
 #include "cc/tree_synchronizer.h"
 
 namespace {
@@ -76,7 +78,6 @@ LayerTreeHost::LayerTreeHost(LayerTreeHostClient* client, const LayerTreeSetting
     , m_renderingStats()
     , m_rendererInitialized(false)
     , m_outputSurfaceLost(false)
-    , m_numTimesRecreateShouldFail(0)
     , m_numFailedRecreateAttempts(0)
     , m_settings(settings)
     , m_debugState(settings.initialDebugState)
@@ -176,13 +177,7 @@ LayerTreeHost::RecreateResult LayerTreeHost::recreateOutputSurface()
     TRACE_EVENT0("cc", "LayerTreeHost::recreateOutputSurface");
     DCHECK(m_outputSurfaceLost);
 
-    bool recreated = false;
-    if (!m_numTimesRecreateShouldFail)
-        recreated = m_proxy->recreateOutputSurface();
-    else
-        m_numTimesRecreateShouldFail--;
-
-    if (recreated) {
+    if (m_proxy->recreateOutputSurface()) {
         m_client->didRecreateOutputSurface(true);
         m_outputSurfaceLost = false;
         return RecreateSucceeded;
@@ -222,23 +217,6 @@ void LayerTreeHost::acquireLayerTextures()
 void LayerTreeHost::didBeginFrame()
 {
     m_client->didBeginFrame();
-
-    if (m_debugState.continuousPainting)
-        setNeedsDisplayOnAllLayersRecursive(m_rootLayer.get());
-}
-
-void LayerTreeHost::setNeedsDisplayOnAllLayersRecursive(Layer* layer)
-{
-    if (!layer)
-        return;
-
-    layer->setNeedsDisplay();
-
-    setNeedsDisplayOnAllLayersRecursive(layer->maskLayer());
-    setNeedsDisplayOnAllLayersRecursive(layer->replicaLayer());
-
-    for (size_t childIndex = 0; childIndex < layer->children().size(); ++childIndex)
-        setNeedsDisplayOnAllLayersRecursive(layer->children()[childIndex].get());
 }
 
 void LayerTreeHost::updateAnimations(base::TimeTicks frameBeginTime)
@@ -265,28 +243,6 @@ void LayerTreeHost::beginCommitOnImplThread(LayerTreeHostImpl* hostImpl)
 {
     DCHECK(m_proxy->isImplThread());
     TRACE_EVENT0("cc", "LayerTreeHost::commitTo");
-}
-
-static void pushPropertiesRecursive(Layer* layer, LayerImpl* layerImpl)
-{
-    if (!layer) {
-        DCHECK(!layerImpl);
-        return;
-    }
-
-    DCHECK_EQ(layer->id(), layerImpl->id());
-    layer->pushPropertiesTo(layerImpl);
-
-    pushPropertiesRecursive(layer->maskLayer(), layerImpl->maskLayer());
-    pushPropertiesRecursive(layer->replicaLayer(), layerImpl->replicaLayer());
-
-    const std::vector<scoped_refptr<Layer> >& children = layer->children();
-    const ScopedPtrVector<LayerImpl>& implChildren = layerImpl->children();
-    DCHECK_EQ(children.size(), implChildren.size());
-
-    for (size_t i = 0; i < children.size(); ++i) {
-        pushPropertiesRecursive(children[i].get(), implChildren[i]);
-    }
 }
 
 // This function commits the LayerTreeHost to an impl tree. When modifying
@@ -319,12 +275,14 @@ void LayerTreeHost::finishCommitOnImplThread(LayerTreeHostImpl* hostImpl)
         needsFullTreeSync = m_needsFullTreeSync;
     }
 
-    if (needsFullTreeSync) {
+    if (needsFullTreeSync)
         syncTree->SetRootLayer(TreeSynchronizer::synchronizeTrees(rootLayer(), syncTree->DetachLayerTree(), syncTree));
-    } else {
-        TRACE_EVENT0("cc", "LayerTreeHost::pushPropertiesRecursive");
-        pushPropertiesRecursive(rootLayer(), syncTree->RootLayer());
+    {
+        TRACE_EVENT0("cc", "LayerTreeHost::pushProperties");
+        TreeSynchronizer::pushProperties(rootLayer(), syncTree->RootLayer());
     }
+    syncTree->FindRootScrollLayer();
+
     m_needsFullTreeSync = false;
 
     if (m_rootLayer && m_hudLayer)
@@ -332,14 +290,15 @@ void LayerTreeHost::finishCommitOnImplThread(LayerTreeHostImpl* hostImpl)
     else
         syncTree->set_hud_layer(0);
 
-    // TODO(enne): Do these need to be moved to layer tree as well?
     syncTree->set_source_frame_number(commitNumber());
+    syncTree->set_background_color(m_backgroundColor);
+    syncTree->set_has_transparent_background(m_hasTransparentBackground);
+
     hostImpl->setViewportSize(layoutViewportSize(), deviceViewportSize());
     hostImpl->setDeviceScaleFactor(deviceScaleFactor());
     hostImpl->setPageScaleFactorAndLimits(m_pageScaleFactor, m_minPageScaleFactor, m_maxPageScaleFactor);
-    hostImpl->setBackgroundColor(m_backgroundColor);
-    hostImpl->setHasTransparentBackground(m_hasTransparentBackground);
     hostImpl->setDebugState(m_debugState);
+    hostImpl->savePaintTime(m_renderingStats.totalPaintTime);
 
     m_commitNumber++;
 }
@@ -527,13 +486,6 @@ void LayerTreeHost::setVisible(bool visible)
 void LayerTreeHost::startPageScaleAnimation(gfx::Vector2d targetOffset, bool useAnchor, float scale, base::TimeDelta duration)
 {
     m_proxy->startPageScaleAnimation(targetOffset, useAnchor, scale, duration);
-}
-
-void LayerTreeHost::loseOutputSurface(int numTimes)
-{
-    TRACE_EVENT1("cc", "LayerTreeHost::loseCompositorOutputSurface", "numTimes", numTimes);
-    m_numTimesRecreateShouldFail = numTimes - 1;
-    m_proxy->loseOutputSurface();
 }
 
 PrioritizedResourceManager* LayerTreeHost::contentsTextureManager() const
@@ -794,7 +746,12 @@ gfx::PointF LayerTreeHost::adjustEventPointForPinchZoom(const gfx::PointF& zoome
 
     // Scale to screen space before applying implTransform inverse.
     gfx::PointF zoomedScreenspacePoint = gfx::ScalePoint(zoomedViewportPoint, deviceScaleFactor());
-    gfx::Transform inverseImplTransform = MathUtil::inverse(m_implTransform);
+
+    gfx::Transform inverseImplTransform(gfx::Transform::kSkipInitialization);
+    if (!m_implTransform.GetInverse(&inverseImplTransform)) {
+        // TODO(shawnsingh): Either we need to handle uninvertible transforms
+        // here, or DCHECK that the transform is invertible.
+    }
 
     bool wasClipped = false;
     gfx::PointF unzoomedScreenspacePoint = MathUtil::projectPoint(inverseImplTransform, zoomedScreenspacePoint, wasClipped);
@@ -866,6 +823,13 @@ void LayerTreeHost::setDeviceScaleFactor(float deviceScaleFactor)
     setNeedsCommit();
 }
 
+bool LayerTreeHost::blocksPendingCommit() const
+{
+    if (!m_rootLayer)
+        return false;
+    return m_rootLayer->blocksPendingCommitRecursive();
+}
+
 void LayerTreeHost::animateLayers(base::TimeTicks time)
 {
     if (!m_settings.acceleratedAnimationEnabled || m_animationRegistrar->active_animation_controllers().empty())
@@ -896,6 +860,11 @@ void LayerTreeHost::setAnimationEventsRecursive(const AnimationEventsVector& eve
 
     for (size_t childIndex = 0; childIndex < layer->children().size(); ++childIndex)
         setAnimationEventsRecursive(events, layer->children()[childIndex].get(), wallClockTime);
+}
+
+skia::RefPtr<SkPicture> LayerTreeHost::capturePicture()
+{
+    return m_proxy->capturePicture();
 }
 
 }  // namespace cc

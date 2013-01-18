@@ -70,6 +70,7 @@ void AddOsStrings(unsigned bitmask, ListValue* list) {
     {kOsWin, "Windows"},
     {kOsLinux, "Linux"},
     {kOsCrOS, "Chrome OS"},
+    {kOsAndroid, "Android"},
   };
   for (size_t i = 0; i < ARRAYSIZE_UNSAFE(kBitsToOs); ++i)
     if (bitmask & kBitsToOs[i].bit)
@@ -379,11 +380,26 @@ const Experiment kExperiments[] = {
     SINGLE_VALUE_TYPE(switches::kDisableGpuVsync)
   },
   {
+    "enable-webgl",
+    IDS_FLAGS_ENABLE_WEBGL_NAME,
+    IDS_FLAGS_ENABLE_WEBGL_DESCRIPTION,
+    kOsAndroid,
+#if defined(OS_ANDROID)
+    SINGLE_VALUE_TYPE(switches::kEnableExperimentalWebGL)
+#else
+    SINGLE_VALUE_TYPE("")
+#endif
+  },
+  {
     "disable-webgl",
     IDS_FLAGS_DISABLE_WEBGL_NAME,
     IDS_FLAGS_DISABLE_WEBGL_DESCRIPTION,
-    kOsAll,
+    kOsAll ^ kOsAndroid,
+#if defined(OS_ANDROID)
+    SINGLE_VALUE_TYPE("")
+#else
     SINGLE_VALUE_TYPE(switches::kDisableExperimentalWebGL)
+#endif
   },
   {
     "fixed-position-creates-stacking-context",
@@ -429,15 +445,6 @@ const Experiment kExperiments[] = {
     IDS_FLAGS_ENABLE_PNACL_DESCRIPTION,
     kOsAll,
     SINGLE_VALUE_TYPE(switches::kEnablePnacl)
-  },
-  // TODO(bbudge): When NaCl switches to the IPC-based proxy, remove this
-  // flag entry.
-  {
-    "enable-nacl-srpc-proxy",  // FLAGS:RECORD_UMA
-    IDS_FLAGS_ENABLE_NACL_SRPC_PROXY_NAME,
-    IDS_FLAGS_ENABLE_NACL_SRPC_PROXY_DESCRIPTION,
-    kOsAll,
-    SINGLE_VALUE_TYPE(switches::kEnableNaClSRPCProxy)
   },
   {
     "extension-apis",  // FLAGS:RECORD_UMA
@@ -782,6 +789,13 @@ const Experiment kExperiments[] = {
     MULTI_VALUE_TYPE(kTouchOptimizedUIChoices)
   },
   {
+    "enable-scaling-in-image-skia-operations",
+    IDS_FLAGS_ENABLE_SCALING_IN_IMAGE_SKIA_OPERATIONS_NAME,
+    IDS_FLAGS_ENABLE_SCALING_IN_IMAGE_SKIA_OPERATIONS_DESCRIPTION,
+    kOsCrOS | kOsWin,
+    SINGLE_VALUE_TYPE(gfx::switches::kEnableScalingInImageSkiaOperations)
+  },
+  {
     "enable-webkit-text-subpixel-positioning",
     IDS_FLAGS_ENABLE_WEBKIT_TEXT_SUBPIXEL_POSITIONING_NAME,
     IDS_FLAGS_ENABLE_WEBKIT_TEXT_SUBPIXEL_POSITIONING_DESCRIPTION,
@@ -825,6 +839,13 @@ const Experiment kExperiments[] = {
     SINGLE_VALUE_TYPE(switches::kNoDiscardTabs)
   },
 #endif
+  {
+    "enable-download-resumption",
+    IDS_FLAGS_ENABLE_DOWNLOAD_RESUMPTION_NAME,
+    IDS_FLAGS_ENABLE_DOWNLOAD_RESUMPTION_DESCRIPTION,
+    kOsAll,
+    SINGLE_VALUE_TYPE(switches::kEnableDownloadResumption)
+  },
   {
     "allow-nacl-socket-api",
     IDS_FLAGS_ALLOW_NACL_SOCKET_API_NAME,
@@ -907,6 +928,13 @@ const Experiment kExperiments[] = {
   },
 #endif  // defined(USE_ASH)
 #if defined(OS_CHROMEOS)
+  {
+    "force-oauth1",
+    IDS_FLAGS_FORCE_OAUTH1_DISPLAY_NAME,
+    IDS_FLAGS_FORCE_OAUTH1_DISPLAY_DESCRIPTION,
+    kOsCrOS,
+    SINGLE_VALUE_TYPE(::switches::kForceOAuth1),
+  },
   {
     "disable-new-oobe",
     IDS_FLAGS_DISABLE_NEW_OOBE,
@@ -1127,7 +1155,7 @@ const Experiment kExperiments[] = {
     "enable-new-autofill-ui",
     IDS_FLAGS_ENABLE_NEW_AUTOFILL_UI_NAME,
     IDS_FLAGS_ENABLE_NEW_AUTOFILL_UI_DESCRIPTION,
-    kOsWin | kOsLinux,
+    kOsMac | kOsWin | kOsLinux | kOsCrOS,
     SINGLE_VALUE_TYPE(switches::kEnableNewAutofillUi)
   },
   {

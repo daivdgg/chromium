@@ -81,6 +81,8 @@
         'display/display_error_dialog.h',
         'display/display_manager.cc',
         'display/display_manager.h',
+        'display/event_transformation_handler.cc',
+        'display/event_transformation_handler.h',
         'display/mouse_cursor_event_filter.cc',
         'display/mouse_cursor_event_filter.h',
         'display/output_configurator_animation.cc',
@@ -281,7 +283,6 @@
         'touch/touch_observer_hud.h',
         'touch/touch_uma.cc',
         'touch/touch_uma.h',
-        'ui_controls_ash.cc',
         'volume_control_delegate.h',
         'wm/app_list_controller.cc',
         'wm/app_list_controller.h',
@@ -560,6 +561,7 @@
         'launcher/launcher_tooltip_manager_unittest.cc',
         'launcher/launcher_unittest.cc',
         'launcher/launcher_view_unittest.cc',
+        'magnifier/magnification_controller_unittest.cc',
         'root_window_controller_unittest.cc',
         'screen_ash_unittest.cc',
         'screensaver/screensaver_view_unittest.cc',
@@ -623,8 +625,6 @@
         }],
         ['OS=="win"', {
           'sources/': [
-            # TODO(win_ash): implement DragDropController::StartDragAndDrop
-            ['exclude', 'drag_drop/drag_drop_controller_unittest.cc'],
           # TODO(zork): fix this test to build on Windows. See: crosbug.com/26906
             ['exclude', 'focus_cycler_unittest.cc'],
             # All tests for multiple displays: not supported on Windows Ash.

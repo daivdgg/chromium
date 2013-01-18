@@ -72,7 +72,7 @@ public:
         RenderPass::Id renderPassId = m_rootLayer->renderSurface()->renderPassId();
         scoped_ptr<RenderPass> rootRenderPass = RenderPass::Create();
         rootRenderPass->SetNew(renderPassId, gfx::Rect(), gfx::Rect(), gfx::Transform());
-        m_renderPassesInDrawOrder.append(rootRenderPass.Pass());
+        m_renderPassesInDrawOrder.push_back(rootRenderPass.Pass());
     }
 
     // RendererClient methods.
@@ -92,7 +92,7 @@ public:
     int setFullRootLayerDamageCount() const { return m_setFullRootLayerDamageCount; }
     void setLastCallWasSetVisibilityPointer(bool* lastCallWasSetVisibility) { m_lastCallWasSetVisibility = lastCallWasSetVisibility; }
 
-    RenderPass* rootRenderPass() { return m_renderPassesInDrawOrder.last(); }
+    RenderPass* rootRenderPass() { return m_renderPassesInDrawOrder.back(); }
     RenderPassList& renderPassesInDrawOrder() { return m_renderPassesInDrawOrder; }
 
     size_t memoryAllocationLimitBytes() const { return m_memoryAllocationLimitBytes; }
@@ -538,7 +538,7 @@ TEST(GLRendererTest2, activeTextureState)
     cc::RenderPass::Id id(1, 1);
     scoped_ptr<TestRenderPass> pass = TestRenderPass::Create();
     pass->SetNew(id, gfx::Rect(0, 0, 100, 100), gfx::Rect(0, 0, 100, 100), gfx::Transform());
-    pass->AppendOneOfEveryQuadType(resourceProvider.get());
+    pass->AppendOneOfEveryQuadType(resourceProvider.get(), RenderPass::Id(2, 1));
 
     // Set up expected texture filter state transitions that match the quads
     // created in AppendOneOfEveryQuadType().
@@ -546,7 +546,7 @@ TEST(GLRendererTest2, activeTextureState)
     {
         InSequence sequence;
 
-        // yuv_quad is drawn with the default filter.
+        // yuv_quad is drawn with the default linear filter.
         EXPECT_CALL(*context, drawElements(_, _, _, _));
 
         // tile_quad is drawn with GL_NEAREST because it is not transformed or
@@ -556,8 +556,6 @@ TEST(GLRendererTest2, activeTextureState)
         EXPECT_CALL(*context, drawElements(_, _, _, _));
 
         // transformed_tile_quad uses GL_LINEAR.
-        EXPECT_CALL(*context, texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-        EXPECT_CALL(*context, texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
         EXPECT_CALL(*context, drawElements(_, _, _, _));
 
         // scaled_tile_quad also uses GL_LINEAR.

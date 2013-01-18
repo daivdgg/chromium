@@ -32,6 +32,11 @@ void CompareQuicDataWithHexError(const std::string& description,
 // Constructs a basic crypto handshake message
 QuicPacket* ConstructHandshakePacket(QuicGuid guid, CryptoTag tag);
 
+// Constructs a ClientHello crypto handshake message
+QuicPacket* ConstructClientHelloPacket(QuicGuid guid,
+                                       const QuicClock* clock,
+                                       QuicRandom* random_generator);
+
 class MockFramerVisitor : public QuicFramerVisitorInterface {
  public:
   MockFramerVisitor();
@@ -136,10 +141,12 @@ class MockHelper : public QuicConnectionHelperInterface {
                                       int* error));
   MOCK_METHOD2(SetResendAlarm, void(QuicPacketSequenceNumber sequence_number,
                                     QuicTime::Delta delay));
+  MOCK_METHOD1(SetAckAlarm, void(QuicTime::Delta delay));
   MOCK_METHOD1(SetSendAlarm, void(QuicTime::Delta delay));
   MOCK_METHOD1(SetTimeoutAlarm, void(QuicTime::Delta delay));
   MOCK_METHOD0(IsSendAlarmSet, bool());
   MOCK_METHOD0(UnregisterSendAlarmIfRegistered, void());
+  MOCK_METHOD0(ClearAckAlarm, void());
  private:
   const MockClock clock_;
   MockRandom random_generator_;
@@ -148,6 +155,9 @@ class MockHelper : public QuicConnectionHelperInterface {
 class MockConnection : public QuicConnection {
  public:
   MockConnection(QuicGuid guid, IPEndPoint address);
+  MockConnection(QuicGuid guid,
+                 IPEndPoint address,
+                 QuicConnectionHelperInterface* helper);
   virtual ~MockConnection();
 
   MOCK_METHOD3(ProcessUdpPacket, void(const IPEndPoint& self_address,
@@ -197,10 +207,9 @@ class MockSession : public QuicSession {
                ReliableQuicStream*(QuicStreamId id));
   MOCK_METHOD0(GetCryptoStream, QuicCryptoStream*());
   MOCK_METHOD0(CreateOutgoingReliableStream, ReliableQuicStream*());
-  MOCK_METHOD3(WriteData,
-               void(QuicStreamId id, base::StringPiece data, bool fin));
-  MOCK_METHOD4(WriteData, int(QuicStreamId id, base::StringPiece data,
-                              QuicStreamOffset offset, bool fin));
+  MOCK_METHOD4(WriteData, QuicConsumedData(QuicStreamId id,
+                                           base::StringPiece data,
+                                           QuicStreamOffset offset, bool fin));
   MOCK_METHOD0(IsHandshakeComplete, bool());
 
  private:

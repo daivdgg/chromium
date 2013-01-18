@@ -2714,6 +2714,14 @@ Psst! Incognito mode <ph name="SHORTCUT_KEY">$1<ex>(Ctrl+Shift+N)</ex></ph> may 
                desc="Download page message: The security check performed on this download failed unexpectedly">
         Anti-virus software failed unexpectedly while scanning this file.
       </message>
+      <message name="IDS_DOWNLOAD_INTERRUPTED_STATUS_FILE_TOO_SHORT"
+	       desc="A download resumption was attempted, but the file didn't exist or wasn't as large as expected">
+	File truncated
+      </message>
+      <message name="IDS_DOWNLOAD_INTERRUPTED_DESCRIPTION_FILE_TOO_SHORT"
+	       desc="Download page message: A download resumption was attempted, but the file didn't exist or wasn't as large as expected">
+	Destination file was truncated or removed since last download.
+      </message>
       <message name="IDS_DOWNLOAD_INTERRUPTED_STATUS_NETWORK_TIMEOUT"
                desc="Network Timeout.">
         Network timeout
@@ -4176,6 +4184,11 @@ Public Exponent (<ph name="PUBLIC_EXPONENT_NUM_BITS">$3<ex>24</ex></ph> bits):
         "<ph name="CLIENT_NAME">$1<ex>Extension Foo</ex></ph>" is debugging this tab.
       </message>
 
+      <!-- DevTools file system access -->
+      <message name="IDS_DEV_TOOLS_MAGIC_FILE_NOT_EXISTS_MESSAGE" desc="Message that is shown in DevTools when user selects file system folder without security file while adding file system to DevTools.">
+        The selected folder should contain an empty file with the following name: "$1".
+      </message>
+
       <!-- Advanced reload button menu -->
       <message name="IDS_RELOAD_MENU_NORMAL_RELOAD_ITEM" desc="Menu item displayed in the Reload dropdown menu when in dev mode">
         Normal Reload
@@ -4903,17 +4916,11 @@ Public Exponent (<ph name="PUBLIC_EXPONENT_NUM_BITS">$3<ex>24</ex></ph> bits):
       <message name="IDS_EXTENSION_ALERT_ITEM_BLACKLISTED" desc="A statement that an extension has been newly blacklisted. http://www.google.com/support/chrome/bin/answer.py?hl=en&amp;answer=1210215 contains the language on which we're basing the phrasing.">
         The extension "<ph name="EXTENSION_NAME">$1<ex>Gmail Checker</ex></ph>" was automatically removed.
       </message>
-      <message name="IDS_EXTENSION_ALERT_ITEM_ORPHANED" desc="A statement that an extension formerly live in the App Store has been delisted.">
-        Update checks have repeatedly failed for the extension "<ph name="EXTENSION_NAME">$1<ex>Gmail Checker</ex></ph>."
-      </message>
       <message name="IDS_APP_ALERT_ITEM_EXTERNAL" desc="A statement that an external packaged app has been newly installed. End users have no idea what an 'external' app is, so we simply call them apps.">
         The app "<ph name="EXTENSION_NAME">$1<ex>Gmail Checker</ex></ph>" has been added.
       </message>
       <message name="IDS_APP_ALERT_ITEM_BLACKLISTED" desc="A statement that a packaged app has been newly blacklisted. http://www.google.com/support/chrome/bin/answer.py?hl=en&amp;answer=1210215 contains the language on which we're basing the phrasing.">
         The app "<ph name="EXTENSION_NAME">$1<ex>Gmail Checker</ex></ph>" was automatically removed.
-      </message>
-      <message name="IDS_APP_ALERT_ITEM_ORPHANED" desc="A statement that a packaged app formerly live in the App Store has been delisted.">
-        Update checks have repeatedly failed for the app "<ph name="EXTENSION_NAME">$1<ex>Gmail Checker</ex></ph>."
       </message>
       <message name="IDS_EXTENSION_ALERT_ITEM_OK" desc="The title of the default button acknowledging the information presented.">
         OK
@@ -5048,8 +5055,11 @@ Public Exponent (<ph name="PUBLIC_EXPONENT_NUM_BITS">$3<ex>24</ex></ph> bits):
       <message name="IDS_EXTENSION_PROMPT_WARNING_FILE_SYSTEM_WRITE" desc="Permission string for write access to the file system.">
         Write to files that you have opened in the application
       </message>
-      <message name="IDS_EXTENSION_PROMPT_WARNING_MEDIA_GALLERIES_ALL_GALLERIES" desc="Permission string for access to all of the user's media galleries.">
-        Access photos, music, and other media from your computer
+      <message name="IDS_EXTENSION_PROMPT_WARNING_MEDIA_GALLERIES_READ_ALL_GALLERIES" desc="Permission string for read access to all of the user's media galleries.">
+        Access photos, music, and other media from your computer (Read)
+      </message>
+      <message name="IDS_EXTENSION_PROMPT_WARNING_MEDIA_GALLERIES_READ_WRITE_ALL_GALLERIES" desc="Permission string for read and write access to all of the user's media galleries.">
+        Access photos, music, and other media to your computer (Read, write, and delete)
       </message>
       <message name="IDS_EXTENSION_PROMPT_WARNING_SERIAL" desc="Permission string for access to serial devices.">
         Use serial devices attached to your computer
@@ -5269,9 +5279,6 @@ Public Exponent (<ph name="PUBLIC_EXPONENT_NUM_BITS">$3<ex>24</ex></ph> bits):
       <message name="IDS_EXTENSION_BUNDLE_ERROR_HEADING" desc="Text displayed in the extension bundle installed bubble when some extensions or apps failed to install. Instructs which extensions did not install.">
         We were unable to install:
       </message>
-      <message name="IDS_EXTENSION_INSTALLED_APP_INFO" desc="Text displayed inside a link when an app is installed. Clicking this link opens up the New Tab Page to show the app's icon.">
-        Show me
-      </message>
       <message name="IDS_EXTENSION_INSTALLED_PAGE_ACTION_INFO" desc="Text displayed in the InfoBubble which explains that the UI of this extension is a Page Action icon which may appear for some pages.">
         This icon will be visible when the extension can act on the current page.
       </message>
@@ -5296,6 +5303,12 @@ Public Exponent (<ph name="PUBLIC_EXPONENT_NUM_BITS">$3<ex>24</ex></ph> bits):
       </message>
       <message name="IDS_EXTENSION_INSTALLED_MANAGE_SHORTCUTS" desc="Text for the link in the InfoBubble that opens the chrome://extensions page with the Configure Commands UI visible.">
         Manage shortcuts
+      </message>
+      <message name="IDS_EXTENSION_INSTALLED_SIGNIN_PROMO_LINK" desc="The first part of the sign-in promo paragraph. This part will be converted to a link and will get more text appended to it (see IDS_EXTENSION_INSTALLED_SIGNIN_PROMO). Keep this text short.">
+        Sign in to <ph name="SHORT_PRODUCT_NAME">$1<ex>Chrome</ex></ph>
+      </message>
+      <message name="IDS_EXTENSION_INSTALLED_SIGNIN_PROMO" desc="The remaining text of the sign-in promo paragraph. Will be appended as a label to the string above.">
+        to get this extension, your history, and other Chrome settings on all your devices.
       </message>
       <message name="IDS_ACCNAME_INFOBAR_CONTAINER" desc="The accessible name for the infobar container.">
         Infobar Container
@@ -6117,12 +6130,6 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_ENABLE_PNACL_DESCRIPTION" desc="Description of the 'Enable Portable Native Client' lab.">
         Enable support for Portable Native Client.
       </message>
-      <message name="IDS_FLAGS_ENABLE_NACL_SRPC_PROXY_NAME" desc="Name of the 'Enable Native Client SRPC Proxy' lab.">
-        Native Client SRPC Proxy.
-      </message>
-      <message name="IDS_FLAGS_ENABLE_NACL_SRPC_PROXY_DESCRIPTION" desc="Description of the 'Enable Native Client SRPC Proxy' lab.">
-        Use NaCl SRPC, rather than Chrome IPC, to proxy Pepper calls between Chrome and the plugin.
-      </message>
       <message name="IDS_FLAGS_DOWNLOADS_NEW_UI_NAME" desc="Name of the 'New Downloads UI' lab.">
         New Downloads UI
       </message>
@@ -6568,6 +6575,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_ENABLE_PANEL_STACKING_DESCRIPTION" desc="Description for the flag to enable panel stacking.">
         Enabling this option allows detached panels to be stacked together.
       </message>
+      <message name="IDS_FLAGS_ENABLE_WEBGL_NAME" desc="Name of the 'Enable WebGL' lab.">
+        Enable WebGL
+      </message>
+      <message name="IDS_FLAGS_ENABLE_WEBGL_DESCRIPTION" desc="Description for the flag to enable WebGL.">
+        Enabling this option allows web applications to access the WebGL API.
+      </message>
       <message name="IDS_FLAGS_DISABLE_WEBGL_NAME" desc="Name of the 'Disable WebGL' lab.">
         Disable WebGL
       </message>
@@ -6740,6 +6753,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </message>
       <message name="IDS_FLAGS_ENABLE_TAB_BROWSER_DRAGGING_DESCRIPTION" desc="Description for the flag to enable detached tabs to create a real browser.">
         Enable creating a browser window when dragging tabs.
+      </message>
+      <message name="IDS_FLAGS_ENABLE_DOWNLOAD_RESUMPTION_NAME" desc="Title for the flag to enable the download resume feature.">
+        Enable Download Resumption
+      </message>
+      <message name="IDS_FLAGS_ENABLE_DOWNLOAD_RESUMPTION_DESCRIPTION" desc="Description for the flag to enable the download resume feature.">
+        Allow downloads that have been interrupted to be continued or restarted, using the Resume context menu item.
       </message>
       <message name="IDS_FLAGS_DISABLE_RESTORE_SESSION_STATE_NAME" desc="Title for the flag to disable restoring (more) session state after restarts and crashes.">
         Disable Better session restore
@@ -6946,6 +6965,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
         <message name="IDS_FLAGS_ENABLE_LAUNCHER_PER_DISPLAY_DESCRIPTION" desc="Description for the flag to enable launchers on all displaysj.">
           All displays will have a launcher when enabled.
         </message>
+        <message name="IDS_FLAGS_FORCE_OAUTH1_DISPLAY_NAME" desc="Name for the flag to force legacy authentication mode.">
+           Legacy user authentication.
+        </message>
+        <message name="IDS_FLAGS_FORCE_OAUTH1_DISPLAY_DESCRIPTION" desc="Description for the force legacy authentication mode.">
+          Forces use of legacy OAuth1 flow for ChromeOS user authentication.
+        </message>
       </if>
 
       <message name="IDS_FLAGS_OLD_CHECKBOX_STYLE" desc="Name of the flag to turn off the new checkbox style.">
@@ -6974,6 +6999,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </message>
       <message name="IDS_FLAGS_DISABLE_ACCELERATED_VIDEO_DECODE_DESCRIPTION" desc="Description for the flag to disable accelerated video decode where available.">
         Disables hardware-accelerated video decode where available.
+      </message>
+      <message name="IDS_FLAGS_ENABLE_SCALING_IN_IMAGE_SKIA_OPERATIONS_NAME" desc="Name of the flag to enable scaling in ImageSkiaOperations API.">
+        Enable scaling in ImageSkiaOperations.
+      </message>
+      <message name="IDS_FLAGS_ENABLE_SCALING_IN_IMAGE_SKIA_OPERATIONS_DESCRIPTION" desc="Description for the flag enable scaling in ImageSkiaOperations API.">
+        Allows ImageSkiaOperations API to operate on images at different scale factors.
       </message>
       <message name="IDS_FLAGS_ENABLE_WEBKIT_TEXT_SUBPIXEL_POSITIONING_NAME" desc="Name of the flag to enable subpixel text positioning on web pages.">
         Enable webpage text sub-pixel positioning.
@@ -7636,8 +7667,8 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_ACCNAME_RELOAD" desc="The accessible name for the reload/stop button.">
         Reload
       </message>
-      <message name="IDS_ACCNAME_LOCATION" desc="The accessible name for the location bar edit field.">
-        Address
+      <message name="IDS_ACCNAME_LOCATION" desc="The accessible name for the editable-text portion of the omnibox.">
+        Address and search bar
       </message>
       <message name="IDS_ACCNAME_SCRIPT_BUBBLE" desc="The accessible name for the script bubble.">
         Script Bubble
@@ -8752,6 +8783,9 @@ The following plug-in is unresponsive: <ph name="PLUGIN_NAME">$1
       <message name="IDS_PRINT_PREVIEW_OPTION_FIT_TO_PAGE" desc="Checkbox label shown in print preview page to auto fit the PDF page.">
         Fit to page
       </message>
+      <message name="IDS_PRINT_PREVIEW_OPTION_BACKGROUND_COLORS_AND_IMAGES" desc="Checkbox label shown in print preview page to print webpage backgrounds.">
+        Background colors and images
+      </message>
       <message name="IDS_PRINT_PREVIEW_MARGINS_LABEL" desc="Margins option label. Provides user the option to change the margins of the printed page.">
         Margins
       </message>
@@ -9317,7 +9351,7 @@ The following plug-in is unresponsive: <ph name="PLUGIN_NAME">$1
       <if expr="pp_ifdef('android') or pp_ifdef('ios')">
         <message name="IDS_ERRORPAGES_SUGGESTION_PROXY_CONFIG" desc="When a webpage fails to load, in some cases we suggest checking the proxy server configuration, or disabling the proxy server.">
           If you use a proxy server, check your proxy settings or contact your
-          network administrator to make sure the proxy server is working. 
+          network administrator to make sure the proxy server is working.
         </message>
       </if>
       <if expr="not pp_ifdef('android') and not pp_ifdef('ios')">
@@ -9334,7 +9368,7 @@ The following plug-in is unresponsive: <ph name="PLUGIN_NAME">$1
       </message>
 
       <message name="IDS_ERRORPAGES_TITLE_NOT_AVAILABLE" desc="Title of the error page when we can't connect to a site.">
-        <ph name="SITE">$1<ex>google.xom</ex></ph> is not available
+        <ph name="SITE">$1<ex>google.com</ex></ph> is not available
       </message>
       <message name="IDS_ERRORPAGES_TITLE_ACCESS_DENIED" desc="Title in the error page when a server returns a 403.  Also suitable for similar error codes.">
         Access to <ph name="URL">$1<ex>http://www.google.com/foo/bar</ex></ph> denied.
@@ -9401,6 +9435,11 @@ The following plug-in is unresponsive: <ph name="PLUGIN_NAME">$1
         The connection to
         <ph name="HOST_NAME">&lt;strong jscontent="hostName"&gt;&lt;/strong&gt;<ex>www.whatever.com</ex></ph>
         was interrupted.
+      </message>
+      <message name="IDS_ERRORPAGES_SUMMARY_NETWORK_CHANGED" desc="Summary in the error page when the connection failed because the network has changed.">
+        The connection to
+        <ph name="HOST_NAME">&lt;strong jscontent="hostName"&gt;&lt;/strong&gt;<ex>www.whatever.com</ex></ph>
+        was interrupted by a change in the network connection.
       </message>
       <message name="IDS_ERRORPAGES_SUMMARY_CONNECTION_REFUSED" desc="Summary in the error page when we try and connect to a server, but the server doesn't let us.">
         <ph name="PRODUCT_NAME">&lt;span jscontent="productName"&gt;&lt;/span&gt;<ex>Google Chrome</ex></ph>'s
@@ -9616,6 +9655,9 @@ The following plug-in is unresponsive: <ph name="PLUGIN_NAME">$1
       </message>
       <message name="IDS_ERRORPAGES_DETAILS_CONNECTION_FAILED" desc="The error message displayed when we can not reach the website.">
         The attempt to connect to the server failed.
+      </message>
+      <message name="IDS_ERRORPAGES_DETAILS_NETWORK_CHANGED" desc="The error message displayed when a connection is interrupted because the network changed.">
+        A network change was detected.
       </message>
       <message name="IDS_ERRORPAGES_DETAILS_NAME_NOT_RESOLVED" desc="The error message displayed when a dns look up fails.">
         Unable to resolve the server's DNS address.
@@ -10777,6 +10819,9 @@ experiment id: "<ph name="EXPERIMENT_ID">$5<ex>ar1</ex></ph>"
       <message name="IDS_AUTOFILL_DIALOG_SECTION_EMAIL" desc="Label for the email section of the imperative autofill dialog.">
         Email address
       </message>
+      <message name="IDS_AUTOFILL_DIALOG_SECTION_CC" desc="Label for the credit card section of the imperative autofill dialog.">
+        Credit card
+      </message>
       <message name="IDS_AUTOFILL_DIALOG_SECTION_BILLING" desc="Label for the billing details section of the imperative autofill dialog.">
         Billing details
       </message>
@@ -10784,7 +10829,7 @@ experiment id: "<ph name="EXPERIMENT_ID">$5<ex>ar1</ex></ph>"
         Shipping details
       </message>
       <message name="IDS_AUTOFILL_DIALOG_USE_BILLING_FOR_SHIPPING" desc="Checkbox label that asks whether the billing info should also be used for shipping info.">
-        Use as shipping address?
+        Use billing address for shipping
       </message>
       <message name="IDS_AUTOFILL_DIALOG_SUBMIT_BUTTON" desc="Button text for confirmation of user details.">
         Submit
@@ -12118,6 +12163,9 @@ experiment id: "<ph name="EXPERIMENT_ID">$5<ex>ar1</ex></ph>"
       <message name="IDS_PLUGIN_CRASHED_PROMPT" desc="Info Bar message to notify about a crashed plugin">
        <ph name="PLUGIN_NAME">$1<ex>Shockwave</ex> has crashed.</ph>
       </message>
+      <message name="IDS_PLUGIN_DISCONNECTED_PROMPT" desc="Info Bar message to notify that the channel connecting to a plugin has encountered an error.">
+        <ph name="PLUGIN_NAME">$1<ex>Shockwave</ex> has encountered an error.</ph>
+      </message>
       <message name="IDS_PLUGIN_INITIALIZATION_ERROR_PROMPT" desc="Info Bar message to notify that we couldn't load a plugin">
         Could not load <ph name="PLUGIN_NAME">$1<ex>Shockwave</ex>.</ph>
       </message>
@@ -12512,6 +12560,9 @@ Some features may be unavailable.  Please check that the profile exists and you 
       </message>
       <message name="IDS_FILE_BROWSER_PREPARING_LABEL" desc="Label informing about preparing the file.">
         Preparing
+      </message>
+      <message name="IDS_FILE_BROWSER_DRAGGING_MULTIPLE_ITEMS" desc="Tooltip message for dragging multiple files.">
+        $1 items
       </message>
 
       <message name="IDS_FILE_BROWSER_DIMENSIONS_LABEL" desc="Image dimensions label.">
@@ -12939,9 +12990,6 @@ Some features may be unavailable.  Please check that the profile exists and you 
         Save file as
       </message>
 
-      <message name="IDS_FILE_BROWSER_COMPUTING_SELECTION" desc="Computing selection...">
-        Computing selection...
-      </message>
       <message name="IDS_FILE_BROWSER_MANY_FILES_SELECTED" desc="Many files selected.">
         <ph name="SELCTED_FILE_COUNT">$1<ex>13</ex></ph> files selected
       </message>
@@ -12990,9 +13038,6 @@ Some features may be unavailable.  Please check that the profile exists and you 
       <message name="IDS_FILE_BROWSER_DRIVE_MENU_HELP" desc="In the Google Drive settings menu, name of the Help item.">
         Help
       </message>
-      <message name="IDS_FILE_BROWSER_DRIVE_SPACE_AVAILABLE" desc="Menu item showing space left on Google Drive">
-        <ph name="SPACE_AVAILABLE">$1<ex>4.8 GB</ex></ph> left
-      </message>
       <message name="IDS_FILE_BROWSER_DRIVE_BUY_MORE_SPACE" desc="Menu item, offering user to buy more space on Google Drive">
         Buy more storage...
       </message>
@@ -13004,12 +13049,6 @@ Some features may be unavailable.  Please check that the profile exists and you 
       </message>
       <message name="IDS_FILE_BROWSER_DRIVE_BUY_MORE_SPACE_LINK" desc="Text on the link, offering user to buy more space on Google Drive">
         Buy more storage
-      </message>
-      <message name="IDS_FILE_BROWSER_DRIVE_WAITING_FOR_SPACE_INFO" desc="Menu item, saying that FileBrowser is waiting for account's space information from Drive servers. When actual data arrives, this item will be replaced with IDS_FILE_BROWSER_DRIVE_SPACE_AVAILABLE">
-        Waiting for space info...
-      </message>
-      <message name="IDS_FILE_BROWSER_DRIVE_FAILED_SPACE_INFO" desc="Menu item, saying that FileBrowser is failed to retrieve account's space information from Drive servers.">
-        Failed to retrieve space info
       </message>
       <message name="IDS_FILE_BROWSER_DRIVE_OUT_OF_SPACE_HEADER" desc="Message informing the user that there is not enough space to make the selected file(s) available offline.">
         You have run out of space
@@ -13288,6 +13327,20 @@ Some features may be unavailable.  Please check that the profile exists and you 
 
       <message name="IDS_FILE_BROWSER_ALL_FILES_FILTER" desc="All Files filter for Open/Save dialog">
         All files
+      </message>
+
+      <message name="IDS_FILE_BROWSER_SPACE_AVAILABLE" desc="Menu item showing space left for storage.">
+        <ph name="SPACE_AVAILABLE">$1<ex>4.8 GB</ex></ph> left
+      </message>
+      <message name="IDS_FILE_BROWSER_WAITING_FOR_SPACE_INFO" desc="Menu item, saying that FileBrowser is waiting for space information for storage. When actual data arrives, this item will be replaced with IDS_FILE_BROWSER_SPACE_AVAILABLE">
+        Waiting for space info...
+      </message>
+      <message name="IDS_FILE_BROWSER_FAILED_SPACE_INFO" desc="Menu item, saying that FileBrowser is failed to retrieve space information.">
+        Failed to retrieve space info
+      </message>
+
+      <message name="IDS_FILE_BROWSER_HELP_LINK_LABEL" desc="Label for a link to help pages in a general context menu in file browser.">
+        Help
       </message>
 
       <!-- Bookmark manager -->
@@ -15245,8 +15298,11 @@ Some features may be unavailable.  Please check that the profile exists and you 
     <message name="IDS_PROFILES_CREATE_MANAGED_CHECKBOX" desc="Label for the 'Managed user' checkbox in the create profile dialog">
       Managed user
     </message>
-    <message name="IDS_PROFILES_CREATE_SHORTCUT_CHKBOX" desc="Create Shortcut Checkbox">
+    <message name="IDS_PROFILES_CREATE_SHORTCUT_CHECKBOX" desc="Create Shortcut Checkbox">
       Create desktop shortcut for this user
+    </message>
+    <message name="IDS_PROFILES_REMOVE_SHORTCUT_CHECKBOX" desc="Remove Shortcut Checkbox">
+      Remove desktop shortcut for this user
     </message>
 
     <!-- Tracing about page strings -->
@@ -15345,10 +15401,10 @@ Some features may be unavailable.  Please check that the profile exists and you 
       Keyboard/Mouse (<ph name="ADDRESS">$1<ex>12:34:56:78:9A:BC</ex></ph>)
     </message>
 
-    <!-- High-constrast mode. -->
+    <!-- High-contrast mode. -->
     <message name="IDS_HIGH_CONTRAST_NOTIFICATION"
-             desc="Text that explains that the user is using Windows High-Constrast mode, so they may be interested in a high-contrast extension or a dark theme. Note to translators: this is the name of a feature in Windows, so please try to find the correct name of that feature in your region.">
-      You have High Constrast mode enabled. Would you like to install our High Contrast extension and a dark theme?
+             desc="Text that explains that the user is using Windows High-Contrast mode, so they may be interested in a high-contrast extension or a dark theme. Note to translators: this is the name of a feature in Windows, so please try to find the correct name of that feature in your region.">
+      You have High Contrast mode enabled. Would you like to install our High Contrast extension and a dark theme?
     </message>
     <message name="IDS_HIGH_CONTRAST_EXT"
              desc="The title of a link that will open the Chrome Web Store with a High Contrast extension the user can install.">
@@ -15445,7 +15501,7 @@ Some features may be unavailable.  Please check that the profile exists and you 
       Media access settings for <ph name="EXTENSION">$1<ex>PhotoEditr</ex></ph>
     </message>
     <message name="IDS_MEDIA_GALLERIES_DIALOG_SUBTEXT" desc="Explanatory text for the media gallery access permission.">
-      Which media (folders and collections of folders) can <ph name="EXTENSION">$1<ex>PhotoEditr</ex></ph> read and write?
+      Which media (folders and collections of folders) can <ph name="EXTENSION">$1<ex>PhotoEditor</ex></ph> read and write?
     </message>
     <if expr="pp_ifdef('use_titlecase')">
       <message name="IDS_MEDIA_GALLERIES_DIALOG_ADD_GALLERY" desc="In title case: Button for adding a new gallery by choosing a folder.">
@@ -15607,6 +15663,15 @@ Some features may be unavailable.  Please check that the profile exists and you 
     </message>
     <message name="IDS_MANAGED_MODE_GO_BACK_ACTION" desc="Label for the button that goes back to a 'safe' page.">
       Take me back!
+    </message>
+    <message name="IDS_MANAGED_MODE_PREVIEW_MESSAGE" desc="Text of the infobar shown while a website is previewed.">
+      Do you want to add this website to the whitelist?
+    </message>
+    <message name="IDS_MANAGED_MODE_PREVIEW_ACCEPT" desc="Label for the button that adds the website to the manual whitelist.">
+      Add to whitelist.
+    </message>
+    <message name="IDS_MANAGED_MODE_ALREADY_ADDED_MESSAGE" desc="Text of the message that indicates that the website was already on one of the whitelists.">
+      This website was already on the whitelist so it was not added again.
     </message>
 
     <!-- Password generation strings -->

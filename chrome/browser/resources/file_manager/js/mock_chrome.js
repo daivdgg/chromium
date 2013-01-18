@@ -342,7 +342,7 @@ chrome.fileBrowserPrivate = {
       });
     }
 
-    webkitResolveLocalFileSystemURL(sourceUrl, function(entry) {
+    window.webkitResolveLocalFileSystemURL(sourceUrl, function(entry) {
       util.removeFileOrDirectory(
           entry,
           util.flog('Deleted a mock mount at ' + entry.fullPath,
@@ -505,6 +505,7 @@ chrome.fileBrowserPrivate = {
       NEW_FOLDER_BUTTON_LABEL: 'New folder',
       FILENAME_LABEL: 'File Name',
       PREPARING_LABEL: 'Preparing',
+      DRAGGING_MULTIPLE_ITEMS: '$1 items',
 
       DIMENSIONS_LABEL: 'Dimensions',
       DIMENSIONS_FORMAT: '$1 x $2',
@@ -597,11 +598,8 @@ chrome.fileBrowserPrivate = {
       DRIVE_SHOW_HOSTED_FILES_OPTION: 'Show Google Docs files',
       DRIVE_CLEAR_LOCAL_CACHE: 'Clear local cache',
       DRIVE_RELOAD: 'Reload',
-      DRIVE_WAITING_FOR_SPACE_INFO: 'Waiting for space info...',
-      DRIVE_FAILED_SPACE_INFO: 'Failed to retrieve space info',
       DRIVE_BUY_MORE_SPACE: 'Buy more storage...',
       DRIVE_VISIT_DRIVE_GOOGLE_COM: 'Go to drive.google.com...',
-      DRIVE_SPACE_AVAILABLE: '$1 left',
 
       DRIVE_BUY_MORE_SPACE_LINK: 'Buy more storage',
       DRIVE_SPACE_AVAILABLE_LONG: 'Google Drive space left: $1.',
@@ -676,7 +674,6 @@ chrome.fileBrowserPrivate = {
       SELECT_OPEN_MULTI_FILE_TITLE: 'Select one or more files',
       SELECT_SAVEAS_FILE_TITLE: 'Save file as',
 
-      COMPUTING_SELECTION: 'Computing selection...',
       MANY_FILES_SELECTED: '$1 files selected',
       MANY_DIRECTORIES_SELECTED: '$1 folders selected',
       MANY_ENTRIES_SELECTED: '$1 items selected',
@@ -743,6 +740,12 @@ chrome.fileBrowserPrivate = {
       TIME_YESTERDAY: 'Yesterday $1',
 
       ALL_FILES_FILTER: 'All files',
+
+      SPACE_AVAILABLE: '$1 left',
+      WAITING_FOR_SPACE_INFO: 'Waiting for space info...',
+      FAILED_SPACE_INFO: 'Failed to retrieve space info',
+
+      HELP_LINK_LABEL: 'Help',
 
       DEFAULT_ACTION_LABEL: '(default)',
       ASH: true,

@@ -15,6 +15,8 @@
 #include "chrome/renderer/autofill/form_cache.h"
 #include "chrome/test/base/chrome_render_view_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebVector.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDocument.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebElement.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebFormControlElement.h"
@@ -22,8 +24,6 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebInputElement.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebNode.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSelectElement.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebVector.h"
 #include "webkit/glue/web_io_operators.h"
 
 using WebKit::WebDocument;
@@ -214,6 +214,42 @@ TEST_F(FormAutofillTest, WebFormControlElementToFormFieldAutofilled) {
   EXPECT_FORM_FIELD_DATA_EQUALS(expected, result);
 }
 
+// We should be able to extract a radio or a checkbox field that has been
+// autofilled.
+TEST_F(FormAutofillTest, WebFormControlElementToClickableFormField) {
+  LoadHTML("<INPUT type=\"checkbox\" id=\"checkbox\" value=\"mail\"/>"
+           "<INPUT type=\"radio\" id=\"radio\" value=\"male\"/>");
+
+  WebFrame* frame = GetMainFrame();
+  ASSERT_NE(static_cast<WebFrame*>(NULL), frame);
+
+  WebElement web_element = frame->document().getElementById("checkbox");
+  WebInputElement element = web_element.to<WebInputElement>();
+  element.setAutofilled(true);
+  FormFieldData result;
+  WebFormControlElementToFormField(element, autofill::EXTRACT_VALUE, &result);
+
+  FormFieldData expected;
+  expected.name = ASCIIToUTF16("checkbox");
+  expected.value = ASCIIToUTF16("mail");
+  expected.form_control_type = "checkbox";
+  expected.is_autofilled = true;
+  expected.is_checkable = true;
+  EXPECT_FORM_FIELD_DATA_EQUALS(expected, result);
+
+  // TODO(ramankk): Uncomment after testing the regression, crbug/170064.
+  /* web_element = frame->document().getElementById("radio");
+  element = web_element.to<WebInputElement>();
+  element.setAutofilled(true);
+  WebFormControlElementToFormField(element, autofill::EXTRACT_VALUE, &result);
+  expected.name = ASCIIToUTF16("radio");
+  expected.value = ASCIIToUTF16("male");
+  expected.form_control_type = "radio";
+  expected.is_autofilled = true;
+  expected.is_checkable = true;
+  EXPECT_FORM_FIELD_DATA_EQUALS(expected, result); */
+}
+
 // We should be able to extract a <select> field.
 TEST_F(FormAutofillTest, WebFormControlElementToFormFieldSelect) {
   LoadHTML("<SELECT id=\"element\"/>"
@@ -265,8 +301,6 @@ TEST_F(FormAutofillTest, WebFormControlElementToFormFieldInvalidType) {
   LoadHTML("<FORM name=\"TestForm\" action=\"http://cnn.com\" method=\"post\">"
            "  <INPUT type=\"hidden\" id=\"hidden\" value=\"apple\"/>"
            "  <INPUT type=\"password\" id=\"password\" value=\"secret\"/>"
-           "  <INPUT type=\"checkbox\" id=\"checkbox\" value=\"mail\"/>"
-           "  <INPUT type=\"radio\" id=\"radio\" value=\"male\"/>"
            "  <INPUT type=\"submit\" id=\"submit\" value=\"Send\"/>"
            "</FORM>");
 
@@ -291,21 +325,6 @@ TEST_F(FormAutofillTest, WebFormControlElementToFormFieldInvalidType) {
   expected.name = ASCIIToUTF16("password");
   expected.form_control_type = "password";
   EXPECT_FORM_FIELD_DATA_EQUALS(expected, result);
-
-  web_element = frame->document().getElementById("checkbox");
-  element = web_element.to<WebFormControlElement>();
-  WebFormControlElementToFormField(element, autofill::EXTRACT_VALUE, &result);
-  expected.name = ASCIIToUTF16("checkbox");
-  expected.form_control_type = "checkbox";
-  EXPECT_FORM_FIELD_DATA_EQUALS(expected, result);
-
-  web_element = frame->document().getElementById("radio");
-  element = web_element.to<WebFormControlElement>();
-  WebFormControlElementToFormField(element, autofill::EXTRACT_VALUE, &result);
-  expected.name = ASCIIToUTF16("radio");
-  expected.form_control_type = "radio";
-  EXPECT_FORM_FIELD_DATA_EQUALS(expected, result);
-
 
   web_element = frame->document().getElementById("submit");
   element = web_element.to<WebFormControlElement>();

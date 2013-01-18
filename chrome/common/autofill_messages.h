@@ -7,6 +7,8 @@
 #include <string>
 
 #include "base/time.h"
+#include "chrome/common/autofill/autocheckout_status.h"
+#include "chrome/common/autofill/web_element_descriptor.h"
 #include "chrome/common/common_param_traits_macros.h"
 #include "chrome/common/form_data.h"
 #include "chrome/common/form_data_predictions.h"
@@ -23,6 +25,15 @@
 #include "ui/gfx/rect.h"
 
 #define IPC_MESSAGE_START AutofillMsgStart
+
+IPC_ENUM_TRAITS(autofill::AutocheckoutStatus)
+
+IPC_STRUCT_TRAITS_BEGIN(autofill::WebElementDescriptor)
+  IPC_STRUCT_TRAITS_MEMBER(descriptor)
+  IPC_STRUCT_TRAITS_MEMBER(retrieval_method)
+IPC_STRUCT_TRAITS_END()
+
+IPC_ENUM_TRAITS(autofill::WebElementDescriptor::RetrievalMethod)
 
 IPC_STRUCT_TRAITS_BEGIN(FormFieldData)
   IPC_STRUCT_TRAITS_MEMBER(label)
@@ -137,16 +148,18 @@ IPC_MESSAGE_ROUTED1(AutofillMsg_AcceptPasswordAutofillSuggestion,
 IPC_MESSAGE_ROUTED1(AutofillMsg_FormNotBlacklisted,
                     content::PasswordForm /* form checked */)
 
-// Sent when requestAutocomplete() succeeds. Tells the renderer to Autofill the
-// form that requested autocomplete with the |form_data| values input by the
-// user.
-IPC_MESSAGE_ROUTED1(AutofillMsg_RequestAutocompleteSuccess,
+// Sent when requestAutocomplete() finishes (either succesfully or with an
+// error). If it was a success, the renderer fills the form that requested
+// autocomplete with the |form_data| values input by the user.
+IPC_MESSAGE_ROUTED2(AutofillMsg_RequestAutocompleteResult,
+                    WebKit::WebFormElement::AutocompleteResult /* result */,
                     FormData /* form_data */)
 
-// Sent when requestAutocomplete() fails. Currently, this happens when a form is
-// requested to be autocompleted with no input or select tags with autocomplete
-// attributes.
-IPC_MESSAGE_ROUTED0(AutofillMsg_RequestAutocompleteError)
+// Sent when a page should be filled using Autocheckout. This happens when the
+// Autofill server hints that a page is Autocheckout enabled.
+IPC_MESSAGE_ROUTED2(AutofillMsg_FillFormsAndClick,
+                    std::vector<FormData> /* form_data */,
+                    autofill::WebElementDescriptor /* element_descriptor */)
 
 // Autofill messages sent from the renderer to the browser.
 
@@ -227,6 +240,12 @@ IPC_MESSAGE_ROUTED0(AutofillHostMsg_DidEndTextFieldEditing)
 
 // Instructs the browser to hide the Autofill popup.
 IPC_MESSAGE_ROUTED0(AutofillHostMsg_HideAutofillPopup)
+
+// Sent when the renderer attempts to click an element in an Autocheckout flow
+// and either the element could not be found or the click did not have the
+// desired effect.
+IPC_MESSAGE_ROUTED1(AutofillHostMsg_ClickFailed,
+                    autofill::AutocheckoutStatus /* status */)
 
 // Instructs the browser to show the password generation bubble at the
 // specified location. This location should be specified in the renderers

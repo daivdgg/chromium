@@ -8,6 +8,7 @@
 
 #include "base/bind_helpers.h"
 #include "base/json/json_file_value_serializer.h"
+#include "base/message_loop.h"
 #include "chrome/browser/chromeos/drive/drive.pb.h"
 #include "chrome/browser/chromeos/drive/drive_feed_loader.h"
 #include "chrome/browser/chromeos/drive/drive_file_system.h"
@@ -77,6 +78,19 @@ void CopyResultsFromReadDirectoryCallback(
   *out_entries = entries.Pass();
 }
 
+void CopyResultsFromReadDirectoryByPathCallback(
+    DriveFileError* out_error,
+    scoped_ptr<DriveEntryProtoVector>* out_entries,
+    DriveFileError error,
+    bool /* hide_hosted_documents */,
+    scoped_ptr<DriveEntryProtoVector> entries) {
+  DCHECK(out_error);
+  DCHECK(out_entries);
+
+  *out_error = error;
+  *out_entries = entries.Pass();
+}
+
 void CopyResultsFromGetEntryInfoWithFilePathCallback(
     DriveFileError* out_error,
     FilePath* out_drive_file_path,
@@ -127,11 +141,54 @@ void CopyResultsFromGetCacheEntryCallback(bool* out_success,
   *out_cache_entry = cache_entry;
 }
 
+void CopyResultsFromGetFileCallback(DriveFileError* out_error,
+                                    FilePath* out_file_path,
+                                    DriveFileType* out_file_type,
+                                    DriveFileError error,
+                                    const FilePath& file_path,
+                                    const std::string& /*mime_type*/,
+                                    DriveFileType file_type) {
+  DCHECK(out_error);
+  DCHECK(out_file_path);
+  DCHECK(out_file_type);
+  *out_error = error;
+  *out_file_path = file_path;
+  *out_file_type = file_type;
+}
+
+void CopyResultsFromGetAvailableSpaceCallback(DriveFileError* out_error,
+                                              int64* out_bytes_total,
+                                              int64* out_bytes_used,
+                                              DriveFileError error,
+                                              int64 bytes_total,
+                                              int64 bytes_used) {
+  DCHECK(out_error);
+  DCHECK(out_bytes_total);
+  DCHECK(out_bytes_used);
+  *out_error = error;
+  *out_bytes_total = bytes_total;
+  *out_bytes_used = bytes_used;
+}
+
+void CopyResultsFromOpenFileCallbackAndQuit(DriveFileError* out_error,
+                                            FilePath* out_file_path,
+                                            DriveFileError error,
+                                            const FilePath& file_path) {
+  *out_error = error;
+  *out_file_path = file_path;
+  MessageLoop::current()->Quit();
+}
+
+void CopyResultsFromCloseFileCallbackAndQuit(DriveFileError* out_error,
+                                             DriveFileError error) {
+  *out_error = error;
+  MessageLoop::current()->Quit();
+}
+
 bool LoadChangeFeed(const std::string& relative_path,
                     DriveFileSystem* file_system,
                     bool is_delta_feed,
                     int64 root_feed_changestamp) {
-  std::string error;
   scoped_ptr<Value> document =
       google_apis::test_util::LoadJSONFile(relative_path);
   if (!document.get())
@@ -151,7 +208,6 @@ bool LoadChangeFeed(const std::string& relative_path,
       feed_list,
       is_delta_feed,
       root_feed_changestamp,
-      kWAPIRootDirectoryResourceIdForTesting,
       base::Bind(&base::DoNothing));
   // DriveFeedLoader::UpdateFromFeed is asynchronous, so wait for it to finish.
   google_apis::test_util::RunBlockingPoolTask();

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/memory/ref_counted.h"
+#include "chrome/common/autofill/autocheckout_status.h"
 #include "net/url_request/url_fetcher_delegate.h"
 
 class GURL;
@@ -35,30 +36,39 @@ class WalletClient : public net::URLFetcherDelegate {
   class WalletClientObserver {
    public:
     // Called when an AcceptLegalDocuments request finishes successfully.
-    virtual void OnAcceptLegalDocuments() = 0;
+    virtual void OnDidAcceptLegalDocuments() = 0;
 
-    // Called when an EncryptOtp request finishes successfully.
-    virtual void OnEncryptOtp(const std::string& encrypted_otp,
-                              const std::string& session_material) = 0;
+    // Called when an EncryptOtp request finishes successfully. |encrypted_otp|
+    // and |session_material| must be used when calling GetFullWallet.
+    virtual void OnDidEncryptOtp(const std::string& encrypted_otp,
+                                 const std::string& session_material) = 0;
+
+    // Called when an EscrowSensitiveInformation request finishes successfully.
+    // |escrow_handle| must be used when saving a new instrument using
+    // SaveInstrument or SaveAdressAndInstrument.
+    virtual void OnDidEscrowSensitiveInformation(
+        const std::string& escrow_handle) = 0;
 
     // Called when a GetFullWallet request finishes successfully. Caller owns
     // the input pointer.
-    virtual void OnGetFullWallet(FullWallet* full_wallet) = 0;
+    virtual void OnDidGetFullWallet(FullWallet* full_wallet) = 0;
 
     // Called when a GetWalletItems request finishes successfully. Caller owns
     // the input pointer.
-    virtual void OnGetWalletItems(WalletItems* wallet_items) = 0;
+    virtual void OnDidGetWalletItems(WalletItems* wallet_items) = 0;
 
-    // Called when a SendExtendedAutofillStatus request finishes successfully.
-    virtual void OnSendExtendedAutofillStatus() = 0;
+    // Called when a SendAutocheckoutStatus request finishes successfully.
+    virtual void OnDidSendAutocheckoutStatus() = 0;
 
     // TODO(ahutter): This is going to need more arguments, probably an error
     // code and a message for the user.
     // Called when a request fails due to an Online Wallet error.
     virtual void OnWalletError() = 0;
 
-    // Called when a request fails due to a network error or if the response was
-    // invalid.
+    // Called when a request fails due to a malformed response.
+    virtual void OnMalformedResponse() = 0;
+
+    // Called when a request fails due to a network error.
     virtual void OnNetworkError(int response_code) = 0;
 
    protected:
@@ -87,6 +97,14 @@ class WalletClient : public net::URLFetcherDelegate {
                   size_t length,
                   WalletClientObserver* observer);
 
+  // Before calling SaveInstrument or SaveAddressAndInstrument, the client must
+  // escrow |primary_account_number| and |card_verfication_number| with Google
+  // Wallet.
+  void EscrowSensitiveInformation(const std::string& primary_account_number,
+                                  const std::string& card_verification_number,
+                                  const std::string& obfuscated_gaia_id,
+                                  WalletClientObserver* observer);
+
   // GetFullWallet retrieves the a FullWallet for the user. |instrument_id| and
   // |adddress_id| should have been selected by the user in some UI,
   // |merchant_domain| should come from the BrowserContext, the |cart|
@@ -102,16 +120,14 @@ class WalletClient : public net::URLFetcherDelegate {
                      const std::string& session_material,
                      WalletClientObserver* observer);
 
-  // SendExtendedAutofillStatus is used for tracking the success of
-  // WalletClient. |success| is a flag for success, |merchant_domain| is the
-  // domain where the purchase occured, if the purchase was not successful
-  // |reason| is populated, and |google_transaction_id| is the same as the one
-  // provided by GetWalletItems.
-  void SendExtendedAutofillStatus(bool success,
-                                  const std::string& merchant_domain,
-                                  const std::string& reason,
-                                  const std::string& google_transaction_id,
-                                  WalletClientObserver* observer);
+  // SendAutocheckoutStatus is used for tracking the success of Autocheckout
+  // flows. |status| is the result of the flow, |merchant_domain| is the domain
+  // where the purchase occured, and |google_transaction_id| is the same as the
+  // one provided by GetWalletItems.
+  void SendAutocheckoutStatus(autofill::AutocheckoutStatus status,
+                              const std::string& merchant_domain,
+                              const std::string& google_transaction_id,
+                              WalletClientObserver* observer);
 
  private:
   // TODO(ahutter): Implement this.
@@ -121,6 +137,7 @@ class WalletClient : public net::URLFetcherDelegate {
     NO_PENDING_REQUEST,
     ACCEPT_LEGAL_DOCUMENTS,
     ENCRYPT_OTP,
+    ESCROW_SENSITIVE_INFORMATION,
     GET_FULL_WALLET,
     GET_WALLET_ITEMS,
     SEND_STATUS,
@@ -131,6 +148,7 @@ class WalletClient : public net::URLFetcherDelegate {
                          WalletClient::WalletClientObserver* observer,
                          const std::string& content_type);
   virtual void OnURLFetchComplete(const net::URLFetcher* source) OVERRIDE;
+  void HandleMalformedResponse(net::URLFetcher* request);
 
   // The context for the request. Ensures the gdToken cookie is set as a header
   // in the requests to Online Wallet if it is present.

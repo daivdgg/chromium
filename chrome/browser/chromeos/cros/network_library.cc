@@ -185,6 +185,7 @@ NetworkDevice::NetworkDevice(const std::string& device_path)
       sim_retries_left_(kDefaultSimUnlockRetriesCount),
       sim_pin_required_(SIM_PIN_REQUIRE_UNKNOWN),
       sim_present_(false),
+      powered_(false),
       prl_version_(0),
       data_roaming_allowed_(false),
       support_network_scan_(false),
@@ -218,7 +219,7 @@ Network::Network(const std::string& service_path,
     : state_(STATE_UNKNOWN),
       error_(ERROR_NO_ERROR),
       connectable_(true),
-      connection_started_(false),
+      user_connect_state_(USER_CONNECT_NONE),
       is_active_(false),
       priority_(kPriorityNotSet),
       auto_connect_(false),
@@ -228,7 +229,8 @@ Network::Network(const std::string& service_path,
       notify_failure_(false),
       profile_type_(PROFILE_NONE),
       service_path_(service_path),
-      type_(type) {
+      type_(type),
+      is_behind_portal_for_testing_(false) {
 }
 
 Network::~Network() {
@@ -299,10 +301,13 @@ void Network::SetState(ConnectionState new_state) {
   state_ = new_state;
   if (new_state == STATE_FAILURE) {
     VLOG(1) << service_path() << ": Detected Failure state.";
-    if (old_state != STATE_UNKNOWN && old_state != STATE_IDLE) {
+    if (old_state != STATE_UNKNOWN && old_state != STATE_IDLE &&
+        (type() != TYPE_CELLULAR ||
+         user_connect_state() == USER_CONNECT_STARTED)) {
       // New failure, the user needs to be notified.
       // Transition STATE_IDLE -> STATE_FAILURE sometimes happens on resume
       // but is not an actual failure as network device is not ready yet.
+      // For Cellular we only show failure notifications if user initiated.
       notify_failure_ = true;
       // Normally error_ should be set, but if it is not we need to set it to
       // something here so that the retry logic will be triggered.
@@ -311,22 +316,32 @@ void Network::SetState(ConnectionState new_state) {
         error_ = ERROR_UNKNOWN;
       }
     }
-  } else if (new_state == STATE_IDLE && IsConnectingState(old_state)
-             && connection_started()) {
+    if (user_connect_state() == USER_CONNECT_STARTED)
+      set_user_connect_state(USER_CONNECT_FAILED);
+  } else if (new_state == STATE_IDLE && IsConnectingState(old_state) &&
+             user_connect_state() == USER_CONNECT_STARTED) {
     // If we requested a connect and never went through a connected state,
     // treat it as a failure.
     VLOG(1) << service_path() << ": Inferring Failure state.";
     notify_failure_ = true;
     error_ = ERROR_UNKNOWN;
+    if (user_connect_state() == USER_CONNECT_STARTED)
+      set_user_connect_state(USER_CONNECT_FAILED);
   } else if (new_state != STATE_UNKNOWN) {
     notify_failure_ = false;
     // State changed, so refresh IP address.
     InitIPAddress();
+    if (user_connect_state() == USER_CONNECT_STARTED) {
+      if (IsConnectedState(new_state)) {
+        set_user_connect_state(USER_CONNECT_CONNECTED);
+      } else if (!IsConnectingState(new_state)) {
+        LOG(WARNING) << "Connection started and State -> " << GetStateString();
+        set_user_connect_state(USER_CONNECT_FAILED);
+      }
+    }
   }
   VLOG(1) << name() << ".State [" << service_path() << "]: " << GetStateString()
           << " (was: " << ConnectionStateString(old_state) << ")";
-  if (!IsConnectingState(new_state) && new_state != STATE_UNKNOWN)
-    set_connection_started(false);
 }
 
 void Network::SetError(ConnectionError error) {
@@ -492,6 +507,9 @@ std::string Network::GetErrorString() const {
       return l10n_util::GetStringUTF8(
           IDS_CHROMEOS_NETWORK_ERROR_IPSEC_CERT_AUTH_FAILED);
     case ERROR_PPP_AUTH_FAILED:
+    case ERROR_EAP_AUTHENTICATION_FAILED:
+    case ERROR_EAP_LOCAL_TLS_FAILED:
+    case ERROR_EAP_REMOTE_TLS_FAILED:
       return l10n_util::GetStringUTF8(
           IDS_CHROMEOS_NETWORK_ERROR_PPP_AUTH_FAILED);
     case ERROR_UNKNOWN:
@@ -1222,18 +1240,32 @@ bool WifiNetwork::IsPassphraseRequired() const {
   if (encryption_ == SECURITY_NONE)
     return false;
   // A connection failure might be due to a bad passphrase.
-  if (error() == ERROR_BAD_PASSPHRASE || error() == ERROR_BAD_WEPKEY ||
-      error() == ERROR_UNKNOWN)
+  if (error() == ERROR_BAD_PASSPHRASE ||
+      error() == ERROR_BAD_WEPKEY ||
+      error() == ERROR_PPP_AUTH_FAILED ||
+      error() == ERROR_EAP_LOCAL_TLS_FAILED ||
+      error() == ERROR_EAP_REMOTE_TLS_FAILED ||
+      error() == ERROR_EAP_AUTHENTICATION_FAILED ||
+      error() == ERROR_CONNECT_FAILED ||
+      error() == ERROR_UNKNOWN) {
+    VLOG(1) << "Authentication Error: " << GetErrorString();
     return true;
-  // For 802.1x networks, configuration is required if connectable is false
-  // unless we're using a certificate pattern.
-  if (encryption_ == SECURITY_8021X) {
-    if (eap_method_ != EAP_METHOD_TLS ||
-        client_cert_type() != CLIENT_CERT_TYPE_PATTERN)
-      return !connectable();
+  }
+  // If the user initiated a connection and it failed, request credentials in
+  // case it is a credentials error and Shill was unable to detect it.
+  if (user_connect_state() == USER_CONNECT_FAILED)
+    return true;
+  // WEP/WPA/RSN and PSK networks rely on the PassphraseRequired property.
+  if (encryption_ != SECURITY_8021X)
+    return passphrase_required_;
+  // For 802.1x networks, if we are using a certificate pattern we do not
+  // need any credentials.
+  if (eap_method_ == EAP_METHOD_TLS &&
+      client_cert_type() == CLIENT_CERT_TYPE_PATTERN) {
     return false;
   }
-  return passphrase_required_;
+  // Connectable will be false if 802.1x credentials are not set
+  return !connectable();
 }
 
 bool WifiNetwork::RequiresUserProfile() const {

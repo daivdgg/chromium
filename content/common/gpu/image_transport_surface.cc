@@ -15,6 +15,7 @@
 #include "gpu/command_buffer/service/gpu_scheduler.h"
 #include "ui/gl/gl_switches.h"
 #include "ui/gl/gl_implementation.h"
+#include "ui/gl/vsync_provider.h"
 
 namespace content {
 
@@ -216,7 +217,8 @@ void ImageTransportHelper::Resize(gfx::Size size) {
   surface_->OnResize(size);
 
 #if defined(OS_ANDROID)
-  manager_->gpu_memory_manager()->ScheduleManage(true);
+  manager_->gpu_memory_manager()->ScheduleManage(
+      GpuMemoryManager::kScheduleManageNow);
 #endif
 
 #if defined(OS_WIN)
@@ -329,9 +331,12 @@ gfx::Size PassThroughImageTransportSurface::GetSize() {
 PassThroughImageTransportSurface::~PassThroughImageTransportSurface() {}
 
 void PassThroughImageTransportSurface::SendVSyncUpdateIfAvailable() {
-  GetVSyncParameters(
+  gfx::VSyncProvider* vsync_provider = GetVSyncProvider();
+  if (vsync_provider) {
+    vsync_provider->GetVSyncParameters(
       base::Bind(&ImageTransportHelper::SendUpdateVSyncParameters,
                  helper_->AsWeakPtr()));
+  }
 }
 
 }  // namespace content

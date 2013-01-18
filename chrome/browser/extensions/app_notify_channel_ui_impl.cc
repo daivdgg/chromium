@@ -29,12 +29,14 @@
 
 namespace extensions {
 
-class AppNotifyChannelUIImpl::InfoBar : public ConfirmInfoBarDelegate {
+namespace {
+
+class AppNotifyChannelUIInfoBarDelegate : public ConfirmInfoBarDelegate {
  public:
-  InfoBar(AppNotifyChannelUIImpl* creator,
-          InfoBarService* infobar_service,
-          const std::string& app_name);
-  virtual ~InfoBar();
+  // Creates an app notify channel UI delegate and adds it to |infobar_service|.
+  static void Create(InfoBarService* infobar_service,
+                     AppNotifyChannelUIImpl* creator,
+                     const std::string& app_name);
 
   // ConfirmInfoBarDelegate.
   virtual string16 GetMessageText() const OVERRIDE;
@@ -44,29 +46,32 @@ class AppNotifyChannelUIImpl::InfoBar : public ConfirmInfoBarDelegate {
   virtual void InfoBarDismissed() OVERRIDE;
 
  private:
+  AppNotifyChannelUIInfoBarDelegate(AppNotifyChannelUIImpl* creator,
+                                    InfoBarService* infobar_service,
+                                    const std::string& app_name);
+  virtual ~AppNotifyChannelUIInfoBarDelegate();
+
   AppNotifyChannelUIImpl* creator_;
   std::string app_name_;
 
-  DISALLOW_COPY_AND_ASSIGN(InfoBar);
+  DISALLOW_COPY_AND_ASSIGN(AppNotifyChannelUIInfoBarDelegate);
 };
 
-AppNotifyChannelUIImpl::InfoBar::InfoBar(
-    AppNotifyChannelUIImpl* creator,
-    InfoBarService* infobar_service,
-    const std::string& app_name)
-    : ConfirmInfoBarDelegate(infobar_service),
-      creator_(creator),
-      app_name_(app_name) {
+// static
+void AppNotifyChannelUIInfoBarDelegate::Create(InfoBarService* infobar_service,
+                                               AppNotifyChannelUIImpl* creator,
+                                               const std::string& app_name) {
+  infobar_service->AddInfoBar(scoped_ptr<InfoBarDelegate>(
+      new AppNotifyChannelUIInfoBarDelegate(creator, infobar_service,
+                                            app_name)));
 }
 
-AppNotifyChannelUIImpl::InfoBar::~InfoBar() {}
-
-string16 AppNotifyChannelUIImpl::InfoBar::GetMessageText() const {
+string16 AppNotifyChannelUIInfoBarDelegate::GetMessageText() const {
   return l10n_util::GetStringFUTF16(IDS_APP_NOTIFICATION_NEED_SIGNIN,
                                     UTF8ToUTF16(app_name_));
 }
 
-string16 AppNotifyChannelUIImpl::InfoBar::GetButtonLabel(
+string16 AppNotifyChannelUIInfoBarDelegate::GetButtonLabel(
     InfoBarButton button) const {
   if (button == BUTTON_OK) {
     return l10n_util::GetStringUTF16(IDS_APP_NOTIFICATION_NEED_SIGNIN_ACCEPT);
@@ -78,19 +83,33 @@ string16 AppNotifyChannelUIImpl::InfoBar::GetButtonLabel(
   return string16();
 }
 
-bool AppNotifyChannelUIImpl::InfoBar::Accept() {
+bool AppNotifyChannelUIInfoBarDelegate::Accept() {
   creator_->OnInfoBarResult(true);
   return true;
 }
 
-bool AppNotifyChannelUIImpl::InfoBar::Cancel() {
+bool AppNotifyChannelUIInfoBarDelegate::Cancel() {
   creator_->OnInfoBarResult(false);
   return true;
 }
 
-void AppNotifyChannelUIImpl::InfoBar::InfoBarDismissed() {
+void AppNotifyChannelUIInfoBarDelegate::InfoBarDismissed() {
   Cancel();
 }
+
+AppNotifyChannelUIInfoBarDelegate::AppNotifyChannelUIInfoBarDelegate(
+    AppNotifyChannelUIImpl* creator,
+    InfoBarService* infobar_service,
+    const std::string& app_name)
+    : ConfirmInfoBarDelegate(infobar_service),
+      creator_(creator),
+      app_name_(app_name) {
+}
+
+AppNotifyChannelUIInfoBarDelegate::~AppNotifyChannelUIInfoBarDelegate() {
+}
+
+}  // namespace
 
 
 AppNotifyChannelUIImpl::AppNotifyChannelUIImpl(
@@ -137,10 +156,8 @@ void AppNotifyChannelUIImpl::PromptSyncSetup(
     return;
   }
 
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(web_contents_);
-  infobar_service->AddInfoBar(new AppNotifyChannelUIImpl::InfoBar(
-      this, infobar_service, app_name_));
+  AppNotifyChannelUIInfoBarDelegate::Create(
+      InfoBarService::FromWebContents(web_contents_), this, app_name_);
 }
 
 void AppNotifyChannelUIImpl::OnInfoBarResult(bool accepted) {

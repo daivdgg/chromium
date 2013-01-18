@@ -12,11 +12,10 @@
 #include "ipc/ipc_channel.h"
 #include "ipc/ipc_channel_proxy.h"
 #include "ipc/ipc_multiprocess_test.h"
-#include "ipc/ipc_tests.h"
+#include "ipc/ipc_test_base.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "testing/multiprocess_func_list.h"
 
-// IPC messages for testing ---------------------------------------------------
+// IPC messages for testing ----------------------------------------------------
 
 #define IPC_MESSAGE_IMPL
 #include "ipc/ipc_message_macros.h"
@@ -35,7 +34,9 @@ IPC_MESSAGE_CONTROL2(MsgDoMutex, std::wstring, int)
 // Used to generate an ID for a message that should not exist.
 IPC_MESSAGE_CONTROL0(MsgUnhandled)
 
-// ----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+
+namespace {
 
 TEST(IPCMessageIntegrity, ReadBeyondBufferStr) {
   //This was BUG 984408.
@@ -257,7 +258,7 @@ MULTIPROCESS_IPC_TEST_MAIN(RunFuzzServer) {
   return 0;
 }
 
-class IPCFuzzingTest : public IPCChannelTest {
+class IPCFuzzingTest : public IPCTestBase {
 };
 
 // This test makes sure that the FuzzerClientListener and FuzzerServerListener
@@ -418,3 +419,5 @@ TEST_F(IPCFuzzingTest, MsgMapExMacro) {
   EXPECT_EQ(0, server.unhandled_msgs());
 #endif
 }
+
+}  // namespace

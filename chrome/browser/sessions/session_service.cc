@@ -28,6 +28,7 @@
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/host_desktop.h"
 #include "chrome/browser/ui/startup/startup_browser_creator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_notification_types.h"
@@ -558,6 +559,7 @@ bool SessionService::RestoreIfNecessary(const std::vector<GURL>& urls_to_open,
     if (pref.type == SessionStartupPref::LAST) {
       SessionRestore::RestoreSession(
           profile(), browser,
+          browser ? browser->host_desktop_type() : chrome::GetActiveDesktop(),
           browser ? 0 : SessionRestore::ALWAYS_CREATE_TABBED_BROWSER,
           urls_to_open);
       return true;
@@ -1361,17 +1363,18 @@ void SessionService::BuildCommandsForBrowser(
   }
 
   windows_to_track->insert(browser->session_id().id());
-  for (int i = 0; i < browser->tab_count(); ++i) {
-    WebContents* tab = chrome::GetWebContentsAt(browser, i);
+  TabStripModel* tab_strip = browser->tab_strip_model();
+  for (int i = 0; i < tab_strip->count(); ++i) {
+    WebContents* tab = tab_strip->GetWebContentsAt(i);
     DCHECK(tab);
     BuildCommandsForTab(browser->session_id(), tab, i,
-                        browser->tab_strip_model()->IsTabPinned(i),
+                        tab_strip->IsTabPinned(i),
                         commands, tab_to_available_range);
   }
 
   commands->push_back(
       CreateSetSelectedTabInWindow(browser->session_id(),
-                                   browser->active_index()));
+                                   browser->tab_strip_model()->active_index()));
 }
 
 void SessionService::BuildCommandsFromBrowsers(
@@ -1388,7 +1391,7 @@ void SessionService::BuildCommandsFromBrowsers(
     // for us to get a handle to a browser that is about to be removed. If
     // the tab count is 0 or the window is NULL, the browser is about to be
     // deleted, so we ignore it.
-    if (ShouldTrackBrowser(browser) && browser->tab_count() &&
+    if (ShouldTrackBrowser(browser) && browser->tab_strip_model()->count() &&
         browser->window()) {
       BuildCommandsForBrowser(browser, commands, tab_to_available_range,
                               windows_to_track);
@@ -1513,7 +1516,7 @@ bool SessionService::IsOnlyOneTabLeft() const {
         return false;
       // By the time this is invoked the tab has been removed. As such, we use
       // > 0 here rather than > 1.
-      if ((*i)->tab_count() > 0)
+      if ((*i)->tab_strip_model()->count() > 0)
         return false;
     }
   }

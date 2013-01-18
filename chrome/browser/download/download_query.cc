@@ -26,7 +26,7 @@
 #include "content/public/browser/download_item.h"
 #include "googleurl/src/gurl.h"
 #include "net/base/net_util.h"
-#include "unicode/regex.h"
+#include "third_party/icu/public/i18n/unicode/regex.h"
 
 using content::DownloadDangerType;
 using content::DownloadItem;
@@ -106,7 +106,12 @@ static std::string GetEndTime(const DownloadItem& item) {
 }
 
 static bool GetDangerAccepted(const DownloadItem& item) {
-  return (item.GetSafetyState() == DownloadItem::DANGEROUS_BUT_VALIDATED);
+  return (item.GetDangerType() ==
+          content::DOWNLOAD_DANGER_TYPE_USER_VALIDATED);
+}
+
+static bool GetExists(const DownloadItem& item) {
+  return !item.GetFileExternallyRemoved();
 }
 
 static string16 GetFilename(const DownloadItem& item) {
@@ -255,6 +260,8 @@ bool DownloadQuery::AddFilter(DownloadQuery::FilterType type,
       return AddFilter(BuildFilter<int>(value, EQ, &GetReceivedBytes));
     case FILTER_DANGER_ACCEPTED:
       return AddFilter(BuildFilter<bool>(value, EQ, &GetDangerAccepted));
+    case FILTER_EXISTS:
+      return AddFilter(BuildFilter<bool>(value, EQ, &GetExists));
     case FILTER_FILENAME:
       return AddFilter(BuildFilter<string16>(value, EQ, &GetFilename));
     case FILTER_FILENAME_REGEX:
@@ -387,6 +394,9 @@ void DownloadQuery::AddSorter(DownloadQuery::SortType type,
       break;
     case SORT_DANGER_ACCEPTED:
       sorters_.push_back(Sorter::Build<bool>(direction, &GetDangerAccepted));
+      break;
+    case SORT_EXISTS:
+      sorters_.push_back(Sorter::Build<bool>(direction, &GetExists));
       break;
     case SORT_STATE:
       sorters_.push_back(Sorter::Build<DownloadItem::DownloadState>(

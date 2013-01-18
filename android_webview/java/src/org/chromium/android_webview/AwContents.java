@@ -21,6 +21,7 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.GeolocationPermissions;
 import android.webkit.ValueCallback;
 
 import org.chromium.base.CalledByNative;
@@ -33,6 +34,7 @@ import org.chromium.content.browser.NavigationHistory;
 import org.chromium.content.browser.PageTransitionTypes;
 import org.chromium.content.common.CleanupReference;
 import org.chromium.content.components.navigation_interception.InterceptNavigationDelegate;
+import org.chromium.net.GURLUtils;
 import org.chromium.net.X509Util;
 import org.chromium.ui.gfx.NativeWindow;
 
@@ -75,13 +77,25 @@ public class AwContents {
         public String imgSrc;
     }
 
+    /**
+     * Interface that consumers of {@link AwContents} must implement to allow the proper
+     * dispatching of view methods through the containing view.
+     */
+    public interface InternalAccessDelegate extends ContentViewCore.InternalAccessDelegate {
+        /**
+         * @see View#setMeasuredDimension(int, int)
+         */
+        void setMeasuredDimension(int measuredWidth, int measuredHeight);
+    }
+
     private int mNativeAwContents;
     private ViewGroup mContainerView;
     private ContentViewCore mContentViewCore;
     private AwContentsClient mContentsClient;
     private AwContentsIoThreadClient mIoThreadClient;
     private InterceptNavigationDelegateImpl mInterceptNavigationDelegate;
-    private ContentViewCore.InternalAccessDelegate mInternalAccessAdapter;
+    private InternalAccessDelegate mInternalAccessAdapter;
+    private final AwLayoutSizer mLayoutSizer;
     // This can be accessed on any thread after construction. See AwContentsIoThreadClient.
     private final AwSettings mSettings;
     private final ClientCallbackHandler mClientCallbackHandler;
@@ -262,18 +276,39 @@ public class AwContents {
         }
     }
 
+    private class AwLayoutSizerDelegate implements AwLayoutSizer.Delegate {
+        @Override
+        public void requestLayout() {
+            mContainerView.requestLayout();
+        }
+
+        @Override
+        public void setMeasuredDimension(int measuredWidth, int measuredHeight) {
+            mInternalAccessAdapter.setMeasuredDimension(measuredWidth, measuredHeight);
+        }
+    }
+
+    // TODO(kristianm): Delete this when privateBrowsing parameter is removed in Android
+    public AwContents(ViewGroup containerView,
+            InternalAccessDelegate internalAccessAdapter,
+            AwContentsClient contentsClient,
+            NativeWindow nativeWindow, boolean privateBrowsing,
+            boolean isAccessFromFileURLsGrantedByDefault) {
+        this(containerView, internalAccessAdapter, contentsClient, nativeWindow,
+                isAccessFromFileURLsGrantedByDefault);
+    }
+
     /**
      * @param containerView the view-hierarchy item this object will be bound to.
      * @param internalAccessAdapter to access private methods on containerView.
      * @param contentsClient will receive API callbacks from this WebView Contents
-     * @param privateBrowsing whether this is a private browsing instance of WebView.
      * @param isAccessFromFileURLsGrantedByDefault passed to ContentViewCore.initialize.
      * TODO(benm): Remove the nativeWindow parameter.
      */
     public AwContents(ViewGroup containerView,
-            ContentViewCore.InternalAccessDelegate internalAccessAdapter,
+            InternalAccessDelegate internalAccessAdapter,
             AwContentsClient contentsClient,
-            NativeWindow nativeWindow, boolean privateBrowsing,
+            NativeWindow nativeWindow,
             boolean isAccessFromFileURLsGrantedByDefault) {
         mContainerView = containerView;
         mInternalAccessAdapter = internalAccessAdapter;
@@ -281,7 +316,7 @@ public class AwContents {
         // setup performs process initialisation work needed by AwContents.
         mContentViewCore = new ContentViewCore(containerView.getContext(),
                 ContentViewCore.PERSONALITY_VIEW);
-        mNativeAwContents = nativeInit(contentsClient.getWebContentsDelegate(), privateBrowsing);
+        mNativeAwContents = nativeInit(contentsClient.getWebContentsDelegate());
         mContentsClient = contentsClient;
         mCleanupReference = new CleanupReference(this, new DestroyRunnable(mNativeAwContents));
         mClientCallbackHandler = new ClientCallbackHandler();
@@ -291,6 +326,8 @@ public class AwContents {
                 new AwNativeWindow(mContainerView.getContext()),
                 isAccessFromFileURLsGrantedByDefault);
         mContentViewCore.setContentViewClient(mContentsClient);
+        mLayoutSizer = new AwLayoutSizer(new AwLayoutSizerDelegate());
+        mContentViewCore.setContentSizeChangeListener(mLayoutSizer);
         mContentsClient.installWebContentsObserver(mContentViewCore);
 
         mSettings = new AwSettings(mContentViewCore.getContext());
@@ -346,6 +383,7 @@ public class AwContents {
     }
 
     public boolean onPrepareDrawGL(Canvas canvas) {
+        if (mNativeAwContents == 0) return false;
         nativeSetScrollForHWFrame(mNativeAwContents,
                 mContainerView.getScrollX(), mContainerView.getScrollY());
 
@@ -354,11 +392,16 @@ public class AwContents {
     }
 
     public void onDraw(Canvas canvas) {
+        if (mNativeAwContents == 0) return;
         if (!nativeDrawSW(mNativeAwContents, canvas)) {
             Log.w(TAG, "Native DrawSW failed; clearing to background color.");
             int c = mContentViewCore.getBackgroundColor();
             canvas.drawRGB(Color.red(c), Color.green(c), Color.blue(c));
         }
+    }
+
+    public void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        mLayoutSizer.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 
     public int findAllSync(String searchString) {
@@ -831,6 +874,35 @@ public class AwContents {
         mContentsClient.onReceivedHttpAuthRequest(handler, host, realm);
     }
 
+    private static class ChromiumGeolocationCallback implements GeolocationPermissions.Callback {
+        final int mRenderProcessId;
+        final int mRenderViewId;
+        final int mBridgeId;
+        final String mRequestingFrame;
+
+        private ChromiumGeolocationCallback(int renderProcessId, int renderViewId, int bridgeId,
+                String requestingFrame) {
+            mRenderProcessId = renderProcessId;
+            mRenderViewId = renderViewId;
+            mBridgeId = bridgeId;
+            mRequestingFrame = requestingFrame;
+        }
+
+        @Override
+        public void invoke(String origin, boolean allow, boolean retain) {
+            // TODO(kristianm): Implement callback handling
+        }
+    }
+
+    @CalledByNative
+    private void onGeolocationPermissionsShowPrompt(int renderProcessId, int renderViewId,
+            int bridgeId, String requestingFrame) {
+        // TODO(kristianm): Check with GeolocationPermissions if origin already has a policy set
+        mContentsClient.onGeolocationPermissionsShowPrompt(GURLUtils.getOrigin(requestingFrame),
+                new ChromiumGeolocationCallback(renderProcessId, renderViewId, bridgeId,
+                        requestingFrame));
+    }
+
     @CalledByNative
     public void onFindResultReceived(int activeMatchOrdinal, int numberOfMatches,
             boolean isDoneCounting) {
@@ -934,8 +1006,7 @@ public class AwContents {
     //  Native methods
     //--------------------------------------------------------------------------------------------
 
-    private native int nativeInit(AwWebContentsDelegate webViewWebContentsDelegate,
-            boolean privateBrowsing);
+    private native int nativeInit(AwWebContentsDelegate webViewWebContentsDelegate);
     private static native void nativeDestroy(int nativeAwContents);
     private static native void nativeSetAwDrawSWFunctionTable(int functionTablePointer);
     private static native int nativeGetAwDrawGLFunction();

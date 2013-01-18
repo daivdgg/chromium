@@ -11,6 +11,8 @@
 
 #if defined(OS_CHROMEOS)
 #include "device/bluetooth/bluetooth_adapter_chromeos.h"
+#elif defined(OS_WIN)
+#include "device/bluetooth/bluetooth_adapter_win.h"
 #endif
 
 namespace {
@@ -27,16 +29,40 @@ base::LazyInstance<base::WeakPtr<device::BluetoothAdapter> >::Leaky
 namespace device {
 
 // static
-scoped_refptr<BluetoothAdapter> BluetoothAdapterFactory::DefaultAdapter() {
+bool BluetoothAdapterFactory::IsBluetoothAdapterAvailable() {
+#if defined(OS_CHROMEOS)
+  return true;
+#elif defined(OS_WIN)
+  return true;
+#endif
+  return false;
+}
+
+// static
+void BluetoothAdapterFactory::RunCallbackOnAdapterReady(
+    const BluetoothAdapter::AdapterCallback& callback) {
   if (!default_adapter.Get().get()) {
 #if defined(OS_CHROMEOS)
     chromeos::BluetoothAdapterChromeOs* new_adapter =
         new chromeos::BluetoothAdapterChromeOs;
     new_adapter->TrackDefaultAdapter();
     default_adapter.Get() = new_adapter->weak_ptr_factory_.GetWeakPtr();
+#elif defined(OS_WIN)
+    BluetoothAdapterWin* new_adapter = new BluetoothAdapterWin();
+    new_adapter->TrackDefaultAdapter();
+    default_adapter.Get() = new_adapter->weak_ptr_factory_.GetWeakPtr();
 #endif
   }
 
+  if (default_adapter.Get()->IsInitialized()) {
+    callback.Run(scoped_refptr<BluetoothAdapter>(default_adapter.Get()));
+  } else {
+    default_adapter.Get()->QueueAdapterCallback(callback);
+  }
+}
+
+// static
+scoped_refptr<BluetoothAdapter> BluetoothAdapterFactory::GetAdapter() {
   return scoped_refptr<BluetoothAdapter>(default_adapter.Get());
 }
 
@@ -48,6 +74,8 @@ BluetoothAdapter* BluetoothAdapterFactory::Create(const std::string& address) {
       new chromeos::BluetoothAdapterChromeOs;
   adapter_chromeos->FindAdapter(address);
   adapter = adapter_chromeos;
+#elif defined(OS_WIN)
+  adapter = new BluetoothAdapterWin();
 #endif
   return adapter;
 }

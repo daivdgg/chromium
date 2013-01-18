@@ -40,7 +40,7 @@
 #include "content/public/common/process_type.h"
 #include "extensions/common/constants.h"
 #include "googleurl/src/gurl.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebString.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSecurityOrigin.h"
 #include "webkit/plugins/npapi/plugin_list.h"
 
@@ -173,16 +173,16 @@ net::HostResolver* ChromeRenderMessageFilter::GetHostResolver() {
 }
 
 #if !defined(DISABLE_NACL)
-void ChromeRenderMessageFilter::OnLaunchNaCl(const GURL& manifest_url,
-                                             int render_view_id,
-                                             uint32 permission_bits,
-                                             int socket_count,
-                                             IPC::Message* reply_msg) {
-  NaClProcessHost* host = new NaClProcessHost(manifest_url,
-                                              render_view_id,
-                                              permission_bits,
-                                              off_the_record_);
-  host->Launch(this, socket_count, reply_msg, extension_info_map_);
+void ChromeRenderMessageFilter::OnLaunchNaCl(
+    const nacl::NaClLaunchParams& launch_params,
+    IPC::Message* reply_msg) {
+  NaClProcessHost* host = new NaClProcessHost(
+      GURL(launch_params.manifest_url),
+      launch_params.render_view_id,
+      launch_params.permission_bits,
+      launch_params.uses_irt,
+      off_the_record_);
+  host->Launch(this, reply_msg, extension_info_map_);
 }
 
 void ChromeRenderMessageFilter::OnGetReadonlyPnaclFd(

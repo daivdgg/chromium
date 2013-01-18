@@ -61,6 +61,7 @@
 #include "content/renderer/media/audio_renderer_mixer_manager.h"
 #include "content/renderer/media/media_stream_center.h"
 #include "content/renderer/media/media_stream_dependency_factory.h"
+#include "content/renderer/media/peer_connection_tracker.h"
 #include "content/renderer/media/video_capture_impl_manager.h"
 #include "content/renderer/media/video_capture_message_filter.h"
 #include "content/renderer/p2p/socket_dispatcher.h"
@@ -83,6 +84,7 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDatabase.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDocument.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebFrame.h"
+#include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBFactory.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebKit.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebNetworkStateNotifier.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebPopupMenu.h"
@@ -331,6 +333,10 @@ void RenderThreadImpl::Init() {
 
 #if defined(ENABLE_WEBRTC)
   webrtc::SetupEventTracer(&GetCategoryEnabled, &AddTraceEvent);
+
+  peer_connection_tracker_.reset(new PeerConnectionTracker());
+  AddObserver(peer_connection_tracker_.get());
+
   p2p_socket_dispatcher_ = new P2PSocketDispatcher(GetIOMessageLoopProxy());
   AddFilter(p2p_socket_dispatcher_);
 #endif  // defined(ENABLE_WEBRTC)
@@ -584,18 +590,14 @@ void RenderThreadImpl::EnsureWebKitInitialized() {
   WebKit::initialize(webkit_platform_support_.get());
   WebKit::setSharedWorkerRepository(
       webkit_platform_support_.get()->sharedWorkerRepository());
+  WebKit::setIDBFactory(
+      webkit_platform_support_.get()->idbFactory());
 
   WebKit::WebCompositorSupport* compositor_support =
       WebKit::Platform::current()->compositorSupport();
   const CommandLine& command_line = *CommandLine::ForCurrentProcess();
 
-  // TODO(fsamuel): Guests don't currently support threaded compositing.
-  // This should go away with the new design of the browser plugin.
-  // The new design can be tracked at: http://crbug.com/134492.
-  bool is_guest = command_line.HasSwitch(switches::kGuestRenderer);
-  bool threaded = command_line.HasSwitch(switches::kEnableThreadedCompositing);
-
-  bool enable = threaded && !is_guest;
+  bool enable = command_line.HasSwitch(switches::kEnableThreadedCompositing);
   if (enable) {
     compositor_thread_.reset(new CompositorThread(this));
     AddFilter(compositor_thread_->GetMessageFilter());
@@ -690,7 +692,12 @@ void RenderThreadImpl::EnsureWebKitInitialized() {
   WebRuntimeFeatures::enableSpeechInput(
       !command_line.HasSwitch(switches::kDisableSpeechInput));
 
+#if defined(OS_ANDROID)
+  // Web Speech API Speech recognition is not implemented on Android yet.
+  WebRuntimeFeatures::enableScriptedSpeech(false);
+#else
   WebRuntimeFeatures::enableScriptedSpeech(true);
+#endif
 
   WebRuntimeFeatures::enableFileSystem(
       !command_line.HasSwitch(switches::kDisableFileSystem));
@@ -715,6 +722,9 @@ void RenderThreadImpl::EnsureWebKitInitialized() {
   WebRuntimeFeatures::enableWebIntents(
       command_line.HasSwitch(switches::kWebIntentsInvocationEnabled));
 
+  WebRuntimeFeatures::enableSeamlessIFrames(
+      command_line.HasSwitch(switches::kEnableExperimentalWebKitFeatures));
+
   FOR_EACH_OBSERVER(RenderProcessObserver, observers_, WebKitInitialized());
 
   devtools_agent_message_filter_ = new DevToolsAgentFilter();
@@ -737,17 +747,10 @@ void RenderThreadImpl::RecordUserMetrics(const std::string& action) {
 }
 
 scoped_ptr<base::SharedMemory>
-    RenderThreadImpl::HostAllocateSharedMemoryBuffer(uint32 size) {
-  //if (!size)
-  //  return scoped_ptr<base::SharedMemory>();
+    RenderThreadImpl::HostAllocateSharedMemoryBuffer(size_t size) {
+  if (size > static_cast<size_t>(std::numeric_limits<int>::max()))
+    return scoped_ptr<base::SharedMemory>();
 
-//#if defined(OS_WIN)
-//  scoped_ptr<base::SharedMemory> shared_memory(new base::SharedMemory);
-//  if (!shared_memory->CreateAnonymous(size))
-//    return scoped_ptr<base::SharedMemory>();
-//
-//  return scoped_ptr<base::SharedMemory>(shared_memory.release());
-//#else
   base::SharedMemoryHandle handle;
   bool success;
   IPC::Message* message =
@@ -766,7 +769,6 @@ scoped_ptr<base::SharedMemory>
     return scoped_ptr<base::SharedMemory>();
 
   return scoped_ptr<base::SharedMemory>(new base::SharedMemory(handle, false));
-//#endif  // defined(OS_WIN)
 }
 
 void RenderThreadImpl::RegisterExtension(v8::Extension* extension) {
@@ -957,7 +959,7 @@ base::WaitableEvent* RenderThreadImpl::GetShutDownEvent() {
 }
 
 scoped_ptr<base::SharedMemory> RenderThreadImpl::AllocateSharedMemory(
-    uint32 size) {
+    size_t size) {
   return scoped_ptr<base::SharedMemory>(
       HostAllocateSharedMemoryBuffer(size));
 }

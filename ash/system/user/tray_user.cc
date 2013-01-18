@@ -432,8 +432,9 @@ void UserView::Layout() {
 
     // Give the remaining space to the user card.
     gfx::Rect user_card_area = contents_area;
-    user_card_area.set_width(contents_area.width() -
-        (logout_area.width() + kTrayPopupPaddingBetweenItems));
+    int remaining_width = contents_area.width() -
+        (logout_area.width() + kTrayPopupPaddingBetweenItems);
+    user_card_area.set_width(std::max(0, remaining_width));
     user_card_->SetBoundsRect(user_card_area);
   } else if (user_card_) {
     user_card_->SetBoundsRect(contents_area);
@@ -591,6 +592,7 @@ void TrayUser::UpdateAfterLoginStatusChange(user::LoginStatus status) {
     case user::LOGGED_IN_USER:
     case user::LOGGED_IN_OWNER:
     case user::LOGGED_IN_PUBLIC:
+    case user::LOGGED_IN_LOCALLY_MANAGED:
       avatar_->SetImage(
           ash::Shell::GetInstance()->system_tray_delegate()->GetUserImage(),
           gfx::Size(kUserIconSize, kUserIconSize));
@@ -610,7 +612,8 @@ void TrayUser::UpdateAfterLoginStatusChange(user::LoginStatus status) {
 
 void TrayUser::UpdateAfterShelfAlignmentChange(ShelfAlignment alignment) {
   if (avatar_) {
-    if (alignment == SHELF_ALIGNMENT_BOTTOM) {
+    if (alignment == SHELF_ALIGNMENT_BOTTOM ||
+        alignment == SHELF_ALIGNMENT_TOP) {
       avatar_->set_border(views::Border::CreateEmptyBorder(
           0, kTrayImageItemHorizontalPaddingBottomAlignment + 2,
           0, kTrayImageItemHorizontalPaddingBottomAlignment));
@@ -618,7 +621,8 @@ void TrayUser::UpdateAfterShelfAlignmentChange(ShelfAlignment alignment) {
         SetTrayImageItemBorder(avatar_, alignment);
     }
   } else {
-    if (alignment == SHELF_ALIGNMENT_BOTTOM) {
+    if (alignment == SHELF_ALIGNMENT_BOTTOM ||
+        alignment == SHELF_ALIGNMENT_TOP) {
       label_->set_border(views::Border::CreateEmptyBorder(
           0, kTrayLabelItemHorizontalPaddingBottomAlignment,
           0, kTrayLabelItemHorizontalPaddingBottomAlignment));

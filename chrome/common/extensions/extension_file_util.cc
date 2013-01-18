@@ -19,11 +19,13 @@
 #include "base/utf_string_conversions.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_paths.h"
+#include "chrome/common/extensions/api/extension_action/action_info.h"
 #include "chrome/common/extensions/extension.h"
 #include "chrome/common/extensions/extension_l10n_util.h"
 #include "chrome/common/extensions/extension_manifest_constants.h"
 #include "chrome/common/extensions/extension_messages.h"
 #include "chrome/common/extensions/extension_resource.h"
+#include "chrome/common/extensions/manifest_url_handler.h"
 #include "chrome/common/extensions/message_bundle.h"
 #include "grit/generated_resources.h"
 #include "net/base/escape.h"
@@ -327,7 +329,7 @@ bool ValidateExtension(const Extension* extension,
     }
   }
 
-  const Extension::ActionInfo* action = extension->page_action_info();
+  const extensions::ActionInfo* action = extension->page_action_info();
   if (action && !action->default_icon.empty() &&
       !ValidateExtensionIconSet(action->default_icon, extension,
           IDS_EXTENSION_LOAD_ICON_FOR_PAGE_ACTION_FAILED, error)) {
@@ -373,9 +375,10 @@ bool ValidateExtension(const Extension* extension,
 
   // Validate path to the options page.  Don't check the URL for hosted apps,
   // because they are expected to refer to an external URL.
-  if (!extension->options_url().is_empty() && !extension->is_hosted_app()) {
+  if (!extensions::ManifestURL::GetOptionsPage(extension).is_empty() &&
+      !extension->is_hosted_app()) {
     const FilePath options_path = ExtensionURLToRelativeFilePath(
-        extension->options_url());
+        extensions::ManifestURL::GetOptionsPage(extension));
     const FilePath path = extension->GetResource(options_path).GetFilePath();
     if (path.empty() || !file_util::PathExists(path)) {
       *error =

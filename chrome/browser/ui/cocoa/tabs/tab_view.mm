@@ -24,8 +24,6 @@
 @end
 #endif
 
-namespace {
-
 const int kMaskHeight = 29;  // Height of the mask bitmap.
 const int kFillHeight = 25;  // Height of the "mask on" part of the mask bitmap.
 
@@ -51,8 +49,6 @@ const NSTimeInterval kGlowUpdateInterval = 0.025;
 // This is used to judge whether the mouse has moved during rapid closure; if it
 // has moved less than the threshold, we want to close the tab.
 const CGFloat kRapidCloseDist = 2.5;
-
-}  // namespace
 
 @interface TabView(Private)
 
@@ -151,8 +147,12 @@ const CGFloat kRapidCloseDist = 2.5;
 // view or our child close button.
 - (NSView*)hitTest:(NSPoint)aPoint {
   NSPoint viewPoint = [self convertPoint:aPoint fromView:[self superview]];
-  if (![closeButton_ isHidden])
-    if (NSPointInRect(viewPoint, [closeButton_ frame])) return closeButton_;
+  if (![closeButton_ isHidden]) {
+    if (NSPointInRect(viewPoint,[closeButton_ frame]) &&
+        [closeButton_ hitTest:viewPoint]) {
+      return closeButton_;
+    }
+  }
 
   NSRect pointRect = NSMakeRect(viewPoint.x, viewPoint.y, 1, 1);
 
@@ -327,6 +327,11 @@ const CGFloat kRapidCloseDist = 2.5;
 
   bool selected = [self state];
 
+  // Background tabs should not paint over the tab strip separator, which is
+  // two pixels high in both lodpi and hidpi.
+  if (!selected && dirtyRect.origin.y < 1)
+    dirtyRect.origin.y = 2 * [self cr_lineWidth];
+
   bool usingDefaultTheme = themeProvider && themeProvider->UsingDefaultTheme();
   NSColor* backgroundImageColor = [self backgroundColorForSelected:selected];
 
@@ -405,6 +410,9 @@ const CGFloat kRapidCloseDist = 2.5;
 
 // Draws the tab outline.
 - (void)drawStroke:(NSRect)dirtyRect {
+  BOOL focused = [[self window] isKeyWindow] || [[self window] isMainWindow];
+  CGFloat alpha = focused ? 1.0 : tabs::kImageNoFocusAlpha;
+
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
   float height =
       [rb.GetNativeImageNamed(IDR_TAB_ACTIVE_LEFT).ToNSImage() size].height;
@@ -415,7 +423,7 @@ const CGFloat kRapidCloseDist = 2.5;
         rb.GetNativeImageNamed(IDR_TAB_ACTIVE_RIGHT).ToNSImage(),
         /*vertical=*/NO,
         NSCompositeSourceOver,
-        1.0,
+        alpha,
         /*flipped=*/NO);
   } else {
     NSDrawThreePartImage(NSMakeRect(0, 0, NSWidth([self bounds]), height),
@@ -424,7 +432,7 @@ const CGFloat kRapidCloseDist = 2.5;
         rb.GetNativeImageNamed(IDR_TAB_INACTIVE_RIGHT).ToNSImage(),
         /*vertical=*/NO,
         NSCompositeSourceOver,
-        1.0,
+        alpha,
         /*flipped=*/NO);
   }
 }

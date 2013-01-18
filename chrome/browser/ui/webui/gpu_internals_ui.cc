@@ -318,6 +318,16 @@ Value* GetFeatureStatus() {
           "Panel fitting is unavailable, either disabled at the command"
           " line or not supported by the current system.",
           false
+      },
+      {
+          "force_compositing_mode",
+          (flags & content::GPU_FEATURE_TYPE_FORCE_COMPOSITING_MODE) &&
+          !content::IsForceCompositingModeEnabled(),
+          !content::IsForceCompositingModeEnabled() &&
+          !(flags & content::GPU_FEATURE_TYPE_FORCE_COMPOSITING_MODE),
+          "Force compositing mode is off, either disabled at the command"
+          " line or not supported by the current system.",
+          false
       }
   };
   const size_t kNumFeatures = sizeof(kGpuFeatureInfo) / sizeof(GpuFeatureInfo);
@@ -674,5 +684,5 @@ GpuInternalsUI::GpuInternalsUI(content::WebUI* web_ui)
 
   // Set up the chrome://gpu-internals/ source.
   Profile* profile = Profile::FromWebUI(web_ui);
-  ChromeURLDataManager::AddDataSource(profile, CreateGpuHTMLSource());
+  ChromeURLDataManager::AddDataSourceImpl(profile, CreateGpuHTMLSource());
 }

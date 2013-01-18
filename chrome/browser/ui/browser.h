@@ -51,7 +51,6 @@ class BrowserSyncedWindowDelegate;
 class BrowserToolbarModelDelegate;
 class BrowserTabRestoreServiceDelegate;
 class BrowserWindow;
-class DeviceAttachedIntentSource;
 class FindBarController;
 class FullscreenController;
 class PrefService;
@@ -249,6 +248,7 @@ class Browser : public TabStripModelObserver,
   BrowserWindow* window() const { return window_; }
   ToolbarModel* toolbar_model() { return toolbar_model_.get(); }
   const ToolbarModel* toolbar_model() const { return toolbar_model_.get(); }
+  TabStripModel* tab_strip_model() const { return tab_strip_model_.get(); }
   chrome::BrowserCommandController* command_controller() {
     return command_controller_.get();
   }
@@ -327,12 +327,7 @@ class Browser : public TabStripModelObserver,
   DownloadClosePreventionType OkToCloseWithInProgressDownloads(
       int* num_downloads_blocking) const;
 
-  // TabStripModel pass-thrus /////////////////////////////////////////////////
-
-  TabStripModel* tab_strip_model() const { return tab_strip_model_.get(); }
-
-  int tab_count() const;
-  int active_index() const;
+  // Tab adding/showing functions /////////////////////////////////////////////
 
   // Invoked when the fullscreen state of the window changes.
   // BrowserWindow::EnterFullscreen invokes this after the window has become
@@ -392,14 +387,6 @@ class Browser : public TabStripModelObserver,
                                             bool user_gesture,
                                             BrowserWindow* window);
 
-  // Helper function to register an intent handler.
-  // |data| is the registered handler data. |user_gesture| is true if the call
-  // was made in the context of a user gesture.
-  static void RegisterIntentHandlerHelper(
-      content::WebContents* web_contents,
-      const webkit_glue::WebIntentServiceData& data,
-      bool user_gesture);
-
   // Helper function to handle find results.
   static void FindReplyHelper(content::WebContents* web_contents,
                               int request_id,
@@ -407,12 +394,6 @@ class Browser : public TabStripModelObserver,
                               const gfx::Rect& selection_rect,
                               int active_match_ordinal,
                               bool final_update);
-
-  // Helper function to handle media access requests.
-  static void RequestMediaAccessPermissionHelper(
-      content::WebContents* web_contents,
-      const content::MediaStreamRequest* request,
-      const content::MediaResponseCallback& callback);
 
   // Called by chrome::Navigate() when a navigation has occurred in a tab in
   // this Browser. Updates the UI for the start of this navigation.
@@ -486,7 +467,7 @@ class Browser : public TabStripModelObserver,
   void MaybeUpdateBookmarkBarStateForInstantPreview(
       const chrome::search::Mode& mode);
 
-  FullscreenController* fullscreen_controller() {
+  FullscreenController* fullscreen_controller() const {
     return fullscreen_controller_.get();
   }
 
@@ -659,7 +640,7 @@ class Browser : public TabStripModelObserver,
   virtual void LostMouseLock() OVERRIDE;
   virtual void RequestMediaAccessPermission(
       content::WebContents* web_contents,
-      const content::MediaStreamRequest* request,
+      const content::MediaStreamRequest& request,
       const content::MediaResponseCallback& callback) OVERRIDE;
   virtual bool RequestPpapiBrokerPermission(
       content::WebContents* web_contents,
@@ -907,7 +888,7 @@ class Browser : public TabStripModelObserver,
   // Tracks when this browser is being created by session restore.
   bool is_session_restore_;
 
-  chrome::HostDesktopType host_desktop_type_;
+  const chrome::HostDesktopType host_desktop_type_;
 
   scoped_ptr<chrome::UnloadController> unload_controller_;
 
@@ -944,11 +925,6 @@ class Browser : public TabStripModelObserver,
   scoped_ptr<chrome::BrowserInstantController> instant_controller_;
 
   BookmarkBar::State bookmark_bar_state_;
-
-#if 0
-  // Device attach web intent is disabled for M22. See crbug.com/144326.
-  scoped_ptr<DeviceAttachedIntentSource> device_attached_intent_source_;
-#endif
 
   scoped_ptr<FullscreenController> fullscreen_controller_;
 

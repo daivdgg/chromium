@@ -121,7 +121,7 @@ bool GestureEventFilter::ShouldForwardForBounceReduction(
 bool GestureEventFilter::ShouldForward(const WebGestureEvent& gesture_event) {
   // Discard a zero-velocity fling start from the trackpad.
   if (gesture_event.type == WebInputEvent::GestureFlingStart &&
-      gesture_event.data.flingStart.sourceDevice == WebGestureEvent::Touchpad &&
+      gesture_event.sourceDevice == WebGestureEvent::Touchpad &&
       gesture_event.data.flingStart.velocityX == 0 &&
       gesture_event.data.flingStart.velocityY == 0) {
     return false;
@@ -212,7 +212,10 @@ void GestureEventFilter::Reset() {
 }
 
 void GestureEventFilter::ProcessGestureAck(bool processed, int type) {
-  CHECK(!coalesced_gesture_events_.empty());
+  if (coalesced_gesture_events_.empty()) {
+    DLOG(ERROR) << "Received unexpected ACK for event type " << type;
+    return;
+  }
   DCHECK_EQ(coalesced_gesture_events_.front().type, type);
   coalesced_gesture_events_.pop_front();
   if (type == WebInputEvent::GestureFlingCancel)

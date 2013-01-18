@@ -15,6 +15,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/prefs/public/pref_member.h"
 #include "base/synchronization/lock.h"
+#include "chrome/browser/custom_handlers/protocol_handler_registry.h"
 #include "chrome/browser/io_thread.h"
 #include "chrome/browser/net/chrome_url_request_context.h"
 #include "chrome/browser/profiles/storage_partition_descriptor.h"
@@ -88,7 +89,7 @@ class ProfileIOData {
   ChromeURLRequestContext* GetIsolatedAppRequestContext(
       ChromeURLRequestContext* main_context,
       const StoragePartitionDescriptor& partition_descriptor,
-      scoped_ptr<net::URLRequestJobFactory::Interceptor>
+      scoped_ptr<ProtocolHandlerRegistry::JobInterceptorFactory>
           protocol_handler_interceptor) const;
   ChromeURLRequestContext* GetIsolatedMediaRequestContext(
       ChromeURLRequestContext* app_context,
@@ -138,6 +139,10 @@ class ProfileIOData {
 
   BooleanPrefMember* printing_enabled() const {
     return &printing_enabled_;
+  }
+
+  BooleanPrefMember* sync_disabled() const {
+    return &sync_disabled_;
   }
 
   net::TransportSecurityState* transport_security_state() const {
@@ -218,11 +223,11 @@ class ProfileIOData {
     DesktopNotificationService* notification_service;
 #endif
 
-    // This pointer exists only as a means of conveying a url interceptor
+    // This pointer exists only as a means of conveying a url job factory
     // pointer from the protocol handler registry on the UI thread to the
-    // the URLRequestJobFactory on the IO thread. The consumer MUST take
+    // the URLRequestContext on the IO thread. The consumer MUST take
     // ownership of the object by calling release() on this pointer.
-    scoped_ptr<net::URLRequestJobFactory::Interceptor>
+    scoped_ptr<ProtocolHandlerRegistry::JobInterceptorFactory>
         protocol_handler_interceptor;
 
     // We need to initialize the ProxyConfigService from the UI thread
@@ -242,9 +247,9 @@ class ProfileIOData {
   void InitializeOnUIThread(Profile* profile);
   void ApplyProfileParamsToContext(ChromeURLRequestContext* context) const;
 
-  void SetUpJobFactoryDefaults(
-      net::URLRequestJobFactoryImpl* job_factory,
-      scoped_ptr<net::URLRequestJobFactory::Interceptor>
+  scoped_ptr<net::URLRequestJobFactory> SetUpJobFactoryDefaults(
+      scoped_ptr<net::URLRequestJobFactoryImpl> job_factory,
+      scoped_ptr<ProtocolHandlerRegistry::JobInterceptorFactory>
           protocol_handler_interceptor,
       net::NetworkDelegate* network_delegate,
       net::FtpTransactionFactory* ftp_transaction_factory,
@@ -352,7 +357,7 @@ class ProfileIOData {
   virtual ChromeURLRequestContext* InitializeAppRequestContext(
       ChromeURLRequestContext* main_context,
       const StoragePartitionDescriptor& details,
-      scoped_ptr<net::URLRequestJobFactory::Interceptor>
+      scoped_ptr<ProtocolHandlerRegistry::JobInterceptorFactory>
           protocol_handler_interceptor) const = 0;
 
   // Does an on-demand initialization of a media RequestContext for the given
@@ -369,7 +374,7 @@ class ProfileIOData {
       AcquireIsolatedAppRequestContext(
           ChromeURLRequestContext* main_context,
           const StoragePartitionDescriptor& partition_descriptor,
-          scoped_ptr<net::URLRequestJobFactory::Interceptor>
+          scoped_ptr<ProtocolHandlerRegistry::JobInterceptorFactory>
               protocol_handler_interceptor) const = 0;
   virtual ChromeURLRequestContext*
       AcquireIsolatedMediaRequestContext(
@@ -414,6 +419,7 @@ class ProfileIOData {
   mutable BooleanPrefMember force_safesearch_;
   mutable BooleanPrefMember safe_browsing_enabled_;
   mutable BooleanPrefMember printing_enabled_;
+  mutable BooleanPrefMember sync_disabled_;
   // TODO(marja): Remove session_startup_pref_ if no longer needed.
   mutable IntegerPrefMember session_startup_pref_;
 

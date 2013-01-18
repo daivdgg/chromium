@@ -246,6 +246,10 @@ void NativeTextfieldWin::UpdateBorder() {
                SWP_NOOWNERZORDER | SWP_NOSIZE);
 }
 
+void NativeTextfieldWin::UpdateBorderColor() {
+  // TODO(estade): implement.
+}
+
 void NativeTextfieldWin::UpdateTextColor() {
   CHARFORMAT cf = {0};
   cf.dwMask = CFM_COLOR;
@@ -1078,6 +1082,10 @@ void NativeTextfieldWin::OnSysChar(TCHAR ch, UINT repeat_count, UINT flags) {
   //     it through.
   if (ch == VK_SPACE)
     SetMsgHandled(false);
+}
+
+void NativeTextfieldWin::OnFinalMessage(HWND hwnd) {
+  delete this;
 }
 
 void NativeTextfieldWin::HandleKeystroke() {

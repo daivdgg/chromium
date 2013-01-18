@@ -63,7 +63,6 @@ class NetworkLibraryImplCros : public NetworkLibraryImplBase  {
                           const NetworkOperationCallback& completed) OVERRIDE;
   virtual bool IsCellularAlwaysInRoaming() OVERRIDE;
   virtual void RequestNetworkScan() OVERRIDE;
-  virtual bool GetWifiAccessPoints(WifiAccessPointVector* result) OVERRIDE;
 
   virtual void RefreshIPConfig(Network* network) OVERRIDE;
 
@@ -162,7 +161,6 @@ class NetworkLibraryImplCros : public NetworkLibraryImplBase  {
   void UpdateTechnologies(const base::ListValue* technologies, int* bitfieldp);
   void UpdateAvailableTechnologies(const base::ListValue* technologies);
   void UpdateEnabledTechnologies(const base::ListValue* technologies);
-  void UpdateConnectedTechnologies(const base::ListValue* technologies);
 
   // Update network lists.
   void UpdateNetworkServiceList(const base::ListValue* services);

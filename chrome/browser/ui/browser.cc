@@ -44,13 +44,10 @@
 #include "chrome/browser/custom_handlers/register_protocol_handler_infobar_delegate.h"
 #include "chrome/browser/devtools/devtools_toggle_action.h"
 #include "chrome/browser/devtools/devtools_window.h"
-#include "chrome/browser/download/download_crx_util.h"
 #include "chrome/browser/download/download_item_model.h"
 #include "chrome/browser/download/download_service.h"
 #include "chrome/browser/download/download_service_factory.h"
 #include "chrome/browser/download/download_shelf.h"
-#include "chrome/browser/download/download_started_animation.h"
-#include "chrome/browser/download/download_util.h"
 #include "chrome/browser/extensions/browser_extension_window_controller.h"
 #include "chrome/browser/extensions/extension_prefs.h"
 #include "chrome/browser/extensions/extension_service.h"
@@ -60,7 +57,6 @@
 #include "chrome/browser/file_select_helper.h"
 #include "chrome/browser/first_run/first_run.h"
 #include "chrome/browser/google/google_url_tracker.h"
-#include "chrome/browser/intents/device_attached_intent_source.h"
 #include "chrome/browser/intents/register_intent_handler_infobar_delegate.h"
 #include "chrome/browser/intents/web_intents_reporting.h"
 #include "chrome/browser/intents/web_intents_util.h"
@@ -69,7 +65,6 @@
 #include "chrome/browser/net/url_fixer_upper.h"
 #include "chrome/browser/notifications/notification_ui_manager.h"
 #include "chrome/browser/pepper_broker_infobar_delegate.h"
-#include "chrome/browser/platform_util.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/printing/cloud_print/cloud_print_setup_flow.h"
@@ -188,7 +183,6 @@
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/cookies/cookie_monster.h"
 #include "net/url_request/url_request_context.h"
-#include "ui/base/animation/animation.h"
 #include "ui/base/dialogs/selected_file_info.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/point.h"
@@ -426,12 +420,6 @@ Browser::Browser(const CreateParams& params)
   if (is_type_tabbed())
     instant_controller_.reset(new chrome::BrowserInstantController(this));
 
-#if 0
-  // Disabled for M22. See http://crbug.com/144326.
-  device_attached_intent_source_.reset(
-      new DeviceAttachedIntentSource(this, (this)));
-#endif
-
   UpdateBookmarkBarState(BOOKMARK_BAR_STATE_CHANGE_INIT);
 
   FilePath profile_path = profile_->GetPath();
@@ -667,7 +655,7 @@ void Browser::OnWindowClosing() {
     tab_restore_service->BrowserClosing(tab_restore_service_delegate());
 #endif
 
-  if (tab_restore_service && is_type_tabbed() && tab_count())
+  if (tab_restore_service && is_type_tabbed() && tab_strip_model_->count())
     tab_restore_service->BrowserClosing(tab_restore_service_delegate());
 
   // TODO(sky): convert session/tab restore to use notification.
@@ -761,17 +749,6 @@ Browser::DownloadClosePreventionType Browser::OkToCloseWithInProgressDownloads(
 
   // Those are the only conditions under which we will block shutdown.
   return DOWNLOAD_CLOSE_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Browser, TabStripModel pass-thrus:
-
-int Browser::tab_count() const {
-  return tab_strip_model_->count();
-}
-
-int Browser::active_index() const {
-  return tab_strip_model_->active_index();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -885,11 +862,9 @@ void Browser::JSOutOfMemoryHelper(WebContents* web_contents) {
   if (!infobar_service)
     return;
 
-  infobar_service->AddInfoBar(new SimpleAlertInfoBarDelegate(
-      infobar_service,
-      NULL,
-      l10n_util::GetStringUTF16(IDS_JS_OUT_OF_MEMORY_PROMPT),
-      true));
+  SimpleAlertInfoBarDelegate::Create(
+      infobar_service, NULL,
+      l10n_util::GetStringUTF16(IDS_JS_OUT_OF_MEMORY_PROMPT), true);
 }
 
 // static
@@ -929,29 +904,8 @@ void Browser::RegisterProtocolHandlerHelper(WebContents* web_contents,
     window->GetLocationBar()->UpdateContentSettingsIcons();
   }
 
-  content::RecordAction(
-      UserMetricsAction("RegisterProtocolHandler.InfoBar_Shown"));
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(web_contents);
-
-  RegisterProtocolHandlerInfoBarDelegate* rph_delegate =
-      new RegisterProtocolHandlerInfoBarDelegate(infobar_service,
-                                                 registry,
-                                                 handler);
-
-  for (size_t i = 0; i < infobar_service->GetInfoBarCount(); i++) {
-    InfoBarDelegate* delegate = infobar_service->GetInfoBarDelegateAt(i);
-    RegisterProtocolHandlerInfoBarDelegate* cast_delegate =
-        delegate->AsRegisterProtocolHandlerInfoBarDelegate();
-    if (cast_delegate != NULL && cast_delegate->IsReplacedBy(rph_delegate)) {
-      infobar_service->ReplaceInfoBar(cast_delegate, rph_delegate);
-      rph_delegate = NULL;
-      break;
-    }
-  }
-
-  if (rph_delegate != NULL)
-    infobar_service->AddInfoBar(rph_delegate);
+  RegisterProtocolHandlerInfoBarDelegate::Create(
+      InfoBarService::FromWebContents(web_contents), registry, handler);
 }
 
 // static
@@ -970,38 +924,6 @@ void Browser::FindReplyHelper(WebContents* web_contents,
                                    selection_rect,
                                    active_match_ordinal,
                                    final_update);
-}
-
-// static
-void Browser::RequestMediaAccessPermissionHelper(
-    content::WebContents* web_contents,
-    const content::MediaStreamRequest* request,
-    const content::MediaResponseCallback& callback) {
-  Profile* profile =
-      Profile::FromBrowserContext(web_contents->GetBrowserContext());
-
-  scoped_ptr<MediaStreamDevicesController>
-      controller(new MediaStreamDevicesController(profile,
-                                                  request,
-                                                  callback));
-  if (!controller->DismissInfoBarAndTakeActionOnSettings()) {
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(web_contents);
-    InfoBarDelegate* old_infobar = NULL;
-    for (size_t i = 0; i < infobar_service->GetInfoBarCount(); ++i) {
-      old_infobar = infobar_service->GetInfoBarDelegateAt(i)->
-          AsMediaStreamInfoBarDelegate();
-      if (old_infobar)
-        break;
-    }
-
-    InfoBarDelegate* infobar =
-        new MediaStreamInfoBarDelegate(infobar_service, controller.release());
-    if (old_infobar)
-      infobar_service->ReplaceInfoBar(old_infobar, infobar);
-    else
-      infobar_service->AddInfoBar(infobar);
-  }
 }
 
 void Browser::UpdateUIForNavigationInTab(WebContents* contents,
@@ -1167,7 +1089,8 @@ void Browser::ActiveTabChanged(WebContents* old_contents,
   SessionService* session_service =
       SessionServiceFactory::GetForProfileIfExisting(profile_);
   if (session_service && !tab_strip_model_->closing_all()) {
-    session_service->SetSelectedTabInWindow(session_id(), active_index());
+    session_service->SetSelectedTabInWindow(session_id(),
+                                            tab_strip_model_->active_index());
   }
 
   UpdateBookmarkBarState(BOOKMARK_BAR_STATE_CHANGE_TAB_SWITCH);
@@ -1194,7 +1117,9 @@ void Browser::TabReplacedAt(TabStripModel* tab_strip_model,
       SessionServiceFactory::GetForProfile(profile_);
   if (session_service)
     session_service->TabClosing(old_contents);
-  TabInsertedAt(new_contents, index, (index == active_index()));
+  TabInsertedAt(new_contents,
+                index,
+                (index == tab_strip_model_->active_index()));
 
   int entry_count = new_contents->GetController().GetEntryCount();
   if (entry_count > 0) {
@@ -1494,8 +1419,7 @@ int Browser::GetExtraRenderViewHeight() const {
 
 void Browser::OnStartDownload(WebContents* source,
                               content::DownloadItem* download) {
-  scoped_ptr<DownloadItemModel> download_model(new DownloadItemModel(download));
-  if (!download_model->ShouldShowInShelf())
+  if (!DownloadItemModel(download).ShouldShowInShelf())
     return;
 
   WebContents* constrained = GetConstrainingWebContents(source);
@@ -1510,25 +1434,12 @@ void Browser::OnStartDownload(WebContents* source,
 
   // GetDownloadShelf creates the download shelf if it was not yet created.
   DownloadShelf* shelf = window()->GetDownloadShelf();
-  shelf->AddDownload(download_model.release());
-  // Don't show the animation for "Save file" downloads.
-  // For non-theme extensions, we don't show the download animation.
-  // Show animation in same window as the download shelf. Download shelf
-  // may not be in the same window that initiated the download.
-  // Don't show the animation if the selected tab is not visible (i.e. the
-  // window is minimized, we're in a unit test, etc.).
-  WebContents* shelf_tab = chrome::GetActiveWebContents(shelf->browser());
-  if ((download->GetTotalBytes() > 0) &&
-      !download_crx_util::IsExtensionDownload(*download) &&
-      platform_util::IsVisible(shelf_tab->GetNativeView()) &&
-      ui::Animation::ShouldRenderRichAnimation()) {
-    DownloadStartedAnimation::Show(shelf_tab);
-  }
+  shelf->AddDownload(download);
 
   // If the download occurs in a new tab, and it's not a save page
-  // download (started before initial navigation completed) close it.
-  if (source->GetController().IsInitialNavigation() && tab_count() > 1 &&
-      !download->IsSavePackageDownload())
+  // download (started before initial navigation completed), close it.
+  if (source->GetController().IsInitialNavigation() &&
+      tab_strip_model_->count() > 1 && !download->IsSavePackageDownload())
     CloseContents(source);
 }
 
@@ -1606,13 +1517,9 @@ void Browser::RendererResponsive(WebContents* source) {
 }
 
 void Browser::WorkerCrashed(WebContents* source) {
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(source);
-  infobar_service->AddInfoBar(new SimpleAlertInfoBarDelegate(
-      infobar_service,
-      NULL,
-      l10n_util::GetStringUTF16(IDS_WEBWORKER_CRASHED_PROMPT),
-      true));
+  SimpleAlertInfoBarDelegate::Create(
+      InfoBarService::FromWebContents(source), NULL,
+      l10n_util::GetStringUTF16(IDS_WEBWORKER_CRASHED_PROMPT), true);
 }
 
 void Browser::DidNavigateMainFramePostCommit(WebContents* web_contents) {
@@ -1692,7 +1599,7 @@ void Browser::RegisterIntentHandler(
     WebContents* web_contents,
     const webkit_glue::WebIntentServiceData& data,
     bool user_gesture) {
-  RegisterIntentHandlerHelper(web_contents, data, user_gesture);
+  RegisterIntentHandlerInfoBarDelegate::Create(web_contents, data);
 }
 
 void Browser::WebIntentDispatch(
@@ -1786,9 +1693,9 @@ void Browser::LostMouseLock() {
 
 void Browser::RequestMediaAccessPermission(
     content::WebContents* web_contents,
-    const content::MediaStreamRequest* request,
+    const content::MediaStreamRequest& request,
     const content::MediaResponseCallback& callback) {
-  RequestMediaAccessPermissionHelper(web_contents, request, callback);
+  MediaStreamInfoBarDelegate::Create(web_contents, request, callback);
 }
 
 bool Browser::RequestPpapiBrokerPermission(
@@ -1796,7 +1703,7 @@ bool Browser::RequestPpapiBrokerPermission(
     const GURL& url,
     const FilePath& plugin_path,
     const base::Callback<void(bool)>& callback) {
-  PepperBrokerInfoBarDelegate::Show(web_contents, url, plugin_path, callback);
+  PepperBrokerInfoBarDelegate::Create(web_contents, url, plugin_path, callback);
   return true;
 }
 
@@ -2104,7 +2011,7 @@ void Browser::ProcessPendingUIUpdates() {
   for (UpdateMap::const_iterator i = scheduled_updates_.begin();
        i != scheduled_updates_.end(); ++i) {
     bool found = false;
-    for (int tab = 0; tab < tab_count(); tab++) {
+    for (int tab = 0; tab < tab_strip_model_->count(); tab++) {
       if (tab_strip_model_->GetWebContentsAt(tab) == i->first) {
         found = true;
         break;
@@ -2183,7 +2090,7 @@ void Browser::SyncHistoryWithTabs(int index) {
   SessionService* session_service =
       SessionServiceFactory::GetForProfileIfExisting(profile());
   if (session_service) {
-    for (int i = index; i < tab_count(); ++i) {
+    for (int i = index; i < tab_strip_model_->count(); ++i) {
       WebContents* web_contents = tab_strip_model_->GetWebContentsAt(i);
       if (web_contents) {
         SessionTabHelper* session_tab_helper =
@@ -2266,7 +2173,7 @@ void Browser::TabDetachedAtImpl(content::WebContents* contents,
   SetAsDelegate(contents, NULL);
   RemoveScheduledUpdatesFor(contents);
 
-  if (find_bar_controller_.get() && index == active_index()) {
+  if (find_bar_controller_.get() && index == tab_strip_model_->active_index()) {
     find_bar_controller_->ChangeWebContents(NULL);
   }
 

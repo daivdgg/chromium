@@ -10,8 +10,8 @@
 #include "chrome/browser/automation/automation_util.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/extensions/api/permissions/permissions_api.h"
-#include "chrome/browser/extensions/app_restore_service_factory.h"
 #include "chrome/browser/extensions/app_restore_service.h"
+#include "chrome/browser/extensions/app_restore_service_factory.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/extensions/extension_prefs.h"
 #include "chrome/browser/extensions/extension_service.h"
@@ -23,16 +23,18 @@
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/tab_contents/render_view_context_menu.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/extensions/application_launch.h"
 #include "chrome/browser/ui/extensions/native_app_window.h"
 #include "chrome/browser/ui/extensions/shell_window.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_contents_modal_dialog_manager.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/render_process_host.h"
+#include "content/public/browser/render_widget_host_view.h"
+#include "content/public/browser/web_contents_view.h"
 #include "content/public/browser/web_intents_dispatcher.h"
 #include "content/public/test/test_utils.h"
 #include "googleurl/src/gurl.h"
@@ -177,7 +179,8 @@ IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, LaunchReply) {
   // Navigate to a boring page: we don't care what it is, but we require some
   // source WebContents to launch the Web Intent "from".
   ui_test_utils::NavigateToURL(browser(), GURL("about:blank"));
-  WebContents* web_contents = chrome::GetActiveWebContents(browser());
+  WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(web_contents);
 
   extensions::LaunchPlatformAppWithWebIntent(
@@ -421,7 +424,7 @@ IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, Isolation) {
   std::string cookie_value;
   automation_util::GetCookies(
       set_cookie_url,
-      chrome::GetWebContentsAt(browser(), 0),
+      browser()->tab_strip_model()->GetWebContentsAt(0),
       &cookie_size,
       &cookie_value);
   ASSERT_EQ("testCookie=1", cookie_value);
@@ -577,7 +580,7 @@ IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, OpenLink) {
       content::Source<content::WebContentsDelegate>(browser()));
   LoadAndLaunchPlatformApp("open_link");
   observer.Wait();
-  ASSERT_EQ(2, browser()->tab_count());
+  ASSERT_EQ(2, browser()->tab_strip_model()->count());
 }
 
 IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, MutationEventsDisabled) {
@@ -761,7 +764,7 @@ IN_PROC_BROWSER_TEST_F(PlatformAppDevToolsBrowserTest, ReOpenedWithURL) {
 #endif
 
 IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, MAYBE_ConstrainedWindowRequest) {
-  RequestPermissionsFunction::SetIgnoreUserGestureForTests(true);
+  PermissionsRequestFunction::SetIgnoreUserGestureForTests(true);
   const Extension* extension =
       LoadAndLaunchPlatformApp("optional_permission_request");
   ASSERT_TRUE(extension) << "Failed to load extension.";
@@ -770,14 +773,16 @@ IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, MAYBE_ConstrainedWindowRequest) {
   ASSERT_TRUE(web_contents);
 
   // Verify that the shell window has a dialog attached.
-  WebContentsModalDialogManager* web_contents_dialog_manager =
+  WebContentsModalDialogManager* web_contents_modal_dialog_manager =
       WebContentsModalDialogManager::FromWebContents(web_contents);
-  EXPECT_EQ(1u, web_contents_dialog_manager->dialog_count());
+  EXPECT_TRUE(web_contents_modal_dialog_manager->IsShowingDialog());
 
   // Close the constrained window and wait for the reply to the permission
   // request.
   ExtensionTestMessageListener listener("PermissionRequestDone", false);
-  web_contents_dialog_manager->CloseAllDialogs();
+  WebContentsModalDialogManager::TestApi test_api(
+      web_contents_modal_dialog_manager);
+  test_api.CloseAllDialogs();
   ASSERT_TRUE(listener.WaitUntilSatisfied());
 }
 
@@ -928,6 +933,19 @@ IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, Messaging) {
   LoadAndLaunchPlatformApp("messaging/app2");
   LoadAndLaunchPlatformApp("messaging/app1");
   EXPECT_TRUE(result_catcher.GetNextResult());
+}
+
+// TODO(jeremya): this doesn't work on GTK yet. See http://crbug.com/159450.
+#if defined(TOOLKIT_GTK)
+#define MAYBE_WebContentsHasFocus DISABLED_WebContentsHasFocus
+#else
+#define MAYBE_WebContentsHasFocus WebContentsHasFocus
+#endif
+IN_PROC_BROWSER_TEST_F(PlatformAppBrowserTest, MAYBE_WebContentsHasFocus) {
+  const Extension* extension = LoadAndLaunchPlatformApp("minimal");
+  ShellWindow* window = CreateShellWindow(extension);
+  EXPECT_TRUE(window->web_contents()->GetRenderWidgetHostView()->HasFocus());
+  CloseShellWindow(window);
 }
 
 }  // namespace extensions

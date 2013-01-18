@@ -98,8 +98,6 @@ extern const char kChromeUISlideshowURL[];
 extern const char kChromeUISystemInfoURL[];
 extern const char kChromeUITermsOemURL[];
 extern const char kChromeUIUserImageURL[];
-extern const char kChromeUIWallpaperImageURL[];
-extern const char kChromeUIWallpaperThumbnailURL[];
 #endif
 
 #if defined(USE_ASH)
@@ -204,6 +202,7 @@ extern const char kChromeUIUberFrameHost[];
 extern const char kChromeUIUberHost[];
 extern const char kChromeUIUserActionsHost[];
 extern const char kChromeUIVersionHost[];
+extern const char kChromeUIWebRTCInternalsHost[];
 extern const char kChromeUIWorkersHost[];
 
 extern const char kChromeUIScreenshotPath[];
@@ -242,7 +241,6 @@ extern const char kChromeUISimUnlockHost[];
 extern const char kChromeUISlideshowHost[];
 extern const char kChromeUISystemInfoHost[];
 extern const char kChromeUIUserImageHost[];
-extern const char kChromeUIWallpaperImageHost[];
 extern const char kChromeUIWallpaperThumbnailHost[];
 
 extern const char kChromeUIMenu[];

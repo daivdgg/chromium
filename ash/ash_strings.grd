@@ -191,6 +191,9 @@ This file contains the strings for ash.
       <message name="IDS_AURA_LAUNCHER_CONTEXT_MENU_ALIGN_RIGHT" desc="Title of the menu item in the context menu for aligning the launcher to the right of the screen">
         Right
       </message>
+      <message name="IDS_AURA_LAUNCHER_CONTEXT_MENU_ALIGN_TOP" desc="Title of the menu item in the context menu for aligning the launcher to the top of the screen">
+        Top
+      </message>
 
       <message name="IDS_AURA_SET_DESKTOP_WALLPAPER" desc="The label used for change wallpaper in context menu">
         Set wallpaper...
@@ -313,6 +316,9 @@ Press Ctrl+Alt+Z to disable.
       </message>
       <message name="IDS_ASH_STATUS_TRAY_WIFI_SCANNING_MESSAGE" desc="Scanning for wifi networks">
 	Searching for Wi-Fi networks...
+      </message>
+      <message name="IDS_ASH_STATUS_TRAY_INITIALIZING_CELLULAR" desc="Message for the status area when initializing the cellular device.">
+	Initializing cellular modem...
       </message>
       <message name="IDS_ASH_STATUS_TRAY_UPDATE" desc="The label used in the tray popup to notify that the user should restart to get system updates.">
         Restart to update

@@ -7,6 +7,7 @@ import os
 import logging as real_logging
 import re
 import subprocess
+import sys
 
 from telemetry import adb_commands
 from telemetry import android_browser_backend
@@ -29,7 +30,7 @@ CHROME_COMMAND_LINE = '/data/local/chrome-command-line'
 CHROME_DEVTOOLS_REMOTE_PORT = 'localabstract:chrome_devtools_remote'
 
 CONTENT_SHELL_PACKAGE = 'org.chromium.content_shell'
-CONTENT_SHELL_ACTIVITY = '.ContentShellActivity'
+CONTENT_SHELL_ACTIVITY = 'org.chromium.content_shell.ContentShellActivity'
 CONTENT_SHELL_COMMAND_LINE = '/data/local/tmp/content-shell-command-line'
 CONTENT_SHELL_DEVTOOLS_REMOTE_PORT = (
     'localabstract:content_shell_devtools_remote')
@@ -55,7 +56,7 @@ class PossibleAndroidBrowser(possible_browser.PossibleBrowser):
         self._options, *self._args)
     platform = android_platform.AndroidPlatform(
         self._args[0].Adb(), self._args[1],
-        self._args[1] + self._args[4])
+        self._args[4])
     b = browser.Browser(backend, platform)
     backend.SetBrowser(b)
     return b
@@ -80,9 +81,17 @@ def FindAllAvailableBrowsers(options, logging=real_logging):
         logging.warn('  adb kill-server')
         logging.warn('  sudo `which adb` devices\n\n')
   except OSError:
-    logging.info('No adb command found. ' +
-             'Will not try searching for Android browsers.')
-    return []
+    platform_tools_path = os.path.join(
+        os.path.dirname(__file__), '..', '..', '..',
+        'third_party', 'android_tools', 'sdk', 'platform-tools')
+    if (sys.platform.startswith('linux') and
+        os.path.exists(os.path.join(platform_tools_path, 'adb'))):
+      os.environ['PATH'] = os.pathsep.join([platform_tools_path,
+                                            os.environ['PATH']])
+    else:
+      logging.info('No adb command found. ' +
+                   'Will not try searching for Android browsers.')
+      return []
 
   device = None
   if options.android_device:
@@ -102,12 +111,6 @@ def FindAllAvailableBrowsers(options, logging=real_logging):
   device = devices[0]
 
   adb = adb_commands.AdbCommands(device=device)
-
-  # See if adb is root
-  if not adb.IsRootEnabled():
-    logging.warn('ADB is not root. Please make it root by doing:')
-    logging.warn(' adb root')
-    return []
 
   packages = adb.RunShellCommand('pm list packages')
   possible_browsers = []

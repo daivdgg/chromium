@@ -9,17 +9,30 @@
 #include <string>
 
 #include "base/basictypes.h"
+#include "base/callback.h"
 #include "base/compiler_specific.h"
-#include "base/message_loop.h"
 #include "base/values.h"
 #include "chrome/browser/ui/webui/chrome_url_data_manager.h"
+#include "content/public/browser/url_data_source.h"
 
 // A data source that can help with implementing the common operations
 // needed by the chrome WEBUI settings/history/downloads pages.
-class ChromeWebUIDataSource : public ChromeURLDataManager::DataSource {
+// DO NOT DERIVE FROM THIS CLASS! http://crbug.com/169170
+class ChromeWebUIDataSource : public URLDataSourceImpl {
  public:
+  // Used as a parameter to GotDataCallback. The caller has to run this callback
+  // with the result for the path that they filtered, passing ownership of the
+  // memory.
+  typedef base::Callback<void(base::RefCountedMemory*)> GotDataCallback;
+
+  // Used by SetRequestFilter. The string parameter is the path of the request.
+  // If the callee doesn't want to handle the data, false is returned. Otherwise
+  // true is returned and the GotDataCallback parameter is called either then or
+  // asynchronously with the response.
+  typedef base::Callback<bool(const std::string&, const GotDataCallback&)>
+      HandleRequestCallback;
+
   explicit ChromeWebUIDataSource(const std::string& source_name);
-  ChromeWebUIDataSource(const std::string& source_name, MessageLoop* loop);
 
   // Adds a string keyed to its name to our dictionary.
   void AddString(const std::string& name, const string16& value);
@@ -33,6 +46,9 @@ class ChromeWebUIDataSource : public ChromeURLDataManager::DataSource {
 
   // Add strings from |localized_strings| to our dictionary.
   void AddLocalizedStrings(const DictionaryValue& localized_strings);
+
+  // Allows a caller to add a filter for URL requests.
+  void SetRequestFilter(const HandleRequestCallback& callback);
 
   // Accessor for |localized_strings_|.
   DictionaryValue* localized_strings() {
@@ -60,23 +76,38 @@ class ChromeWebUIDataSource : public ChromeURLDataManager::DataSource {
   virtual ~ChromeWebUIDataSource();
 
   // Completes a request by sending our dictionary of localized strings.
-  void SendLocalizedStringsAsJSON(int request_id);
+  void SendLocalizedStringsAsJSON(
+      const content::URLDataSource::GotDataCallback& callback);
 
   // Completes a request by sending the file specified by |idr|.
-  void SendFromResourceBundle(int request_id, int idr);
-
-  // ChromeURLDataManager
-  virtual std::string GetMimeType(const std::string& path) const OVERRIDE;
-  virtual void StartDataRequest(const std::string& path,
-                                bool is_incognito,
-                                int request_id) OVERRIDE;
+  void SendFromResourceBundle(
+      const content::URLDataSource::GotDataCallback& callback, int idr);
 
  private:
+  class InternalDataSource;
+  friend class InternalDataSource;
+  friend class MockChromeWebUIDataSource;
+
+  // Methods that match content::URLDataSource which are called by
+  // InternalDataSource.
+  std::string GetSource();
+  std::string GetMimeType(const std::string& path) const;
+  void StartDataRequest(
+      const std::string& path,
+      bool is_incognito,
+      const content::URLDataSource::GotDataCallback& callback);
+
+  // The name of this source.
+  // E.g., for favicons, this could be "favicon", which results in paths for
+  // specific resources like "favicon/34" getting sent to this source.
+  std::string source_name_;
   int default_resource_;
   bool json_js_format_v2_;
   std::string json_path_;
   std::map<std::string, int> path_to_idr_map_;
   DictionaryValue localized_strings_;
+  HandleRequestCallback filter_callback_;
+
   DISALLOW_COPY_AND_ASSIGN(ChromeWebUIDataSource);
 };
 

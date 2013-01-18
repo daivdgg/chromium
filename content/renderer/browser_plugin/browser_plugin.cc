@@ -14,11 +14,13 @@
 #include "content/public/common/content_client.h"
 #include "content/public/renderer/content_renderer_client.h"
 #include "content/renderer/browser_plugin/browser_plugin_bindings.h"
+#include "content/renderer/browser_plugin/browser_plugin_compositing_helper.h"
 #include "content/renderer/browser_plugin/browser_plugin_manager.h"
 #include "content/renderer/render_process_impl.h"
 #include "content/renderer/render_thread_impl.h"
 #include "content/renderer/v8_value_converter_impl.h"
 #include "skia/ext/platform_canvas.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebRect.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebBindings.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDOMCustomEvent.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDocument.h"
@@ -28,7 +30,6 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebPluginContainer.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebPluginParams.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebScriptSource.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebRect.h"
 #include "webkit/plugins/sad_plugin.h"
 
 #if defined (OS_WIN)
@@ -60,6 +61,7 @@ const char kEventUnresponsive[] = "unresponsive";
 
 // Parameters/properties on events.
 const char kIsTopLevel[] = "isTopLevel";
+const char kName[] = "name";
 const char kNewURL[] = "newUrl";
 const char kNewHeight[] = "newHeight";
 const char kNewWidth[] = "newWidth";
@@ -89,11 +91,16 @@ static std::string TerminationStatusToString(base::TerminationStatus status) {
       return "killed";
     case base::TERMINATION_STATUS_PROCESS_CRASHED:
       return "crashed";
-    default:
-      // This should never happen.
-      DCHECK(false);
-      return "unknown";
+    case base::TERMINATION_STATUS_STILL_RUNNING:
+    case base::TERMINATION_STATUS_MAX_ENUM:
+      break;
   }
+  NOTREACHED() << "Unknown Termination Status.";
+  return "unknown";
+}
+
+static std::string GetInternalEventName(const char* event_name) {
+  return base::StringPrintf("-internal-%s", event_name);
 }
 }
 
@@ -121,7 +128,6 @@ BrowserPlugin::BrowserPlugin(
       valid_partition_id_(true),
       content_window_routing_id_(MSG_ROUTING_NONE),
       plugin_focused_(false),
-      embedder_focused_(false),
       visible_(true),
       size_changed_in_flight_(false),
       browser_plugin_manager_(render_view->browser_plugin_manager()),
@@ -146,6 +152,7 @@ bool BrowserPlugin::OnMessageReceived(const IPC::Message& message) {
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP(BrowserPlugin, message)
     IPC_MESSAGE_HANDLER(BrowserPluginMsg_AdvanceFocus, OnAdvanceFocus)
+    IPC_MESSAGE_HANDLER(BrowserPluginMsg_BuffersSwapped, OnBuffersSwapped)
     IPC_MESSAGE_HANDLER(BrowserPluginMsg_GuestContentWindowReady,
                         OnGuestContentWindowReady)
     IPC_MESSAGE_HANDLER(BrowserPluginMsg_GuestGone, OnGuestGone)
@@ -156,9 +163,10 @@ bool BrowserPlugin::OnMessageReceived(const IPC::Message& message) {
     IPC_MESSAGE_HANDLER(BrowserPluginMsg_LoadRedirect, OnLoadRedirect)
     IPC_MESSAGE_HANDLER(BrowserPluginMsg_LoadStart, OnLoadStart)
     IPC_MESSAGE_HANDLER(BrowserPluginMsg_LoadStop, OnLoadStop)
+    IPC_MESSAGE_HANDLER(BrowserPluginMsg_SetCursor, OnSetCursor)
     IPC_MESSAGE_HANDLER(BrowserPluginMsg_ShouldAcceptTouchEvents,
                         OnShouldAcceptTouchEvents)
-    IPC_MESSAGE_HANDLER(BrowserPluginMsg_SetCursor, OnSetCursor)
+    IPC_MESSAGE_HANDLER(BrowserPluginMsg_UpdatedName, OnUpdatedName)
     IPC_MESSAGE_HANDLER(BrowserPluginMsg_UpdateRect, OnUpdateRect)
     IPC_MESSAGE_UNHANDLED(handled = false)
   IPC_END_MESSAGE_MAP()
@@ -186,6 +194,21 @@ void BrowserPlugin::UpdateDOMAttribute(
   }
 }
 
+void BrowserPlugin::SetNameAttribute(const std::string& name) {
+  if (name_ == name)
+    return;
+
+  name_ = name;
+  if (!navigate_src_sent_)
+    return;
+
+  browser_plugin_manager()->Send(
+      new BrowserPluginHostMsg_SetName(
+          render_view_routing_id_,
+          instance_id_,
+          name));
+}
+
 bool BrowserPlugin::SetSrcAttribute(const std::string& src,
                                     std::string* error_message) {
   if (!valid_partition_id_) {
@@ -198,13 +221,14 @@ bool BrowserPlugin::SetSrcAttribute(const std::string& src,
 
   // If we haven't created the guest yet, do so now. We will navigate it right
   // after creation. If |src| is empty, we can delay the creation until we
-  // acutally need it.
+  // actually need it.
   if (!navigate_src_sent_) {
     BrowserPluginHostMsg_CreateGuest_Params create_guest_params;
     create_guest_params.storage_partition_id = storage_partition_id_;
     create_guest_params.persist_storage = persist_storage_;
     create_guest_params.focused = ShouldGuestBeFocused();
     create_guest_params.visible = visible_;
+    create_guest_params.name = name_;
     GetDamageBufferWithSizeParams(&create_guest_params.auto_size_params,
                                   &create_guest_params.resize_guest_params);
     browser_plugin_manager()->Send(
@@ -293,6 +317,20 @@ bool BrowserPlugin::UsesPendingDamageBuffer(
 void BrowserPlugin::OnAdvanceFocus(int instance_id, bool reverse) {
   DCHECK(render_view_);
   render_view_->GetWebView()->advanceFocus(reverse);
+}
+
+void BrowserPlugin::OnBuffersSwapped(int instance_id,
+                                     const gfx::Size& size,
+                                     std::string mailbox_name,
+                                     int gpu_route_id,
+                                     int gpu_host_id) {
+  DCHECK(instance_id == instance_id_);
+  EnableCompositing(true);
+
+  compositing_helper_->OnBuffersSwapped(size,
+                                        mailbox_name,
+                                        gpu_route_id,
+                                        gpu_host_id);
 }
 
 void BrowserPlugin::OnGuestContentWindowReady(int instance_id,
@@ -406,6 +444,11 @@ void BrowserPlugin::OnShouldAcceptTouchEvents(int instance_id, bool accept) {
   }
 }
 
+void BrowserPlugin::OnUpdatedName(int instance_id, const std::string& name) {
+  name_ = name;
+  UpdateDOMAttribute(kName, name);
+}
+
 void BrowserPlugin::OnUpdateRect(
     int instance_id,
     const BrowserPluginMsg_UpdateRect_Params& params) {
@@ -428,6 +471,13 @@ void BrowserPlugin::OnUpdateRect(
        (width() != params.view_size.width() ||
         height() != params.view_size.height())) ||
       (auto_size_ && (!InAutoSizeBounds(params.view_size)))) {
+    // We are HW accelerated, render widget does not expect an ack,
+    // but we still need to update the size.
+    if (!params.needs_ack) {
+      UpdateGuestAutoSizeState();
+      return;
+    }
+
     if (!resize_ack_received_) {
       // The guest has not yet responded to the last resize request, and
       // so we don't want to do anything at this point other than ACK the guest.
@@ -626,6 +676,8 @@ void BrowserPlugin::ParseAttributes(const WebKit::WebPluginParams& params) {
     } else if (LowerCaseEqualsASCII(attributeName, kPartition)) {
       std::string error;
       SetPartitionAttribute(params.attributeValues[i].utf8(), &error);
+    } else if (LowerCaseEqualsASCII(attributeName, kName)) {
+      SetNameAttribute(params.attributeValues[i].utf8());
     }
   }
 
@@ -667,10 +719,8 @@ void BrowserPlugin::TriggerEvent(const std::string& event_name,
   // whose implementation details can (and likely will) change over time. The
   // wrapper/shim (e.g. <webview> tag) should receive these events, and expose a
   // more appropriate (and stable) event to the consumers as part of the API.
-  std::string internal_name = base::StringPrintf("-internal-%s",
-                                                 event_name.c_str());
   event.initCustomEvent(
-      WebKit::WebString::fromUTF8(internal_name.c_str()),
+      WebKit::WebString::fromUTF8(GetInternalEventName(event_name.c_str())),
       false, false,
       WebKit::WebSerializedScriptValue::serialize(
           v8::String::New(json_string.c_str(), json_string.size())));
@@ -726,17 +776,6 @@ void BrowserPlugin::Reload() {
                                       instance_id_));
 }
 
-void BrowserPlugin::SetEmbedderFocus(bool focused) {
-  if (embedder_focused_ == focused)
-    return;
-
-  bool old_guest_focus_state = ShouldGuestBeFocused();
-  embedder_focused_ = focused;
-
-  if (ShouldGuestBeFocused() != old_guest_focus_state)
-    UpdateGuestFocusState();
-}
-
 void BrowserPlugin::UpdateGuestFocusState() {
   if (!navigate_src_sent_)
     return;
@@ -748,7 +787,10 @@ void BrowserPlugin::UpdateGuestFocusState() {
 }
 
 bool BrowserPlugin::ShouldGuestBeFocused() const {
-  return plugin_focused_ && embedder_focused_;
+  bool embedder_focused = false;
+  if (render_view_)
+    embedder_focused = render_view_->has_focus();
+  return plugin_focused_ && embedder_focused;
 }
 
 WebKit::WebPluginContainer* BrowserPlugin::container() const {
@@ -762,11 +804,16 @@ bool BrowserPlugin::initialize(WebPluginContainer* container) {
 }
 
 void BrowserPlugin::EnableCompositing(bool enable) {
-  if (enable) {
-    LOG(ERROR) << "BrowserPlugin compositing not yet implemented.";
+  if (compositing_enabled_ == enable)
     return;
+
+  if (enable && !compositing_helper_) {
+    compositing_helper_.reset(new BrowserPluginCompositingHelper(
+        container_,
+        render_view_routing_id_));
   }
 
+  compositing_helper_->EnableCompositing(enable);
   compositing_enabled_ = enable;
 }
 
@@ -774,6 +821,7 @@ void BrowserPlugin::destroy() {
   // The BrowserPlugin's WebPluginContainer is deleted immediately after this
   // call returns, so let's not keep a reference to it around.
   container_ = NULL;
+  compositing_helper_.reset();
   MessageLoop::current()->DeleteSoon(FROM_HERE, this);
 }
 
@@ -856,13 +904,16 @@ void BrowserPlugin::updateGeometry(
   int old_width = width();
   int old_height = height();
   plugin_rect_ = window_rect;
+  if (compositing_helper_) {
+    compositing_helper_->SetContainerSize(gfx::Size(window_rect.width,
+                                                    window_rect.height));
+  }
   // In AutoSize mode, guests don't care when the BrowserPlugin container is
   // resized. If |!resize_ack_received_|, then we are still waiting on a
   // previous resize to be ACK'ed and so we don't issue additional resizes
   // until the previous one is ACK'ed.
   if (!navigate_src_sent_ || auto_size_ || !resize_ack_received_ ||
-      (old_width == window_rect.width &&
-       old_height == window_rect.height)) {
+      (old_width == window_rect.width && old_height == window_rect.height)) {
     return;
   }
 

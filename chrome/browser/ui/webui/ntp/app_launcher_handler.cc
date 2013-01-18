@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ui/webui/ntp/app_launcher_handler.h"
 
-#include <string>
 #include <vector>
 
 #include "base/auto_reset.h"
@@ -31,6 +30,8 @@
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/extensions/application_launch.h"
+#include "chrome/browser/ui/extensions/extension_enable_flow.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/webui/extensions/extension_icon_source.h"
 #include "chrome/browser/ui/webui/ntp/new_tab_ui.h"
 #include "chrome/browser/ui/webui/web_ui_util.h"
@@ -504,12 +505,6 @@ void AppLauncherHandler::HandleLaunchApp(const ListValue* args) {
     params.override_url = GURL(url);
     OpenApplication(params);
   } else {
-    // Look at preference to find the right launch container.  If no preference
-    // is set, launch as a regular tab.
-    extension_misc::LaunchContainer launch_container =
-        extension_service_->extension_prefs()->GetLaunchContainer(
-            extension, ExtensionPrefs::LAUNCH_REGULAR);
-
     // To give a more "launchy" experience when using the NTP launcher, we close
     // it automatically.
     Browser* browser = chrome::FindBrowserWithWebContents(
@@ -518,14 +513,16 @@ void AppLauncherHandler::HandleLaunchApp(const ListValue* args) {
     if (browser)
       old_contents = chrome::GetActiveWebContents(browser);
 
-    LaunchParams params(profile, extension, launch_container,
+    LaunchParams params(profile, extension,
                         old_contents ? CURRENT_TAB : NEW_FOREGROUND_TAB);
     params.override_url = GURL(url);
     WebContents* new_contents = OpenApplication(params);
 
     // This will also destroy the handler, so do not perform any actions after.
-    if (new_contents != old_contents && browser && browser->tab_count() > 1)
+    if (new_contents != old_contents && browser &&
+        browser->tab_strip_model()->count() > 1) {
       chrome::CloseWebContents(browser, old_contents, true);
+    }
   }
 }
 
@@ -824,37 +821,13 @@ void AppLauncherHandler::RecordAppLaunchByUrl(
 }
 
 void AppLauncherHandler::PromptToEnableApp(const std::string& extension_id) {
-  const Extension* extension =
-      extension_service_->GetExtensionById(extension_id, true);
-  if (!extension) {
-    extension = extension_service_->GetTerminatedExtension(extension_id);
-    // It's possible (though unlikely) the app could have been uninstalled since
-    // the user clicked on it.
-    if (!extension)
-      return;
-    // If the app was terminated, reload it first. (This reallocates the
-    // Extension object.)
-    extension_service_->ReloadExtension(extension_id);
-    extension = extension_service_->GetExtensionById(extension_id, true);
-  }
-
-  ExtensionPrefs* extension_prefs = extension_service_->extension_prefs();
-  if (!extension_prefs->DidExtensionEscalatePermissions(extension_id)) {
-    // Enable the extension immediately if its privileges weren't escalated.
-    // This is a no-op if the extension was previously terminated.
-    extension_service_->EnableExtension(extension_id);
-
-    // Launch app asynchronously so the image will update.
-    StringValue app_id(extension_id);
-    web_ui()->CallJavascriptFunction("ntp.launchAppAfterEnable", app_id);
-    return;
-  }
-
   if (!extension_id_prompting_.empty())
     return;  // Only one prompt at a time.
 
   extension_id_prompting_ = extension_id;
-  GetExtensionInstallPrompt()->ConfirmReEnable(this, extension);
+  extension_enable_flow_.reset(new ExtensionEnableFlow(
+      Profile::FromWebUI(web_ui()), extension_id, this));
+  extension_enable_flow_->Start();
 }
 
 void AppLauncherHandler::ExtensionUninstallAccepted() {
@@ -877,31 +850,27 @@ void AppLauncherHandler::ExtensionUninstallCanceled() {
   CleanupAfterUninstall();
 }
 
-void AppLauncherHandler::InstallUIProceed() {
-  // Do the re-enable work here.
-  DCHECK(!extension_id_prompting_.empty());
+ExtensionInstallPrompt* AppLauncherHandler::CreateExtensionInstallPrompt() {
+  return new ExtensionInstallPrompt(web_ui()->GetWebContents());
+}
 
-  // The extension can be uninstalled in another window while the UI was
-  // showing. Do nothing in that case.
-  const Extension* extension =
-      extension_service_->GetExtensionById(extension_id_prompting_, true);
-  if (!extension)
-    return;
-
-  extension_service_->GrantPermissionsAndEnableExtension(
-      extension, extension_install_ui_->record_oauth2_grant());
+void AppLauncherHandler::ExtensionEnableFlowFinished() {
+  DCHECK_EQ(extension_id_prompting_, extension_enable_flow_->extension_id());
 
   // We bounce this off the NTP so the browser can update the apps icon.
   // If we don't launch the app asynchronously, then the app's disabled
   // icon disappears but isn't replaced by the enabled icon, making a poor
   // visual experience.
-  StringValue app_id(extension->id());
+  StringValue app_id(extension_id_prompting_);
   web_ui()->CallJavascriptFunction("ntp.launchAppAfterEnable", app_id);
 
+  extension_enable_flow_.reset();
   extension_id_prompting_ = "";
 }
 
-void AppLauncherHandler::InstallUIAbort(bool user_initiated) {
+void AppLauncherHandler::ExtensionEnableFlowAborted(bool user_initiated) {
+  DCHECK_EQ(extension_id_prompting_, extension_enable_flow_->extension_id());
+
   // We record the histograms here because ExtensionUninstallCanceled is also
   // called when the extension uninstall dialog is canceled.
   const Extension* extension =
@@ -912,6 +881,7 @@ void AppLauncherHandler::InstallUIAbort(bool user_initiated) {
   ExtensionService::RecordPermissionMessagesHistogram(
       extension, histogram_name.c_str());
 
+  extension_enable_flow_.reset();
   CleanupAfterUninstall();
 }
 
@@ -923,12 +893,4 @@ ExtensionUninstallDialog* AppLauncherHandler::GetExtensionUninstallDialog() {
         ExtensionUninstallDialog::Create(browser, this));
   }
   return extension_uninstall_dialog_.get();
-}
-
-ExtensionInstallPrompt* AppLauncherHandler::GetExtensionInstallPrompt() {
-  if (!extension_install_ui_.get()) {
-    extension_install_ui_.reset(
-        new ExtensionInstallPrompt(web_ui()->GetWebContents()));
-  }
-  return extension_install_ui_.get();
 }

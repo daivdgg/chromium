@@ -35,9 +35,11 @@
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/favicon_size.h"
+#include "ui/gfx/image/image_skia.h"
 
 using content::WebContents;
 using extensions::Extension;
+using extensions::URLOverrides;
 
 namespace {
 
@@ -303,7 +305,7 @@ bool ExtensionWebUI::HandleChromeURLOverrideReverse(
 
 // static
 void ExtensionWebUI::RegisterChromeURLOverrides(
-    Profile* profile, const Extension::URLOverrideMap& overrides) {
+    Profile* profile, const URLOverrides::URLOverrideMap& overrides) {
   if (overrides.empty())
     return;
 
@@ -313,7 +315,7 @@ void ExtensionWebUI::RegisterChromeURLOverrides(
 
   // For each override provided by the extension, add it to the front of
   // the override list if it's not already in the list.
-  Extension::URLOverrideMap::const_iterator iter = overrides.begin();
+  URLOverrides::URLOverrideMap::const_iterator iter = overrides.begin();
   for (; iter != overrides.end(); ++iter) {
     const std::string& key = iter->first;
     ListValue* page_overrides;
@@ -381,13 +383,13 @@ void ExtensionWebUI::UnregisterChromeURLOverride(const std::string& page,
 
 // static
 void ExtensionWebUI::UnregisterChromeURLOverrides(
-    Profile* profile, const Extension::URLOverrideMap& overrides) {
+    Profile* profile, const URLOverrides::URLOverrideMap& overrides) {
   if (overrides.empty())
     return;
   PrefService* prefs = profile->GetPrefs();
   DictionaryPrefUpdate update(prefs, kExtensionURLOverrides);
   DictionaryValue* all_overrides = update.Get();
-  Extension::URLOverrideMap::const_iterator iter = overrides.begin();
+  URLOverrides::URLOverrideMap::const_iterator iter = overrides.begin();
   for (; iter != overrides.end(); ++iter) {
     const std::string& page = iter->first;
     ListValue* page_overrides;

@@ -190,8 +190,7 @@ bool RenderWidgetHostViewAndroid::PopulateBitmapWithContents(jobject jbitmap) {
 bool RenderWidgetHostViewAndroid::HasValidFrame() const {
   return texture_id_in_layer_ != 0 &&
       content_view_core_ &&
-      !texture_size_in_layer_.IsEmpty() &&
-      texture_size_in_layer_ == content_view_core_->GetBounds().size();
+      !texture_size_in_layer_.IsEmpty();
 }
 
 gfx::NativeView RenderWidgetHostViewAndroid::GetNativeView() const {
@@ -287,8 +286,6 @@ void RenderWidgetHostViewAndroid::TextInputStateChanged(
   if (!IsShowing())
     return;
 
-  // TODO(miguelg): this currently dispatches messages for text inputs
-  // and date/time value inputs. Split it into two adapters.
   content_view_core_->ImeUpdateAdapter(
       GetNativeImeAdapter(),
       static_cast<int>(params.type),
@@ -572,6 +569,11 @@ void RenderWidgetHostViewAndroid::SelectRange(const gfx::Point& start,
     host_->SelectRange(start, end);
 }
 
+void RenderWidgetHostViewAndroid::MoveCaret(const gfx::Point& point) {
+  if (host_)
+    host_->MoveCaret(point);
+}
+
 
 void RenderWidgetHostViewAndroid::SetCachedBackgroundColor(SkColor color) {
   cached_background_color_ = color;
@@ -593,7 +595,9 @@ void RenderWidgetHostViewAndroid::UpdateFrameInfo(
     float page_scale_factor,
     float min_page_scale_factor,
     float max_page_scale_factor,
-    const gfx::Size& content_size) {
+    const gfx::Size& content_size,
+    const gfx::Vector2dF& controls_offset,
+    const gfx::Vector2dF& content_offset) {
   if (content_view_core_) {
     content_view_core_->UpdateContentSize(content_size.width(),
                                           content_size.height());
@@ -602,6 +606,8 @@ void RenderWidgetHostViewAndroid::UpdateFrameInfo(
     content_view_core_->UpdateScrollOffsetAndPageScaleFactor(scroll_offset.x(),
                                                              scroll_offset.y(),
                                                              page_scale_factor);
+    content_view_core_->UpdateOffsetsForFullscreen(controls_offset.y(),
+                                                   content_offset.y());
   }
 }
 

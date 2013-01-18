@@ -45,6 +45,28 @@ void CommandExecutorImpl::Init() {
       base::Bind(&ExecuteGet)));
   command_map_.Set("executeScript", base::Bind(execute_session_command,
       base::Bind(&ExecuteExecuteScript)));
+  command_map_.Set("switchToFrame", base::Bind(execute_session_command,
+      base::Bind(&ExecuteSwitchToFrame)));
+  command_map_.Set("getTitle", base::Bind(execute_session_command,
+      base::Bind(&ExecuteGetTitle)));
+  command_map_.Set("findElement", base::Bind(execute_session_command,
+      base::Bind(&ExecuteFindElement, 50)));
+  command_map_.Set("findElements", base::Bind(execute_session_command,
+      base::Bind(&ExecuteFindElements, 50)));
+  command_map_.Set("findChildElement", base::Bind(execute_session_command,
+      base::Bind(&ExecuteFindChildElement, 50)));
+  command_map_.Set("findChildElements", base::Bind(execute_session_command,
+      base::Bind(&ExecuteFindChildElements, 50)));
+  command_map_.Set("setTimeout", base::Bind(execute_session_command,
+      base::Bind(&ExecuteSetTimeout)));
+  command_map_.Set("getCurrentUrl", base::Bind(execute_session_command,
+      base::Bind(&ExecuteGetCurrentUrl)));
+  command_map_.Set("goBack", base::Bind(execute_session_command,
+      base::Bind(&ExecuteGoBack)));
+  command_map_.Set("goForward", base::Bind(execute_session_command,
+      base::Bind(&ExecuteGoForward)));
+  command_map_.Set("refresh", base::Bind(execute_session_command,
+      base::Bind(&ExecuteRefresh)));
   Command quit_command = base::Bind(execute_session_command,
       base::Bind(&ExecuteQuit, &session_map_));
   command_map_.Set("quit", quit_command);

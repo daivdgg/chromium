@@ -1368,7 +1368,7 @@ class LocalHttpTestServer : public TestServer {
                    FilePath()) {}
 };
 
-TEST_F(URLRequestTest, DISABLED_DelayedCookieCallback) {
+TEST_F(URLRequestTest, DelayedCookieCallback) {
   LocalHttpTestServer test_server;
   ASSERT_TRUE(test_server.Start());
 
@@ -2052,8 +2052,7 @@ class URLRequestTestHTTP : public URLRequestTest {
 // issuing a CONNECT request with the magic host name "www.redirect.com".
 // The HTTPTestServer will return a 302 response, which we should not
 // follow.
-// flaky: crbug.com/96594
-TEST_F(URLRequestTestHTTP, DISABLED_ProxyTunnelRedirectTest) {
+TEST_F(URLRequestTestHTTP, ProxyTunnelRedirectTest) {
   ASSERT_TRUE(test_server_.Start());
 
   TestNetworkDelegate network_delegate;  // Must outlive URLRequest.
@@ -3157,10 +3156,11 @@ TEST_F(URLRequestTestHTTP, PostFileTest) {
     path = path.Append(FILE_PATH_LITERAL("url_request_unittest"));
     path = path.Append(FILE_PATH_LITERAL("with-headers.html"));
     element_readers.push_back(new UploadFileElementReader(
-        path, 0, kuint64max, base::Time()));
+        base::MessageLoopProxy::current(), path, 0, kuint64max, base::Time()));
 
     // This file should just be ignored in the upload stream.
     element_readers.push_back(new UploadFileElementReader(
+        base::MessageLoopProxy::current(),
         FilePath(FILE_PATH_LITERAL(
             "c:\\path\\to\\non\\existant\\file.randomness.12345")),
         0, kuint64max, base::Time()));
@@ -4849,7 +4849,7 @@ class URLRequestTestFTP : public URLRequestTest {
 };
 
 // Make sure an FTP request using an unsafe ports fails.
-TEST_F(URLRequestTestFTP, DISABLED_UnsafePort) {
+TEST_F(URLRequestTestFTP, UnsafePort) {
   ASSERT_TRUE(test_server_.Start());
 
   URLRequestJobFactoryImpl job_factory;

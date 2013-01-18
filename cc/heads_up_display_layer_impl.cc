@@ -29,6 +29,8 @@ namespace cc {
 
 static inline SkPaint createPaint()
 {
+    SkPaint paint;
+#if (SK_R32_SHIFT || SK_B32_SHIFT != 16)
     // The SkCanvas is in RGBA but the shader is expecting BGRA, so we need to
     // swizzle our colors when drawing to the SkCanvas.
     SkColorMatrix swizzleMatrix;
@@ -39,11 +41,10 @@ static inline SkPaint createPaint()
     swizzleMatrix.fMat[2 + 5 * 0] = 1;
     swizzleMatrix.fMat[3 + 5 * 3] = 1;
 
-    SkPaint paint;
     skia::RefPtr<SkColorMatrixFilter> filter =
         skia::AdoptRef(new SkColorMatrixFilter(swizzleMatrix));
     paint.setColorFilter(filter.get());
-
+#endif
     return paint;
 }
 
@@ -77,8 +78,14 @@ void HeadsUpDisplayLayerImpl::willDraw(ResourceProvider* resourceProvider)
     if (m_hudTexture->size() != bounds() || resourceProvider->inUseByConsumer(m_hudTexture->id()))
         m_hudTexture->Free();
 
-    if (!m_hudTexture->id())
+    if (!m_hudTexture->id()) {
         m_hudTexture->Allocate(bounds(), GL_RGBA, ResourceProvider::TextureUsageAny);
+        // TODO(epenner): This texture was being used before setPixels was called,
+        // which is now not allowed (it's an uninitialized read). This should be fixed
+        // and this allocateForTesting() removed.
+        // http://crbug.com/166784
+        resourceProvider->allocateForTesting(m_hudTexture->id());
+    }
 }
 
 void HeadsUpDisplayLayerImpl::appendQuads(QuadSink& quadSink, AppendQuadsData& appendQuadsData)
@@ -208,9 +215,10 @@ int HeadsUpDisplayLayerImpl::drawFPSCounter(SkCanvas* canvas, FrameRateCounter* 
 void HeadsUpDisplayLayerImpl::drawFPSCounterText(SkCanvas* canvas, SkPaint& paint, FrameRateCounter* fpsCounter, SkRect bounds)
 {
     // Update FPS text - not every frame so text is readable
-    if (base::TimeDelta(fpsCounter->timeStampOfRecentFrame(0) - textUpdateTime).InSecondsF() > 0.25) {
+    base::TimeTicks now = base::TimeTicks::Now();
+    if (base::TimeDelta(now - textUpdateTime).InSecondsF() > 0.25) {
         m_averageFPS = fpsCounter->getAverageFPS();
-        textUpdateTime = fpsCounter->timeStampOfRecentFrame(0);
+        textUpdateTime = now;
     }
 
     // Draw FPS text.
@@ -253,7 +261,7 @@ void HeadsUpDisplayLayerImpl::drawFPSCounterGraphAndHistogram(SkCanvas* canvas, 
     double histogram[histogramSize] = {0};
     double maxBucketValue = 0;
 
-    for (int i = 1; i < fpsCounter->timeStampHistorySize() - 1; ++i) {
+    for (size_t i = 1; i < fpsCounter->timeStampHistorySize() - 1; ++i) {
         base::TimeDelta delta = fpsCounter->timeStampOfRecentFrame(i + 1) - fpsCounter->timeStampOfRecentFrame(i);
 
         // Skip this particular instantaneous frame rate if it is not likely to have been valid.

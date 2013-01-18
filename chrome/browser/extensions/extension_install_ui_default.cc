@@ -13,7 +13,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
-#include "chrome/browser/ui/app_list/app_list_controller.h"
+#include "chrome/browser/ui/app_list/app_list_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_finder.h"
@@ -52,6 +52,12 @@ bool disable_failure_ui_for_tests = false;
 // Helper class to put up an infobar when installation fails.
 class ErrorInfobarDelegate : public ConfirmInfoBarDelegate {
  public:
+  // Creates an error delegate and adds it to |infobar_service|.
+  static void Create(InfoBarService* infobar_service,
+                     Browser* browser,
+                     const extensions::CrxInstallerError& error);
+
+ private:
   ErrorInfobarDelegate(InfoBarService* infobar_service,
                        Browser* browser,
                        const extensions::CrxInstallerError& error)
@@ -60,7 +66,6 @@ class ErrorInfobarDelegate : public ConfirmInfoBarDelegate {
         error_(error) {
   }
 
- private:
   virtual string16 GetMessageText() const OVERRIDE {
     return error_.message();
   }
@@ -87,6 +92,14 @@ class ErrorInfobarDelegate : public ConfirmInfoBarDelegate {
   Browser* browser_;
   extensions::CrxInstallerError error_;
 };
+
+// static
+void ErrorInfobarDelegate::Create(InfoBarService* infobar_service,
+                                  Browser* browser,
+                                  const extensions::CrxInstallerError& error) {
+  infobar_service->AddInfoBar(scoped_ptr<InfoBarDelegate>(
+      new ErrorInfobarDelegate(infobar_service, browser, error)));
+}
 
 }  // namespace
 
@@ -124,8 +137,8 @@ void ExtensionInstallUIDefault::OnInstallSuccess(const Extension* extension,
   }
 
   if (extension->is_theme()) {
-    ShowThemeInfoBar(previous_theme_id_, previous_using_native_theme_,
-                     extension, profile_);
+    ThemeInstalledInfoBarDelegate::Create(
+        extension, profile_, previous_theme_id_, previous_using_native_theme_);
     return;
   }
 
@@ -135,7 +148,7 @@ void ExtensionInstallUIDefault::OnInstallSuccess(const Extension* extension,
   Browser* browser =
       chrome::FindOrCreateTabbedBrowser(current_profile,
                                         chrome::GetActiveDesktop());
-  if (browser->tab_count() == 0)
+  if (browser->tab_strip_model()->count() == 0)
     chrome::AddBlankTabAt(browser, -1, true);
   browser->window()->Show();
 
@@ -166,10 +179,8 @@ void ExtensionInstallUIDefault::OnInstallFailure(
   WebContents* web_contents = chrome::GetActiveWebContents(browser);
   if (!web_contents)
     return;
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(web_contents);
-  infobar_service->AddInfoBar(
-      new ErrorInfobarDelegate(infobar_service, browser, error));
+  ErrorInfobarDelegate::Create(InfoBarService::FromWebContents(web_contents),
+                               browser, error);
 }
 
 void ExtensionInstallUIDefault::SetSkipPostInstallUI(bool skip_ui) {
@@ -178,69 +189,6 @@ void ExtensionInstallUIDefault::SetSkipPostInstallUI(bool skip_ui) {
 
 void ExtensionInstallUIDefault::SetUseAppInstalledBubble(bool use_bubble) {
   use_app_installed_bubble_ = use_bubble;
-}
-
-// static
-void ExtensionInstallUIDefault::ShowThemeInfoBar(
-    const std::string& previous_theme_id, bool previous_using_native_theme,
-    const Extension* new_theme, Profile* profile) {
-  if (!new_theme->is_theme())
-    return;
-
-  // Get last active tabbed browser of profile.
-  Browser* browser = browser::FindTabbedBrowser(profile,
-                                                true,
-                                                chrome::GetActiveDesktop());
-  if (!browser)
-    return;
-
-  WebContents* web_contents = chrome::GetActiveWebContents(browser);
-  if (!web_contents)
-    return;
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(web_contents);
-
-  // First find any previous theme preview infobars.
-  InfoBarDelegate* old_delegate = NULL;
-  for (size_t i = 0; i < infobar_service->GetInfoBarCount(); ++i) {
-    InfoBarDelegate* delegate = infobar_service->GetInfoBarDelegateAt(i);
-    ThemeInstalledInfoBarDelegate* theme_infobar =
-        delegate->AsThemePreviewInfobarDelegate();
-    if (theme_infobar) {
-      // If the user installed the same theme twice, ignore the second install
-      // and keep the first install info bar, so that they can easily undo to
-      // get back the previous theme.
-      if (theme_infobar->MatchesTheme(new_theme))
-        return;
-      old_delegate = delegate;
-      break;
-    }
-  }
-
-  // Then either replace that old one or add a new one.
-  InfoBarDelegate* new_delegate = GetNewThemeInstalledInfoBarDelegate(
-      web_contents, new_theme, previous_theme_id, previous_using_native_theme);
-
-  if (old_delegate)
-    infobar_service->ReplaceInfoBar(old_delegate, new_delegate);
-  else
-    infobar_service->AddInfoBar(new_delegate);
-}
-
-InfoBarDelegate* ExtensionInstallUIDefault::GetNewThemeInstalledInfoBarDelegate(
-    WebContents* web_contents,
-    const Extension* new_theme,
-    const std::string& previous_theme_id,
-    bool previous_using_native_theme) {
-  Profile* profile =
-      Profile::FromBrowserContext(web_contents->GetBrowserContext());
-  return new ThemeInstalledInfoBarDelegate(
-      InfoBarService::FromWebContents(web_contents),
-      profile->GetExtensionService(),
-      ThemeServiceFactory::GetForProfile(profile),
-      new_theme,
-      previous_theme_id,
-      previous_using_native_theme);
 }
 
 // static
@@ -261,8 +209,8 @@ void ExtensionInstallUI::OpenAppInstalledUI(Browser* browser,
         content::Source<WebContents>(params.target_contents),
         content::Details<const std::string>(&app_id));
   } else {
-#if defined(USE_ASH)
-    app_list_controller::ShowAppList();
+#if defined(ENABLE_APP_LIST)
+    chrome::ShowAppList();
 
     content::NotificationService::current()->Notify(
         chrome::NOTIFICATION_APP_INSTALLED_TO_APPLIST,

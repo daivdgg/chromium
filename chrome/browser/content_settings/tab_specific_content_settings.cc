@@ -41,7 +41,7 @@ using content::NavigationEntry;
 using content::RenderViewHost;
 using content::WebContents;
 
-DEFINE_WEB_CONTENTS_USER_DATA_KEY(TabSpecificContentSettings)
+DEFINE_WEB_CONTENTS_USER_DATA_KEY(TabSpecificContentSettings);
 
 namespace {
 
@@ -255,6 +255,8 @@ void TabSpecificContentSettings::OnContentBlocked(
     const std::string& resource_identifier) {
   DCHECK(type != CONTENT_SETTINGS_TYPE_GEOLOCATION)
       << "Geolocation settings handled by OnGeolocationPermissionSet";
+  if (type < 0 || type >= CONTENT_SETTINGS_NUM_TYPES)
+    return;
   content_accessed_[type] = true;
   // Unless UI for resource content settings is enabled, ignore the resource
   // identifier.
@@ -499,6 +501,7 @@ void TabSpecificContentSettings::DidStartProvisionalLoadForFrame(
     bool is_main_frame,
     const GURL& validated_url,
     bool is_error_page,
+    bool is_iframe_srcdoc,
     RenderViewHost* render_view_host) {
   if (!is_main_frame)
     return;

@@ -8,7 +8,7 @@ class WaitInteraction(page_interaction.PageInteraction):
   def __init__(self, attributes=None):
     super(WaitInteraction, self).__init__(attributes)
 
-  def PerformInteraction(self, page, tab):
+  def RunInteraction(self, page, tab):
     duration = 10
     if hasattr(self, 'duration'):
       duration = self.duration
@@ -51,8 +51,8 @@ class WaitInteraction(page_interaction.PageInteraction):
       window.setTimeout(waitFinishedCallback(initialStats), %d);
     """ % (duration * 1000)
 
-    tab.runtime.Evaluate(wait_js)
+    tab.EvaluateJavaScript(wait_js)
 
     # Poll for scroll benchmark completion.
-    util.WaitFor(lambda: tab.runtime.Evaluate(
+    util.WaitFor(lambda: tab.EvaluateJavaScript(
         'window.__renderingStatsDeltas'), 60)

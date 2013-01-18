@@ -38,7 +38,7 @@ class NET_EXPORT_PRIVATE QuicClientSession : public QuicSession {
   virtual void CloseStream(QuicStreamId stream_id) OVERRIDE;
   virtual void OnCryptoHandshakeComplete(QuicErrorCode error) OVERRIDE;
 
-  // Perform a crypto handshake with the server.
+  // Performs a crypto handshake with the server.
   int CryptoConnect(const CompletionCallback& callback);
 
   // Causes the QuicConnectionHelper to start reading from the socket
@@ -47,6 +47,8 @@ class NET_EXPORT_PRIVATE QuicClientSession : public QuicSession {
 
   // Close the session because of |error|.
   void CloseSessionOnError(int error);
+
+  base::Value* GetInfoAsValue(const HostPortPair& pair) const;
 
  protected:
   // QuicSession methods:

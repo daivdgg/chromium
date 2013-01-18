@@ -11,6 +11,7 @@
 #include "ash/system/tray/system_tray_delegate.h"
 #include "ash/test/ash_test_base.h"
 #include "ash/wm/system_modal_container_layout_manager.h"
+#include "ash/wm/window_properties.h"
 #include "ash/wm/window_util.h"
 #include "ui/aura/client/focus_change_observer.h"
 #include "ui/aura/client/focus_client.h"
@@ -24,6 +25,9 @@
 #include "ui/views/controls/menu/menu_controller.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
+
+using aura::Window;
+using views::Widget;
 
 namespace ash {
 namespace {
@@ -76,41 +80,42 @@ class DeleteOnBlurDelegate : public aura::test::TestWindowDelegate,
   DISALLOW_COPY_AND_ASSIGN(DeleteOnBlurDelegate);
 };
 
-views::Widget* CreateTestWidget(const gfx::Rect& bounds) {
-  views::Widget* widget =
-      views::Widget::CreateWindowWithBounds(NULL, bounds);
-  widget->Show();
-  return widget;
-}
-
-views::Widget* CreateModalWidget(const gfx::Rect& bounds) {
-  views::Widget* widget =
-      views::Widget::CreateWindowWithBounds(new TestDelegate(true), bounds);
-  widget->Show();
-  return widget;
-}
-
-views::Widget* CreateModalWidgetWithParent(const gfx::Rect& bounds,
-                                           gfx::NativeWindow parent) {
-  views::Widget* widget =
-      views::Widget::CreateWindowWithParentAndBounds(new TestDelegate(true),
-                                                     parent,
-                                                     bounds);
-  widget->Show();
-  return widget;
-}
-
-aura::Window* GetModalContainer(aura::RootWindow* root_window) {
-  return Shell::GetContainer(
-      root_window,
-      ash::internal::kShellWindowId_SystemModalContainer);
-}
-
 }  // namespace
 
 namespace test {
 
-typedef test::AshTestBase RootWindowControllerTest;
+class RootWindowControllerTest : public test::AshTestBase {
+ public:
+  views::Widget* CreateTestWidget(const gfx::Rect& bounds) {
+    views::Widget* widget = views::Widget::CreateWindowWithContextAndBounds(
+        NULL, CurrentContext(), bounds);
+    widget->Show();
+    return widget;
+  }
+
+  views::Widget* CreateModalWidget(const gfx::Rect& bounds) {
+    views::Widget* widget = views::Widget::CreateWindowWithContextAndBounds(
+        new TestDelegate(true), CurrentContext(), bounds);
+    widget->Show();
+    return widget;
+  }
+
+  views::Widget* CreateModalWidgetWithParent(const gfx::Rect& bounds,
+                                             gfx::NativeWindow parent) {
+    views::Widget* widget =
+        views::Widget::CreateWindowWithParentAndBounds(new TestDelegate(true),
+                                                       parent,
+                                                       bounds);
+    widget->Show();
+    return widget;
+  }
+
+  aura::Window* GetModalContainer(aura::RootWindow* root_window) {
+    return Shell::GetContainer(
+        root_window,
+        ash::internal::kShellWindowId_SystemModalContainer);
+  }
+};
 
 TEST_F(RootWindowControllerTest, MoveWindows_Basic) {
   UpdateDisplay("600x600,500x500");
@@ -155,7 +160,7 @@ TEST_F(RootWindowControllerTest, MoveWindows_Basic) {
   aura::Window* d2 = CreateTestWindowInShellWithDelegate(
       &delete_on_blur_delegate, 0, gfx::Rect(50, 50, 100, 100));
   delete_on_blur_delegate.SetWindow(d2);
-  aura::client::GetFocusClient(root_windows[0])->FocusWindow(d2, NULL);
+  aura::client::GetFocusClient(root_windows[0])->FocusWindow(d2);
   tracker.Add(d2);
 
   UpdateDisplay("600x600");
@@ -316,6 +321,33 @@ TEST_F(RootWindowControllerTest, ModalContainerNotLoggedInLoggedIn) {
       internal::kShellWindowId_SystemModalContainer)->layout_manager(),
           controller->GetSystemModalLayoutManager(
               session_modal_widget->GetNativeView()));
+}
+
+// Ensure a workspace with two windows reports immersive mode even if only
+// one has the property set.
+TEST_F(RootWindowControllerTest, ImmersiveMode) {
+  UpdateDisplay("600x600");
+  internal::RootWindowController* controller =
+      Shell::GetInstance()->GetPrimaryRootWindowController();
+
+  // Open a maximized window.
+  Widget* w1 = CreateTestWidget(gfx::Rect(0, 1, 250, 251));
+  w1->Maximize();
+
+  // Immersive mode off by default.
+  EXPECT_FALSE(controller->IsImmersiveMode());
+
+  // Enter immersive mode.
+  w1->GetNativeWindow()->SetProperty(ash::internal::kImmersiveModeKey, true);
+  EXPECT_TRUE(controller->IsImmersiveMode());
+
+  // Add a child, like a print window.  Still in immersive mode.
+  Widget* w2 =
+      Widget::CreateWindowWithParentAndBounds(NULL,
+                                              w1->GetNativeWindow(),
+                                              gfx::Rect(0, 1, 150, 151));
+  w2->Show();
+  EXPECT_TRUE(controller->IsImmersiveMode());
 }
 
 }  // namespace test

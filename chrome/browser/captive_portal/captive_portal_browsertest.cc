@@ -24,7 +24,6 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/tab_contents/tab_contents_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_notification_types.h"
@@ -1052,7 +1051,7 @@ void CaptivePortalBrowserTest::NavigateToPageExpectNoTest(
   // should be no new tabs.
   EXPECT_EQ(0, portal_observer.num_results_received());
   EXPECT_FALSE(CheckPending(browser));
-  EXPECT_EQ(1, browser->tab_count());
+  EXPECT_EQ(1, browser->tab_strip_model()->count());
   EXPECT_EQ(expected_navigations, navigation_observer.num_navigations());
   EXPECT_EQ(0, NumLoadingTabs());
   EXPECT_EQ(CaptivePortalTabReloader::STATE_NONE,
@@ -1075,7 +1074,7 @@ void CaptivePortalBrowserTest::SlowLoadNoCaptivePortal(
 
   portal_observer.WaitForResults(1);
 
-  ASSERT_EQ(1, browser->tab_count());
+  ASSERT_EQ(1, browser->tab_strip_model()->count());
   EXPECT_EQ(expected_result, portal_observer.captive_portal_result());
   EXPECT_EQ(1, portal_observer.num_results_received());
   EXPECT_EQ(0, navigation_observer.num_navigations());
@@ -1089,7 +1088,7 @@ void CaptivePortalBrowserTest::SlowLoadNoCaptivePortal(
   URLRequestTimeoutOnDemandJob::FailJobs(1);
   navigation_observer.WaitForNavigations(1);
 
-  ASSERT_EQ(1, browser->tab_count());
+  ASSERT_EQ(1, browser->tab_strip_model()->count());
   EXPECT_EQ(1, portal_observer.num_results_received());
   EXPECT_FALSE(CheckPending(browser));
   EXPECT_EQ(0, NumLoadingTabs());
@@ -1113,8 +1112,8 @@ void CaptivePortalBrowserTest::FastTimeoutNoCaptivePortal(
   CaptivePortalObserver portal_observer(browser->profile());
 
   // Neither of these should be changed by the navigation.
-  int active_index = browser->active_index();
-  int expected_tab_count = browser->tab_count();
+  int active_index = browser->tab_strip_model()->active_index();
+  int expected_tab_count = browser->tab_strip_model()->count();
 
   ui_test_utils::NavigateToURL(
       browser,
@@ -1135,7 +1134,7 @@ void CaptivePortalBrowserTest::FastTimeoutNoCaptivePortal(
   // Check that the right tab was navigated, and there were no extra
   // navigations.
   EXPECT_EQ(1, navigation_observer.NumNavigationsForTab(
-                   chrome::GetWebContentsAt(browser, active_index)));
+                   browser->tab_strip_model()->GetWebContentsAt(active_index)));
   EXPECT_EQ(0, NumLoadingTabs());
 
   // Check the tab's state, and verify no captive portal check is pending.
@@ -1144,7 +1143,7 @@ void CaptivePortalBrowserTest::FastTimeoutNoCaptivePortal(
   EXPECT_FALSE(CheckPending(browser));
 
   // Make sure no login tab was opened.
-  EXPECT_EQ(expected_tab_count, browser->tab_count());
+  EXPECT_EQ(expected_tab_count, browser->tab_strip_model()->count());
 }
 
 void CaptivePortalBrowserTest::SlowLoadBehindCaptivePortal(
@@ -1895,10 +1894,19 @@ IN_PROC_BROWSER_TEST_F(CaptivePortalBrowserTest,
       GURL(kMockHttpsUrl));
 }
 
+// Fails on Windows only, mostly on Win7. http://crbug.com/170033
+#if defined(OS_WIN)
+#define MAYBE_NavigateLoadingTabToTimeoutTwoSites \
+        DISABLED_NavigateLoadingTabToTimeoutTwoSites
+#else
+#define MAYBE_NavigateLoadingTabToTimeoutTwoSites \
+        NavigateLoadingTabToTimeoutTwoSites
+#endif
+
 // Checks that captive portal detection triggers correctly when a same-site
 // navigation is cancelled by a navigation to another site.
 IN_PROC_BROWSER_TEST_F(CaptivePortalBrowserTest,
-                       NavigateLoadingTabToTimeoutTwoSites) {
+                       MAYBE_NavigateLoadingTabToTimeoutTwoSites) {
   RunNavigateLoadingTabToTimeoutTest(
       browser(),
       GURL(kMockHttpsUrl),
@@ -1990,7 +1998,7 @@ IN_PROC_BROWSER_TEST_F(CaptivePortalBrowserTest, GoBackToTimeout) {
             GetStateOfTabReloaderAt(browser(), 0));
   EXPECT_EQ(CaptivePortalTabReloader::STATE_NONE,
             GetStateOfTabReloaderAt(browser(), 1));
-  ASSERT_TRUE(IsLoginTab(chrome::GetWebContentsAt(browser(), 1)));
+  ASSERT_TRUE(IsLoginTab(browser()->tab_strip_model()->GetWebContentsAt(1)));
 
   ASSERT_EQ(2, tab_strip_model->count());
   EXPECT_EQ(1, tab_strip_model->active_index());
@@ -2070,8 +2078,8 @@ IN_PROC_BROWSER_TEST_F(CaptivePortalBrowserTest, DISABLED_TwoWindows) {
   // when running multiple tests at once, the original browser window may
   // remain the profile's active window.
   Browser* active_browser =
-      browser::FindTabbedBrowser(browser()->profile(), true,
-                                 browser()->host_desktop_type());
+      chrome::FindTabbedBrowser(browser()->profile(), true,
+                                browser()->host_desktop_type());
   Browser* inactive_browser;
   if (active_browser == browser2) {
     // When only one test is running at a time, the new browser will probably be
@@ -2100,8 +2108,8 @@ IN_PROC_BROWSER_TEST_F(CaptivePortalBrowserTest, DISABLED_TwoWindows) {
   // Make sure the active window hasn't changed, and its new tab is
   // active.
   ASSERT_EQ(active_browser,
-            browser::FindTabbedBrowser(browser()->profile(), true,
-                                       browser()->host_desktop_type()));
+            chrome::FindTabbedBrowser(browser()->profile(), true,
+                                      browser()->host_desktop_type()));
   ASSERT_EQ(1, active_browser->tab_strip_model()->active_index());
 
   // Check that the only two navigated tabs were the new error tab in the

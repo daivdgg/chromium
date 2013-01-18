@@ -33,7 +33,7 @@ class WebLayerScrollClient;
 
 namespace cc {
 
-class ActiveAnimation;
+class Animation;
 struct AnimationEvent;
 class LayerAnimationDelegate;
 class LayerImpl;
@@ -165,11 +165,9 @@ public:
     bool haveWheelEventHandlers() const { return m_haveWheelEventHandlers; }
 
     void setNonFastScrollableRegion(const Region&);
-    void setNonFastScrollableRegionChanged() { m_nonFastScrollableRegionChanged = true; }
     const Region& nonFastScrollableRegion() const { return m_nonFastScrollableRegion; }
 
     void setTouchEventHandlerRegion(const Region&);
-    void setTouchEventHandlerRegionChanged() { m_touchEventHandlerRegionChanged = true; }
     const Region& touchEventHandlerRegion() const { return m_touchEventHandlerRegion; }
 
     void setLayerScrollClient(WebKit::WebLayerScrollClient* layerScrollClient) { m_layerScrollClient = layerScrollClient; }
@@ -257,7 +255,7 @@ public:
     // Set the priority of all desired textures in this layer.
     virtual void setTexturePriorities(const PriorityCalculator&) { }
 
-    bool addAnimation(scoped_ptr<ActiveAnimation>);
+    bool addAnimation(scoped_ptr<Animation>);
     void pauseAnimation(int animationId, double timeOffset);
     void removeAnimation(int animationId);
 
@@ -288,6 +286,10 @@ public:
     // compatible with the main thread running freely, such as a double-buffered
     // canvas that doesn't want to be triple-buffered across all three trees.
     virtual bool blocksPendingCommit() const;
+    // Returns true if anything in this tree blocksPendingCommit.
+    bool blocksPendingCommitRecursive() const;
+
+    virtual bool canClipSelf() const;
 
 protected:
     friend class LayerImpl;
@@ -339,6 +341,7 @@ private:
     // LayerAnimationValueObserver implementation.
     virtual void OnOpacityAnimated(float) OVERRIDE;
     virtual void OnTransformAnimated(const gfx::Transform&) OVERRIDE;
+    virtual bool IsActive() const OVERRIDE;
 
     LayerList m_children;
     Layer* m_parent;
@@ -361,9 +364,7 @@ private:
     bool m_shouldScrollOnMainThread;
     bool m_haveWheelEventHandlers;
     Region m_nonFastScrollableRegion;
-    bool m_nonFastScrollableRegionChanged;
     Region m_touchEventHandlerRegion;
-    bool m_touchEventHandlerRegionChanged;
     gfx::PointF m_position;
     gfx::PointF m_anchorPoint;
     SkColor m_backgroundColor;

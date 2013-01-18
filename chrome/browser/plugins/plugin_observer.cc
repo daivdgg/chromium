@@ -6,6 +6,8 @@
 
 #include "base/auto_reset.h"
 #include "base/bind.h"
+#include "base/metrics/histogram.h"
+#include "base/process_util.h"
 #include "base/stl_util.h"
 #include "base/utf_string_conversions.h"
 #include "chrome/browser/api/infobars/confirm_infobar_delegate.h"
@@ -32,21 +34,20 @@
 #include "webkit/plugins/webplugininfo.h"
 
 #if defined(ENABLE_PLUGIN_INSTALLATION)
+#if defined(OS_WIN)
+#include "base/win/metro.h"
+#endif
 #include "chrome/browser/plugins/plugin_installer.h"
 #include "chrome/browser/plugins/plugin_installer_observer.h"
 #include "chrome/browser/ui/tab_modal_confirm_dialog_delegate.h"
 #endif  // defined(ENABLE_PLUGIN_INSTALLATION)
-
-#if defined(OS_WIN)
-#include "base/win/metro.h"
-#endif
 
 using content::OpenURLParams;
 using content::PluginService;
 using content::Referrer;
 using content::WebContents;
 
-DEFINE_WEB_CONTENTS_USER_DATA_KEY(PluginObserver)
+DEFINE_WEB_CONTENTS_USER_DATA_KEY(PluginObserver);
 
 namespace {
 
@@ -182,21 +183,53 @@ PluginObserver::~PluginObserver() {
 #endif
 }
 
-void PluginObserver::PluginCrashed(const FilePath& plugin_path) {
+void PluginObserver::PluginCrashed(const FilePath& plugin_path,
+                                   base::ProcessId plugin_pid) {
   DCHECK(!plugin_path.value().empty());
 
   string16 plugin_name =
       PluginService::GetInstance()->GetPluginDisplayNameByPath(plugin_path);
+  string16 infobar_text;
+#if defined(OS_WIN)
+  // Find out whether the plugin process is still alive.
+  // Note: Although the chances are slim, it is possible that after the plugin
+  // process died, |plugin_pid| has been reused by a new process. The
+  // consequence is that we will display |IDS_PLUGIN_DISCONNECTED_PROMPT| rather
+  // than |IDS_PLUGIN_CRASHED_PROMPT| to the user, which seems acceptable.
+  base::ProcessHandle plugin_handle = base::kNullProcessHandle;
+  bool open_result = base::OpenProcessHandleWithAccess(
+      plugin_pid, PROCESS_QUERY_INFORMATION | SYNCHRONIZE, &plugin_handle);
+  bool is_running = false;
+  if (open_result) {
+    is_running = base::GetTerminationStatus(plugin_handle, NULL) ==
+        base::TERMINATION_STATUS_STILL_RUNNING;
+    base::CloseProcessHandle(plugin_handle);
+  }
+
+  if (is_running) {
+    infobar_text = l10n_util::GetStringFUTF16(IDS_PLUGIN_DISCONNECTED_PROMPT,
+                                              plugin_name);
+    UMA_HISTOGRAM_COUNTS("Plugin.ShowDisconnectedInfobar", 1);
+  } else {
+    infobar_text = l10n_util::GetStringFUTF16(IDS_PLUGIN_CRASHED_PROMPT,
+                                              plugin_name);
+    UMA_HISTOGRAM_COUNTS("Plugin.ShowCrashedInfobar", 1);
+  }
+#else
+  // Calling the POSIX version of base::GetTerminationStatus() may affect other
+  // code which is interested in the process termination status. (Please see the
+  // comment of the function.) Therefore, a better way is needed to distinguish
+  // disconnections from crashes.
+  infobar_text = l10n_util::GetStringFUTF16(IDS_PLUGIN_CRASHED_PROMPT,
+                                            plugin_name);
+  UMA_HISTOGRAM_COUNTS("Plugin.ShowCrashedInfobar", 1);
+#endif
+
   gfx::Image* icon = &ResourceBundle::GetSharedInstance().GetNativeImageNamed(
       IDR_INFOBAR_PLUGIN_CRASHED);
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(web_contents());
-  infobar_service->AddInfoBar(
-      new SimpleAlertInfoBarDelegate(
-          infobar_service,
-          icon,
-          l10n_util::GetStringFUTF16(IDS_PLUGIN_CRASHED_PROMPT, plugin_name),
-          true));
+  SimpleAlertInfoBarDelegate::Create(
+      InfoBarService::FromWebContents(web_contents()), icon, infobar_text,
+      true);
 }
 
 bool PluginObserver::OnMessageReceived(const IPC::Message& message) {
@@ -227,14 +260,11 @@ bool PluginObserver::OnMessageReceived(const IPC::Message& message) {
 void PluginObserver::OnBlockedUnauthorizedPlugin(
     const string16& name,
     const std::string& identifier) {
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(web_contents());
-  infobar_service->AddInfoBar(
-      new UnauthorizedPluginInfoBarDelegate(
-          infobar_service,
-          Profile::FromBrowserContext(web_contents()->GetBrowserContext())->
-              GetHostContentSettingsMap(),
-          name, identifier));
+  UnauthorizedPluginInfoBarDelegate::Create(
+      InfoBarService::FromWebContents(web_contents()),
+      Profile::FromBrowserContext(web_contents()->GetBrowserContext())->
+          GetHostContentSettingsMap(),
+      name, identifier);
 }
 
 void PluginObserver::OnBlockedOutdatedPlugin(int placeholder_id,
@@ -252,11 +282,9 @@ void PluginObserver::OnBlockedOutdatedPlugin(int placeholder_id,
   plugin_placeholders_[placeholder_id] =
       new PluginPlaceholderHost(this, placeholder_id,
                                 plugin->name(), installer);
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(web_contents());
-  infobar_service->AddInfoBar(
-      OutdatedPluginInfoBarDelegate::Create(web_contents(),
-                                            installer, plugin.Pass()));
+  OutdatedPluginInfoBarDelegate::Create(
+      InfoBarService::FromWebContents(web_contents()), installer,
+      plugin.Pass());
 #else
   // If we don't support third-party plug-in installation, we shouldn't have
   // outdated plug-ins.
@@ -283,25 +311,11 @@ void PluginObserver::OnFindMissingPlugin(int placeholder_id,
       new PluginPlaceholderHost(this, placeholder_id,
                                 plugin_metadata->name(),
                                 installer);
-  PluginInstallerInfoBarDelegate::InstallCallback callback =
+  PluginInstallerInfoBarDelegate::Create(
+      InfoBarService::FromWebContents(web_contents()), installer,
+      plugin_metadata.Pass(),
       base::Bind(&PluginObserver::InstallMissingPlugin,
-                 weak_ptr_factory_.GetWeakPtr(), installer);
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(web_contents());
-  InfoBarDelegate* delegate;
-#if !defined(OS_WIN)
-  delegate = PluginInstallerInfoBarDelegate::Create(
-      infobar_service, installer, plugin_metadata.Pass(), callback);
-#else
-  delegate = base::win::IsMetroProcess() ?
-      new PluginMetroModeInfoBarDelegate(
-          infobar_service,
-          PluginMetroModeInfoBarDelegate::MISSING_PLUGIN,
-          plugin_metadata->name()) :
-      PluginInstallerInfoBarDelegate::Create(
-          infobar_service, installer, plugin_metadata.Pass(), callback);
-#endif
-  infobar_service->AddInfoBar(delegate);
+                 weak_ptr_factory_.GetWeakPtr(), installer));
 }
 
 void PluginObserver::InstallMissingPlugin(
@@ -341,15 +355,13 @@ void PluginObserver::OnCouldNotLoadPlugin(const FilePath& plugin_path) {
   g_browser_process->metrics_service()->LogPluginLoadingError(plugin_path);
   string16 plugin_name =
       PluginService::GetInstance()->GetPluginDisplayNameByPath(plugin_path);
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(web_contents());
-  infobar_service->AddInfoBar(new SimpleAlertInfoBarDelegate(
-      infobar_service,
+  SimpleAlertInfoBarDelegate::Create(
+      InfoBarService::FromWebContents(web_contents()),
       &ResourceBundle::GetSharedInstance().GetNativeImageNamed(
           IDR_INFOBAR_PLUGIN_CRASHED),
       l10n_util::GetStringFUTF16(IDS_PLUGIN_INITIALIZATION_ERROR_PROMPT,
                                  plugin_name),
-      true  /* auto_expire */));
+      true  /* auto_expire */);
 }
 
 void PluginObserver::OnNPAPINotSupported(const std::string& identifier) {
@@ -375,13 +387,9 @@ void PluginObserver::OnNPAPINotSupported(const std::string& identifier) {
     return;
   }
 
-  InfoBarService* infobar_service =
-      InfoBarService::FromWebContents(web_contents());
-  infobar_service->AddInfoBar(
-      new PluginMetroModeInfoBarDelegate(
-          infobar_service,
-          PluginMetroModeInfoBarDelegate::DESKTOP_MODE_REQUIRED,
-          plugin->name()));
+  PluginMetroModeInfoBarDelegate::Create(
+      InfoBarService::FromWebContents(web_contents()),
+      PluginMetroModeInfoBarDelegate::DESKTOP_MODE_REQUIRED, plugin->name());
 #else
   NOTREACHED();
 #endif

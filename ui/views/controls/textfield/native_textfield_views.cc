@@ -15,6 +15,7 @@
 #include "base/utf_string_conversions.h"
 #include "grit/app_locale_settings.h"
 #include "grit/ui_strings.h"
+#include "third_party/icu/public/common/unicode/uchar.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/clipboard/clipboard.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
@@ -39,7 +40,6 @@
 #include "ui/views/ime/input_method.h"
 #include "ui/views/metrics.h"
 #include "ui/views/widget/widget.h"
-#include "unicode/uchar.h"
 
 #if defined(USE_AURA)
 #include "ui/base/cursor/cursor.h"
@@ -94,10 +94,15 @@ NativeTextfieldViews::~NativeTextfieldViews() {
 bool NativeTextfieldViews::OnMousePressed(const ui::MouseEvent& event) {
   OnBeforeUserAction();
   TrackMouseClicks(event);
-  // TODO: Remove once NativeTextfield implementations are consolidated to
-  // Textfield.
-  if (!textfield_->OnMousePressed(event))
+
+  TextfieldController* controller = textfield_->GetController();
+  if (!(controller && controller->HandleMouseEvent(textfield_, event)) ||
+      // TODO: Remove once NativeTextfield implementations are consolidated to
+      // Textfield.
+      !textfield_->OnMousePressed(event)) {
     HandleMousePressEvent(event);
+  }
+
   OnAfterUserAction();
   return true;
 }
@@ -424,6 +429,15 @@ void NativeTextfieldViews::UpdateBorder() {
     textfield_->SetHorizontalMargins(0, 0);
     textfield_->SetVerticalMargins(0, 0);
   }
+}
+
+void NativeTextfieldViews::UpdateBorderColor() {
+  if (textfield_->use_default_border_color())
+    text_border_->UseDefaultColor();
+  else
+    text_border_->SetColor(textfield_->border_color());
+
+  SchedulePaint();
 }
 
 void NativeTextfieldViews::UpdateTextColor() {

@@ -32,14 +32,19 @@ string16 DumpAccessibilityTreeHelper::ToString(BrowserAccessibility* node,
                                                char* prefix) {
   StartLine();
   Add(true, Format(node, "", @selector(role), ""));
-  Add(true, Format(node, "subrole=", @selector(subrole), ""));
+  Add(false, Format(node, "subrole=", @selector(subrole), ""));
   Add(false, Format(node, "roleDescription='",
                           @selector(roleDescription),
                           "'"));
   Add(true, Format(node, "title='", @selector(title), "'"));
   Add(true, Format(node, "value='", @selector(value), "'"));
+  Add(false, Format(node, "minValue='", @selector(minValue), "'"));
+  Add(false, Format(node, "maxValue='", @selector(maxValue), "'"));
+  Add(false, Format(node, "valueDescription='", @selector(valueDescription),
+                    "'"));
   Add(false, Format(node, "description='", @selector(description), "'"));
   Add(false, Format(node, "help='", @selector(help), "'"));
+  Add(false, Format(node, "invalid='", @selector(invalid), "'"));
   return ASCIIToUTF16(prefix) + FinishLine() + ASCIIToUTF16("\n");
 }
 

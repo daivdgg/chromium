@@ -47,17 +47,17 @@ api::sync_file_system::FileSyncStatus FileSyncStatusEnumToExtensionEnum(
     const fileapi::SyncFileStatus state) {
   switch (state) {
     case fileapi::SYNC_FILE_STATUS_UNKNOWN:
-      return api::sync_file_system::SYNC_FILE_SYSTEM_FILE_SYNC_STATUS_NONE;
+      return api::sync_file_system::FILE_SYNC_STATUS_NONE;
     case fileapi::SYNC_FILE_STATUS_SYNCED:
-      return api::sync_file_system::SYNC_FILE_SYSTEM_FILE_SYNC_STATUS_SYNCED;
+      return api::sync_file_system::FILE_SYNC_STATUS_SYNCED;
     case fileapi::SYNC_FILE_STATUS_HAS_PENDING_CHANGES:
-      return api::sync_file_system::SYNC_FILE_SYSTEM_FILE_SYNC_STATUS_PENDING;
+      return api::sync_file_system::FILE_SYNC_STATUS_PENDING;
     case fileapi::SYNC_FILE_STATUS_CONFLICTING:
       return api::sync_file_system::
-          SYNC_FILE_SYSTEM_FILE_SYNC_STATUS_CONFLICTING;
+          FILE_SYNC_STATUS_CONFLICTING;
   }
   NOTREACHED();
-  return api::sync_file_system::SYNC_FILE_SYSTEM_FILE_SYNC_STATUS_NONE;
+  return api::sync_file_system::FILE_SYNC_STATUS_NONE;
 }
 
 sync_file_system::SyncFileSystemService* GetSyncFileSystemService(
@@ -72,13 +72,24 @@ sync_file_system::SyncFileSystemService* GetSyncFileSystemService(
   return service;
 }
 
+bool IsValidServiceName(const std::string& service_name, std::string* error) {
+  DCHECK(error);
+  if (service_name != std::string(kDriveCloudService)) {
+    *error = base::StringPrintf(kNotSupportedService, service_name.c_str());
+    return false;
+  }
+  return true;
+}
+
 }  // namespace
 
 bool SyncFileSystemDeleteFileSystemFunction::RunImpl() {
-  // TODO(calvinlo): Move error code to util function. (http://crbug.com/160496)
   std::string url;
   EXTENSION_FUNCTION_VALIDATE(args_->GetString(0, &url));
   fileapi::FileSystemURL file_system_url((GURL(url)));
+  if (!IsValidServiceName(file_system_url.filesystem_id(), &error_)) {
+    return false;
+  }
 
   scoped_refptr<fileapi::FileSystemContext> file_system_context =
       BrowserContext::GetStoragePartition(
@@ -124,10 +135,7 @@ void SyncFileSystemDeleteFileSystemFunction::DidDeleteFileSystem(
 bool SyncFileSystemRequestFileSystemFunction::RunImpl() {
   std::string service_name;
   EXTENSION_FUNCTION_VALIDATE(args_->GetString(0, &service_name));
-
-  // TODO(calvinlo): Move error code to util function. (http://crbug.com/160496)
-  if (service_name != std::string(kDriveCloudService)) {
-    error_ = base::StringPrintf(kNotSupportedService, service_name.c_str());
+  if (!IsValidServiceName(service_name, &error_)) {
     return false;
   }
 
@@ -202,12 +210,7 @@ bool SyncFileSystemGetUsageAndQuotaFunction::RunImpl() {
   std::string url;
   EXTENSION_FUNCTION_VALIDATE(args_->GetString(0, &url));
   fileapi::FileSystemURL file_system_url((GURL(url)));
-
-  // TODO(calvinlo): For now only gDrive cloud service is supported.
-  // TODO(calvinlo): Move error code to util function. (http://crbug.com/160496)
-  const std::string service_name = file_system_url.filesystem_id();
-  if (service_name != std::string(kDriveCloudService)) {
-    error_ = base::StringPrintf(kNotSupportedService, service_name.c_str());
+  if (!IsValidServiceName(file_system_url.filesystem_id(), &error_)) {
     return false;
   }
 

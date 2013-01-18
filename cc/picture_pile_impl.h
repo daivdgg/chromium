@@ -8,20 +8,17 @@
 #include <list>
 #include <map>
 
-#include "base/basictypes.h"
-#include "base/memory/ref_counted.h"
 #include "base/threading/thread.h"
 #include "cc/cc_export.h"
-#include "cc/picture.h"
-#include "cc/picture_pile.h"
-#include "cc/scoped_ptr_vector.h"
-#include "ui/gfx/rect.h"
+#include "cc/picture_pile_base.h"
+#include "skia/ext/refptr.h"
+#include "third_party/skia/include/core/SkPicture.h"
 
 namespace cc {
 struct RenderingStats;
 
-class CC_EXPORT PicturePileImpl : public base::RefCounted<PicturePileImpl> {
-public:
+class CC_EXPORT PicturePileImpl : public PicturePileBase {
+ public:
   static scoped_refptr<PicturePileImpl> Create();
 
   // Get paint-safe version of this picture for a specific thread.
@@ -41,19 +38,18 @@ public:
 
   void GatherPixelRefs(const gfx::Rect&, std::list<skia::LazyPixelRef*>&);
 
-private:
+  skia::RefPtr<SkPicture> GetFlattenedPicture();
+
+ private:
   friend class PicturePile;
 
   PicturePileImpl();
   ~PicturePileImpl();
 
-  PicturePile::Pile pile_;
-
   typedef std::map<base::PlatformThreadId, scoped_refptr<PicturePileImpl> >
       CloneMap;
   CloneMap clones_;
 
-  friend class base::RefCounted<PicturePileImpl>;
   DISALLOW_COPY_AND_ASSIGN(PicturePileImpl);
 };
 

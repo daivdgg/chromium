@@ -3,6 +3,7 @@
 # found in the LICENSE file.
 import logging
 import os
+import re
 import time
 import traceback
 import urlparse
@@ -34,7 +35,7 @@ class _RunState(object):
       self.browser.Close()
       self.browser = None
 
-def _ShufflePageSet(page_set, options):
+def _ShuffleAndFilterPageSet(page_set, options):
   if options.test_shuffle_order_file and not options.test_shuffle:
     raise Exception('--test-shuffle-order-file requires --test-shuffle.')
 
@@ -42,6 +43,22 @@ def _ShufflePageSet(page_set, options):
     return page_set.ReorderPageSet(options.test_shuffle_order_file)
 
   pages = page_set.pages[:]
+  if options.page_filter:
+    try:
+      page_regex = re.compile(options.page_filter)
+    except re.error:
+      raise Exception('--page-filter: invalid regex')
+  else:
+    page_regex = None
+
+  def IsSelected(page):
+    if page.disabled:
+      return False
+    if page_regex:
+      return page_regex.search(page.url)
+    return True
+  pages = [page for page in pages if IsSelected(page)]
+
   if options.test_shuffle:
     random.Random().shuffle(pages)
   return [page
@@ -62,21 +79,29 @@ class PageRunner(object):
 
   def Run(self, options, possible_browser, test, results):
     # Set up WPR mode.
-    archive_path = os.path.abspath(os.path.join(self.page_set.base_dir,
-                                                self.page_set.archive_path))
-    if options.wpr_mode == wpr_modes.WPR_OFF:
-      if os.path.isfile(archive_path):
-        possible_browser.options.wpr_mode = wpr_modes.WPR_REPLAY
-      else:
-        possible_browser.options.wpr_mode = wpr_modes.WPR_OFF
-        if not self.page_set.ContainsOnlyFileURLs():
-          logging.warning("""
-The page set archive %s does not exist, benchmarking against live sites!
-Results won't be repeatable or comparable.
+    if not self.page_set.archive_path:
+      archive_path = ''
+      if not self.page_set.ContainsOnlyFileURLs():
+        logging.warning("""
+  No page set archive provided for the chosen page set. Benchmarking against
+  live sites! Results won't be repeatable or comparable.
+""")
+    else:
+      archive_path = os.path.abspath(os.path.join(self.page_set.base_dir,
+                                                  self.page_set.archive_path))
+      if options.wpr_mode == wpr_modes.WPR_OFF:
+        if os.path.isfile(archive_path):
+          possible_browser.options.wpr_mode = wpr_modes.WPR_REPLAY
+        else:
+          possible_browser.options.wpr_mode = wpr_modes.WPR_OFF
+          if not self.page_set.ContainsOnlyFileURLs():
+            logging.warning("""
+  The page set archive %s does not exist, benchmarking against live sites!
+  Results won't be repeatable or comparable.
 
-To fix this, either add svn-internal to your .gclient using
-http://goto/read-src-internal, or create a new archive using record_wpr.
-""", os.path.relpath(archive_path))
+  To fix this, either add svn-internal to your .gclient using
+  http://goto/read-src-internal, or create a new archive using record_wpr.
+  """, os.path.relpath(archive_path))
 
     # Verify credentials path.
     credentials_path = None
@@ -95,14 +120,16 @@ http://goto/read-src-internal, or create a new archive using record_wpr.
 
     # Check tracing directory.
     if options.trace_dir:
+      if not os.path.exists(options.trace_dir):
+        os.mkdir(options.trace_dir)
       if not os.path.isdir(options.trace_dir):
-        raise Exception('Trace directory doesn\'t exist: %s' %
+        raise Exception('--trace-dir isn\'t a directory: %s' %
                         options.trace_dir)
       elif os.listdir(options.trace_dir):
         raise Exception('Trace directory isn\'t empty: %s' % options.trace_dir)
 
     # Reorder page set based on options.
-    pages = _ShufflePageSet(self.page_set, options)
+    pages = _ShuffleAndFilterPageSet(self.page_set, options)
 
     state = _RunState()
     try:
@@ -135,6 +162,10 @@ http://goto/read-src-internal, or create a new archive using record_wpr.
 
             if options.trace_dir:
               self._EndTracing(state, options, page)
+
+            if test.needs_browser_restart_after_each_run:
+              state.Close()
+
             break
           except browser_gone_exception.BrowserGoneException:
             logging.warning('Lost connection to browser. Retrying.')
@@ -148,6 +179,7 @@ http://goto/read-src-internal, or create a new archive using record_wpr.
 
   def _RunPage(self, options, page, tab, test, results):
     if not test.CanRunForPage(page):
+      logging.warning('Skiping test: it cannot run for %s', page.url)
       results.AddSkippedPage(page, 'Test cannot run', '')
       return
 
@@ -155,7 +187,7 @@ http://goto/read-src-internal, or create a new archive using record_wpr.
 
     page_state = PageState()
     try:
-      did_prepare = self._PreparePage(page, tab, page_state, results)
+      did_prepare = self._PreparePage(page, tab, page_state, test, results)
     except util.TimeoutException, ex:
       logging.warning('Timed out waiting for reply on %s. This is unusual.',
                       page.url)
@@ -245,7 +277,7 @@ http://goto/read-src-internal, or create a new archive using record_wpr.
         trace_file.write(trace)
       logging.info('Trace saved.')
 
-  def _PreparePage(self, page, tab, page_state, results):
+  def _PreparePage(self, page, tab, page_state, test, results):
     parsed_url = urlparse.urlparse(page.url)
     if parsed_url[0] == 'file':
       dirname, filename = page.url_base_dir_and_file
@@ -264,20 +296,23 @@ http://goto/read-src-internal, or create a new archive using record_wpr.
         results.AddFailure(page, msg, "")
         return False
 
-    tab.page.Navigate(target_side_url)
+    test.WillNavigateToPage(page, tab)
+    tab.Navigate(target_side_url)
+    test.DidNavigateToPage(page, tab)
 
     # Wait for unpredictable redirects.
     if page.wait_time_after_navigate:
       time.sleep(page.wait_time_after_navigate)
     page.WaitToLoad(tab, 60)
     tab.WaitForDocumentReadyStateToBeInteractiveOrBetter()
+
     return True
 
   def _CleanUpPage(self, page, tab, page_state): # pylint: disable=R0201
     if page.credentials and page_state.did_login:
       tab.browser.credentials.LoginNoLongerNeeded(tab, page.credentials)
     try:
-      tab.runtime.Evaluate("""window.chrome && chrome.benchmarking &&
+      tab.EvaluateJavaScript("""window.chrome && chrome.benchmarking &&
                               chrome.benchmarking.closeConnections()""")
     except Exception:
       pass

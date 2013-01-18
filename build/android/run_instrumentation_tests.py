@@ -11,15 +11,15 @@ import os
 import sys
 import time
 
-from pylib import apk_info
 from pylib import buildbot_report
 from pylib import constants
 from pylib import ports
-from pylib import run_java_tests
-from pylib import run_python_tests
-from pylib import run_tests_helper
-from pylib import test_options_parser
-from pylib.test_result import TestResults
+from pylib.base.test_result import TestResults
+from pylib.host_driven import run_python_tests
+from pylib.instrumentation import apk_info
+from pylib.instrumentation import run_java_tests
+from pylib.utils import run_tests_helper
+from pylib.utils import test_options_parser
 
 
 def DispatchInstrumentationTests(options):
@@ -73,9 +73,6 @@ def main(argv):
                                                      args)
 
   run_tests_helper.SetLogLevel(options.verbose_count)
-  buildbot_report.PrintNamedStep(
-      'Instrumentation tests: %s - %s' % (', '.join(options.annotation),
-                                          options.test_apk))
   ret = 1
   try:
     ret = DispatchInstrumentationTests(options)

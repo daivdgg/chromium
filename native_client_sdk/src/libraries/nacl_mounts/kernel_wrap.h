@@ -32,6 +32,8 @@ typedef ssize_t write_ssize_t;
 
 EXTERN_C_BEGIN
 
+void kernel_wrap_init();
+
 int NAME(access)(const char* path, int amode) NOTHROW;
 int NAME(chdir)(const char* path) NOTHROW;
 int NAME(chmod)(const char* path, chmod_mode_t mode) NOTHROW;
@@ -43,6 +45,7 @@ int _fstat64(int fd, struct _stat64* buf);
 int _fstat32i64(int fd, struct _stat32i64* buf);
 int _fstat64i32(int fd, struct _stat64i32* buf);
 #else
+struct stat;
 int fstat(int fd, struct stat* buf) NOTHROW;
 #endif
 int fsync(int fd);

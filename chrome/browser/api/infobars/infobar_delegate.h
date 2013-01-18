@@ -9,13 +9,13 @@
 #include "base/string16.h"
 #include "webkit/glue/window_open_disposition.h"
 
+class AlternateNavInfoBarDelegate;
 class AutoLoginInfoBarDelegate;
 class ConfirmInfoBarDelegate;
 class ExtensionInfoBarDelegate;
 class InfoBar;
 class InfoBarService;
 class InsecureContentInfoBarDelegate;
-class LinkInfoBarDelegate;
 class MediaStreamInfoBarDelegate;
 class PluginInstallerInfoBarDelegate;
 class RegisterProtocolHandlerInfoBarDelegate;
@@ -33,9 +33,9 @@ struct LoadCommittedDetails;
 
 // An interface implemented by objects wishing to control an InfoBar.
 // Implementing this interface is not sufficient to use an InfoBar, since it
-// does not map to a specific InfoBar type. Instead, you must implement either
-// LinkInfoBarDelegate or ConfirmInfoBarDelegate, or override with your own
-// delegate for your own InfoBar variety.
+// does not map to a specific InfoBar type. Instead, you must implement
+// ConfirmInfoBarDelegate, or override with your own delegate for your own
+// InfoBar variety.
 class InfoBarDelegate {
  public:
   // The type of the infobar. It controls its appearance, such as its background
@@ -84,10 +84,6 @@ class InfoBarDelegate {
   // Called when the user clicks on the close button to dismiss the infobar.
   virtual void InfoBarDismissed();
 
-  // Called after the InfoBar is closed. Deletes |this|.
-  // TODO(pkasting): Get rid of this and delete delegates directly.
-  void InfoBarClosed();
-
   // Return the icon to be shown for this InfoBar. If the returned Image is
   // NULL, no icon is shown.
   virtual gfx::Image* GetIcon() const;
@@ -97,11 +93,11 @@ class InfoBarDelegate {
   virtual Type GetInfoBarType() const;
 
   // Type-checking downcast routines:
+  virtual AlternateNavInfoBarDelegate* AsAlternateNavInfoBarDelegate();
   virtual AutoLoginInfoBarDelegate* AsAutoLoginInfoBarDelegate();
   virtual ConfirmInfoBarDelegate* AsConfirmInfoBarDelegate();
   virtual ExtensionInfoBarDelegate* AsExtensionInfoBarDelegate();
   virtual InsecureContentInfoBarDelegate* AsInsecureContentInfoBarDelegate();
-  virtual LinkInfoBarDelegate* AsLinkInfoBarDelegate();
   virtual MediaStreamInfoBarDelegate* AsMediaStreamInfoBarDelegate();
   virtual RegisterProtocolHandlerInfoBarDelegate*
       AsRegisterProtocolHandlerInfoBarDelegate();
@@ -114,16 +110,12 @@ class InfoBarDelegate {
   // using StoreActiveEntryUniqueID automatically.
   explicit InfoBarDelegate(InfoBarService* infobar_service);
 
-  // Store the unique id for the active entry in the specified WebContents, to
-  // be used later upon navigation to determine if this InfoBarDelegate should
-  // be expired from |contents_|.
-  void StoreActiveEntryUniqueID(InfoBarService* infobar_service);
+  // Store the unique id for the active entry in our WebContents, to be used
+  // later upon navigation to determine if this InfoBarDelegate should be
+  // expired.
+  void StoreActiveEntryUniqueID();
 
-  // Direct accessors for subclasses that need to do something special.
   int contents_unique_id() const { return contents_unique_id_; }
-  void set_contents_unique_id(int contents_unique_id) {
-    contents_unique_id_ = contents_unique_id;
-  }
 
   // Returns true if the navigation is to a new URL or a reload occured.
   virtual bool ShouldExpireInternal(

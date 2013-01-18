@@ -1,7 +1,6 @@
 {
   # Disabled pnacl for now because it warns on using the language extension
   # typeof(...)
-  #'TOOLS': ['newlib', 'glibc', 'pnacl', 'win'],
   'TOOLS': ['newlib', 'glibc', 'win'],
   'SEARCH': [
     '.',
@@ -17,7 +16,9 @@
         "kernel_intercept.cc",
         "kernel_object.cc",
         "kernel_proxy.cc",
-        "kernel_wrap.cc",
+        "kernel_wrap_glibc.cc",
+        "kernel_wrap_newlib.cc",
+        "kernel_wrap_win.cc",
         "mount.cc",
         "mount_dev.cc",
         "mount_html5fs.cc",
@@ -77,9 +78,7 @@
     }
   ],
   'DATA': [
-    "kernel_wrap_glibc.cc",
-    "kernel_wrap_newlib.cc",
-    "kernel_wrap_win.cc",
+    'Makefile',
   ],
   'DEST': 'src',
   'NAME': 'nacl_mounts',

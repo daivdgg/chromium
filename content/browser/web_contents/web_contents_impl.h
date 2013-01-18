@@ -13,6 +13,7 @@
 #include "base/gtest_prod_util.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/observer_list.h"
+#include "base/process.h"
 #include "content/browser/renderer_host/java/java_bridge_dispatcher_host_manager.h"
 #include "content/browser/renderer_host/render_view_host_delegate.h"
 #include "content/browser/renderer_host/render_widget_host_delegate.h"
@@ -29,10 +30,6 @@
 #include "ui/gfx/size.h"
 #include "webkit/glue/resource_type.h"
 
-#if defined(OS_WIN)
-#include "base/win/scoped_handle.h"
-#endif
-
 struct BrowserPluginHostMsg_CreateGuest_Params;
 struct BrowserPluginHostMsg_ResizeGuest_Params;
 struct ViewMsg_PostMessage_Params;
@@ -46,6 +43,7 @@ namespace content {
 class BrowserPluginEmbedder;
 class BrowserPluginGuest;
 class ColorChooser;
+class DateTimeChooserAndroid;
 class DownloadItem;
 class InterstitialPageImpl;
 class JavaScriptDialogCreator;
@@ -85,10 +83,16 @@ class CONTENT_EXPORT WebContentsImpl
       const WebContents::CreateParams& params,
       WebContentsImpl* opener);
 
+  // Returns the opener WebContentsImpl, if any. This can be set to null if the
+  // opener is closed or the page clears its window.opener.
+  WebContentsImpl* opener() const { return opener_; }
+
   // Creates a WebContents to be used as a browser plugin guest.
   static WebContentsImpl* CreateGuest(
       BrowserContext* browser_context,
       content::SiteInstance* site_instance,
+      int routing_id,
+      WebContentsImpl* opener_web_contents,
       int guest_instance_id,
       const BrowserPluginHostMsg_CreateGuest_Params& params);
 
@@ -414,7 +418,7 @@ class CONTENT_EXPORT WebContentsImpl
       const ContextMenuParams& params,
       ContextMenuSourceType type) OVERRIDE;
   virtual void RequestMediaAccessPermission(
-      const MediaStreamRequest* request,
+      const MediaStreamRequest& request,
       const MediaResponseCallback& callback) OVERRIDE;
 
   // RenderWidgetHostDelegate --------------------------------------------------
@@ -515,10 +519,10 @@ class CONTENT_EXPORT WebContentsImpl
                                const GURL& target_url);
   void OnDocumentLoadedInFrame(int64 frame_id);
   void OnDidFinishLoad(int64 frame_id,
-                       const GURL& validated_url,
+                       const GURL& url,
                        bool is_main_frame);
   void OnDidFailLoadWithError(int64 frame_id,
-                              const GURL& validated_url,
+                              const GURL& url,
                               bool is_main_frame,
                               int error_code,
                               const string16& error_description);
@@ -544,8 +548,10 @@ class CONTENT_EXPORT WebContentsImpl
   void OnFindMatchRectsReply(int version,
                              const std::vector<gfx::RectF>& rects,
                              const gfx::RectF& active_rect);
+
+  void OnOpenDateTimeDialog(int type, const std::string& value);
 #endif
-  void OnCrashedPlugin(const FilePath& plugin_path);
+  void OnCrashedPlugin(const FilePath& plugin_path, base::ProcessId plugin_pid);
   void OnAppCacheAccessed(const GURL& manifest_url, bool blocked_by_policy);
   void OnOpenColorChooser(int color_chooser_id, SkColor color);
   void OnEndColorChooser(int color_chooser_id);
@@ -564,7 +570,6 @@ class CONTENT_EXPORT WebContentsImpl
       const BrowserPluginHostMsg_CreateGuest_Params& params);
   void OnDidDownloadFavicon(int id,
                             const GURL& image_url,
-                            bool errored,
                             int requested_size,
                             const std::vector<SkBitmap>& bitmaps);
   void OnUpdateFaviconURL(int32 page_id,
@@ -785,13 +790,6 @@ class CONTENT_EXPORT WebContentsImpl
   // delegate of this WebContentsImpl is nulled before its destructor is called.
   JavaScriptDialogCreator* dialog_creator_;
 
-#if defined(OS_WIN)
-  // Handle to an event that's set when the page is showing a message box (or
-  // equivalent constrained window).  Plugin processes check this to know if
-  // they should pump messages then.
-  base::win::ScopedHandle message_box_active_;
-#endif
-
   // Set to true when there is an active "before unload" dialog.  When true,
   // we've forced the throbber to start in Navigate, and we need to remember to
   // turn it off in OnJavaScriptMessageBoxClosed if the navigation is canceled.
@@ -833,6 +831,12 @@ class CONTENT_EXPORT WebContentsImpl
   // Content restrictions, used to disable print/copy etc based on content's
   // (full-page plugins for now only) permissions.
   int content_restrictions_;
+
+#if defined(OS_ANDROID)
+  // Date time chooser opened by this tab.
+  // Only used in Android since all other platforms use a multi field UI.
+  scoped_ptr<DateTimeChooserAndroid> date_time_chooser_;
+#endif
 
   // Color chooser that was opened by this tab.
   ColorChooser* color_chooser_;

@@ -5,8 +5,8 @@
 #include "chrome/browser/chromeos/drive/drive_system_service.h"
 
 #include "base/bind.h"
+#include "base/command_line.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/chromeos/drive/drive_api_service.h"
 #include "chrome/browser/chromeos/drive/drive_download_observer.h"
 #include "chrome/browser/chromeos/drive/drive_file_system.h"
 #include "chrome/browser/chromeos/drive/drive_file_system_proxy.h"
@@ -20,6 +20,7 @@
 #include "chrome/browser/download/download_service.h"
 #include "chrome/browser/download/download_service_factory.h"
 #include "chrome/browser/download/download_util.h"
+#include "chrome/browser/google_apis/drive_api_service.h"
 #include "chrome/browser/google_apis/drive_api_util.h"
 #include "chrome/browser/google_apis/drive_uploader.h"
 #include "chrome/browser/google_apis/gdata_wapi_service.h"
@@ -29,6 +30,7 @@
 #include "chrome/browser/profiles/profile_dependency_manager.h"
 #include "chrome/browser/sync/profile_sync_service.h"
 #include "chrome/browser/sync/profile_sync_service_factory.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/common/chrome_version_info.h"
 #include "chrome/common/pref_names.h"
 #include "content/public/browser/browser_context.h"
@@ -120,8 +122,9 @@ DriveSystemService::DriveSystemService(
   if (test_drive_service) {
     drive_service_.reset(test_drive_service);
   } else if (google_apis::util::IsDriveV2ApiEnabled()) {
-    drive_service_.reset(new DriveAPIService(
+    drive_service_.reset(new google_apis::DriveAPIService(
         g_browser_process->system_request_context(),
+        GURL(google_apis::DriveApiUrlGenerator::kBaseUrlForProduction),
         GetDriveUserAgent()));
   } else {
     drive_service_.reset(new google_apis::GDataWapiService(
@@ -323,8 +326,11 @@ void DriveSystemService::OnCacheInitialized(bool success) {
 
   AddDriveMountPoint();
 
-  // Start prefetching of Drive metadata.
-  file_system_->StartInitialFeedFetch();
+  if (CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kEnableDriveMetadataPrefetch)) {
+    // Start prefetching of Drive metadata.
+    file_system_->StartInitialFeedFetch();
+  }
 }
 
 void DriveSystemService::DisableDrive() {

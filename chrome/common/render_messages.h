@@ -179,6 +179,13 @@ IPC_STRUCT_TRAITS_BEGIN(chrome::search::Mode)
   IPC_STRUCT_TRAITS_MEMBER(origin)
 IPC_STRUCT_TRAITS_END()
 
+IPC_STRUCT_TRAITS_BEGIN(nacl::NaClLaunchParams)
+  IPC_STRUCT_TRAITS_MEMBER(manifest_url)
+  IPC_STRUCT_TRAITS_MEMBER(render_view_id)
+  IPC_STRUCT_TRAITS_MEMBER(permission_bits)
+  IPC_STRUCT_TRAITS_MEMBER(uses_irt)
+IPC_STRUCT_TRAITS_END()
+
 IPC_STRUCT_TRAITS_BEGIN(RendererContentSettingRules)
   IPC_STRUCT_TRAITS_MEMBER(image_rules)
   IPC_STRUCT_TRAITS_MEMBER(script_rules)
@@ -404,6 +411,13 @@ IPC_MESSAGE_ROUTED0(ChromeViewMsg_SetAsInterstitial)
 IPC_MESSAGE_CONTROL1(ChromeViewMsg_ToggleWebKitSharedTimer,
                      bool /* suspend */)
 
+// Provides the renderer with the results of the browser's investigation into
+// why a recent main frame load failed (currently, just DNS probe result).
+// NetErrorHelper will receive this mesage and replace or update the error
+// page with more specific troubleshooting suggestions.
+IPC_MESSAGE_ROUTED1(ChromeViewMsg_NetErrorInfo,
+                    int /* DNS probe result */)
+
 //-----------------------------------------------------------------------------
 // Misc messages
 // These are messages sent from the renderer to the browser process.
@@ -541,13 +555,9 @@ IPC_MESSAGE_ROUTED3(ChromeViewHostMsg_ForwardMessageToExternalHost,
 // a new instance of the Native Client process. The browser will launch
 // the process and return an IPC channel handle. This handle will only
 // be valid if the NaCl IPC proxy is enabled.
-IPC_SYNC_MESSAGE_CONTROL4_4(ChromeViewHostMsg_LaunchNaCl,
-                            GURL /* manifest_url */,
-                            int /* render_view_id */,
-                            uint32 /* permission_bits */,
-                            int /* socket count */,
-                            std::vector<nacl::FileDescriptor>
-                                /* imc channel handles */,
+IPC_SYNC_MESSAGE_CONTROL1_4(ChromeViewHostMsg_LaunchNaCl,
+                            nacl::NaClLaunchParams /* launch_params */,
+                            nacl::FileDescriptor /* imc channel handle */,
                             IPC::ChannelHandle /* ipc_channel_handle */,
                             base::ProcessId /* plugin_pid */,
                             int /* plugin_child_id */)
@@ -582,11 +592,6 @@ IPC_SYNC_MESSAGE_ROUTED2_1(ChromeViewHostMsg_GetSearchProviderInstallState,
                            GURL /* inquiry url */,
                            search_provider::InstallState /* install */)
 
-// Send back histograms as vector of pickled-histogram strings.
-IPC_MESSAGE_CONTROL2(ChromeViewHostMsg_RendererHistograms,
-                     int, /* sequence number of Renderer Histograms. */
-                     std::vector<std::string>)
-
 // Sends back stats about the V8 heap.
 IPC_MESSAGE_CONTROL2(ChromeViewHostMsg_V8HeapStats,
                      int /* size of heap (allocated from the OS) */,
@@ -612,12 +617,6 @@ IPC_MESSAGE_ROUTED2(ChromeViewHostMsg_BlockedUnauthorizedPlugin,
 // cache and current renderer framerate.
 IPC_MESSAGE_CONTROL1(ChromeViewHostMsg_ResourceTypeStats,
                      WebKit::WebCache::ResourceTypeStats)
-
-
-// Notifies the browser of the language (ISO 639_1 code language, such as fr,
-// en, zh...) of the current page.
-IPC_MESSAGE_ROUTED1(ChromeViewHostMsg_PageLanguageDetermined,
-                    std::string /* the language */)
 
 // Notifies the browser that a page has been translated.
 IPC_MESSAGE_ROUTED4(ChromeViewHostMsg_PageTranslated,

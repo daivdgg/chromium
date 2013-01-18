@@ -10,7 +10,6 @@
 #include "base/string16.h"
 #include "base/utf_string_conversions.h"
 #include "base/values.h"
-#include "chrome/browser/extensions/api/omnibox/omnibox_api_factory.h"
 #include "chrome/browser/extensions/event_router.h"
 #include "chrome/browser/extensions/extension_prefs.h"
 #include "chrome/browser/extensions/extension_service.h"
@@ -130,7 +129,8 @@ void ExtensionOmniboxEventRouter::OnInputCancelled(
 }
 
 OmniboxAPI::OmniboxAPI(Profile* profile)
-    : url_service_(TemplateURLServiceFactory::GetForProfile(profile)) {
+    : profile_(profile),
+      url_service_(TemplateURLServiceFactory::GetForProfile(profile)) {
   ManifestHandler::Register(extension_manifest_keys::kOmnibox,
                             new OmniboxHandler);
   registrar_.Add(this, chrome::NOTIFICATION_EXTENSION_LOADED,
@@ -152,12 +152,17 @@ OmniboxAPI::OmniboxAPI(Profile* profile)
 OmniboxAPI::~OmniboxAPI() {
 }
 
-void OmniboxAPI::Shutdown() {
+base::LazyInstance<ProfileKeyedAPIFactory<OmniboxAPI> >
+g_factory = LAZY_INSTANCE_INITIALIZER;
+
+// static
+ProfileKeyedAPIFactory<OmniboxAPI>* OmniboxAPI::GetFactoryInstance() {
+  return &g_factory.Get();
 }
 
 // static
 OmniboxAPI* OmniboxAPI::Get(Profile* profile) {
-  return OmniboxAPIFactory::GetForProfile(profile);
+  return ProfileKeyedAPIFactory<OmniboxAPI>::GetForProfile(profile);
 }
 
 void OmniboxAPI::Observe(int type,
@@ -169,8 +174,8 @@ void OmniboxAPI::Observe(int type,
     const std::string& keyword = OmniboxInfo::GetKeyword(extension);
     if (!keyword.empty()) {
       // Load the omnibox icon so it will be ready to display in the URL bar.
-      omnibox_popup_icon_manager_.LoadIcon(extension);
-      omnibox_icon_manager_.LoadIcon(extension);
+      omnibox_popup_icon_manager_.LoadIcon(profile_, extension);
+      omnibox_icon_manager_.LoadIcon(profile_, extension);
 
       if (url_service_) {
         url_service_->Load();

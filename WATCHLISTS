@@ -71,6 +71,10 @@
     'base_memory': {
       'filepath': '^base/memory',
     },
+    'bookmarks': {
+      'filepath': 'chrome/browser/bookmarks/' \
+                  '|chrome/browser/ui/bookmarks/'
+    },
     'browser': {
       'filepath': 'chrome/browser/',
     },
@@ -82,7 +86,8 @@
                   '|chrome/browser/bookmarks/' \
                   '|chrome/browser/common/' \
                   '|chrome/browser/favicon/' \
-                  '|chrome/browser/history/'
+                  '|chrome/browser/history/' \
+                  '|chrome/browser/visitedlink/'
     },
     'browser_compositor': {
       'filepath': 'ui/compositor/'
@@ -341,6 +346,9 @@
     'prerender': {
       'filepath': 'prerender'
     },
+    'profiles': {
+      'filepath': 'chrome/browser/profiles/'
+    },
     'pyauto': {
       'filepath': 'chrome/test/pyautolib' \
                   '|chrome/test/functional' \
@@ -378,10 +386,15 @@
                    '|chrome/browser/tab_contents/spelling_menu'\
                    '|chrome/common/spellcheck_'\
                    '|chrome/renderer/spellchecker/'\
+                   '|third_party/hunspell/'\
+                   '|third_party/hunspell_dictionaries/'\
                    '|webkit/tools/test_shell/mock_spellcheck'
     },
     'sync': {
       'filepath': 'chrome/browser/sync/|sync/',
+    },
+    'sync_promo': {
+      'filepath': 'chrome/browser/ui/webui/sync_promo/',
     },
     'tab_contents': {
       'filepath': 'chrome/browser/tab_contents/|'\
@@ -502,8 +515,7 @@
                       'hashimoto+watch@chromium.org',
                       'yoshiki+watch@chromium.org',
                       'yuzo+watch@chromium.org'],
-    'android_infra': ['peter+watch@chromium.org',
-                      'bulach+watch@chromium.org',
+    'android_infra': ['bulach+watch@chromium.org',
                       'yfriedman+watch@chromium.org',
                       'ilevy+watch@chromium.org',
                       'klundberg+watch@chromium.org',
@@ -523,6 +535,7 @@
     'base': ['erikwright+watch@chromium.org'],
     'base_allocator': ['dmikurube+memory@chromium.org'],
     'base_memory': ['gavinp+memory@chromium.org'],
+    'bookmarks': ['tfarina@chromium.org'],
     'browser_chromeos': ['davemoore+watch@chromium.org',
                          'stevenjb+watch@chromium.org',
                          'nkostylev+watch@chromium.org'],
@@ -578,7 +591,7 @@
     'installer': ['grt+watch@chromium.org'],
     'instant': ['sreeram@chromium.org', 'gideonwald@chromium.org',
                 'dcblack@chromium.org', 'jered@chromium.org',
-                'dominich@chromium.org', 'samarth@chromium.org',
+                'dominich@chromium.org', 'samarth+watch@chromium.org',
                 'melevin@chromium.org'],
     'ipc': ['jam@chromium.org', 'darin-cc@chromium.org'],
     'labs': ['thakis@chromium.org'],
@@ -613,6 +626,7 @@
     'prerender': ['cbentzel+watch@chromium.org', 'tburkard+watch@chromium.org',
                   'dominich+watch@chromium.org', 'mmenke@chromium.org',
                   'gavinp+prer@chromium.org'],
+    'profiles': ['sail+watch@chromium.org'],
     'pyauto': ['anantha@chromium.org',
                'dyu@chromium.org',
                'dennisjeffrey@chromium.org'],
@@ -634,11 +648,13 @@
     'shell_window': ['jeremya+watch@chromium.org'],
     'site_instance': ['creis+watch@chromium.org', 'ajwong+watch@chromium.org'],
     'spellcheck': ['groby+spellwatch@chromium.org',
-                   'rlp@chromium.org'],
+                   'rlp@chromium.org',
+                   'rouslan+spellwatch@chromium.org'],
     'sync': ['akalin@chromium.org',
              'haitaol@chromium.org',
              'rsimha@chromium.org',
              'tim@chromium.org'],
+    'sync_promo': ['sail+watch@chromium.org'],
     'tab_contents': ['avi@chromium.org',
                      'creis+watch@chromium.org', 'ajwong+watch@chromium.org'],
     'task_manager': ['yoshiki+watch@chromium.org'],

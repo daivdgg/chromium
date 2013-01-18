@@ -21,7 +21,7 @@
 #include "net/url_request/url_request_context.h"
 #include "net/url_request/url_request_test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "unicode/regex.h"
+#include "third_party/icu/public/i18n/unicode/regex.h"
 #include "webkit/fileapi/file_system_context.h"
 #include "webkit/fileapi/file_system_file_util.h"
 #include "webkit/fileapi/file_system_operation_context.h"
@@ -141,9 +141,9 @@ class FileSystemDirURLRequestJobTest : public testing::Test {
         context.get(), CreateURL(path), length));
   }
 
-  PlatformFileError GetFileInfo(const FilePath& path,
-                   base::PlatformFileInfo* file_info,
-                   FilePath* platform_file_path) {
+  base::PlatformFileError GetFileInfo(const FilePath& path,
+                                      base::PlatformFileInfo* file_info,
+                                      FilePath* platform_file_path) {
     scoped_ptr<FileSystemOperationContext> context(NewOperationContext());
     return file_util()->GetFileInfo(context.get(),
                                     CreateURL(path),

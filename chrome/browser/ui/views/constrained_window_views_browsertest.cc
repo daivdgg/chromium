@@ -14,13 +14,21 @@
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "content/public/browser/native_web_keyboard_event.h"
+#include "content/public/browser/render_view_host.h"
 #include "ipc/ipc_message.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/layout/fill_layout.h"
+#include "ui/views/test/test_widget_observer.h"
 #include "ui/views/window/dialog_delegate.h"
 #include "ui/web_dialogs/test/test_web_dialog_delegate.h"
+
+#if defined(USE_AURA) && defined(USE_X11)
+#include <X11/Xlib.h>
+#include "ui/base/x/x11_util.h"
+#endif
 
 namespace {
 
@@ -150,7 +158,7 @@ IN_PROC_BROWSER_TEST_F(ConstrainedWindowViewTest, FocusTest) {
   // test_dialog1's text field should still be the view that has focus.
   EXPECT_EQ(test_dialog1->GetInitiallyFocusedView(),
             focus_manager->GetFocusedView());
-  ASSERT_EQ(2u, web_contents_modal_dialog_manager->dialog_count());
+  ASSERT_TRUE(web_contents_modal_dialog_manager->IsShowingDialog());
 
   // Now send a VKEY_RETURN to the browser.  This should result in closing
   // test_dialog1.
@@ -160,13 +168,14 @@ IN_PROC_BROWSER_TEST_F(ConstrainedWindowViewTest, FocusTest) {
 
   EXPECT_TRUE(test_dialog1->done());
   EXPECT_FALSE(test_dialog2->done());
-  EXPECT_EQ(1u, web_contents_modal_dialog_manager->dialog_count());
+  EXPECT_TRUE(web_contents_modal_dialog_manager->IsShowingDialog());
 
   // test_dialog2 will be shown.  Focus should be on test_dialog2's text field.
   EXPECT_EQ(test_dialog2->GetInitiallyFocusedView(),
             focus_manager->GetFocusedView());
 
-  int tab_with_constrained_window = browser()->active_index();
+  int tab_with_constrained_window =
+      browser()->tab_strip_model()->active_index();
 
   // Create a new tab.
   chrome::NewTab(browser());
@@ -187,7 +196,7 @@ IN_PROC_BROWSER_TEST_F(ConstrainedWindowViewTest, FocusTest) {
       ui::Accelerator(ui::VKEY_RETURN, ui::EF_NONE)));
   content::RunAllPendingInMessageLoop();
   EXPECT_TRUE(test_dialog2->done());
-  EXPECT_EQ(0u, web_contents_modal_dialog_manager->dialog_count());
+  EXPECT_FALSE(web_contents_modal_dialog_manager->IsShowingDialog());
 }
 
 // Tests that the constrained window is closed properly when its tab is
@@ -250,36 +259,92 @@ IN_PROC_BROWSER_TEST_F(ConstrainedWindowViewTest, TabSwitchTest) {
   EXPECT_TRUE(test_dialog->done());
 }
 
-#if defined(OS_WIN) && !defined(USE_AURA)
+#if defined(OS_WIN) || (defined(USE_AURA) && defined(USE_X11))
+
+// Forwards the key event which has |key_code| to the renderer.
+void ForwardKeyEvent(content::RenderViewHost* host, ui::KeyboardCode key_code) {
+#if defined(OS_WIN)
+  MSG native_key_event = { NULL, WM_KEYDOWN, key_code, 0 };
+#elif defined(USE_X11)
+  XEvent x_event;
+  ui::InitXKeyEventForTesting(
+      ui::ET_KEY_PRESSED, key_code, ui::EF_NONE, &x_event);
+  XEvent* native_key_event = &x_event;
+#endif
+
+#if defined(USE_AURA)
+  ui::KeyEvent key(native_key_event, false);
+  ui::KeyEvent* native_ui_key_event = &key;
+#elif defined(OS_WIN)
+  MSG native_ui_key_event = native_key_event;
+#endif
+
+  host->ForwardKeyboardEvent(
+      content::NativeWebKeyboardEvent(native_ui_key_event));
+}
+
 // Tests that backspace is not processed before it's sent to the web contents.
-// We do not run this test on Aura because key events are sent to the web
-// contents through a different code path that does not call
-// views::FocusManager::OnKeyEvent when WebContentsModalDialog is focused.
 IN_PROC_BROWSER_TEST_F(ConstrainedWindowViewTest,
                        BackspaceSentToWebContent) {
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(web_contents != NULL);
 
-  GURL url(chrome::kChromeUINewTabURL);
-  ui_test_utils::NavigateToURL(browser(), url);
+  GURL new_tab_url(chrome::kChromeUINewTabURL);
+  ui_test_utils::NavigateToURL(browser(), new_tab_url);
+  GURL about_url(chrome::kChromeUIAboutURL);
+  ui_test_utils::NavigateToURL(browser(), about_url);
 
   ConstrainedWebDialogDelegate* cwdd = CreateConstrainedWebDialog(
       browser()->profile(),
-      new ui::test::TestWebDialogDelegate(url),
+      new ui::test::TestWebDialogDelegate(about_url),
+      NULL,
+      web_contents);
+
+  content::RenderViewHost* render_view_host =
+      cwdd->GetWebContents()->GetRenderViewHost();
+  ForwardKeyEvent(render_view_host, ui::VKEY_BACK);
+
+  // Backspace is not processed as accelerator before it's sent to web contents.
+  EXPECT_EQ(about_url.spec(), web_contents->GetURL().spec());
+
+  content::RunAllPendingInMessageLoop();
+
+  // Backspace is processed as accelerator after it's sent to web contents.
+  EXPECT_EQ(new_tab_url.spec(), web_contents->GetURL().spec());
+}
+
+// Tests that escape closes the constrained window.
+IN_PROC_BROWSER_TEST_F(ConstrainedWindowViewTest,
+                       EscapeCloseConstrainedWindow) {
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(web_contents != NULL);
+
+  GURL new_tab_url(chrome::kChromeUINewTabURL);
+  ui_test_utils::NavigateToURL(browser(), new_tab_url);
+  ConstrainedWebDialogDelegate* cwdd = CreateConstrainedWebDialog(
+      browser()->profile(),
+      new ui::test::TestWebDialogDelegate(new_tab_url),
       NULL,
       web_contents);
 
   ConstrainedWindowViews* cwv =
       static_cast<ConstrainedWindowViews*>(cwdd->GetWindow());
+  views::test::TestWidgetObserver observer(cwv);
   cwv->FocusWebContentsModalDialog();
 
-  BrowserView* browser_view = static_cast<BrowserView*>(browser()->window());
-  ui::KeyEvent key_event(ui::ET_KEY_PRESSED,
-                         ui::VKEY_BACK,
-                         ui::EF_NONE,
-                         false);
-  bool not_consumed = browser_view->GetFocusManager()->OnKeyEvent(key_event);
-  EXPECT_TRUE(not_consumed);
+  content::RenderViewHost* render_view_host =
+      cwdd->GetWebContents()->GetRenderViewHost();
+  ForwardKeyEvent(render_view_host, ui::VKEY_ESCAPE);
+
+  // Escape is not processed as accelerator before it's sent to web contents.
+  EXPECT_FALSE(observer.widget_closed());
+
+  content::RunAllPendingInMessageLoop();
+
+  // Escape is processed as accelerator after it's sent to web contents.
+  EXPECT_TRUE(observer.widget_closed());
 }
-#endif  // defined(OS_WIN) && !defined(USE_AURA)
+
+#endif  // defined(OS_WIN) || (defined(USE_AURA) && defined(USE_X11))

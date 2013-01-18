@@ -10,16 +10,24 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 
-DownloadRequestInfoBarDelegate::DownloadRequestInfoBarDelegate(
-    InfoBarService* infobar_service,
-    DownloadRequestLimiter::TabDownloadState* host)
-    : ConfirmInfoBarDelegate(infobar_service),
-      host_(host) {
-}
-
 DownloadRequestInfoBarDelegate::~DownloadRequestInfoBarDelegate() {
   if (host_)
     host_->Cancel();
+}
+
+// static
+void DownloadRequestInfoBarDelegate::Create(
+    InfoBarService* infobar_service,
+    base::WeakPtr<DownloadRequestLimiter::TabDownloadState> host) {
+  infobar_service->AddInfoBar(scoped_ptr<InfoBarDelegate>(
+      new DownloadRequestInfoBarDelegate(infobar_service, host)));
+}
+
+DownloadRequestInfoBarDelegate::DownloadRequestInfoBarDelegate(
+    InfoBarService* infobar_service,
+    base::WeakPtr<DownloadRequestLimiter::TabDownloadState> host)
+    : ConfirmInfoBarDelegate(infobar_service),
+      host_(host) {
 }
 
 gfx::Image* DownloadRequestInfoBarDelegate::GetIcon() const {
@@ -39,7 +47,8 @@ string16 DownloadRequestInfoBarDelegate::GetButtonLabel(
 
 bool DownloadRequestInfoBarDelegate::Accept() {
   if (host_) {
-    // Accept() call will nullify host_ if no further prompts are required.
+    // Accept() call will invalidate host_ weak pointer if no further
+    // prompts are required.
     host_->Accept();
   }
 

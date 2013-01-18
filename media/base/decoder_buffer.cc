@@ -7,54 +7,37 @@
 #include "base/logging.h"
 #include "media/base/decrypt_config.h"
 
-#if !defined(OS_ANDROID)
-#include "base/memory/aligned_memory.h"
-#endif
-
 namespace media {
 
-DecoderBuffer::DecoderBuffer(int buffer_size)
-    : Buffer(base::TimeDelta(), base::TimeDelta()),
-      buffer_size_(buffer_size) {
+DecoderBuffer::DecoderBuffer(int size)
+    : size_(size) {
   Initialize();
 }
 
-DecoderBuffer::DecoderBuffer(const uint8* data, int buffer_size)
-    : Buffer(base::TimeDelta(), base::TimeDelta()),
-      buffer_size_(buffer_size) {
-  // Prevent invalid allocations.  Also used to create end of stream buffers.
+DecoderBuffer::DecoderBuffer(const uint8* data, int size)
+    : size_(size) {
   if (!data) {
-    buffer_size_ = 0;
-    data_ = NULL;
+    CHECK_EQ(size_, 0);
     return;
   }
 
   Initialize();
-  memcpy(data_, data, buffer_size_);
+  memcpy(data_.get(), data, size_);
 }
 
-DecoderBuffer::~DecoderBuffer() {
-#if !defined(OS_ANDROID)
-  base::AlignedFree(data_);
-#else
-  delete[] data_;
-#endif
-}
+DecoderBuffer::~DecoderBuffer() {}
 
 void DecoderBuffer::Initialize() {
-  DCHECK_GE(buffer_size_, 0);
-#if !defined(OS_ANDROID)
-  data_ = reinterpret_cast<uint8*>(
-      base::AlignedAlloc(buffer_size_ + kPaddingSize, kAlignmentSize));
-  memset(data_ + buffer_size_, 0, kPaddingSize);
-#else
-  data_ = new uint8[buffer_size_];
-#endif
+  CHECK_GE(size_, 0);
+  data_.reset(reinterpret_cast<uint8*>(
+      base::AlignedAlloc(size_ + kPaddingSize, kAlignmentSize)));
+  memset(data_.get() + size_, 0, kPaddingSize);
 }
 
 scoped_refptr<DecoderBuffer> DecoderBuffer::CopyFrom(const uint8* data,
                                                      int data_size) {
-  DCHECK(data);
+  // If you hit this checks you likely have a bug in a demuxer. Go fix it.
+  CHECK(data);
   return make_scoped_refptr(new DecoderBuffer(data, data_size));
 }
 
@@ -62,16 +45,32 @@ scoped_refptr<DecoderBuffer> DecoderBuffer::CreateEOSBuffer() {
   return make_scoped_refptr(new DecoderBuffer(NULL, 0));
 }
 
+base::TimeDelta DecoderBuffer::GetTimestamp() const {
+  return timestamp_;
+}
+
+void DecoderBuffer::SetTimestamp(const base::TimeDelta& timestamp) {
+  timestamp_ = timestamp;
+}
+
+base::TimeDelta DecoderBuffer::GetDuration() const {
+  return duration_;
+}
+
+void DecoderBuffer::SetDuration(const base::TimeDelta& duration) {
+  duration_ = duration;
+}
+
 const uint8* DecoderBuffer::GetData() const {
-  return data_;
+  return data_.get();
+}
+
+uint8* DecoderBuffer::GetWritableData() const {
+  return data_.get();
 }
 
 int DecoderBuffer::GetDataSize() const {
-  return buffer_size_;
-}
-
-uint8* DecoderBuffer::GetWritableData() {
-  return data_;
+  return size_;
 }
 
 const DecryptConfig* DecoderBuffer::GetDecryptConfig() const {
@@ -80,6 +79,10 @@ const DecryptConfig* DecoderBuffer::GetDecryptConfig() const {
 
 void DecoderBuffer::SetDecryptConfig(scoped_ptr<DecryptConfig> decrypt_config) {
   decrypt_config_ = decrypt_config.Pass();
+}
+
+bool DecoderBuffer::IsEndOfStream() const {
+  return data_ == NULL;
 }
 
 }  // namespace media

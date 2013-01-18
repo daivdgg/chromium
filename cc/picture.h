@@ -37,11 +37,10 @@ public:
   void Record(ContentLayerClient*, RenderingStats&);
 
   // Has Record() been called yet?
-  bool HasRecording() const { return picture_.get(); }
+  bool HasRecording() const { return picture_.get() != NULL; }
 
-  // Raster this Picture's layer_rect into the given canvas.
-  // Assumes contentsScale have already been applied.
-  void Raster(SkCanvas* canvas);
+  // Apply this contents scale and raster the content rect into the canvas.
+  void Raster(SkCanvas* canvas, gfx::Rect content_rect, float contents_scale);
 
   void GatherPixelRefs(const gfx::Rect& rect,
                        std::list<skia::LazyPixelRef*>&);

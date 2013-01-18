@@ -426,6 +426,11 @@ gfx::ImageSkia NewTabButton::GetBackgroundImage(
       GetThemeProvider()->GetImageSkiaNamed(IDR_NEWTAB_BUTTON_MASK);
   int height = mask->height();
   int width = mask->width();
+
+  // The canvas and mask has to use the same scale factor.
+  if (!mask->HasRepresentation(scale_factor))
+    scale_factor = ui::SCALE_FACTOR_100P;
+
   gfx::Canvas canvas(gfx::Size(width, height), scale_factor, false);
 
   // For custom images the background starts at the top of the tab strip.
@@ -1084,7 +1089,7 @@ void TabStrip::MaybeStartDrag(
     GetWidget()->SetCapture(this);
   drag_controller_.reset(new TabDragController);
   drag_controller_->Init(
-      this, tab, tabs, gfx::Point(x, y), tab->GetMirroredXInView(event.x()),
+      this, tab, tabs, gfx::Point(x, y), event.x(),
       selection_model, detach_behavior, move_behavior);
 }
 
@@ -1198,6 +1203,7 @@ void TabStrip::PaintChildren(gfx::Canvas* canvas) {
   Tab* active_tab = NULL;
   std::vector<Tab*> tabs_dragging;
   std::vector<Tab*> selected_tabs;
+  int selected_tab_count = 0;
   bool is_dragging = false;
   int active_tab_index = -1;
   // Since |touch_layout_| is created based on number of tabs and width we use
@@ -1213,6 +1219,8 @@ void TabStrip::PaintChildren(gfx::Canvas* canvas) {
 
   for (int i = tab_count() - 1; i >= 0; --i) {
     Tab* tab = tab_at(i);
+    if (tab->IsSelected())
+      selected_tab_count++;
     if (tab->dragging() && !stacking) {
       is_dragging = true;
       if (tab->IsActive()) {
@@ -1251,13 +1259,11 @@ void TabStrip::PaintChildren(gfx::Canvas* canvas) {
     canvas->Restore();
 
   if (GetWidget()->ShouldUseNativeFrame()) {
-    bool multiple_tabs_selected = (!selected_tabs.empty() ||
-                                   tabs_dragging.size() > 1);
     // Make sure non-active tabs are somewhat transparent.
     SkPaint paint;
     // If there are multiple tabs selected, fade non-selected tabs more to make
     // the selected tabs more noticable.
-    int alpha = multiple_tabs_selected ?
+    int alpha = selected_tab_count > 1 ?
         kNativeFrameInactiveTabAlphaMultiSelection :
         kNativeFrameInactiveTabAlpha;
     paint.setColor(SkColorSetARGB(alpha, 255, 255, 255));
@@ -2119,16 +2125,11 @@ void TabStrip::ResizeLayoutTabs() {
     // mini-tabs have the same width), so there is nothing to do.
     return;
   }
-  Tab* first_tab  = tab_at(mini_tab_count);
-  double unselected, selected;
-  GetDesiredTabWidths(tab_count(), mini_tab_count, &unselected, &selected);
-  // TODO: this is always selected, should it be 'selected : unselected'?
-  int w = Round(first_tab->IsActive() ? selected : selected);
-
-  // We only want to run the animation if we're not already at the desired
-  // size.
-  if (abs(first_tab->width() - w) > 1)
-    StartResizeLayoutAnimation();
+  // Don't try and avoid layout based on tab sizes. If tabs are small enough
+  // then the width of the active tab may not change, but other widths may
+  // have. This is particularly important if we've overflowed (all tabs are at
+  // the min).
+  StartResizeLayoutAnimation();
 }
 
 void TabStrip::ResizeLayoutTabsFromTouch() {
