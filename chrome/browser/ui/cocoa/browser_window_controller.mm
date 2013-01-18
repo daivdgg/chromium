@@ -1997,7 +1997,7 @@ willAnimateFromState:(BookmarkBar::State)oldState
 
   // Presentation mode on Snow Leopard maps directly to fullscreen mode.
   if (base::mac::IsOSSnowLeopard()) {
-    [self setFullscreen:presentationMode url:url bubbleType:bubbleType];
+    [self setFullscreen:presentationMode];
     return;
   }
 
