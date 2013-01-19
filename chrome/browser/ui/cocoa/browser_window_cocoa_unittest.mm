@@ -62,9 +62,11 @@ TEST_F(BrowserWindowCocoaTest, TestBookmarkBarVisible) {
 }
 - (void)enterFullscreen {
   fullscreen_ = YES;
+  presentation_ = NO;
 }
 - (void)exitFullscreen {
   fullscreen_ = NO;
+  presentation_ = NO;
 }
 - (BOOL)isFullscreen {
   return fullscreen_;
