@@ -49,6 +49,7 @@ TEST_F(BrowserWindowCocoaTest, TestBookmarkBarVisible) {
 
 @interface FakeController : NSWindowController {
   BOOL fullscreen_;
+  BOOL presentation_;
 }
 @end
 
@@ -62,8 +63,15 @@ TEST_F(BrowserWindowCocoaTest, TestBookmarkBarVisible) {
 - (BOOL)isFullscreen {
   return fullscreen_;
 }
+- (void)enterPresentationModeForURL:(const GURL&)url
+                         bubbleType:(FullscreenExitBubbleType)bubbleType {
+  presentation_ = YES;
+}
+- (void)exitPresentationMode {
+  presentation_ = NO;
+}
 - (BOOL)inPresentationMode {
-  return NO;
+  return presentation_;
 }
 @end
 
