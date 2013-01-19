@@ -48,40 +48,29 @@ TEST_F(BrowserWindowCocoaTest, TestBookmarkBarVisible) {
 }
 
 @interface FakeController : NSWindowController {
-  BOOL fullscreen_;
-  BOOL presentation_;
+  enum { kNormal, kFullscreen, kPresentation } window_state_;
 }
 @end
 
 @implementation FakeController
-- (id)init {
-  self = [super init];
-  fullscreen_ = NO;
-  presentation_ = NO;
-  return self;
-}
 - (void)enterFullscreen {
-  fullscreen_ = YES;
-  presentation_ = NO;
+  window_state_ = kFullscreen;
 }
 - (void)exitFullscreen {
-  fullscreen_ = NO;
-  presentation_ = NO;
+  window_state_ = kNormal;
 }
 - (BOOL)isFullscreen {
-  return fullscreen_;
+  return window_state_ != kNormal;
 }
 - (void)enterPresentationModeForURL:(const GURL&)url
                          bubbleType:(FullscreenExitBubbleType)bubbleType {
-  fullscreen_ = YES;
-  presentation_ = YES;
+  window_state_ = kPresentation;
 }
 - (void)exitPresentationMode {
-  fullscreen_ = NO;
-  presentation_ = NO;
+  window_state_ = kNormal;
 }
 - (BOOL)inPresentationMode {
-  return presentation_;
+  return window_state_ == kPresentation;
 }
 @end
 
