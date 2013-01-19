@@ -54,6 +54,12 @@ TEST_F(BrowserWindowCocoaTest, TestBookmarkBarVisible) {
 @end
 
 @implementation FakeController
+- (id)init {
+  self = [super init];
+  fullscreen_ = NO;
+  presentation_ = NO;
+  return self;
+}
 - (void)enterFullscreen {
   fullscreen_ = YES;
 }
