@@ -92,6 +92,26 @@ TEST_F(BrowserWindowCocoaTest, TestFullscreen) {
   [fake_controller close];
 }
 
+TEST_F(BrowserWindowCocoaTest, TestFullscreenWithChrome) {
+  if (!base::mac::IsOSLionOrLater())
+    return;
+  // Wrap the FakeController in a scoped_nsobject instead of autoreleasing in
+  // windowWillClose: because we never actually open a window in this test (so
+  // windowWillClose: never gets called).
+  scoped_nsobject<FakeController> fake_controller(
+      [[FakeController alloc] init]);
+  scoped_ptr<BrowserWindowCocoa> bwc(new BrowserWindowCocoa(
+      browser(), static_cast<BrowserWindowController*>(fake_controller.get())));
+
+  EXPECT_FALSE(bwc->IsFullscreen());
+  bwc->EnterFullscreenWithChrome();
+  EXPECT_TRUE(bwc->IsFullscreenWithChrome());
+  EXPECT_FALSE(bwc->IsFullscreenWithoutChrome());
+  bwc->ExitFullscreen();
+  EXPECT_FALSE(bwc->IsFullscreen());
+  [fake_controller close];
+}
+
 // Tests that BrowserWindowCocoa::Close mimics the behavior of
 // -[NSWindow performClose:].
 class BrowserWindowCocoaCloseTest : public CocoaProfileTest {
