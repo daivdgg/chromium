@@ -65,9 +65,11 @@ TEST_F(BrowserWindowCocoaTest, TestBookmarkBarVisible) {
 }
 - (void)enterPresentationModeForURL:(const GURL&)url
                          bubbleType:(FullscreenExitBubbleType)bubbleType {
+  fullscreen_ = YES;
   presentation_ = YES;
 }
 - (void)exitPresentationMode {
+  fullscreen_ = NO;
   presentation_ = NO;
 }
 - (BOOL)inPresentationMode {
