@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <iostream>
 
+#include "base/mac/mac_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -591,6 +592,15 @@ bool FullscreenControllerStateTest::ShouldSkipTest(State state,
   // exited by the reentrant call.
   if (reentrant && (transition_table_[state][WINDOW_CHANGE] != state)) {
     debugging_log_ << "\nSkipping reentrant test for transitory source state "
+        << GetStateString(state) << ".\n";
+    return true;
+  }
+
+  // Toggle Fullscreen only available on Mac OSX 10.7 and later, earlier
+  // versions only have presentation mode.
+  if (!base::mac::IsOSLionOrLater() && event == TOGGLE_FULLSCREEN) {
+    debugging_log_ << "\nSkipping TOGGLE_FULLSCREEN on Mac OSX earlier than "
+        << "10.7."
         << GetStateString(state) << ".\n";
     return true;
   }
