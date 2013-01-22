@@ -295,7 +295,11 @@ fprintf(stderr, "InvokeEvent(%s) to state %s\n", GetEventString(event), GetState
 
   switch (event) {
     case TOGGLE_FULLSCREEN:
+#if defined(OS_MACOSX)
+      GetFullscreenController()->TogglePresentationMode();
+#else
       GetFullscreenController()->ToggleFullscreenMode();
+#endif
       break;
     case TAB_FULLSCREEN_TRUE:
       GetFullscreenController()->ToggleFullscreenModeForTab(
