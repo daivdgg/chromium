@@ -289,6 +289,7 @@ bool FullscreenControllerStateTest::InvokeEvent(Event event) {
       << std::setw(MAX_EVENT_NAME_LENGTH) << GetEventString(event)
       << ") to "
       << std::setw(MAX_STATE_NAME_LENGTH) << GetStateString(next_state);
+fprintf(stderr, "InvokeEvent(%s) to state %s\n", GetEventString(event), GetStateString(next_state));
 
   state_ = next_state;
 
