@@ -290,7 +290,11 @@ fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   if (IsFullscreenForTabOrPending())
     ExitTabFullscreenOrMouseLockIfNecessary();
   else if (IsFullscreenForBrowser())
+#if defined(OS_MACOSX)
+    TogglePresentationMode();
+#endif
     ToggleFullscreenMode();
+#else
 }
 
 void FullscreenController::OnAcceptFullscreenPermission() {
