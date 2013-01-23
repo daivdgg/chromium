@@ -367,9 +367,9 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       // Mac into fullscreen with and without chrome differently than other
       // platforms, and the result is a name mismatch between the named
       // state_ and the window()->IsFullscreenWith...() methods.
-      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithChrome())
+      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithChrome())
           << GetAndClearDebugLog();
-      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithoutChrome())
+      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithoutChrome())
           << GetAndClearDebugLog();
 #endif
       EXPECT_TRUE(GetFullscreenController()->IsFullscreenForBrowser())
@@ -412,9 +412,9 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       break;
     case STATE_TAB_BROWSER_FULLSCREEN:
 #if defined(OS_MACOSX)
-      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithChrome())
+      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithChrome())
           << GetAndClearDebugLog();
-      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithoutChrome())
+      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithoutChrome())
           << GetAndClearDebugLog();
 #endif
       EXPECT_TRUE(GetFullscreenController()->IsFullscreenForBrowser())
@@ -442,9 +442,9 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       // Mac into fullscreen with and without chrome differently than other
       // platforms, and the result is a name mismatch between the named
       // state_ and the window()->IsFullscreenWith...() methods.
-      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithChrome())
+      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithChrome())
           << GetAndClearDebugLog();
-      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithoutChrome())
+      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithoutChrome())
           << GetAndClearDebugLog();
       EXPECT_TRUE(GetFullscreenController()->IsFullscreenForBrowser())
           << GetAndClearDebugLog();
