@@ -292,9 +292,9 @@ fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   else if (IsFullscreenForBrowser())
 #if defined(OS_MACOSX)
     TogglePresentationMode();
-#endif
-    ToggleFullscreenMode();
 #else
+    ToggleFullscreenMode();
+#endif
 }
 
 void FullscreenController::OnAcceptFullscreenPermission() {
