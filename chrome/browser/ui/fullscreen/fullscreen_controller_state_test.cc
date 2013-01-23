@@ -9,13 +9,16 @@
 #include <iomanip>
 #include <iostream>
 
-#include "base/mac/mac_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/fullscreen/fullscreen_controller.h"
 #include "content/public/common/url_constants.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+#if defined(OS_MACOSX)
+#include "base/mac/mac_util.h"
+#endif
 
 FullscreenControllerStateTest::FullscreenControllerStateTest()
     : state_(STATE_NORMAL),
