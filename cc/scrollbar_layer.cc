@@ -59,6 +59,11 @@ void ScrollbarLayer::setScrollLayerId(int id)
     setNeedsFullTreeSync();
 }
 
+WebKit::WebScrollbar::Orientation ScrollbarLayer::orientation() const
+{
+    return m_scrollbar->orientation();
+}
+
 int ScrollbarLayer::maxTextureSize() {
     DCHECK(layerTreeHost());
     return layerTreeHost()->rendererCapabilities().maxTextureSize;
@@ -316,8 +321,6 @@ void ScrollbarLayer::update(ResourceUpdateQueue& queue, const OcclusionTracker* 
     if (contentBounds().IsEmpty())
         return;
     if (visibleContentRect().IsEmpty())
-        return;
-    if (!isDirty())
         return;
 
     createUpdaterIfNeeded();

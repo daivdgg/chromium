@@ -50,6 +50,12 @@ void FramerVisitorCapturingAcks::OnCongestionFeedbackFrame(
   feedback_.reset(new QuicCongestionFeedbackFrame(frame));
 }
 
+MockConnectionVisitor::MockConnectionVisitor() {
+}
+
+MockConnectionVisitor::~MockConnectionVisitor() {
+}
+
 MockHelper::MockHelper() {
 }
 
@@ -62,19 +68,6 @@ const QuicClock* MockHelper::GetClock() const {
 
 QuicRandom* MockHelper::GetRandomGenerator() {
   return &random_generator_;
-}
-
-MockConnectionVisitor::MockConnectionVisitor() {
-}
-
-MockConnectionVisitor::~MockConnectionVisitor() {
-}
-
-MockScheduler::MockScheduler()
-    : QuicSendScheduler(NULL, kFixRate) {
-}
-
-MockScheduler::~MockScheduler() {
 }
 
 MockConnection::MockConnection(QuicGuid guid, IPEndPoint address)
@@ -103,9 +96,9 @@ PacketSavingConnection::~PacketSavingConnection() {
 
 bool PacketSavingConnection::SendPacket(QuicPacketSequenceNumber number,
                                         QuicPacket* packet,
-                                        bool should_resend,
+                                        bool should_retransmit,
                                         bool force,
-                                        bool is_retransmit) {
+                                        bool is_retransmission) {
   packets_.push_back(packet);
   return true;
 }
@@ -117,6 +110,13 @@ MockSession::MockSession(QuicConnection* connection, bool is_server)
 }
 
 MockSession::~MockSession() {
+}
+
+MockScheduler::MockScheduler()
+    : QuicSendScheduler(NULL, kFixRate) {
+}
+
+MockScheduler::~MockScheduler() {
 }
 
 namespace {
@@ -210,9 +210,10 @@ QuicPacket* ConstructHandshakePacket(QuicGuid guid, CryptoTag tag) {
                          QuicEncrypter::Create(kNULL));
 
   QuicPacketHeader header;
-  header.guid = guid;
+  header.public_header.guid = guid;
+  header.public_header.flags = PACKET_PUBLIC_FLAGS_NONE;
   header.packet_sequence_number = 1;
-  header.flags = PACKET_FLAGS_NONE;
+  header.private_flags = PACKET_PRIVATE_FLAGS_NONE;
   header.fec_group = 0;
 
   QuicStreamFrame stream_frame(kCryptoStreamId, false, 0,
@@ -240,9 +241,10 @@ QuicPacket* ConstructClientHelloPacket(QuicGuid guid,
                          QuicEncrypter::Create(kNULL));
 
   QuicPacketHeader header;
-  header.guid = guid;
+  header.public_header.guid = guid;
+  header.public_header.flags = PACKET_PUBLIC_FLAGS_NONE;
   header.packet_sequence_number = 1;
-  header.flags = PACKET_FLAGS_NONE;
+  header.private_flags = PACKET_PRIVATE_FLAGS_NONE;
   header.fec_group = 0;
 
   QuicStreamFrame stream_frame(kCryptoStreamId, false, 0,
@@ -253,7 +255,6 @@ QuicPacket* ConstructClientHelloPacket(QuicGuid guid,
   frames.push_back(frame);
   return quic_framer.ConstructFrameDataPacket(header, frames);
 }
-
 
 }  // namespace test
 }  // namespace net

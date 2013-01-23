@@ -183,13 +183,13 @@
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/cookies/cookie_monster.h"
 #include "net/url_request/url_request_context.h"
-#include "ui/base/dialogs/selected_file_info.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/window_open_disposition.h"
 #include "ui/gfx/point.h"
+#include "ui/shell_dialogs/selected_file_info.h"
 #include "webkit/glue/web_intent_data.h"
 #include "webkit/glue/web_intent_service_data.h"
 #include "webkit/glue/webkit_glue.h"
-#include "webkit/glue/window_open_disposition.h"
 #include "webkit/plugins/webplugininfo.h"
 
 #if defined(OS_WIN)
@@ -2228,13 +2228,9 @@ void Browser::UpdateBookmarkBarState(BookmarkBarStateChangeReason reason) {
       state = BookmarkBar::HIDDEN;
   }
 
-  // Don't allow the bookmark bar to be shown in suggestions mode or
-  // for instant extended api, non-NTP modes when it's detached.
-  if (search_model_->mode().is_search_suggestions() ||
-      (chrome::search::IsInstantExtendedAPIEnabled(profile_) &&
-       !search_model_->mode().is_ntp() && state == BookmarkBar::DETACHED)) {
+  // Don't allow the bookmark bar to be shown in suggestions mode.
+  if (search_model_->mode().is_search_suggestions())
     state = BookmarkBar::HIDDEN;
-  }
 
   if (state == bookmark_bar_state_)
     return;
@@ -2254,8 +2250,7 @@ void Browser::UpdateBookmarkBarState(BookmarkBarStateChangeReason reason) {
   // Don't animate if mode is |NTP| because the bookmark is attached at top when
   // pref is on and detached at bottom when off.
   BookmarkBar::AnimateChangeType animate_type =
-      ((reason == BOOKMARK_BAR_STATE_CHANGE_PREF_CHANGE &&
-        !search_model_->mode().is_ntp()) ||
+      (reason == BOOKMARK_BAR_STATE_CHANGE_PREF_CHANGE ||
        reason == BOOKMARK_BAR_STATE_CHANGE_INSTANT_PREVIEW_STATE) ?
       BookmarkBar::ANIMATE_STATE_CHANGE :
       BookmarkBar::DONT_ANIMATE_STATE_CHANGE;

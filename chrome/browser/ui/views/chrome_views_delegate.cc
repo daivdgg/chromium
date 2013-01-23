@@ -9,7 +9,6 @@
 #include "base/string_util.h"
 #include "base/utf_string_conversions.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/event_disposition.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/prefs/scoped_user_pref_update.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -24,9 +23,12 @@
 #include "chrome/browser/app_icon_win.h"
 #endif
 
+#if defined(USE_AURA)
+#include "ui/aura/root_window.h"
+#endif
+
 #if defined(USE_AURA) && !defined(OS_CHROMEOS)
 #include "chrome/browser/ui/host_desktop.h"
-#include "ui/aura/root_window.h"
 #include "ui/views/widget/desktop_aura/desktop_native_widget_aura.h"
 #include "ui/views/widget/native_widget_aura.h"
 #endif
@@ -174,12 +176,17 @@ content::WebContents* ChromeViewsDelegate::CreateWebContents(
 void ChromeViewsDelegate::OnBeforeWidgetInit(
     views::Widget::InitParams* params,
     views::internal::NativeWidgetDelegate* delegate) {
-#if defined(USE_AURA) && !defined(OS_CHROMEOS)
   // If we already have a native_widget, we don't have to try to come
   // up with one.
   if (params->native_widget)
     return;
 
+#if defined(OS_CHROMEOS)
+  // When we are doing straight chromeos builds, we still need to handle the
+  // toplevel window case.
+  if (params->parent == NULL && params->context == NULL && params->top_level)
+    params->context = ash::Shell::GetPrimaryRootWindow();
+#elif defined(USE_AURA)
   // While the majority of the time, context wasn't plumbed through due to the
   // existence of a global StackingClient, if this window is a toplevel, it's
   // possible that there is no contextual state that we can use.

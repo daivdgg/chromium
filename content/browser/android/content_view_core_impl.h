@@ -189,7 +189,8 @@ class ContentViewCoreImpl : public ContentViewCore,
                               jobject obj,
                               jobject object,
                               jstring name,
-                              jclass safe_annotation_clazz);
+                              jclass safe_annotation_clazz,
+                              jobject retained_object_set);
   void RemoveJavascriptInterface(JNIEnv* env, jobject obj, jstring name);
   int GetNavigationHistory(JNIEnv* env, jobject obj, jobject context);
   void GetDirectedNavigationHistory(JNIEnv* env,
@@ -258,7 +259,8 @@ class ContentViewCoreImpl : public ContentViewCore,
   // Methods called from native code
   // --------------------------------------------------------------------------
 
-  gfx::Rect GetBounds() const;
+  gfx::Size GetPhysicalSize() const;
+  gfx::Size GetDIPSize() const;
 
   void AttachLayer(scoped_refptr<cc::Layer> layer);
   void RemoveLayer(scoped_refptr<cc::Layer> layer);

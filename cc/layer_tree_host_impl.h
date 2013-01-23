@@ -50,12 +50,16 @@ public:
     virtual void onCanDrawStateChanged(bool canDraw) = 0;
     virtual void onHasPendingTreeStateChanged(bool hasPendingTree) = 0;
     virtual void setNeedsRedrawOnImplThread() = 0;
+    virtual void didSwapUseIncompleteTileOnImplThread() = 0;
+    virtual void didUploadVisibleHighResolutionTileOnImplThread() = 0;
     virtual void setNeedsCommitOnImplThread() = 0;
     virtual void setNeedsManageTilesOnImplThread() = 0;
     virtual void postAnimationEventsToMainThreadOnImplThread(scoped_ptr<AnimationEventsVector>, base::Time wallClockTime) = 0;
     // Returns true if resources were deleted by this call.
     virtual bool reduceContentsTextureMemoryOnImplThread(size_t limitBytes, int priorityCutoff) = 0;
     virtual void sendManagedMemoryStats() = 0;
+    virtual bool isInsideDraw() = 0;
+    virtual void renewTreePriority() = 0;
 };
 
 // LayerTreeHostImpl owns the LayerImpl tree as well as associated rendering state
@@ -82,9 +86,10 @@ public:
     virtual bool haveTouchEventHandlersAt(const gfx::Point&) OVERRIDE;
 
     // TopControlsManagerClient implementation.
-    virtual LayerTreeImpl* activeTree() OVERRIDE;
     virtual void setNeedsUpdateDrawProperties() OVERRIDE;
     virtual void setNeedsRedraw() OVERRIDE;
+    virtual bool haveRootScrollLayer() const OVERRIDE;
+    virtual float rootScrollLayerTotalScrollY() const OVERRIDE;
 
     struct CC_EXPORT FrameData : public RenderPassSink {
         FrameData();
@@ -131,6 +136,7 @@ public:
 
     // TileManagerClient implementation.
     virtual void ScheduleManageTiles() OVERRIDE;
+    virtual void DidUploadVisibleHighResolutionTile() OVERRIDE;
 
     // OutputSurfaceClient implementation.
     virtual void OnVSyncParametersChanged(base::TimeTicks timebase, base::TimeDelta interval) OVERRIDE;
@@ -159,11 +165,12 @@ public:
 
     void readback(void* pixels, const gfx::Rect&);
 
+    LayerTreeImpl* activeTree() { return m_activeTree.get(); }
     const LayerTreeImpl* activeTree() const { return m_activeTree.get(); }
     LayerTreeImpl* pendingTree() { return m_pendingTree.get(); }
     const LayerTreeImpl* pendingTree() const { return m_pendingTree.get(); }
     void createPendingTree();
-    void checkForCompletedSetPixels();
+    void checkForCompletedTileUploads();
     virtual void activatePendingTreeIfNeeded();
 
     // Shortcuts to layers on the active tree.
@@ -174,9 +181,6 @@ public:
     bool visible() const { return m_visible; }
     void setVisible(bool);
 
-    bool contentsTexturesPurged() const { return m_contentsTexturesPurged; }
-    void setContentsTexturesPurged();
-    void resetContentsTexturesPurged();
     size_t memoryAllocationLimitBytes() const { return m_managedMemoryPolicy.bytesLimitWhenVisible; }
 
     void setViewportSize(const gfx::Size& layoutViewportSize, const gfx::Size& deviceViewportSize);
@@ -257,6 +261,8 @@ public:
 
     bool pinchGestureActive() const { return m_pinchGestureActive; }
 
+    void setTreePriority(TreePriority priority);
+
 protected:
     LayerTreeHostImpl(const LayerTreeSettings&, LayerTreeHostImplClient*, Proxy*);
     void activatePendingTree();
@@ -292,7 +298,6 @@ private:
     bool calculateRenderPasses(FrameData&);
     void animateLayersRecursive(LayerImpl*, base::TimeTicks monotonicTime, base::Time wallClockTime, AnimationEventsVector*, bool& didAnimate, bool& needsAnimateLayers);
     void setBackgroundTickingEnabled(bool);
-    gfx::Size contentSize() const;
 
     void sendDidLoseOutputSurfaceRecursive(LayerImpl*);
     void clearRenderSurfaces();
@@ -320,7 +325,6 @@ private:
     gfx::Size m_deviceViewportSize;
     float m_deviceScaleFactor;
     bool m_visible;
-    bool m_contentsTexturesPurged;
     ManagedMemoryPolicy m_managedMemoryPolicy;
 
     bool m_needsUpdateDrawProperties;

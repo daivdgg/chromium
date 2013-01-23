@@ -24,7 +24,7 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_ui_message_handler.h"
 #include "googleurl/src/gurl.h"
-#include "ui/base/dialogs/select_file_dialog.h"
+#include "ui/shell_dialogs/select_file_dialog.h"
 
 class ExtensionService;
 class FilePath;
@@ -33,6 +33,10 @@ class PrefServiceSyncable;
 namespace base {
 class DictionaryValue;
 class ListValue;
+}
+
+namespace content {
+class WebUIDataSource;
 }
 
 namespace extensions {
@@ -79,7 +83,7 @@ class ExtensionSettingsHandler
       const std::vector<ExtensionPage>& pages,
       const extensions::ExtensionWarningService* warning_service);
 
-  void GetLocalizedValues(base::DictionaryValue* localized_strings);
+  void GetLocalizedValues(content::WebUIDataSource* source);
 
   // content::WebContentsObserver implementation, which reloads all unpacked
   // extensions whenever chrome://extensions is reloaded.

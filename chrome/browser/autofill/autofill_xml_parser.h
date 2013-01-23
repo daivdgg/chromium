@@ -10,6 +10,7 @@
 
 #include "base/basictypes.h"
 #include "base/compiler_specific.h"
+#include "chrome/browser/autofill/autofill_server_field_info.h"
 #include "chrome/browser/autofill/field_types.h"
 #include "chrome/browser/autofill/form_structure.h"
 #include "third_party/libjingle/source/talk/xmllite/xmlparser.h"
@@ -66,9 +67,13 @@ class AutofillXmlParser : public buzz::XmlParseHandler {
 // unknown, other types are documented in chrome/browser/autofill/field_types.h.
 class AutofillQueryXmlParser : public AutofillXmlParser {
  public:
-  AutofillQueryXmlParser(std::vector<AutofillFieldType>* field_types,
+  AutofillQueryXmlParser(std::vector<AutofillServerFieldInfo>* field_infos,
                          UploadRequired* upload_required,
                          std::string* experiment_id);
+
+  int current_page_number() const { return current_page_number_; }
+
+  int total_pages() const { return total_pages_; }
 
  private:
   // A callback for the beginning of a new <element>, called by Expat.
@@ -85,12 +90,18 @@ class AutofillQueryXmlParser : public AutofillXmlParser {
   // |value| is the string to convert.
   int GetIntValue(buzz::XmlParseContext* context, const char* attribute);
 
-  // The parsed field types.
-  std::vector<AutofillFieldType>* field_types_;
+  // The parsed <field type, default value> pairs.
+  std::vector<AutofillServerFieldInfo>* field_infos_;
 
   // A flag indicating whether the client should upload Autofill data when this
   // form is submitted.
   UploadRequired* upload_required_;
+
+  // Page number of present page in multipage autofill flow.
+  int current_page_number_;
+
+  // Total number of pages in multipage autofill flow.
+  int total_pages_;
 
   // The server experiment to which this query response belongs.
   // For the default server implementation, this is empty.

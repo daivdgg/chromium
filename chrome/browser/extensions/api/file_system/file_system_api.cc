@@ -28,7 +28,7 @@
 #include "webkit/fileapi/file_system_util.h"
 #include "webkit/fileapi/isolated_context.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/dialogs/select_file_dialog.h"
+#include "ui/shell_dialogs/select_file_dialog.h"
 
 #if defined(OS_MACOSX)
 #include "base/mac/foundation_util.h"
@@ -156,10 +156,10 @@ bool GetFilePathOfFileEntry(const std::string& filesystem_name,
   FilePath relative_path = FilePath::FromUTF8Unsafe(filesystem_path);
   FilePath virtual_path = context->CreateVirtualRootPath(filesystem_id)
       .Append(relative_path);
-  if (!context->CrackIsolatedPath(virtual_path,
-                                  &filesystem_id,
-                                  NULL,
-                                  file_path)) {
+  if (!context->CrackVirtualPath(virtual_path,
+                                 &filesystem_id,
+                                 NULL,
+                                 file_path)) {
     *error = kInvalidParameters;
     return false;
   }
@@ -177,7 +177,11 @@ bool DoCheckWritableFile(const FilePath& path) {
   int creation_flags = base::PLATFORM_FILE_CREATE |
                        base::PLATFORM_FILE_READ |
                        base::PLATFORM_FILE_WRITE;
-  base::CreatePlatformFile(path, creation_flags, NULL, &error);
+  base::PlatformFile file = base::CreatePlatformFile(path, creation_flags,
+                                                     NULL, &error);
+  // Close the file so we don't keep a lock open.
+  if (file != base::kInvalidPlatformFileValue)
+    base::ClosePlatformFile(file);
   return error == base::PLATFORM_FILE_OK ||
          error == base::PLATFORM_FILE_ERROR_EXISTS;
 }

@@ -3157,8 +3157,7 @@ int SSLClientSocketNSS::InitializeSSLOptions() {
 #endif  // SSL_ENABLE_RENEGOTIATION
 
 #ifdef SSL_CBC_RANDOM_IV
-  rv = SSL_OptionSet(nss_fd_, SSL_CBC_RANDOM_IV,
-                     ssl_config_.false_start_enabled);
+  rv = SSL_OptionSet(nss_fd_, SSL_CBC_RANDOM_IV, PR_TRUE);
   if (rv != SECSuccess)
     LogFailedNSSFunction(net_log_, "SSL_OptionSet", "SSL_CBC_RANDOM_IV");
 #endif
@@ -3426,8 +3425,8 @@ int SSLClientSocketNSS::DoVerifyCertComplete(int result) {
     TransportSecurityState::DomainState domain_state;
     if (transport_security_state_->GetDomainState(host, sni_available,
                                                   &domain_state) &&
-        domain_state.HasPins()) {
-      if (!domain_state.IsChainOfPublicKeysPermitted(
+        domain_state.HasPublicKeyPins()) {
+      if (!domain_state.CheckPublicKeyPins(
                server_cert_verify_result_.public_key_hashes)) {
         // Pins are not enforced if the build is too old.
         if (TransportSecurityState::IsBuildTimely()) {

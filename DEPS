@@ -8,19 +8,19 @@ vars = {
   "sourceforge_url": "http://%(repo)s.svn.sourceforge.net/svnroot/%(repo)s",
   "webkit_trunk": "http://svn.webkit.org/repository/webkit/trunk",
   "nacl_trunk": "http://src.chromium.org/native_client/trunk",
-  "webkit_revision": "139950",
+  "webkit_revision": "140218",
   "chromium_git": "https://chromium.googlesource.com",
   "chromiumos_git": "https://chromium.googlesource.com/chromiumos",
   "swig_revision": "69281",
-  "nacl_revision": "10602",
+  "nacl_revision": "10633",
   # After changing nacl_revision, run 'glient sync' and check native_client/DEPS
   # to update other nacl_*_revision's.
   "nacl_tools_revision": "10001",  # native_client/DEPS: tools_rev
   "gtm_revision": "578",
 
-  "libjingle_revision": "263",
+  "libjingle_revision": "266",
   "libphonenumber_revision": "456",
-  "libvpx_revision": "176485",
+  "libvpx_revision": "177298",
   "lss_revision": "17",
 
   # These two FFmpeg variables must be updated together.  One is used for SVN
@@ -29,22 +29,22 @@ vars = {
   "ffmpeg_hash": "fe7d5497f1490914d7c3bb0236a1c722afccf4e4",
 
   "sfntly_revision": "134",
-  "skia_revision": "7239",
+  "skia_revision": "7300",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling Skia
   # and V8 without interference from each other.
-  "v8_revision": "13388",
+  "v8_revision": "13451",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling WebRTC
   # and V8 without interference from each other.
   "webrtc_revision": "3370",
   "jsoncpp_revision": "248",
-  "nss_revision": "176741",
+  "nss_revision": "177437",
 }
 
 deps = {
   "src/breakpad/src":
-    (Var("googlecode_url") % "google-breakpad") + "/trunk/src@1095",
+    (Var("googlecode_url") % "google-breakpad") + "/trunk/src@1104",
 
   "src/googleurl":
     (Var("googlecode_url") % "google-url") + "/trunk@181",
@@ -62,7 +62,7 @@ deps = {
     (Var("googlecode_url") % "googlemock") + "/trunk@410",
 
   "src/third_party/angle":
-    (Var("googlecode_url") % "angleproject") + "/trunk@1647",
+    (Var("googlecode_url") % "angleproject") + "/trunk@1722",
 
   "src/third_party/trace-viewer":
     (Var("googlecode_url") % "trace-viewer") + "/trunk@192",
@@ -75,13 +75,13 @@ deps = {
     "/trunk/deps/third_party/WebKit@76115",
 
   "src/third_party/icu":
-    "/trunk/deps/third_party/icu46@176115",
+    "/trunk/deps/third_party/icu46@177751",
 
   "src/third_party/libexif/sources":
     "/trunk/deps/third_party/libexif/sources@146817",
 
   "src/third_party/hunspell":
-   "/trunk/deps/third_party/hunspell@176100",
+   "/trunk/deps/third_party/hunspell@177853",
 
   "src/third_party/hunspell_dictionaries":
     "/trunk/deps/third_party/hunspell_dictionaries@175986",
@@ -91,7 +91,7 @@ deps = {
 
   "src/third_party/cacheinvalidation/src":
     (Var("googlecode_url") % "google-cache-invalidation-api") +
-    "/trunk/src@247",
+    "/trunk/src@261",
 
   "src/third_party/leveldatabase/src":
     (Var("googlecode_url") % "leveldb") + "/trunk@71",
@@ -100,13 +100,13 @@ deps = {
     (Var("googlecode_url") % "snappy") + "/trunk@63",
 
   "src/tools/grit":
-    (Var("googlecode_url") % "grit-i18n") + "/trunk@101",
+    (Var("googlecode_url") % "grit-i18n") + "/trunk@105",
 
   "src/tools/gyp":
-    (Var("googlecode_url") % "gyp") + "/trunk@1560",
+    (Var("googlecode_url") % "gyp") + "/trunk@1564",
 
   "src/tools/swarm_client":
-    "/trunk/tools/swarm_client@176418",
+    "/trunk/tools/swarm_client@178069",
 
   "src/v8":
     (Var("googlecode_url") % "v8") + "/trunk@" + Var("v8_revision"),
@@ -150,7 +150,7 @@ deps = {
     Var("webkit_trunk") + "/Tools/TestWebKitAPI@" + Var("webkit_revision"),
 
   "src/third_party/ots":
-    (Var("googlecode_url") % "ots") + "/trunk@96",
+    (Var("googlecode_url") % "ots") + "/trunk@97",
 
   "src/tools/page_cycler/acid3":
     "/trunk/deps/page_cycler/acid3@171600",
@@ -262,16 +262,16 @@ deps = {
     "/trunk/deps/third_party/libsrtp@174628",
 
   "src/third_party/speex":
-    "/trunk/deps/third_party/speex@175205",
+    "/trunk/deps/third_party/speex@177782",
 
   "src/third_party/yasm/source/patched-yasm":
     "/trunk/deps/third_party/yasm/patched-yasm@167605",
 
   "src/third_party/libjpeg_turbo":
-    "/trunk/deps/third_party/libjpeg_turbo@149334",
+    "/trunk/deps/third_party/libjpeg_turbo@177737",
 
   "src/third_party/flac":
-    "/trunk/deps/third_party/flac@175206",
+    "/trunk/deps/third_party/flac@177788",
 
   "src/third_party/pyftpdlib/src":
     (Var("googlecode_url") % "pyftpdlib") + "/trunk@977",
@@ -323,7 +323,7 @@ deps = {
     "/trunk/deps/third_party/opus@173498",
 
   "src/third_party/accessibility-developer-tools":
-    Var("chromium_git") + "/external/accessibility-developer-tools.git@d694593cc87d18ccb7e2cb94d447354f5fc6c059",
+    Var("chromium_git") + "/external/accessibility-developer-tools.git@e2a7557c79da617d0c06d6e96ada803b8b4b3ece",
 
   "src/webkit/media/crypto/ppapi/cdm":
     "/trunk/deps/cdm@173055",
@@ -389,7 +389,7 @@ deps_os = {
     # Binary level profile guided optimizations. This points to the
     # latest release binaries for the toolchain.
     "src/third_party/syzygy/binaries":
-      (Var("googlecode_url") % "sawbuck") + "/trunk/syzygy/binaries@1194",
+      (Var("googlecode_url") % "sawbuck") + "/trunk/syzygy/binaries@1289",
 
     # Binaries for nacl sdk.
     "src/third_party/nacl_sdk_binaries":
@@ -522,7 +522,7 @@ deps_os = {
        Var("lss_revision")),
 
     "src/third_party/openssl":
-      "/trunk/deps/third_party/openssl@172029",
+      "/trunk/deps/third_party/openssl@177803",
 
     "src/third_party/WebKit/Tools/gdb":
       Var("webkit_trunk") + "/Tools/gdb@" + Var("webkit_revision"),

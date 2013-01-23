@@ -26,6 +26,7 @@
 #include "ash/wm/root_window_layout_manager.h"
 #include "ash/wm/screen_dimmer.h"
 #include "ash/wm/shelf_layout_manager.h"
+#include "ash/wm/stacking_controller.h"
 #include "ash/wm/status_area_layout_manager.h"
 #include "ash/wm/system_background_controller.h"
 #include "ash/wm/system_modal_container_layout_manager.h"
@@ -168,6 +169,9 @@ RootWindowController::RootWindowController(aura::RootWindow* root_window)
       panel_layout_manager_(NULL) {
   SetRootWindowController(root_window, this);
   screen_dimmer_.reset(new ScreenDimmer(root_window));
+
+  stacking_controller_.reset(new ash::StackingController);
+  aura::client::SetStackingClient(root_window, stacking_controller_.get());
 }
 
 RootWindowController::~RootWindowController() {
@@ -450,6 +454,10 @@ void RootWindowController::MoveWindowsTo(aura::RootWindow* dst) {
   // example).  If the focused window is still alive after move, it'll
   // be re-focused below.
   aura::client::GetFocusClient(dst)->FocusWindow(NULL);
+
+  // Forget the shelf early so that shelf don't update itself using wrong
+  // display info.
+  workspace_controller_->SetShelf(NULL);
 
   ReparentAllWindows(root_window_.get(), dst);
 

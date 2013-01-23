@@ -31,13 +31,17 @@ class FileSystemOperationContext;
 class WEBKIT_STORAGE_EXPORT FileSystemFileUtil {
  public:
   // It will be implemented by each subclass such as FileSystemFileEnumerator.
-  class AbstractFileEnumerator {
+  class WEBKIT_STORAGE_EXPORT AbstractFileEnumerator {
    public:
     virtual ~AbstractFileEnumerator() {}
 
     // Returns an empty string if there are no more results.
     virtual FilePath Next() = 0;
 
+    // These methods return metadata for the file most recently returned by
+    // Next(). If Next() has never been called, or if Next() most recently
+    // returned an empty string, then return the default values of 0,
+    // "null time", and false, respectively.
     virtual int64 Size() = 0;
     virtual base::Time LastModifiedTime() = 0;
     virtual bool IsDirectory() = 0;
@@ -57,7 +61,8 @@ class WEBKIT_STORAGE_EXPORT FileSystemFileUtil {
     kSnapshotFileTemporary,
   };
 
-  class EmptyFileEnumerator : public AbstractFileEnumerator {
+  class WEBKIT_STORAGE_EXPORT EmptyFileEnumerator
+      : public AbstractFileEnumerator {
     virtual FilePath Next() OVERRIDE;
     virtual int64 Size() OVERRIDE;
     virtual base::Time LastModifiedTime() OVERRIDE;

@@ -8,6 +8,7 @@
 
 #include "base/bind.h"
 #include "base/bind_helpers.h"
+#include "base/command_line.h"
 #include "base/i18n/rtl.h"
 #include "base/i18n/time_formatting.h"
 #include "base/memory/singleton.h"
@@ -35,6 +36,7 @@
 #include "chrome/browser/ui/webui/chrome_web_ui_data_source.h"
 #include "chrome/browser/ui/webui/favicon_source.h"
 #include "chrome/common/chrome_notification_types.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/common/time_format.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/notification_details.h"
@@ -105,9 +107,9 @@ void SetURLAndTitle(DictionaryValue* result,
   result->SetString("title", title_to_set);
 }
 
-ChromeWebUIDataSource* CreateHistoryUIHTMLSource() {
-  ChromeWebUIDataSource* source =
-      new ChromeWebUIDataSource(chrome::kChromeUIHistoryFrameHost);
+content::WebUIDataSource* CreateHistoryUIHTMLSource() {
+  content::WebUIDataSource* source =
+      ChromeWebUIDataSource::Create(chrome::kChromeUIHistoryFrameHost);
   source->AddLocalizedString("loading", IDS_HISTORY_LOADING);
   source->AddLocalizedString("title", IDS_HISTORY_TITLE);
   source->AddLocalizedString("newest", IDS_HISTORY_NEWEST);
@@ -117,6 +119,7 @@ ChromeWebUIDataSource* CreateHistoryUIHTMLSource() {
   source->AddLocalizedString("history", IDS_HISTORY_BROWSERESULTS);
   source->AddLocalizedString("cont", IDS_HISTORY_CONTINUED);
   source->AddLocalizedString("searchbutton", IDS_HISTORY_SEARCH_BUTTON);
+  source->AddLocalizedString("nosearchresults", IDS_HISTORY_NO_SEARCH_RESULTS);
   source->AddLocalizedString("noresults", IDS_HISTORY_NO_RESULTS);
   source->AddLocalizedString("noitems", IDS_HISTORY_NO_ITEMS);
   source->AddLocalizedString("edithistory", IDS_HISTORY_START_EDITING_HISTORY);
@@ -133,10 +136,17 @@ ChromeWebUIDataSource* CreateHistoryUIHTMLSource() {
                              IDS_HISTORY_ACTION_MENU_DESCRIPTION);
   source->AddLocalizedString("removeFromHistory", IDS_HISTORY_REMOVE_PAGE);
   source->AddLocalizedString("moreFromSite", IDS_HISTORY_MORE_FROM_SITE);
-  source->set_json_path(kStringsJsFile);
-  source->add_resource_path(kHistoryJsFile, IDR_HISTORY_JS);
-  source->set_default_resource(IDR_HISTORY_HTML);
-  source->set_use_json_js_format_v2();
+  source->AddLocalizedString("displayfiltersites", IDS_GROUP_BY_DOMAIN_LABEL);
+  source->AddLocalizedString("numbervisits", IDS_HISTORY_NUMBER_VISITS);
+  source->AddBoolean("groupByDomain",
+      CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kHistoryEnableGroupByDomain));
+  source->SetJsonPath(kStringsJsFile);
+  source->AddResourcePath(kHistoryJsFile, IDR_HISTORY_JS);
+  source->SetDefaultResource(IDR_HISTORY_HTML);
+  source->SetUseJsonJSFormatV2();
+  source->DisableDenyXFrameOptions();
+
   return source;
 }
 
@@ -506,8 +516,8 @@ HistoryUI::HistoryUI(content::WebUI* web_ui) : WebUIController(web_ui) {
   web_ui->AddMessageHandler(new BrowsingHistoryHandler());
 
   // Set up the chrome://history-frame/ source.
-  ChromeURLDataManager::AddDataSourceImpl(Profile::FromWebUI(web_ui),
-                                          CreateHistoryUIHTMLSource());
+  ChromeURLDataManager::AddWebUIDataSource(Profile::FromWebUI(web_ui),
+                                           CreateHistoryUIHTMLSource());
 }
 
 // static

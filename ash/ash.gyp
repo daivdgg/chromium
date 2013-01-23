@@ -130,6 +130,8 @@
         'launcher/launcher_tooltip_manager.h',
         'launcher/launcher_types.cc',
         'launcher/launcher_types.h',
+        'launcher/launcher_util.cc',
+        'launcher/launcher_util.h',
         'launcher/launcher_view.cc',
         'launcher/launcher_view.h',
         'launcher/overflow_bubble.cc',
@@ -504,6 +506,18 @@
         'test/test_suite_init.h',
         'test/test_suite_init.mm',
       ],
+      'conditions': [
+        ['OS=="win"', {
+          'dependencies': [
+            '../ipc/ipc.gyp:ipc',
+            '../ui/metro_viewer/metro_viewer.gyp:metro_viewer',
+          ],
+          'sources': [
+            'test/test_metro_viewer_process_host.cc',
+            'test/test_metro_viewer_process_host.h',
+          ],
+        }],
+      ],
     },
     {
       'target_name': 'ash_unittests',
@@ -625,9 +639,15 @@
         }],
         ['OS=="win"', {
           'sources/': [
-          # TODO(zork): fix this test to build on Windows. See: crosbug.com/26906
+            # TODO(zork): fix this test to build on Windows. See: crosbug.com/26906
             ['exclude', 'focus_cycler_unittest.cc'],
             # All tests for multiple displays: not supported on Windows Ash.
+            ['exclude', 'accelerators/nested_dispatcher_controller_unittest.cc'],
+            ['exclude', 'display/display_controller_unittest.cc'],
+            ['exclude', 'display/display_manager_unittest.cc'],
+            ['exclude', 'display/mouse_cursor_event_filter_unittest.cc'],
+            ['exclude', 'extended_desktop_unittest.cc'],
+            ['exclude', 'screen_ash_unittest.cc'],
             ['exclude', 'wm/drag_window_resizer_unittest.cc'],
           ],
         }],
@@ -719,7 +739,7 @@
           },
           'dependencies': [
             '../sandbox/sandbox.gyp:sandbox',
-          ],          
+          ],
         }],
         ['OS=="mac"', {
           'product_name': 'AuraShell',

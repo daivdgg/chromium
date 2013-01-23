@@ -39,7 +39,6 @@
 #include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/chrome_paths.h"
-#include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/render_messages.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/browser_thread.h"
@@ -58,6 +57,7 @@
 #include "net/base/net_util.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/webui/jstemplate_builder.h"
 
 #if defined(ENABLE_THEMES)
 #include "chrome/browser/ui/webui/theme_source.h"
@@ -940,9 +940,9 @@ void AboutMemoryHandler::OnDetailsAvailable() {
   web_ui_util::SetFontAndTextDirection(&load_time_data);
   load_time_data.Set("jstemplateData", root.release());
 
-  jstemplate_builder::UseVersion2 version2;
+  webui::UseVersion2 version2;
   std::string data;
-  jstemplate_builder::AppendJsonJS(&load_time_data, &data);
+  webui::AppendJsonJS(&load_time_data, &data);
   callback_.Run(base::RefCountedString::TakeString(&data));
 }
 
@@ -1033,6 +1033,24 @@ std::string AboutUIHTMLSource::GetMimeType(const std::string& path) const {
     return "application/javascript";
   }
   return "text/html";
+}
+
+bool AboutUIHTMLSource::ShouldAddContentSecurityPolicy() const {
+#if defined(OS_CHROMEOS)
+  if (source_name_ == chrome::kChromeUIOSCreditsHost)
+    return false;
+#endif
+  return content::URLDataSource::ShouldAddContentSecurityPolicy();
+}
+
+bool AboutUIHTMLSource::ShouldDenyXFrameOptions() const {
+#if defined(OS_CHROMEOS)
+  if (source_name_ == chrome::kChromeUITermsHost) {
+    // chrome://terms page is embedded in iframe to chrome://oobe.
+    return false;
+  }
+#endif
+  return content::URLDataSource::ShouldDenyXFrameOptions();
 }
 
 AboutUI::AboutUI(content::WebUI* web_ui, const std::string& name)

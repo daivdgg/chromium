@@ -35,14 +35,8 @@ OAuth2LoginVerifier::OAuth2LoginVerifier(
     net::URLRequestContextGetter* system_request_context,
     net::URLRequestContextGetter* user_request_context)
     : delegate_(delegate),
-      ALLOW_THIS_IN_INITIALIZER_LIST(token_fetcher_(
-          this, system_request_context)),
-      ALLOW_THIS_IN_INITIALIZER_LIST(gaia_system_fetcher_(
-          this, std::string(GaiaConstants::kChromeOSSource),
-          system_request_context)),
-      ALLOW_THIS_IN_INITIALIZER_LIST(gaia_fetcher_(
-          this, std::string(GaiaConstants::kChromeOSSource),
-          user_request_context)),
+      system_request_context_(system_request_context),
+      user_request_context_(user_request_context),
       retry_count_(0) {
   DCHECK(delegate);
 }
@@ -50,8 +44,8 @@ OAuth2LoginVerifier::OAuth2LoginVerifier(
 OAuth2LoginVerifier::~OAuth2LoginVerifier() {
 }
 
-void OAuth2LoginVerifier::VerifyTokens(const std::string& oauth2_refresh_token,
-                                       const std::string& gaia_token) {
+void OAuth2LoginVerifier::VerifyOAuth2RefreshToken(
+    const std::string& oauth2_refresh_token) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   if (CrosLibrary::Get()->libcros_loaded()) {
     // Delay the verification if the network is not connected or on a captive
@@ -63,10 +57,9 @@ void OAuth2LoginVerifier::VerifyTokens(const std::string& oauth2_refresh_token,
       VLOG(1) << "Network is offline.  Deferring OAuth2 access token fetch.";
       BrowserThread::PostDelayedTask(
           BrowserThread::UI, FROM_HERE,
-          base::Bind(&OAuth2LoginVerifier::VerifyTokens,
+          base::Bind(&OAuth2LoginVerifier::VerifyOAuth2RefreshToken,
                      AsWeakPtr(),
-                     oauth2_refresh_token,
-                     gaia_token),
+                     oauth2_refresh_token),
           base::TimeDelta::FromMilliseconds(kRequestRestartDelay));
       return;
     }
@@ -74,28 +67,8 @@ void OAuth2LoginVerifier::VerifyTokens(const std::string& oauth2_refresh_token,
 
   access_token_.clear();
   refresh_token_ = oauth2_refresh_token;
-  gaia_token_ = gaia_token;
-  if (gaia_token_.empty()) {
-    // If we have no token for GAIA service and can't merge the session
-    // immediately, attempt to perform OAuthLogin and reconstruct all service
-    // tokens.
-    RestoreSessionFromOAuth2RefreshToken();
-  } else {
-    // If GAIA token is present, we can attempt to shortcut the process straight
-    // to /MergeSession call.
-    RestoreSessionFromGaiaToken();
-  }
-}
-
-
-void OAuth2LoginVerifier::RestoreSessionFromOAuth2RefreshToken() {
-  type_ = RESTORE_FROM_OAUTH2_REFRESH_TOKEN;
+  gaia_token_.clear();
   StartFetchingOAuthLoginAccessToken();
-}
-
-void OAuth2LoginVerifier::RestoreSessionFromGaiaToken() {
-  type_ = RESTORE_FROM_GAIA_TOKEN;
-  StartMergeSession();
 }
 
 void OAuth2LoginVerifier::StartFetchingOAuthLoginAccessToken() {
@@ -103,10 +76,12 @@ void OAuth2LoginVerifier::StartFetchingOAuthLoginAccessToken() {
   gaia_token_.clear();
   std::vector<std::string> scopes;
   scopes.push_back(GaiaUrls::GetInstance()->oauth1_login_scope());
-  token_fetcher_.Start(GaiaUrls::GetInstance()->oauth2_chrome_client_id(),
-                       GaiaUrls::GetInstance()->oauth2_chrome_client_secret(),
-                       refresh_token_,
-                       scopes);
+  token_fetcher_.reset(new OAuth2AccessTokenFetcher(
+      this, system_request_context_)),
+  token_fetcher_->Start(GaiaUrls::GetInstance()->oauth2_chrome_client_id(),
+                        GaiaUrls::GetInstance()->oauth2_chrome_client_secret(),
+                        refresh_token_,
+                        scopes);
 }
 
 void OAuth2LoginVerifier::OnGetTokenSuccess(
@@ -132,7 +107,10 @@ void OAuth2LoginVerifier::OnGetTokenFailure(
 
 void OAuth2LoginVerifier::StartOAuthLoginForUberToken() {
   // No service will fetch us uber auth token.
-  gaia_system_fetcher_.StartTokenFetchForUberAuthExchange(access_token_);
+  gaia_system_fetcher_.reset(new GaiaAuthFetcher(
+      this, std::string(GaiaConstants::kChromeOSSource),
+      system_request_context_));
+  gaia_system_fetcher_->StartTokenFetchForUberAuthExchange(access_token_);
 }
 
 
@@ -158,7 +136,10 @@ void OAuth2LoginVerifier::OnUberAuthTokenFailure(
 
 void OAuth2LoginVerifier::StartOAuthLoginForGaiaCredentials() {
   // No service will fetch us uber auth token.
-  gaia_system_fetcher_.StartOAuthLogin(access_token_, EmptyString());
+  gaia_system_fetcher_.reset(new GaiaAuthFetcher(
+      this, std::string(GaiaConstants::kChromeOSSource),
+      system_request_context_));
+  gaia_system_fetcher_->StartOAuthLogin(access_token_, EmptyString());
 }
 
 void OAuth2LoginVerifier::OnClientLoginSuccess(
@@ -184,13 +165,15 @@ void OAuth2LoginVerifier::OnClientLoginFailure(
 
 void OAuth2LoginVerifier::StartMergeSession() {
   DCHECK(!gaia_token_.empty());
-  gaia_fetcher_.StartMergeSession(gaia_token_);
+  gaia_fetcher_.reset(new GaiaAuthFetcher(
+      this, std::string(GaiaConstants::kChromeOSSource),
+      user_request_context_));
+  gaia_fetcher_->StartMergeSession(gaia_token_);
 }
 
 void OAuth2LoginVerifier::OnMergeSessionSuccess(const std::string& data) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   LOG(INFO) << "MergeSession successful.";
-  UMA_HISTOGRAM_ENUMERATION("OAuth2Login.MergeSessionOrigin", type_, 2);
   delegate_->OnSessionMergeSuccess();
   // Get GAIA credentials needed to kick off TokenService and friends.
   StartOAuthLoginForGaiaCredentials();
@@ -203,16 +186,12 @@ void OAuth2LoginVerifier::OnMergeSessionFailure(
   // If MergeSession from GAIA service token fails, retry the session restore
   // from OAuth2 refresh token. If that failed too, signal the delegate.
   RetryOnError(
-      (type_ == RESTORE_FROM_GAIA_TOKEN) ?
-           "MergeSessionGAIA" : "MergeSessionOAuth2",
+      "MergeSession",
       error,
       base::Bind(&OAuth2LoginVerifier::StartMergeSession,
                  AsWeakPtr()),
-      (type_ == RESTORE_FROM_GAIA_TOKEN) ?
-          base::Bind(&OAuth2LoginVerifier::RestoreSessionFromOAuth2RefreshToken,
-                     AsWeakPtr()) :
-          base::Bind(&Delegate::OnSessionMergeFailure,
-                     base::Unretained(delegate_)));
+      base::Bind(&Delegate::OnSessionMergeFailure,
+                 base::Unretained(delegate_)));
 }
 
 void OAuth2LoginVerifier::RetryOnError(const char* operation_id,
@@ -225,7 +204,7 @@ void OAuth2LoginVerifier::RetryOnError(const char* operation_id,
       retry_count_ < kMaxRequestAttemptCount) {
     retry_count_++;
     UMA_HISTOGRAM_ENUMERATION(
-        base::StringPrintf("OAuth2Login.%sWithRetry", operation_id),
+        base::StringPrintf("OAuth2Login.%sRetry", operation_id),
         error.state(),
         GoogleServiceAuthError::NUM_STATES);
     BrowserThread::PostDelayedTask(
@@ -237,7 +216,7 @@ void OAuth2LoginVerifier::RetryOnError(const char* operation_id,
   LOG(ERROR) << "Unrecoverable error or retry count max reached for "
              << operation_id;
   UMA_HISTOGRAM_ENUMERATION(
-      base::StringPrintf("OAuth2Login.%sFailureCause", operation_id),
+      base::StringPrintf("OAuth2Login.%sFailure", operation_id),
       error.state(),
       GoogleServiceAuthError::NUM_STATES);
   error_handler.Run();

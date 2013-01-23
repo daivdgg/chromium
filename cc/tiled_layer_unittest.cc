@@ -29,7 +29,6 @@ class TestOcclusionTracker : public OcclusionTracker {
 public:
     TestOcclusionTracker()
         : OcclusionTracker(gfx::Rect(0, 0, 1000, 1000), true)
-        , m_layerClipRectInTarget(gfx::Rect(0, 0, 1000, 1000))
     {
         m_stack.push_back(StackObject());
     }
@@ -39,13 +38,10 @@ public:
         m_stack.back().target = renderTarget;
     }
 
-    void setOcclusion(const Region& occlusion) { m_stack.back().occlusionFromInsideTarget = occlusion; }
-
-protected:
-    virtual gfx::Rect layerClipRectInTarget(const Layer* layer) const OVERRIDE { return m_layerClipRectInTarget; }
-
-private:
-    gfx::Rect m_layerClipRectInTarget;
+    void setOcclusion(const Region& occlusion)
+    {
+        m_stack.back().occlusionFromInsideTarget = occlusion;
+    }
 };
 
 class TiledLayerTest : public testing::Test {
@@ -1032,6 +1028,7 @@ TEST_F(TiledLayerTest, tilesPaintedWithOcclusion)
 
     // The tile size is 100x100.
 
+    m_layerTreeHost->setViewportSize(gfx::Size(600, 600), gfx::Size(600, 600));
     layer->setBounds(gfx::Size(600, 600));
     calcDrawProps(layer);
 
@@ -1084,6 +1081,7 @@ TEST_F(TiledLayerTest, tilesPaintedWithOcclusionAndVisiblityConstraints)
 
     // The tile size is 100x100.
 
+    m_layerTreeHost->setViewportSize(gfx::Size(600, 600), gfx::Size(600, 600));
     layer->setBounds(gfx::Size(600, 600));
     calcDrawProps(layer);
 
@@ -1144,6 +1142,7 @@ TEST_F(TiledLayerTest, tilesNotPaintedWithoutInvalidation)
 
     // The tile size is 100x100.
 
+    m_layerTreeHost->setViewportSize(gfx::Size(600, 600), gfx::Size(600, 600));
     layer->setBounds(gfx::Size(600, 600));
     calcDrawProps(layer);
 
@@ -1186,6 +1185,7 @@ TEST_F(TiledLayerTest, tilesPaintedWithOcclusionAndTransforms)
 
     // This makes sure the painting works when the occluded region (in screen space)
     // is transformed differently than the layer.
+    m_layerTreeHost->setViewportSize(gfx::Size(600, 600), gfx::Size(600, 600));
     layer->setBounds(gfx::Size(600, 600));
     calcDrawProps(layer);
     gfx::Transform screenTransform;
@@ -1218,6 +1218,7 @@ TEST_F(TiledLayerTest, tilesPaintedWithOcclusionAndScaling)
     // This makes sure the painting works when the content space is scaled to
     // a different layer space. In this case tiles are scaled to be 200x200
     // pixels, which means none should be occluded.
+    m_layerTreeHost->setViewportSize(gfx::Size(600, 600), gfx::Size(600, 600));
     layer->setBounds(gfx::Size(600, 600));
     layer->setRasterScale(0.5);
     calcDrawProps(layer);

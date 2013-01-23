@@ -25,12 +25,14 @@ ScrollbarLayerImpl::ScrollbarLayerImpl(LayerTreeImpl* treeImpl, int id)
     , m_backTrackResourceId(0)
     , m_foreTrackResourceId(0)
     , m_thumbResourceId(0)
+    , m_currentPos(0)
+    , m_totalSize(0)
+    , m_maximum(0)
     , m_scrollbarOverlayStyle(WebScrollbar::ScrollbarOverlayStyleDefault)
     , m_orientation(WebScrollbar::Horizontal)
     , m_controlSize(WebScrollbar::RegularScrollbar)
     , m_pressedPart(WebScrollbar::NoPart)
     , m_hoveredPart(WebScrollbar::NoPart)
-    , m_animationController(0)
     , m_isScrollableAreaActive(false)
     , m_isScrollViewScrollbar(false)
     , m_enabled(false)
@@ -66,33 +68,19 @@ void ScrollbarLayerImpl::setScrollbarData(WebScrollbar* scrollbar)
     m_geometry->update(scrollbar);
 }
 
-void ScrollbarLayerImpl::setAnimationController(ScrollbarAnimationController* controller)
-{
-    m_animationController = controller;
-}
-
 float ScrollbarLayerImpl::currentPos() const
 {
-    if (m_orientation == WebKit::WebScrollbar::Horizontal)
-        return m_animationController->currentOffset().x();
-    else
-        return m_animationController->currentOffset().y();
+    return m_currentPos;
 }
 
 int ScrollbarLayerImpl::totalSize() const
 {
-    if (m_orientation == WebKit::WebScrollbar::Horizontal)
-        return m_animationController->totalSize().width();
-    else
-        return m_animationController->totalSize().height();
+    return m_totalSize;
 }
 
 int ScrollbarLayerImpl::maximum() const
 {
-    if (m_orientation == WebKit::WebScrollbar::Horizontal)
-        return m_animationController->maximum().x();
-    else
-        return m_animationController->maximum().y();
+    return m_maximum;
 }
 
 WebKit::WebScrollbar::Orientation ScrollbarLayerImpl::orientation() const
@@ -117,7 +105,8 @@ void ScrollbarLayerImpl::appendQuads(QuadSink& quadSink, AppendQuadsData& append
 {
     bool premultipledAlpha = false;
     bool flipped = false;
-    gfx::RectF uvRect(0, 0, 1, 1);
+    gfx::PointF uvTopLeft(0.f, 0.f);
+    gfx::PointF uvBottomRight(1.f, 1.f);
     gfx::Rect boundsRect(gfx::Point(), bounds());
     gfx::Rect contentBoundsRect(gfx::Point(), contentBounds());
 
@@ -134,7 +123,7 @@ void ScrollbarLayerImpl::appendQuads(QuadSink& quadSink, AppendQuadsData& append
         gfx::Rect opaqueRect;
         const float opacity[] = {1.0f, 1.0f, 1.0f, 1.0f};
         scoped_ptr<TextureDrawQuad> quad = TextureDrawQuad::Create();
-        quad->SetNew(sharedQuadState, quadRect, opaqueRect, m_thumbResourceId, premultipledAlpha, uvRect, opacity, flipped);
+        quad->SetNew(sharedQuadState, quadRect, opaqueRect, m_thumbResourceId, premultipledAlpha, uvTopLeft, uvBottomRight, opacity, flipped);
         quadSink.append(quad.PassAs<DrawQuad>(), appendQuadsData);
     }
 
@@ -145,9 +134,10 @@ void ScrollbarLayerImpl::appendQuads(QuadSink& quadSink, AppendQuadsData& append
     if (m_foreTrackResourceId && !foreTrackRect.isEmpty()) {
         gfx::Rect quadRect(scrollbarLayerRectToContentRect(foreTrackRect));
         gfx::Rect opaqueRect(contentsOpaque() ? quadRect : gfx::Rect());
+        gfx::RectF uvRect(toUVRect(foreTrackRect, boundsRect));
         const float opacity[] = {1.0f, 1.0f, 1.0f, 1.0f};
         scoped_ptr<TextureDrawQuad> quad = TextureDrawQuad::Create();
-        quad->SetNew(sharedQuadState, quadRect, opaqueRect, m_foreTrackResourceId, premultipledAlpha, toUVRect(foreTrackRect, boundsRect), opacity, flipped);
+        quad->SetNew(sharedQuadState, quadRect, opaqueRect, m_foreTrackResourceId, premultipledAlpha, uvRect.origin(), uvRect.bottom_right(), opacity, flipped);
         quadSink.append(quad.PassAs<DrawQuad>(), appendQuadsData);
     }
 
@@ -158,7 +148,7 @@ void ScrollbarLayerImpl::appendQuads(QuadSink& quadSink, AppendQuadsData& append
         gfx::Rect opaqueRect(contentsOpaque() ? quadRect : gfx::Rect());
         const float opacity[] = {1.0f, 1.0f, 1.0f, 1.0f};
         scoped_ptr<TextureDrawQuad> quad = TextureDrawQuad::Create();
-        quad->SetNew(sharedQuadState, quadRect, opaqueRect, m_backTrackResourceId, premultipledAlpha, uvRect, opacity, flipped);
+        quad->SetNew(sharedQuadState, quadRect, opaqueRect, m_backTrackResourceId, premultipledAlpha, uvTopLeft, uvBottomRight, opacity, flipped);
         quadSink.append(quad.PassAs<DrawQuad>(), appendQuadsData);
     }
 }

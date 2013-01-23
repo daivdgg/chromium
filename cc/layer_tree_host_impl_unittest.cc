@@ -67,6 +67,8 @@ public:
         , m_hasPendingTree(false)
         , m_didRequestCommit(false)
         , m_didRequestRedraw(false)
+        , m_didSwapUseIncompleteTile(false)
+        , m_didUploadVisibleHighResolutionTile(false)
         , m_reduceMemoryResult(true)
     {
         media::InitializeMediaLibraryForTesting();
@@ -93,11 +95,15 @@ public:
     virtual void onCanDrawStateChanged(bool canDraw) OVERRIDE { m_onCanDrawStateChangedCalled = true; }
     virtual void onHasPendingTreeStateChanged(bool hasPendingTree) OVERRIDE { m_hasPendingTree = hasPendingTree; }
     virtual void setNeedsRedrawOnImplThread() OVERRIDE { m_didRequestRedraw = true; }
+    virtual void didSwapUseIncompleteTileOnImplThread() OVERRIDE { m_didSwapUseIncompleteTile = true; }
+    virtual void didUploadVisibleHighResolutionTileOnImplThread() OVERRIDE { m_didUploadVisibleHighResolutionTile = true; }
     virtual void setNeedsCommitOnImplThread() OVERRIDE { m_didRequestCommit = true; }
     virtual void setNeedsManageTilesOnImplThread() OVERRIDE { }
     virtual void postAnimationEventsToMainThreadOnImplThread(scoped_ptr<AnimationEventsVector>, base::Time wallClockTime) OVERRIDE { }
     virtual bool reduceContentsTextureMemoryOnImplThread(size_t limitBytes, int priorityCutoff) OVERRIDE { return m_reduceMemoryResult; }
     virtual void sendManagedMemoryStats() OVERRIDE { }
+    virtual bool isInsideDraw() OVERRIDE { return false; }
+    virtual void renewTreePriority() OVERRIDE { }
 
     void setReduceMemoryResult(bool reduceMemoryResult) { m_reduceMemoryResult = reduceMemoryResult; }
 
@@ -177,7 +183,7 @@ public:
         contents->setAnchorPoint(gfx::PointF(0, 0));
         root->addChild(contents.Pass());
         m_hostImpl->activeTree()->SetRootLayer(root.Pass());
-        m_hostImpl->activeTree()->FindRootScrollLayer();
+        m_hostImpl->activeTree()->DidBecomeActive();
     }
 
     scoped_ptr<LayerImpl> createScrollableLayer(int id, const gfx::Size& size)
@@ -223,6 +229,8 @@ protected:
     bool m_hasPendingTree;
     bool m_didRequestCommit;
     bool m_didRequestRedraw;
+    bool m_didSwapUseIncompleteTile;
+    bool m_didUploadVisibleHighResolutionTile;
     bool m_reduceMemoryResult;
 };
 
@@ -283,7 +291,7 @@ TEST_P(LayerTreeHostImplTest, notifyIfCanDrawChanged)
     EXPECT_TRUE(m_onCanDrawStateChangedCalled);
     m_onCanDrawStateChangedCalled = false;
 
-    m_hostImpl->resetContentsTexturesPurged();
+    m_hostImpl->activeTree()->ResetContentsTexturesPurged();
     EXPECT_TRUE(m_hostImpl->canDraw());
     EXPECT_TRUE(m_onCanDrawStateChangedCalled);
     m_onCanDrawStateChangedCalled = false;
@@ -532,23 +540,6 @@ TEST_P(LayerTreeHostImplTest, scrollByReturnsCorrectValue)
 
     // Trying to scroll more than the available space will also succeed.
     EXPECT_TRUE(m_hostImpl->scrollBy(gfx::Point(), gfx::Vector2d(5000, 5000)));
-}
-
-TEST_P(LayerTreeHostImplTest, maxScrollOffsetChangedByDeviceScaleFactor)
-{
-    setupScrollAndContentsLayers(gfx::Size(100, 100));
-
-    float deviceScaleFactor = 2;
-    gfx::Size layoutViewport(25, 25);
-    gfx::Size deviceViewport(gfx::ToFlooredSize(gfx::ScaleSize(layoutViewport, deviceScaleFactor)));
-    m_hostImpl->setViewportSize(layoutViewport, deviceViewport);
-    m_hostImpl->setDeviceScaleFactor(deviceScaleFactor);
-    EXPECT_EQ(m_hostImpl->rootLayer()->maxScrollOffset(), gfx::Vector2d(25, 25));
-
-    deviceScaleFactor = 1;
-    m_hostImpl->setViewportSize(layoutViewport, layoutViewport);
-    m_hostImpl->setDeviceScaleFactor(deviceScaleFactor);
-    EXPECT_EQ(m_hostImpl->rootLayer()->maxScrollOffset(), gfx::Vector2d(75, 75));
 }
 
 TEST_P(LayerTreeHostImplTest, clearRootRenderSurfaceAndHitTestTouchHandlerRegion)
@@ -1307,7 +1298,7 @@ TEST_P(LayerTreeHostImplTest, scrollRootAndChangePageScaleOnMainThread)
     float pageScale = 2;
     scoped_ptr<LayerImpl> root = createScrollableLayer(1, surfaceSize);
     m_hostImpl->activeTree()->SetRootLayer(root.Pass());
-    m_hostImpl->activeTree()->FindRootScrollLayer();
+    m_hostImpl->activeTree()->DidBecomeActive();
     m_hostImpl->setViewportSize(surfaceSize, surfaceSize);
     initializeRendererAndDrawFrame();
 
@@ -1360,7 +1351,7 @@ TEST_P(LayerTreeHostImplTest, scrollRootAndChangePageScaleOnImplThread)
     float pageScale = 2;
     scoped_ptr<LayerImpl> root = createScrollableLayer(1, surfaceSize);
     m_hostImpl->activeTree()->SetRootLayer(root.Pass());
-    m_hostImpl->activeTree()->FindRootScrollLayer();
+    m_hostImpl->activeTree()->DidBecomeActive();
     m_hostImpl->setViewportSize(surfaceSize, surfaceSize);
     m_hostImpl->setPageScaleFactorAndLimits(1, 1, pageScale);
     initializeRendererAndDrawFrame();
@@ -1447,7 +1438,7 @@ TEST_P(LayerTreeHostImplTest, scrollChildAndChangePageScaleOnMainThread)
     int scrollLayerId = 2;
     root->addChild(createScrollableLayer(scrollLayerId, surfaceSize));
     m_hostImpl->activeTree()->SetRootLayer(root.Pass());
-    m_hostImpl->activeTree()->FindRootScrollLayer();
+    m_hostImpl->activeTree()->DidBecomeActive();
     m_hostImpl->setViewportSize(surfaceSize, surfaceSize);
     initializeRendererAndDrawFrame();
 
@@ -1497,7 +1488,7 @@ TEST_P(LayerTreeHostImplTest, scrollChildBeyondLimit)
 
     root->addChild(child.Pass());
     m_hostImpl->activeTree()->SetRootLayer(root.Pass());
-    m_hostImpl->activeTree()->FindRootScrollLayer();
+    m_hostImpl->activeTree()->DidBecomeActive();
     m_hostImpl->setViewportSize(surfaceSize, surfaceSize);
     initializeRendererAndDrawFrame();
     {
@@ -1523,14 +1514,15 @@ TEST_P(LayerTreeHostImplTest, scrollEventBubbling)
     // When we try to scroll a non-scrollable child layer, the scroll delta
     // should be applied to one of its ancestors if possible.
     gfx::Size surfaceSize(10, 10);
-    scoped_ptr<LayerImpl> root = createScrollableLayer(1, surfaceSize);
-    scoped_ptr<LayerImpl> child = createScrollableLayer(2, surfaceSize);
+    gfx::Size contentSize(20, 20);
+    scoped_ptr<LayerImpl> root = createScrollableLayer(1, contentSize);
+    scoped_ptr<LayerImpl> child = createScrollableLayer(2, contentSize);
 
     child->setScrollable(false);
     root->addChild(child.Pass());
 
     m_hostImpl->activeTree()->SetRootLayer(root.Pass());
-    m_hostImpl->activeTree()->FindRootScrollLayer();
+    m_hostImpl->activeTree()->DidBecomeActive();
     m_hostImpl->setViewportSize(surfaceSize, surfaceSize);
     initializeRendererAndDrawFrame();
     {
@@ -1551,14 +1543,14 @@ TEST_P(LayerTreeHostImplTest, scrollBeforeRedraw)
 {
     gfx::Size surfaceSize(10, 10);
     m_hostImpl->activeTree()->SetRootLayer(createScrollableLayer(1, surfaceSize));
-    m_hostImpl->activeTree()->FindRootScrollLayer();
+    m_hostImpl->activeTree()->DidBecomeActive();
     m_hostImpl->setViewportSize(surfaceSize, surfaceSize);
 
     // Draw one frame and then immediately rebuild the layer tree to mimic a tree synchronization.
     initializeRendererAndDrawFrame();
     m_hostImpl->activeTree()->DetachLayerTree();
     m_hostImpl->activeTree()->SetRootLayer(createScrollableLayer(2, surfaceSize));
-    m_hostImpl->activeTree()->FindRootScrollLayer();
+    m_hostImpl->activeTree()->DidBecomeActive();
 
     // Scrolling should still work even though we did not draw yet.
     EXPECT_EQ(m_hostImpl->scrollBegin(gfx::Point(5, 5), InputHandlerClient::Wheel), InputHandlerClient::ScrollStarted);
@@ -3728,7 +3720,7 @@ static void configureRenderPassTestData(const char* testScript, RenderPassRemova
 
     // One shared state for all quads - we don't need the correct details
     testData.sharedQuadState = SharedQuadState::Create();
-    testData.sharedQuadState->SetAll(gfx::Transform(), gfx::Rect(), gfx::Rect(), gfx::Rect(), false, 1.0);
+    testData.sharedQuadState->SetAll(gfx::Transform(), gfx::Rect(), gfx::Rect(), false, 1.0);
 
     const char* currentChar = testScript;
 
@@ -4032,7 +4024,7 @@ void LayerTreeHostImplTest::pinchZoomPanViewportForcesCommitRedraw(const float d
     // and not the document, we can verify commit/redraw are requested.
     root->setMaxScrollOffset(gfx::Vector2d());
     m_hostImpl->activeTree()->SetRootLayer(root.Pass());
-    m_hostImpl->activeTree()->FindRootScrollLayer();
+    m_hostImpl->activeTree()->DidBecomeActive();
     m_hostImpl->setViewportSize(layoutSurfaceSize, deviceSurfaceSize);
     m_hostImpl->setPageScaleFactorAndLimits(1, 1, pageScale);
     initializeRendererAndDrawFrame();
@@ -4105,7 +4097,7 @@ void LayerTreeHostImplTest::pinchZoomPanViewportTest(const float deviceScaleFact
     // we can see the scroll component on the implTransform.
     root->setMaxScrollOffset(gfx::Vector2d());
     m_hostImpl->activeTree()->SetRootLayer(root.Pass());
-    m_hostImpl->activeTree()->FindRootScrollLayer();
+    m_hostImpl->activeTree()->DidBecomeActive();
     m_hostImpl->setViewportSize(layoutSurfaceSize, deviceSurfaceSize);
     m_hostImpl->setPageScaleFactorAndLimits(1, 1, pageScale);
     initializeRendererAndDrawFrame();
@@ -4190,7 +4182,7 @@ void LayerTreeHostImplTest::pinchZoomPanViewportAndScrollTest(const float device
     // pinchZoomViewport so we can see some scroll component on the implTransform.
     root->setMaxScrollOffset(gfx::Vector2d(3, 4));
     m_hostImpl->activeTree()->SetRootLayer(root.Pass());
-    m_hostImpl->activeTree()->FindRootScrollLayer();
+    m_hostImpl->activeTree()->DidBecomeActive();
     m_hostImpl->setViewportSize(layoutSurfaceSize, deviceSurfaceSize);
     m_hostImpl->setPageScaleFactorAndLimits(1, 1, pageScale);
     initializeRendererAndDrawFrame();
@@ -4314,7 +4306,7 @@ void LayerTreeHostImplTest::pinchZoomPanViewportAndScrollBoundaryTest(const floa
     // pinchZoomViewport so we can see some scroll component on the implTransform.
     root->setMaxScrollOffset(gfx::Vector2d(3, 4));
     m_hostImpl->activeTree()->SetRootLayer(root.Pass());
-    m_hostImpl->activeTree()->FindRootScrollLayer();
+    m_hostImpl->activeTree()->DidBecomeActive();
     m_hostImpl->setViewportSize(layoutSurfaceSize, deviceSurfaceSize);
     m_hostImpl->setPageScaleFactorAndLimits(1, 1, pageScale);
     initializeRendererAndDrawFrame();

@@ -17,7 +17,7 @@
 #include "chrome/browser/ui/browser_tab_restore_service_delegate.h"
 #include "chrome/browser/ui/cocoa/event_utils.h"
 #include "chrome/browser/ui/host_desktop.h"
-#include "webkit/glue/window_open_disposition.h"
+#include "ui/base/window_open_disposition.h"
 
 using content::OpenURLParams;
 using content::Referrer;
@@ -34,7 +34,7 @@ using content::Referrer;
 
 - (BOOL)validateMenuItem:(NSMenuItem*)menuItem {
   AppController* controller = [NSApp delegate];
-  return [controller keyWindowIsNotModal];
+  return ![controller keyWindowIsModal];
 }
 
 // Open the URL of the given history item in the current tab.

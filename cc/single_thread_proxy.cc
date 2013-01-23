@@ -4,9 +4,11 @@
 
 #include "cc/single_thread_proxy.h"
 
+#include "base/auto_reset.h"
 #include "base/debug/trace_event.h"
 #include "cc/draw_quad.h"
 #include "cc/layer_tree_host.h"
+#include "cc/layer_tree_impl.h"
 #include "cc/output_surface.h"
 #include "cc/prioritized_resource_manager.h"
 #include "cc/resource_update_controller.h"
@@ -25,6 +27,7 @@ SingleThreadProxy::SingleThreadProxy(LayerTreeHost* layerTreeHost)
     , m_outputSurfaceLost(false)
     , m_rendererInitialized(false)
     , m_nextFrameIsNewlyCommittedFrame(false)
+    , m_insideDraw(false)
     , m_totalCommitCount(0)
 {
     TRACE_EVENT0("cc", "SingleThreadProxy::SingleThreadProxy");
@@ -257,7 +260,7 @@ void SingleThreadProxy::stop()
         DebugScopedSetMainThreadBlocked mainThreadBlocked(this);
         DebugScopedSetImplThread impl(this);
 
-        if (!m_layerTreeHostImpl->contentsTexturesPurged())
+        if (!m_layerTreeHostImpl->activeTree()->ContentsTexturesPurged())
             m_layerTreeHost->deleteContentsTexturesOnImplThread(m_layerTreeHostImpl->resourceProvider());
         m_layerTreeHostImpl.reset();
     }
@@ -267,6 +270,18 @@ void SingleThreadProxy::stop()
 void SingleThreadProxy::setNeedsRedrawOnImplThread()
 {
     m_layerTreeHost->scheduleComposite();
+}
+
+void SingleThreadProxy::didSwapUseIncompleteTileOnImplThread()
+{
+    // implSidePainting only.
+    NOTREACHED();
+}
+
+void SingleThreadProxy::didUploadVisibleHighResolutionTileOnImplThread()
+{
+    // implSidePainting only.
+    NOTREACHED();
 }
 
 void SingleThreadProxy::setNeedsCommitOnImplThread()
@@ -309,6 +324,11 @@ void SingleThreadProxy::sendManagedMemoryStats()
         m_layerTreeHost->contentsTextureManager()->memoryUseBytes());
 }
 
+bool SingleThreadProxy::isInsideDraw()
+{
+    return m_insideDraw;
+}
+
 // Called by the legacy scheduling path (e.g. where render_widget does the scheduling)
 void SingleThreadProxy::compositeImmediately()
 {
@@ -344,9 +364,6 @@ bool SingleThreadProxy::commitAndComposite()
     scoped_ptr<ResourceUpdateQueue> queue = make_scoped_ptr(new ResourceUpdateQueue);
     m_layerTreeHost->updateLayers(*(queue.get()), m_layerTreeHostImpl->memoryAllocationLimitBytes());
 
-    if (m_layerTreeHostImpl->contentsTexturesPurged())
-        m_layerTreeHostImpl->resetContentsTexturesPurged();
-
     m_layerTreeHost->willCommit();
     doCommit(queue.Pass());
     bool result = doComposite();
@@ -359,6 +376,7 @@ bool SingleThreadProxy::doComposite()
     DCHECK(!m_outputSurfaceLost);
     {
         DebugScopedSetImplThread impl(this);
+        base::AutoReset<bool> markInside(&m_insideDraw, true);
 
         if (!m_layerTreeHostImpl->visible())
             return false;

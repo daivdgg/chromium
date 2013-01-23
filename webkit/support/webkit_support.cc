@@ -171,6 +171,9 @@ class TestEnvironment {
         new TestWebKitPlatformSupport(unit_test_mode,
                                       shadow_platform_delegate));
 
+    // TODO(darin): Uncomment this once DRT calls ResetTestEnvironment().
+    //WebKit::setIDBFactory(webkit_platform_support_->idbFactory());
+
 #if defined(OS_ANDROID)
     // Make sure we have enough decoding resources for layout tests.
     // The current maximum number of media elements in a layout test is 8.
@@ -183,6 +186,13 @@ class TestEnvironment {
 
   ~TestEnvironment() {
     SimpleResourceLoaderBridge::Shutdown();
+  }
+
+  void Reset() {
+#if defined(OS_ANDROID)
+    media_player_manager_->ReleaseMediaResources();
+#endif
+    WebKit::setIDBFactory(webkit_platform_support_->idbFactory());
   }
 
   TestWebKitPlatformSupport* webkit_platform_support() const {
@@ -257,16 +267,17 @@ FilePath GetWebKitRootDirFilePath() {
   if (file_util::PathExists(
           basePath.Append(FILE_PATH_LITERAL("third_party/WebKit")))) {
     // We're in a WebKit-in-chrome checkout.
-    return basePath.Append(FILE_PATH_LITERAL("third_party/WebKit"));
+    basePath = basePath.Append(FILE_PATH_LITERAL("third_party/WebKit"));
   } else if (file_util::PathExists(
           basePath.Append(FILE_PATH_LITERAL("chromium")))) {
     // We're in a WebKit-only checkout on Windows.
-    return basePath.Append(FILE_PATH_LITERAL("../.."));
+    basePath = basePath.Append(FILE_PATH_LITERAL("../.."));
   } else if (file_util::PathExists(
           basePath.Append(FILE_PATH_LITERAL("webkit/support")))) {
     // We're in a WebKit-only/xcodebuild checkout on Mac
-    return basePath.Append(FILE_PATH_LITERAL("../../.."));
+    basePath = basePath.Append(FILE_PATH_LITERAL("../../.."));
   }
+  CHECK(file_util::AbsolutePath(&basePath));
   // We're in a WebKit-only, make-build, so the DIR_SOURCE_ROOT is already the
   // WebKit root. That, or we have no idea where we are.
   return basePath;
@@ -342,6 +353,18 @@ void SetUpTestEnvironmentImpl(bool unit_test_mode,
 
 namespace webkit_support {
 
+FilePath GetChromiumRootDirFilePath() {
+  FilePath basePath;
+  PathService::Get(base::DIR_SOURCE_ROOT, &basePath);
+  if (file_util::PathExists(
+          basePath.Append(FILE_PATH_LITERAL("third_party/WebKit")))) {
+    // We're in a WebKit-in-chrome checkout.
+    return basePath;
+  }
+  return GetWebKitRootDirFilePath()
+         .Append(FILE_PATH_LITERAL("Source/WebKit/chromium"));
+}
+
 void SetUpTestEnvironment() {
   SetUpTestEnvironment(NULL);
 }
@@ -372,6 +395,10 @@ void TearDownTestEnvironment() {
   test_environment = NULL;
   AfterShutdown();
   logging::CloseLogFile();
+}
+
+void ResetTestEnvironment() {
+  test_environment->Reset();
 }
 
 WebKit::WebKitPlatformSupport* GetWebKitPlatformSupport() {

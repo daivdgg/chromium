@@ -32,7 +32,7 @@
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/extensions/api/app_runtime/app_runtime_api.h"
 #include "chrome/browser/extensions/api/declarative/rules_registry_service.h"
-#include "chrome/browser/extensions/api/extension_action/extension_actions_api.h"
+#include "chrome/browser/extensions/api/extension_action/extension_action_api.h"
 #include "chrome/browser/extensions/api/profile_keyed_api_factory.h"
 #include "chrome/browser/extensions/api/runtime/runtime_api.h"
 #include "chrome/browser/extensions/api/storage/settings_frontend.h"
@@ -894,6 +894,12 @@ bool ExtensionService::IsExtensionEnabled(
 bool ExtensionService::IsExternalExtensionUninstalled(
     const std::string& extension_id) const {
   return extension_prefs_->IsExternalExtensionUninstalled(extension_id);
+}
+
+bool ExtensionService::IsExtensionEnabledForLauncher(
+    const std::string& extension_id) const {
+  return IsExtensionEnabled(extension_id) &&
+      !GetTerminatedExtension(extension_id);
 }
 
 void ExtensionService::EnableExtension(const std::string& extension_id) {

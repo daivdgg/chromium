@@ -99,18 +99,27 @@ IN_PROC_BROWSER_TEST_F(ExtensionActionContextMenuTest, BrowserAction) {
   action_ = action_manager->GetBrowserAction(*extension_);
   EXPECT_TRUE(action_);
 
-  scoped_ptr<Browser> empty_browser(
+  Browser* empty_browser(
        new Browser(Browser::CreateParams(browser()->profile())));
 
   scoped_nsobject<ExtensionActionContextMenu> menu;
   menu.reset([[ExtensionActionContextMenu alloc]
       initWithExtension:extension_
-                browser:empty_browser.get()
+                browser:empty_browser
         extensionAction:action_]);
 
   NSMenuItem* inspectItem = [menu itemWithTag:
         extension_action_context_menu::kExtensionContextInspect];
   EXPECT_TRUE(inspectItem);
+
+  // Close the empty browser. Can't just free it directly because there are
+  // dangling references in the various native controllers that must be
+  // cleaned up first.
+  NSWindow* window = empty_browser->window()->GetNativeWindow();
+  BrowserWindowController* wc =
+    [BrowserWindowController browserWindowControllerForWindow:window];
+  ASSERT_TRUE(wc != NULL);
+  [wc destroyBrowser];
 }
 
 IN_PROC_BROWSER_TEST_F(ExtensionActionContextMenuTest, RunInspectPopup) {

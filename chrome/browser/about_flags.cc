@@ -327,7 +327,7 @@ const Experiment kExperiments[] = {
     "threaded-compositing-mode",
     IDS_FLAGS_THREADED_COMPOSITING_MODE_NAME,
     IDS_FLAGS_THREADED_COMPOSITING_MODE_DESCRIPTION,
-    kOsAll,
+    kOsAll & ~kOsCrOS,
     MULTI_VALUE_TYPE(kThreadedCompositingModeChoices)
   },
   {
@@ -562,7 +562,7 @@ const Experiment kExperiments[] = {
     IDS_FLAGS_ENABLE_SMOOTH_SCROLLING_DESCRIPTION,
     // Can't expose the switch unless the code is compiled in.
     // On by default for the Mac (different implementation in WebKit).
-    kOsWin | kOsLinux | kOsCrOS,
+    kOsWin | kOsLinux,
     SINGLE_VALUE_TYPE(switches::kEnableSmoothScrolling)
   },
   {
@@ -789,13 +789,6 @@ const Experiment kExperiments[] = {
     MULTI_VALUE_TYPE(kTouchOptimizedUIChoices)
   },
   {
-    "enable-scaling-in-image-skia-operations",
-    IDS_FLAGS_ENABLE_SCALING_IN_IMAGE_SKIA_OPERATIONS_NAME,
-    IDS_FLAGS_ENABLE_SCALING_IN_IMAGE_SKIA_OPERATIONS_DESCRIPTION,
-    kOsCrOS | kOsWin,
-    SINGLE_VALUE_TYPE(gfx::switches::kEnableScalingInImageSkiaOperations)
-  },
-  {
     "enable-webkit-text-subpixel-positioning",
     IDS_FLAGS_ENABLE_WEBKIT_TEXT_SUBPIXEL_POSITIONING_NAME,
     IDS_FLAGS_ENABLE_WEBKIT_TEXT_SUBPIXEL_POSITIONING_DESCRIPTION,
@@ -992,11 +985,11 @@ const Experiment kExperiments[] = {
     SINGLE_VALUE_TYPE(switches::kFileManagerPackaged),
   },
   {
-    "enable-launcher-per-display",
-    IDS_FLAGS_ENABLE_LAUNCHER_PER_DISPLAY_NAME,
-    IDS_FLAGS_ENABLE_LAUNCHER_PER_DISPLAY_DESCRIPTION,
+    "disable-launcher-per-display",
+    IDS_FLAGS_DISABLE_LAUNCHER_PER_DISPLAY_NAME,
+    IDS_FLAGS_DISABLE_LAUNCHER_PER_DISPLAY_DESCRIPTION,
     kOsCrOS,
-    SINGLE_VALUE_TYPE(ash::switches::kAshLauncherPerDisplay),
+    SINGLE_VALUE_TYPE(ash::switches::kAshDisableLauncherPerDisplay),
   },
 #endif  // defined(OS_CHROMEOS)
   {
@@ -1035,13 +1028,6 @@ const Experiment kExperiments[] = {
     SINGLE_VALUE_TYPE(ash::switches::kAshDebugShortcuts),
   },
 #endif
-  {
-    "disable-website-settings",  // FLAGS:RECORD_UMA
-    IDS_FLAGS_DISABLE_WEBSITE_SETTINGS_NAME,
-    IDS_FLAGS_DISABLE_WEBSITE_SETTINGS_DESCRIPTION,
-    kOsAll,
-    SINGLE_VALUE_TYPE(switches::kDisableWebsiteSettings),
-  },
   {
     "enable-webaudio-input",
     IDS_FLAGS_ENABLE_WEBAUDIO_INPUT_NAME,
@@ -1195,7 +1181,6 @@ const Experiment kExperiments[] = {
     SINGLE_VALUE_TYPE(switches::kEnableOverscrollHistoryNavigation)
   },
 #endif
-
   {
     "enable-touch-drag-drop",
     IDS_FLAGS_ENABLE_TOUCH_DRAG_DROP_NAME,
@@ -1230,6 +1215,13 @@ const Experiment kExperiments[] = {
     IDS_FLAGS_RTC_DATACHANNELS_DESCRIPTION,
     kOsAll,
     SINGLE_VALUE_TYPE(switches::kEnableDataChannels)
+  },
+  {
+    "enable-sync-dictionary",
+    IDS_FLAGS_ENABLE_SYNC_DICTIONARY_NAME,
+    IDS_FLAGS_ENABLE_SYNC_DICTIONARY_DESCRIPTION,
+    kOsWin | kOsCrOS | kOsLinux,
+    SINGLE_VALUE_TYPE(switches::kEnableSyncDictionary)
   },
 };
 

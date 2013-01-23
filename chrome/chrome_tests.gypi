@@ -1,4 +1,4 @@
-# Copyright (c) 2012 The Chromium Authors. All rights reserved.
+# Copyright 2013 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 {
@@ -67,6 +67,10 @@
         ['OS=="win"', {
           'dependencies': [
             'chrome.gyp:crash_service',  # run time dependency
+          ],
+        }],
+        ['OS=="win" and target_arch=="ia32"', {
+          'dependencies': [
             'chrome.gyp:crash_service_win64',  # run time dependency
           ],
         }],
@@ -182,6 +186,9 @@
         'browser/extensions/window_open_interactive_apitest.cc',
         'browser/extensions/extension_pointer_lock_apitest.cc',
         'browser/instant/instant_browsertest.cc',
+        'browser/instant/instant_extended_browsertest.cc',
+        'browser/instant/instant_test_utils.h',
+        'browser/instant/instant_test_utils.cc',
         'browser/mouseleave_browsertest.cc',
         'browser/notifications/desktop_notifications_unittest.cc',
         'browser/notifications/desktop_notifications_unittest.h',
@@ -203,6 +210,7 @@
         'browser/ui/panels/panel_browsertest.cc',
         'browser/ui/panels/panel_drag_browsertest.cc',
         'browser/ui/panels/panel_resize_browsertest.cc',
+        'browser/ui/panels/stacked_panel_browsertest.cc',
         'browser/ui/panels/test_panel_active_state_observer.cc',
         'browser/ui/panels/test_panel_active_state_observer.h',
         'browser/ui/panels/test_panel_mouse_watcher.cc',
@@ -884,6 +892,7 @@
         'HAS_OUT_OF_PROC_TEST_RUNNER',
       ],
       'sources': [
+        '../apps/app_restore_service_browsertest.cc',
         'app/breakpad_mac_stubs.mm',
         'app/chrome_command_ids.h',
         'app/chrome_dll.rc',
@@ -1127,6 +1136,7 @@
         'browser/locale_tests_browsertest.cc',
         'browser/logging_chrome_browsertest.cc',
         'browser/managed_mode/managed_mode_browsertest.cc',
+        'browser/media/chrome_webrtc_browsertest.cc',
         'browser/media_gallery/media_galleries_dialog_controller_mock.cc',
         'browser/media_gallery/media_galleries_dialog_controller_mock.h',
         'browser/metrics/metrics_service_browsertest.cc',
@@ -1315,6 +1325,7 @@
         'test/base/empty_browser_test.cc',
         'test/base/in_process_browser_test_browsertest.cc',
         'test/base/tracing_browsertest.cc',
+        'test/data/chromeos/oobe_webui_browsertest.js',
         'test/data/webui/accessibility_audit_browsertest.js',
         'test/data/webui/assertions.js',
         'test/data/webui/async_gen.cc',
@@ -1362,6 +1373,7 @@
             '<(gypv8sh)',
             '<(PRODUCT_DIR)/v8_shell<(EXECUTABLE_SUFFIX)',
             '<(mock_js)',
+            '<(accessibility_audit_js)',
             '<(test_api_js)',
             '<(js2gtest)',
           ],
@@ -1423,6 +1435,11 @@
               ],
               'dependencies': [
                 'chrome.gyp:chrome_nacl_win64',
+              ],
+            }],
+            ['chromeos==0', {
+              'sources!': [
+                'test/data/chromeos/oobe_webui_browsertest.js',
               ],
             }],
           ],
@@ -1512,6 +1529,11 @@
         ['enable_rlz==0', {
           'sources!': [
             'browser/rlz/rlz_extension_apitest.cc',
+          ],
+        }],
+        ['enable_webrtc==0', {
+          'sources!': [
+            'browser/media/chrome_webrtc_browsertest.cc',
           ],
         }],
         ['OS=="win"', {
@@ -1639,7 +1661,8 @@
             ['exclude', '^browser/ui/views/'],
           ],
         }],
-        ['target_arch!="arm"', {
+        ['OS!="android" and OS!="ios"', {
+          # npapi test plugin doesn't build on android or ios
           'dependencies': [
             # build time dependency.
             '../v8/tools/gyp/v8.gyp:v8_shell#host',
@@ -1713,6 +1736,7 @@
             '<(gypv8sh)',
             '<(PRODUCT_DIR)/v8_shell<(EXECUTABLE_SUFFIX)',
             '<(mock_js)',
+            '<(accessibility_audit_js)',
             '<(test_api_js)',
             '<(js2gtest)',
           ],
@@ -1973,10 +1997,10 @@
         'renderer',
         'test_support_common',
         '../net/net.gyp:net',
-        '../net/net.gyp:net_test_support',
         '../printing/printing.gyp:printing',
         '../skia/skia.gyp:skia',
         '../sync/sync.gyp:sync_notifier',
+        '../sync/sync.gyp:test_support_sync_testserver',
         '../testing/gmock.gyp:gmock',
         '../testing/gtest.gyp:gtest',
         '../third_party/icu/icu.gyp:icui18n',
@@ -2010,6 +2034,10 @@
         'browser/sync/test/integration/bookmarks_helper.cc',
         'browser/sync/test/integration/bookmarks_helper.h',
         'browser/sync/test/integration/cross_platform_sync_test.cc',
+        'browser/sync/test/integration/dictionary_helper.cc',
+        'browser/sync/test/integration/dictionary_helper.h',
+        'browser/sync/test/integration/dictionary_load_observer.cc',
+        'browser/sync/test/integration/dictionary_load_observer.h',
         'browser/sync/test/integration/enable_disable_test.cc',
         'browser/sync/test/integration/extension_settings_helper.cc',
         'browser/sync/test/integration/extension_settings_helper.h',
@@ -2017,6 +2045,7 @@
         'browser/sync/test/integration/extensions_helper.h',
         'browser/sync/test/integration/migration_errors_test.cc',
         'browser/sync/test/integration/multiple_client_bookmarks_sync_test.cc',
+        'browser/sync/test/integration/multiple_client_dictionary_sync_test.cc',
         'browser/sync/test/integration/multiple_client_passwords_sync_test.cc',
         'browser/sync/test/integration/multiple_client_preferences_sync_test.cc',
         'browser/sync/test/integration/multiple_client_sessions_sync_test.cc',
@@ -2031,6 +2060,7 @@
         'browser/sync/test/integration/sessions_helper.h',
         'browser/sync/test/integration/single_client_apps_sync_test.cc',
         'browser/sync/test/integration/single_client_bookmarks_sync_test.cc',
+        'browser/sync/test/integration/single_client_dictionary_sync_test.cc',
         'browser/sync/test/integration/single_client_extensions_sync_test.cc',
         'browser/sync/test/integration/single_client_passwords_sync_test.cc',
         'browser/sync/test/integration/single_client_preferences_sync_test.cc',
@@ -2052,6 +2082,7 @@
         'browser/sync/test/integration/two_client_apps_sync_test.cc',
         'browser/sync/test/integration/two_client_autofill_sync_test.cc',
         'browser/sync/test/integration/two_client_bookmarks_sync_test.cc',
+        'browser/sync/test/integration/two_client_dictionary_sync_test.cc',
         'browser/sync/test/integration/two_client_extension_settings_and_app_settings_sync_test.cc',
         'browser/sync/test/integration/two_client_extensions_sync_test.cc',
         'browser/sync/test/integration/two_client_passwords_sync_test.cc',
@@ -2138,6 +2169,7 @@
         'test_support_common',
         '../skia/skia.gyp:skia',
         '../sync/sync.gyp:sync_notifier',
+        '../sync/sync.gyp:test_support_sync_testserver',
         '../testing/gmock.gyp:gmock',
         '../testing/gtest.gyp:gtest',
       ],
@@ -2160,12 +2192,17 @@
         'browser/sync/test/integration/autofill_helper.h',
         'browser/sync/test/integration/bookmarks_helper.cc',
         'browser/sync/test/integration/bookmarks_helper.h',
+        'browser/sync/test/integration/dictionary_helper.cc',
+        'browser/sync/test/integration/dictionary_helper.h',
+        'browser/sync/test/integration/dictionary_load_observer.cc',
+        'browser/sync/test/integration/dictionary_load_observer.h',
         'browser/sync/test/integration/extensions_helper.cc',
         'browser/sync/test/integration/extensions_helper.h',
         'browser/sync/test/integration/passwords_helper.cc',
         'browser/sync/test/integration/passwords_helper.h',
         'browser/sync/test/integration/performance/autofill_sync_perf_test.cc',
         'browser/sync/test/integration/performance/bookmarks_sync_perf_test.cc',
+        'browser/sync/test/integration/performance/dictionary_sync_perf_test.cc',
         'browser/sync/test/integration/performance/extensions_sync_perf_test.cc',
         'browser/sync/test/integration/performance/sync_timing_helper.cc',
         'browser/sync/test/integration/performance/sync_timing_helper.h',
@@ -2197,7 +2234,7 @@
           ],
         }],
         ['OS=="mac"', {
-          # The sync_integration_tests do not run on mac without this flag.
+          # The sync_performance_tests do not run on mac without this flag.
           # Search for comments about "xcode_settings" elsewhere in this file.
           'xcode_settings': {'OTHER_LDFLAGS': ['-Wl,-ObjC']},
         }],
@@ -2358,10 +2395,13 @@
           ],
           'sources': [
             'browser/net/sqlite_persistent_cookie_store_perftest.cc',
-            'browser/visitedlink/visitedlink_perftest.cc',
             'common/json_value_serializer_perftest.cc',
             'test/perf/perftests.cc',
             'test/perf/url_parse_perftest.cc',
+
+            # TODO(boliu): Move this to a separate components_perftest target
+            # under components/.
+            '../components/visitedlink/test/visitedlink_perftest.cc',
           ],
           'conditions': [
             ['toolkit_uses_gtk == 1', {

@@ -118,8 +118,8 @@ void ParseResourceEntryAndRun(
   callback.Run(error, entry.Pass());
 }
 
-// Parses the JSON value to AccountMetadataFeed on the blocking pool and runs
-// |callback| on the UI thread once parsing is done.
+// Parses the JSON value to AccountMetadataFeed and runs |callback|
+// on the UI thread once parsing is done.
 void ParseAccounetMetadataAndRun(
     const GetAccountMetadataCallback& callback,
     GDataErrorCode error,
@@ -139,6 +139,35 @@ void ParseAccounetMetadataAndRun(
   // For now just returning an error. crbug.com/165621
   callback.Run(GDATA_PARSE_ERROR, scoped_ptr<AccountMetadataFeed>());
 }
+
+// Parses the JSON value to AppList runs |callback| on the UI thread
+// once parsing is done.
+void ParseAppListAndRun(const google_apis::GetAppListCallback& callback,
+                        google_apis::GDataErrorCode error,
+                        scoped_ptr<base::Value> value) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
+  DCHECK(!callback.is_null());
+
+  if (!value) {
+    callback.Run(error, scoped_ptr<google_apis::AppList>());
+    return;
+  }
+
+  // Parsing AppList is cheap enough to do on UI thread.
+  scoped_ptr<google_apis::AppList> app_list =
+      google_apis::AppList::CreateFrom(*value);
+  if (!app_list) {
+    callback.Run(google_apis::GDATA_PARSE_ERROR,
+                 scoped_ptr<google_apis::AppList>());
+    return;
+  }
+
+  callback.Run(error, app_list.Pass());
+}
+
+// The resource ID for the root directory for Drive API is defined in the spec:
+// https://developers.google.com/drive/folder
+const char kDriveApiRootDirectoryResourceId[] = "root";
 
 }  // namespace
 
@@ -206,6 +235,10 @@ bool DriveAPIService::CancelForFilePath(const FilePath& file_path) {
 OperationProgressStatusList DriveAPIService::GetProgressStatusList() const {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   return operation_registry()->GetProgressStatusList();
+}
+
+std::string DriveAPIService::GetRootResourceId() const {
+  return kDriveApiRootDirectoryResourceId;
 }
 
 void DriveAPIService::GetResourceList(
@@ -289,7 +322,7 @@ void DriveAPIService::GetAccountMetadata(
           base::Bind(&ParseAccounetMetadataAndRun, callback)));
 }
 
-void DriveAPIService::GetApplicationInfo(const GetDataCallback& callback) {
+void DriveAPIService::GetAppList(const GetAppListCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
 
@@ -297,7 +330,7 @@ void DriveAPIService::GetApplicationInfo(const GetDataCallback& callback) {
       operation_registry(),
       url_request_context_getter_,
       url_generator_,
-      callback));
+      base::Bind(&ParseAppListAndRun, callback)));
 }
 
 void DriveAPIService::DownloadHostedDocument(
@@ -339,7 +372,7 @@ void DriveAPIService::DeleteResource(
 
 void DriveAPIService::AddNewDirectory(
     const GURL& parent_content_url,
-    const FilePath::StringType& directory_name,
+    const std::string& directory_name,
     const GetResourceEntryCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -350,7 +383,7 @@ void DriveAPIService::AddNewDirectory(
 
 void DriveAPIService::CopyHostedDocument(
     const std::string& resource_id,
-    const FilePath::StringType& new_name,
+    const std::string& new_name,
     const GetResourceEntryCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -361,7 +394,7 @@ void DriveAPIService::CopyHostedDocument(
 
 void DriveAPIService::RenameResource(
     const GURL& edit_url,
-    const FilePath::StringType& new_name,
+    const std::string& new_name,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());

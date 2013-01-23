@@ -56,7 +56,6 @@
 #include "ash/wm/session_state_controller.h"
 #include "ash/wm/session_state_controller_impl.h"
 #include "ash/wm/session_state_controller_impl2.h"
-#include "ash/wm/stacking_controller.h"
 #include "ash/wm/system_gesture_event_filter.h"
 #include "ash/wm/system_modal_container_event_filter.h"
 #include "ash/wm/system_modal_container_layout_manager.h"
@@ -71,7 +70,6 @@
 #include "base/command_line.h"
 #include "base/debug/leak_annotations.h"
 #include "ui/aura/client/aura_constants.h"
-#include "ui/aura/client/stacking_client.h"
 #include "ui/aura/client/user_action_client.h"
 #include "ui/aura/env.h"
 #include "ui/aura/focus_manager.h"
@@ -396,7 +394,7 @@ std::vector<aura::Window*> Shell::GetContainersFromAllRootWindows(
 // static
 bool Shell::IsLauncherPerDisplayEnabled() {
   CommandLine* command_line = CommandLine::ForCurrentProcess();
-  return command_line->HasSwitch(switches::kAshLauncherPerDisplay);
+  return !command_line->HasSwitch(switches::kAshDisableLauncherPerDisplay);
 }
 
 void Shell::Init() {
@@ -502,9 +500,6 @@ void Shell::Init() {
   // Create Controllers that may need root window.
   // TODO(oshima): Move as many controllers before creating
   // RootWindowController as possible.
-  stacking_client_.reset(delegate_->CreateStackingClient());
-  if (stacking_client_.get())
-    aura::client::SetStackingClient(stacking_client_.get());
   visibility_controller_.reset(new AshVisibilityController);
   drag_drop_controller_.reset(new internal::DragDropController);
   user_action_client_.reset(delegate_->CreateUserActionClient());
@@ -833,10 +828,6 @@ void Shell::InitRootWindowForSecondaryDisplay(aura::RootWindow* root) {
 void Shell::DoInitialWorkspaceAnimation() {
   return GetPrimaryRootWindowController()->workspace_controller()->
       DoInitialAnimation();
-}
-
-aura::client::StackingClient* Shell::stacking_client() {
-  return stacking_client_.get();
 }
 
 void Shell::InitRootWindowController(

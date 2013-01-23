@@ -38,7 +38,6 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/extensions/extension.h"
 #include "chrome/common/extensions/extension_constants.h"
-#include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/browser_thread.h"
@@ -54,7 +53,7 @@
 #include "ui/base/theme_provider.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/sys_color_change_listener.h"
-
+#include "ui/webui/jstemplate_builder.h"
 
 #if defined(OS_MACOSX)
 #include "chrome/browser/platform_util.h"
@@ -120,8 +119,7 @@ SkColor GetThemeColor(ui::ThemeProvider* tp, int id) {
 // Get the CSS string for the background position on the new tab page for the
 // states when the bar is attached or detached.
 std::string GetNewTabBackgroundCSS(const ui::ThemeProvider* theme_provider,
-                                   bool bar_attached,
-                                   bool is_ntp_search) {
+                                   bool bar_attached) {
   int alignment;
   theme_provider->GetDisplayProperty(
       ThemeService::NTP_BACKGROUND_ALIGNMENT, &alignment);
@@ -134,12 +132,7 @@ std::string GetNewTabBackgroundCSS(const ui::ThemeProvider* theme_provider,
     return "-64px";
   }
 
-  // For instant extended API i.e. |is_ntp_search| is true, bookmark bar is
-  // always detached at bottom of content view in the y-direction, floating on
-  // top of it in the z-order, and not showing any part of the theme background
-  // image, so the content view should show the entire theme background image as
-  // is, with no vertical offset.
-  if (bar_attached || is_ntp_search)
+  if (bar_attached)
     return ThemeService::AlignmentToString(alignment);
 
   if (alignment & ThemeService::ALIGN_TOP) {
@@ -304,7 +297,7 @@ void NTPResourceCache::CreateNewTabIncognitoHTML() {
       ResourceBundle::GetSharedInstance().GetRawDataResource(
           new_tab_html_idr));
 
-  std::string full_html = jstemplate_builder::GetI18nTemplateHtml(
+  std::string full_html = webui::GetI18nTemplateHtml(
       incognito_tab_html, &localized_strings);
 
   new_tab_incognito_html_ = base::RefCountedString::TakeString(&full_html);
@@ -460,9 +453,9 @@ void NTPResourceCache::CreateNewTabHTML() {
   base::StringPiece new_tab_html(ResourceBundle::GetSharedInstance().
       GetRawDataResource(chrome::search::IsInstantExtendedAPIEnabled(profile_) ?
                          IDR_NEW_TAB_SEARCH_HTML : IDR_NEW_TAB_4_HTML));
-  jstemplate_builder::UseVersion2 version2;
+  webui::UseVersion2 version2;
   std::string full_html =
-      jstemplate_builder::GetI18nTemplateHtml(new_tab_html, &load_time_data);
+      webui::GetI18nTemplateHtml(new_tab_html, &load_time_data);
   new_tab_html_ = base::RefCountedString::TakeString(&full_html);
 }
 
@@ -481,12 +474,10 @@ void NTPResourceCache::CreateNewTabIncognitoCSS() {
   subst.push_back(
       profile_->GetPrefs()->GetString(prefs::kCurrentThemeID));  // $1
 
-  bool is_ntp_search = chrome::search::IsInstantExtendedAPIEnabled(profile_);
-
   // Colors.
   subst.push_back(SkColorToRGBAString(color_background));  // $2
-  subst.push_back(GetNewTabBackgroundCSS(tp, false, is_ntp_search));  // $3
-  subst.push_back(GetNewTabBackgroundCSS(tp, true, is_ntp_search));  // $4
+  subst.push_back(GetNewTabBackgroundCSS(tp, false));  // $3
+  subst.push_back(GetNewTabBackgroundCSS(tp, true));  // $4
   subst.push_back(GetNewTabBackgroundTilingCSS(tp));  // $5
 
   // Get our template.
@@ -557,12 +548,10 @@ void NTPResourceCache::CreateNewTabCSS() {
   subst.push_back(
       profile_->GetPrefs()->GetString(prefs::kCurrentThemeID));  // $1
 
-  bool is_ntp_search = chrome::search::IsInstantExtendedAPIEnabled(profile_);
-
   // Colors.
   subst.push_back(SkColorToRGBAString(color_background));  // $2
-  subst.push_back(GetNewTabBackgroundCSS(tp, false, is_ntp_search));  // $3
-  subst.push_back(GetNewTabBackgroundCSS(tp, true, is_ntp_search));  // $4
+  subst.push_back(GetNewTabBackgroundCSS(tp, false));  // $3
+  subst.push_back(GetNewTabBackgroundCSS(tp, true));  // $4
   subst.push_back(GetNewTabBackgroundTilingCSS(tp));  // $5
   subst.push_back(SkColorToRGBAString(color_header));  // $6
   subst.push_back(SkColorToRGBAString(color_header_gradient_light));  // $7
@@ -588,7 +577,8 @@ void NTPResourceCache::CreateNewTabCSS() {
 
   // Get our template.
   static const base::StringPiece new_tab_theme_css(
-      ResourceBundle::GetSharedInstance().GetRawDataResource(is_ntp_search ?
+      ResourceBundle::GetSharedInstance().GetRawDataResource(
+          chrome::search::IsInstantExtendedAPIEnabled(profile_) ?
           IDR_NEW_TAB_SEARCH_THEME_CSS : IDR_NEW_TAB_4_THEME_CSS));
 
   // Create the string from our template and the replacements.

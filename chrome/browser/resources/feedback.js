@@ -95,6 +95,13 @@ function enableScreenshots() {
  */
 function onFileSelected(evtFileSelected) {
   var file = evtFileSelected.target.files[0];
+  if (!file) {
+    // User canceled file selection.
+    $('attach-file-checkbox').checked = false;
+    attachFileBinaryData = null;
+    return;
+  }
+
   if (file.size > MAX_ATTACH_FILE_SIZE) {
     $('attach-error').hidden = false;
 
@@ -327,6 +334,7 @@ function setupSavedScreenshots(screenshots) {
     selectedThumbnailDivId = '';
     selectedThumbnailId = '';
   } else {
+    $('saved-screenshots').textContent = '';
     for (i = 0; i < screenshots.length; ++i)
       addScreenshot('saved-screenshots', screenshots[i]);
 

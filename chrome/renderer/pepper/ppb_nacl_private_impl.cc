@@ -128,21 +128,21 @@ PP_NaClResult LaunchSelLdr(PP_Instance instance,
 }
 
 PP_NaClResult StartPpapiProxy(PP_Instance instance) {
-  if (CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kEnableNaClSRPCProxy))
-    return PP_NACL_USE_SRPC;
-
   InstanceInfoMap& map = g_instance_info.Get();
   InstanceInfoMap::iterator it = map.find(instance);
-  if (it == map.end())
+  if (it == map.end()) {
+    DLOG(ERROR) << "Could not find instance ID";
     return PP_NACL_FAILED;
+  }
   InstanceInfo instance_info = it->second;
   map.erase(it);
 
   webkit::ppapi::PluginInstance* plugin_instance =
       content::GetHostGlobals()->GetInstance(instance);
-  if (!plugin_instance)
+  if (!plugin_instance) {
+    DLOG(ERROR) << "GetInstance() failed";
     return PP_NACL_ERROR_MODULE;
+  }
 
   // Create a new module for each instance of the NaCl plugin that is using
   // the IPC based out-of-process proxy. We can't use the existing module,
@@ -161,8 +161,10 @@ PP_NaClResult StartPpapiProxy(PP_Instance instance) {
           instance_info.channel_handle,
           instance_info.plugin_pid,
           instance_info.plugin_child_id);
-  if (!renderer_ppapi_host)
+  if (!renderer_ppapi_host) {
+    DLOG(ERROR) << "CreateExternalPluginModule() failed";
     return PP_NACL_ERROR_MODULE;
+  }
 
   // Finally, switch the instance to the proxy.
   return nacl_plugin_module->InitAsProxiedNaCl(plugin_instance);

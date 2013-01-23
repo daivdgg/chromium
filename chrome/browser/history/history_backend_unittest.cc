@@ -1447,6 +1447,9 @@ TEST_F(HistoryBackendTest, SetFavicons) {
   EXPECT_TRUE(BitmapDataEqual('c', favicon_bitmaps[1].bitmap_data));
   EXPECT_EQ(kLargeSize, favicon_bitmaps[1].pixel_size);
 
+  // Notifications should have been broadcast for each call to SetFavicons().
+  EXPECT_EQ(2, num_broadcasted_notifications());
+
   // Change the sizes for which the favicon at icon_url1 is available at from
   // the web. Verify that all the data remains valid.
   icon_url_sizes[icon_url1] = GetSizesTinySmallAndLarge();
@@ -1482,8 +1485,9 @@ TEST_F(HistoryBackendTest, SetFavicons) {
       icon_mappings[1].icon_id, &favicon_bitmaps));
   EXPECT_EQ(2u, favicon_bitmaps.size());
 
-  // Notifications should have been broadcast for each call to SetFavicons().
-  EXPECT_EQ(3, num_broadcasted_notifications());
+  // No notifications should have been sent because changing the favicon sizes
+  // did not result in deleting any favicon bitmaps.
+  EXPECT_EQ(2, num_broadcasted_notifications());
 }
 
 // Test that changing the sizes that a favicon is available at from the web
@@ -1570,11 +1574,12 @@ TEST_F(HistoryBackendTest, SetFaviconsReplaceBitmapData) {
       GetOnlyFaviconBitmap(original_favicon_id, &original_favicon_bitmap));
   EXPECT_TRUE(BitmapDataEqual('a', original_favicon_bitmap.bitmap_data));
 
-  // SetFavicons with identical data but a different bitmap.
+  EXPECT_EQ(1, num_broadcasted_notifications());
+
+  // Call SetFavicons() with completely identical data.
   std::vector<unsigned char> updated_data;
-  updated_data.push_back('b');
-  favicon_bitmap_data[0].bitmap_data =
-      base::RefCountedBytes::TakeVector(&updated_data);
+  updated_data.push_back('a');
+  favicon_bitmap_data[0].bitmap_data = new base::RefCountedBytes(updated_data);
   backend_->SetFavicons(page_url, FAVICON, favicon_bitmap_data,
                         icon_url_sizes);
 
@@ -1585,12 +1590,35 @@ TEST_F(HistoryBackendTest, SetFaviconsReplaceBitmapData) {
   FaviconBitmap updated_favicon_bitmap;
   EXPECT_TRUE(
       GetOnlyFaviconBitmap(updated_favicon_id, &updated_favicon_bitmap));
+  EXPECT_TRUE(BitmapDataEqual('a', updated_favicon_bitmap.bitmap_data));
+
+  // Because the bitmap data is byte equivalent, no notifications should have
+  // been broadcasted.
+  EXPECT_EQ(1, num_broadcasted_notifications());
+
+  // Call SetFavicons() with identical data but a different bitmap.
+  updated_data[0] = 'b';
+  favicon_bitmap_data[0].bitmap_data = new base::RefCountedBytes(updated_data);
+  backend_->SetFavicons(page_url, FAVICON, favicon_bitmap_data,
+                        icon_url_sizes);
+
+  updated_favicon_id =
+      backend_->thumbnail_db_->GetFaviconIDForFaviconURL(icon_url, FAVICON,
+                                                         NULL);
+  EXPECT_NE(0, updated_favicon_id);
+  EXPECT_TRUE(
+      GetOnlyFaviconBitmap(updated_favicon_id, &updated_favicon_bitmap));
   EXPECT_TRUE(BitmapDataEqual('b', updated_favicon_bitmap.bitmap_data));
 
-  // There should be no churn in FaviconIDs or FaviconBitmapIds.
+  // There should be no churn in FaviconIDs or FaviconBitmapIds even though
+  // the bitmap data changed.
   EXPECT_EQ(original_favicon_bitmap.icon_id, updated_favicon_bitmap.icon_id);
   EXPECT_EQ(original_favicon_bitmap.bitmap_id,
             updated_favicon_bitmap.bitmap_id);
+
+  // A notification should have been broadcasted as the favicon bitmap data has
+  // changed.
+  EXPECT_EQ(2, num_broadcasted_notifications());
 }
 
 // Test that if two pages share the same FaviconID, changing the favicon for
@@ -1826,7 +1854,7 @@ TEST_F(HistoryBackendTest, MergeFaviconPageURLInDB) {
   backend_->MergeFavicon(page_url, icon_url1, FAVICON, bitmap_data, kSmallSize);
 
   // The small favicon bitmap at |icon_url1| should be overwritten and favicon
-  // sizes should remain unchanged.
+  // sizes should remain unchanged. No notification should be sent.
   icon_mappings.clear();
   EXPECT_TRUE(backend_->thumbnail_db_->GetIconMappingsForPageURL(page_url,
       &icon_mappings));
@@ -1841,6 +1869,8 @@ TEST_F(HistoryBackendTest, MergeFaviconPageURLInDB) {
   EXPECT_TRUE(GetOnlyFaviconBitmap(icon_mappings[0].icon_id, &favicon_bitmap));
   EXPECT_TRUE(BitmapDataEqual('b', favicon_bitmap.bitmap_data));
   EXPECT_EQ(kSmallSize, favicon_bitmap.pixel_size);
+
+  EXPECT_EQ(1, num_broadcasted_notifications());
 
   // 3) Merge favicon for the same icon URL, but a pixel size for which there is
   // no favicon bitmap.
@@ -1900,7 +1930,7 @@ TEST_F(HistoryBackendTest, MergeFaviconPageURLInDB) {
 
   // A notification should have been broadcast for each call to SetFavicons()
   // and MergeFavicon().
-  EXPECT_EQ(4, num_broadcasted_notifications());
+  EXPECT_EQ(3, num_broadcasted_notifications());
 }
 
 // Test calling MergeFavicon() when |icon_url| is known to the database but not

@@ -28,7 +28,6 @@
 #include "chrome/browser/safe_browsing/ui_manager.h"
 #include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/ui/webui/web_ui_util.h"
-#include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/browser_thread.h"
@@ -43,6 +42,7 @@
 #include "net/base/escape.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/webui/jstemplate_builder.h"
 
 using content::BrowserThread;
 using content::InterstitialPage;
@@ -771,7 +771,7 @@ std::string SafeBrowsingBlockingPageV1::GetHTMLContents() {
   html = rb.GetRawDataResource(
       IDR_SAFE_BROWSING_MULTIPLE_THREAT_BLOCK).as_string();
   interstitial_show_time_ = base::TimeTicks::Now();
-  return jstemplate_builder::GetTemplatesHtml(html, &strings, "template_root");
+  return webui::GetTemplatesHtml(html, &strings, "template_root");
 }
 
 void SafeBrowsingBlockingPageV1::PopulateStringDictionary(
@@ -920,7 +920,7 @@ std::string SafeBrowsingBlockingPageV2::GetHTMLContents() {
         as_string();
   }
   interstitial_show_time_ = base::TimeTicks::Now();
-  return jstemplate_builder::GetTemplatesHtml(html, &strings, "template-root");
+  return webui::GetTemplatesHtml(html, &strings, "template-root");
 }
 
 void SafeBrowsingBlockingPageV2::PopulateStringDictionary(

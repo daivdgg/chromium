@@ -36,6 +36,7 @@
         '<(DEPTH)/chrome/chrome_resources.gyp:chrome_strings',
         '<(DEPTH)/chrome/chrome_resources.gyp:theme_resources',
         '<(DEPTH)/chrome/common_constants.gyp:common_constants',
+        '<(DEPTH)/components/components.gyp:visitedlink_common',
         '<(DEPTH)/content/content.gyp:content_common',
         '<(DEPTH)/net/net.gyp:net',
         '<(DEPTH)/skia/skia.gyp:skia',
@@ -273,8 +274,6 @@
         'common/json_schema_constants.h',
         'common/json_schema_validator.cc',
         'common/json_schema_validator.h',
-        'common/jstemplate_builder.cc',
-        'common/jstemplate_builder.h',
         'common/localized_error.cc',
         'common/localized_error.h',
         'common/logging_chrome.cc',
@@ -355,8 +354,6 @@
         'common/url_constants.h',
         'common/view_type.cc',
         'common/view_type.h',
-        'common/visitedlink_common.cc',
-        'common/visitedlink_common.h',
         'common/web_apps.cc',
         'common/web_apps.h',
         'common/web_resource/web_resource_unpacker.cc',
@@ -622,6 +619,11 @@
             'sources!': [
               'common/net/x509_certificate_model_openssl.cc',
             ],
+          },
+        ],
+        ['OS=="win"', {
+            # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
+            'msvs_disabled_warnings': [4267, ],
           },
         ],
       ],

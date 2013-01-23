@@ -3,15 +3,22 @@
 // found in the LICENSE file.
 
 #include "base/command_line.h"
+#include "base/utf_string_conversions.h"
 #include "base/values.h"
 #include "chrome/browser/api/infobars/confirm_infobar_delegate.h"
 #include "chrome/browser/infobars/infobar.h"
 #include "chrome/browser/infobars/infobar_tab_helper.h"
 #include "chrome/browser/managed_mode/managed_mode.h"
+#include "chrome/browser/managed_mode/managed_user_service.h"
+#include "chrome/browser/managed_mode/managed_user_service_factory.h"
+#include "chrome/browser/prefs/pref_service_syncable.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/chrome_switches.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/interstitial_page.h"
@@ -22,9 +29,9 @@
 #include "content/public/browser/web_contents_observer.h"
 
 using content::InterstitialPage;
-using content::WebContents;
 using content::NavigationController;
 using content::NavigationEntry;
+using content::WebContents;
 
 // TODO(sergiu): Make the webkit error message disappear when navigating to an
 // interstitial page. The message states: "Not allowed to load local resource:
@@ -49,7 +56,8 @@ class ManagedModeBlockModeTest : public InProcessBrowserTest {
     INFOBAR_NOT_USED,
   };
 
-  ManagedModeBlockModeTest() {}
+  ManagedModeBlockModeTest() : managed_user_service_(NULL) {}
+  virtual ~ManagedModeBlockModeTest() {}
 
   // Builds the redirect URL for the testserver from the hostnames and the
   // final URL and returns it as a string.
@@ -151,7 +159,14 @@ class ManagedModeBlockModeTest : public InProcessBrowserTest {
   }
 
  protected:
-  virtual void SetUpCommandLine(CommandLine* command_line) {
+  virtual void SetUpOnMainThread() OVERRIDE {
+    Profile* profile = browser()->profile();
+    managed_user_service_ = ManagedUserServiceFactory::GetForProfile(profile);
+    profile->GetPrefs()->SetBoolean(prefs::kProfileIsManaged, true);
+    managed_user_service_->Init();
+  }
+
+  virtual void SetUpCommandLine(CommandLine* command_line) OVERRIDE {
     // Enable the test server and remap all URLs to it.
     ASSERT_TRUE(test_server()->Start());
     std::string host_port = test_server()->host_port_pair().ToString();
@@ -162,8 +177,7 @@ class ManagedModeBlockModeTest : public InProcessBrowserTest {
         "MAP *.a.com " + host_port);
   }
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(ManagedModeBlockModeTest);
+  ManagedUserService* managed_user_service_;
 };
 
 // Navigates to a URL which is not in a manual list, clicks preview on the
@@ -178,7 +192,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest, SimpleURLNotInAnyLists) {
   CheckShownPageIsInterstitial(tab);
   ActOnInterstitialAndInfobar(tab, INTERSTITIAL_PROCEED, INFOBAR_ACCEPT);
 
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.example.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "www.example.com"));
 }
 
 // Same as above just that the URL redirects to a second URL first. The initial
@@ -196,9 +210,9 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest, RedirectedURLsNotInAnyLists) {
   CheckShownPageIsInterstitial(tab);
   ActOnInterstitialAndInfobar(tab, INTERSTITIAL_PROCEED, INFOBAR_ACCEPT);
 
-  EXPECT_TRUE(ManagedMode::IsInManualList(true,
-      "http://.www.a.com/server-redirect"));
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.example.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(
+      true, "http://.www.a.com/server-redirect"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "www.example.com"));
 }
 
 // Navigates to a URL in the whitelist. No interstitial should be shown and
@@ -207,7 +221,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest, SimpleURLInWhitelist) {
   GURL test_url("http://www.example.com/files/simple.html");
   ListValue whitelist;
   whitelist.AppendString(test_url.host());
-  ManagedMode::AddToManualList(true, whitelist);
+  managed_user_service_->AddToManualList(true, whitelist);
 
   ui_test_utils::NavigateToURL(browser(), test_url);
 
@@ -215,7 +229,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest, SimpleURLInWhitelist) {
 
   CheckShownPageIsNotInterstitial(tab);
 
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.example.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "www.example.com"));
 }
 
 // Navigates to a URL which redirects to another URL, both in the whitelist.
@@ -231,7 +245,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
   ListValue whitelist;
   whitelist.AppendString("www.a.com");
   whitelist.AppendString("www.example.com");
-  ManagedMode::AddToManualList(true, whitelist);
+  managed_user_service_->AddToManualList(true, whitelist);
 
   ui_test_utils::NavigateToURL(browser(), test_url);
 
@@ -239,8 +253,8 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
 
   CheckShownPageIsNotInterstitial(tab);
 
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.a.com"));
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.example.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "www.a.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "www.example.com"));
 }
 
 // Only one URL is in the whitelist and the second not, so it should redirect,
@@ -256,7 +270,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
   // Add the first URL to the whitelist.
   ListValue whitelist;
   whitelist.AppendString("www.a.com");
-  ManagedMode::AddToManualList(true, whitelist);
+  managed_user_service_->AddToManualList(true, whitelist);
 
   ui_test_utils::NavigateToURL(browser(), test_url);
 
@@ -266,8 +280,8 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
   CheckShownPageIsInterstitial(tab);
   ActOnInterstitialAndInfobar(tab, INTERSTITIAL_PROCEED, INFOBAR_ACCEPT);
 
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.a.com"));
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.example.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "www.a.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "www.example.com"));
 }
 
 // This test navigates to a URL which is not in the whitelist but redirects to
@@ -284,7 +298,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
   // Add the last URL to the whitelist.
   ListValue whitelist;
   whitelist.AppendString("www.example.com");
-  ManagedMode::AddToManualList(true, whitelist);
+  managed_user_service_->AddToManualList(true, whitelist);
 
   ui_test_utils::NavigateToURL(browser(), test_url);
 
@@ -295,9 +309,9 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
   ActOnInterstitialAndInfobar(tab, INTERSTITIAL_PROCEED,
                                    INFOBAR_ALREADY_ADDED);
 
-  EXPECT_TRUE(ManagedMode::IsInManualList(true,
-      "http://.www.a.com/server-redirect"));
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.example.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(
+      true, "http://.www.a.com/server-redirect"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "www.example.com"));
 }
 
 // Tests whether going back after being shown an interstitial works. No
@@ -315,7 +329,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
 
   EXPECT_EQ(tab->GetURL().spec(), "about:blank");
 
-  EXPECT_FALSE(ManagedMode::IsInManualList(true, "www.example.com"));
+  EXPECT_FALSE(managed_user_service_->IsInManualList(true, "www.example.com"));
 }
 
 // Like SimpleURLNotInAnyLists just that it navigates to a page on the allowed
@@ -331,7 +345,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
   CheckShownPageIsInterstitial(tab);
   ActOnInterstitialAndInfobar(tab, INTERSTITIAL_PROCEED, INFOBAR_ACCEPT);
 
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.example.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "www.example.com"));
 
   // Navigate to a different page on the same host.
   test_url = GURL("http://www.example.com/files/english_page.html");
@@ -354,7 +368,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
   CheckShownPageIsInterstitial(tab);
   ActOnInterstitialAndInfobar(tab, INTERSTITIAL_PROCEED, INFOBAR_ACCEPT);
 
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.example.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "www.example.com"));
 
   // Reload the page
   tab->GetController().Reload(false);
@@ -381,7 +395,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
   ActOnInterstitialAndInfobar(tab, INTERSTITIAL_PROCEED, INFOBAR_ACCEPT);
 
   // Check that the https:// version is added in the whitelist.
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "https://www.example.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "https://www.example.com"));
 }
 
 // The test navigates to a page, the interstitial is shown and preview is
@@ -446,7 +460,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
 
   CheckNumberOfInfobars(0);
 
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.example.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true, "www.example.com"));
 }
 
 // The test navigates to a page, the interstitial is shown and preview is
@@ -491,6 +505,7 @@ IN_PROC_BROWSER_TEST_F(ManagedModeBlockModeTest,
 
   ActOnInterstitialAndInfobar(tab, INTERSTITIAL_PROCEED, INFOBAR_ACCEPT);
 
-  EXPECT_FALSE(ManagedMode::IsInManualList(true, "www.example.com"));
-  EXPECT_TRUE(ManagedMode::IsInManualList(true, "www.new-example.com"));
+  EXPECT_FALSE(managed_user_service_->IsInManualList(true, "www.example.com"));
+  EXPECT_TRUE(managed_user_service_->IsInManualList(true,
+                                                    "www.new-example.com"));
 }

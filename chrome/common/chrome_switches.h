@@ -41,7 +41,6 @@ extern const char kAppNotifyChannelServerURL[];
 extern const char kAppsCheckoutURL[];
 extern const char kAppsGalleryDownloadURL[];
 extern const char kAppsGalleryInstallAutoConfirmForTests[];
-extern const char kAppsGalleryReturnTokens[];
 extern const char kAppsGalleryURL[];
 extern const char kAppsGalleryUpdateURL[];
 extern const char kAppsNewInstallBubble[];
@@ -123,7 +122,6 @@ extern const char kDisableSyncTypedUrls[];
 extern const char kDisableTranslate[];
 extern const char kDisableTLSChannelID[];
 extern const char kDisableWebResources[];
-extern const char kDisableWebsiteSettings[];
 extern const char kDisableZeroBrowsersOpenForTests[];
 extern const char kDiskCacheDir[];
 extern const char kDiskCacheSize[];
@@ -160,7 +158,6 @@ extern const char kEnableMetricsReportingForTesting[];
 extern const char kEnableNaCl[];
 extern const char kEnableNaClDebug[];
 extern const char kEnableNaClExceptionHandling[];
-extern const char kEnableNaClSRPCProxy[];
 extern const char kEnableNativeMessaging[];
 extern const char kEnableNewAutofillHeuristics[];
 extern const char kEnableNewAutofillUi[];
@@ -180,6 +177,7 @@ extern const char kEnableSpdyCredentialFrames[];
 extern const char kEnableSpellingAutoCorrect[];
 extern const char kEnableStackedTabStrip[];
 extern const char kEnableSuggestionsTabPage[];
+extern const char kEnableSyncDictionary[];
 extern const char kEnableTabGroupsContextMenu[];
 extern const char kEnableWatchdog[];
 extern const char kEnableWebSocketOverSpdy[];
@@ -201,8 +199,9 @@ extern const char kGSSAPILibraryName[];
 extern const char kHelp[];
 extern const char kHelpShort[];
 extern const char kHideIcons[];
+extern const char kHistoryDisableFullHistorySync[];
 extern const char kHistoryEnableFullHistorySync[];
-extern const char kHistoryDisableFullistorySync[];
+extern const char kHistoryEnableGroupByDomain[];
 extern const char kHistoryWebHistoryUrl[];
 extern const char kHomePage[];
 extern const char kHostRules[];
@@ -432,6 +431,7 @@ extern const char kOobeSkipPostLogin[];
 
 #if defined(OS_POSIX)
 extern const char kEnableCrashReporter[];
+extern const char kEnableCrashReporterForTesting[];
 #if !defined(OS_MACOSX) && !defined(OS_CHROMEOS)
 extern const char kPasswordStore[];
 #endif
@@ -445,6 +445,7 @@ extern const char kUseMockKeychain[];
 #endif
 
 #if defined(OS_WIN)
+extern const char kEnableMediaTransferProtocolDeviceOperations[];
 extern const char kForceImmersive[];
 extern const char kForceDesktop[];
 extern const char kOverlappedRead[];

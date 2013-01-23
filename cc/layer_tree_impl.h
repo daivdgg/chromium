@@ -29,7 +29,9 @@ class LayerTreeHostImpl;
 class LayerTreeImpl;
 class LayerTreeSettings;
 class OutputSurface;
+class PaintTimeCounter;
 class PinchZoomViewport;
+class Proxy;
 class ResourceProvider;
 class TileManager;
 
@@ -50,6 +52,7 @@ class CC_EXPORT LayerTreeImpl {
   ResourceProvider* resource_provider() const;
   TileManager* tile_manager() const;
   FrameRateCounter* frame_rate_counter() const;
+  PaintTimeCounter* paint_time_counter() const;
   bool IsActiveTree() const;
   bool IsPendingTree() const;
   LayerImpl* FindActiveTreeLayerById(int id);
@@ -88,20 +91,15 @@ class CC_EXPORT LayerTreeImpl {
     hud_layer_ = layer_impl;
   }
 
-  LayerImpl* root_scroll_layer() { return root_scroll_layer_; }
-  const LayerImpl* root_scroll_layer() const { return root_scroll_layer_; }
-  void set_root_scroll_layer(LayerImpl* layer_impl) {
-    root_scroll_layer_ = layer_impl;
+  LayerImpl* RootScrollLayer();
+  LayerImpl* CurrentlyScrollingLayer();
+  void set_currently_scrolling_layer(LayerImpl* layer) {
+    currently_scrolling_layer_ = layer;
   }
 
-  LayerImpl* currently_scrolling_layer() { return currently_scrolling_layer_; }
-  void set_currently_scrolling_layer(LayerImpl* layer_impl) {
-    currently_scrolling_layer_ = layer_impl;
-  }
-
-  void FindRootScrollLayer();
   void ClearCurrentlyScrollingLayer();
 
+  void FindRootScrollLayer();
   void UpdateMaxScrollOffset();
 
   SkColor background_color() const { return background_color_; }
@@ -123,7 +121,7 @@ class CC_EXPORT LayerTreeImpl {
 
   const LayerList& RenderSurfaceLayerList() const;
 
-  gfx::Size ContentSize() const;
+  gfx::Size ScrollableSize() const;
 
   LayerImpl* LayerById(int id);
 
@@ -136,6 +134,10 @@ class CC_EXPORT LayerTreeImpl {
   void PushPersistedState(LayerTreeImpl* pendingTree);
 
   void DidBecomeActive();
+
+  bool ContentsTexturesPurged() const;
+  void SetContentsTexturesPurged();
+  void ResetContentsTexturesPurged();
 
 protected:
   LayerTreeImpl(LayerTreeHostImpl* layer_tree_host_impl);
@@ -158,6 +160,8 @@ protected:
   // List of visible layers for the most recently prepared frame. Used for
   // rendering and input event hit testing.
   LayerList render_surface_layer_list_;
+
+  bool contents_textures_purged_;
 
   DISALLOW_COPY_AND_ASSIGN(LayerTreeImpl);
 };

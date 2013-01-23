@@ -12,9 +12,9 @@
 #include "base/string_util.h"
 #include "base/stringprintf.h"
 #include "base/threading/sequenced_worker_pool.h"
+#include "chrome/browser/google_apis/drive_api_parser.h"
 #include "chrome/browser/google_apis/gdata_wapi_parser.h"
 #include "chrome/browser/google_apis/test_server/http_server.h"
-#include "chrome/common/chrome_paths.h"
 #include "content/public/browser/browser_thread.h"
 #include "googleurl/src/gurl.h"
 
@@ -43,10 +43,13 @@ class TaskObserver : public MessageLoop::TaskObserver {
 
 FilePath GetTestFilePath(const std::string& relative_path) {
   FilePath path;
-  std::string error;
-  PathService::Get(chrome::DIR_TEST_DATA, &path);
-  path = path.AppendASCII("chromeos")
-      .Append(FilePath::FromUTF8Unsafe(relative_path));
+  if (!PathService::Get(base::DIR_SOURCE_ROOT, &path))
+    return FilePath();
+  path = path.AppendASCII("chrome")
+             .AppendASCII("test")
+             .AppendASCII("data")
+             .AppendASCII("chromeos")
+             .Append(FilePath::FromUTF8Unsafe(relative_path));
   return path;
 }
 
@@ -124,6 +127,15 @@ void CopyResultsFromGetAccountMetadataCallback(
     GDataErrorCode error_in,
     scoped_ptr<AccountMetadataFeed> account_metadata_in) {
   account_metadata_out->swap(account_metadata_in);
+  *error_out = error_in;
+}
+
+void CopyResultsFromGetAppListCallback(
+    GDataErrorCode* error_out,
+    scoped_ptr<AppList>* app_list_out,
+    GDataErrorCode error_in,
+    scoped_ptr<AppList> app_list_in) {
+  *app_list_out = app_list_in.Pass();
   *error_out = error_in;
 }
 

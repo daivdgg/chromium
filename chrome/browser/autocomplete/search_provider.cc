@@ -191,7 +191,7 @@ void SearchProvider::FinalizeInstantQuery(const string16& input_text,
       results_updated = true;
     }
   } else {
-    // Instant has an URL suggestion. Rank it higher than URL_WHAT_YOU_TYPED so
+    // Instant has a URL suggestion. Rank it higher than URL_WHAT_YOU_TYPED so
     // it gets autocompleted; use kNonURLVerbatimRelevance rather than
     // verbatim_relevance so that the score does not change if the user keeps
     // typing and the input changes from type UNKNOWN to URL.
@@ -209,6 +209,12 @@ void SearchProvider::FinalizeInstantQuery(const string16& input_text,
 
 void SearchProvider::Start(const AutocompleteInput& input,
                            bool minimal_changes) {
+  // Do our best to load the model as early as possible.  This will reduce
+  // odds of having the model not ready when really needed (a non-empty input).
+  TemplateURLService* model = providers_.template_url_service();
+  DCHECK(model);
+  model->Load();
+
   matches_.clear();
   field_trial_triggered_ = false;
 
@@ -228,9 +234,6 @@ void SearchProvider::Start(const AutocompleteInput& input,
   if (keyword_input_text_.empty())
     keyword_provider = NULL;
 
-  TemplateURLService* model = providers_.template_url_service();
-  DCHECK(model);
-  model->Load();
   const TemplateURL* default_provider = model->GetDefaultSearchProvider();
   if (default_provider && !default_provider->SupportsReplacement())
     default_provider = NULL;
@@ -910,7 +913,15 @@ void SearchProvider::UpdateMatches() {
 void SearchProvider::AddNavigationResultsToMatches(
     const NavigationResults& navigation_results,
     bool is_keyword) {
-  if (!navigation_results.empty()) {
+  if (navigation_results.empty())
+    return;
+
+  if (has_suggested_relevance_) {
+    for (NavigationResults::const_iterator it = navigation_results.begin();
+         it != navigation_results.end(); ++it)
+      matches_.push_back(NavigationToMatch(*it, is_keyword));
+  } else {
+    // Pick one element only in absence of the suggested relevance scores.
     // TODO(kochi|msw): Add more navigational results if they get more
     //                  meaningful relevance values; see http://b/1170574.
     // CompareScoredResults sorts by descending relevance; so use min_element.

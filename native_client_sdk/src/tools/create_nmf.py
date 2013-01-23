@@ -4,6 +4,7 @@
 # found in the LICENSE file.
 
 import errno
+import hashlib
 import json
 import optparse
 import os
@@ -12,7 +13,6 @@ import shutil
 import struct
 import subprocess
 import sys
-import urllib
 
 import quote
 
@@ -361,16 +361,18 @@ class NmfUtils(object):
       destination_dir: The destination directory for staging the dependencies
     '''
     nexe_root = os.path.dirname(os.path.abspath(self.main_files[0]))
+    nexe_root = os.path.normcase(nexe_root)
 
     needed = self.GetNeeded()
     for source, arch_file in needed.items():
-      urldest = urllib.url2pathname(arch_file.url)
+      urldest = arch_file.url
 
       # for .nexe and .so files specified on the command line stage
       # them in paths relative to the .nexe (with the .nexe always
       # being staged at the root).
       if source in self.main_files:
-        if os.path.abspath(urldest).startswith(nexe_root):
+        absdest = os.path.normcase(os.path.abspath(urldest))
+        if absdest.startswith(nexe_root):
           urldest = os.path.relpath(urldest, nexe_root)
 
       destination = os.path.join(destination_dir, urldest)
@@ -389,8 +391,12 @@ class NmfUtils(object):
     manifest = {}
     manifest[PROGRAM_KEY] = {}
     manifest[PROGRAM_KEY][PORTABLE_KEY] = {}
+    sha = hashlib.sha256()
+    with open(self.main_files[0], 'rb') as f:
+      sha.update(f.read())
     manifest[PROGRAM_KEY][PORTABLE_KEY][TRANSLATE_KEY] = {
-      "url": os.path.basename(self.main_files[0])
+      "url": os.path.basename(self.main_files[0]),
+      "sha256": sha.hexdigest()
     }
     self.manifest = manifest
 

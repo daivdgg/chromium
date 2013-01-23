@@ -17,6 +17,7 @@ class Profile;
 
 namespace google_apis {
 
+class AppList;
 class AccountMetadataFeed;
 class ResourceList;
 class OperationRegistry;
@@ -74,6 +75,11 @@ typedef base::Callback<void(GDataErrorCode error,
                             scoped_ptr<AccountMetadataFeed> account_metadata)>
     GetAccountMetadataCallback;
 
+// Callback used for GetApplicationInfo().
+typedef base::Callback<void(GDataErrorCode erro,
+                            scoped_ptr<AppList> app_list)>
+    GetAppListCallback;
+
 // Callback used for AuthorizeApp(). |open_url| is used to open the target
 // file with the authorized app.
 typedef base::Callback<void(GDataErrorCode error,
@@ -123,6 +129,9 @@ class DriveServiceInterface {
 
   // Document access:
 
+  // Returns the resource id for the root directory.
+  virtual std::string GetRootResourceId() const = 0;
+
   // Fetches a feed from |feed_url|. If this URL is empty, the call will fetch
   // from the default URL. When |start_changestamp| is 0, the default behavior
   // is to fetch the resource list feed containing the list of all entries. If
@@ -164,7 +173,7 @@ class DriveServiceInterface {
   // Gets the application information from the server.
   // Upon completion, invokes |callback| with results on the calling thread.
   // |callback| must not be null.
-  virtual void GetApplicationInfo(const GetDataCallback& callback) = 0;
+  virtual void GetAppList(const GetAppListCallback& callback) = 0;
 
   // Deletes a resource identified by its |edit_url|.
   // Upon completion, invokes |callback| with results on the calling thread.
@@ -190,7 +199,7 @@ class DriveServiceInterface {
   // |callback| must not be null.
   virtual void CopyHostedDocument(
       const std::string& resource_id,
-      const FilePath::StringType& new_name,
+      const std::string& new_name,
       const GetResourceEntryCallback& callback) = 0;
 
   // Renames a document or collection identified by its |edit_url|
@@ -198,7 +207,7 @@ class DriveServiceInterface {
   // invokes |callback| with results on the calling thread.
   // |callback| must not be null.
   virtual void RenameResource(const GURL& edit_url,
-                              const FilePath::StringType& new_name,
+                              const std::string& new_name,
                               const EntryActionCallback& callback) = 0;
 
   // Adds a resource (document, file, or collection) identified by its
@@ -227,7 +236,7 @@ class DriveServiceInterface {
   // a macro on Windows.
   // |callback| must not be null.
   virtual void AddNewDirectory(const GURL& parent_content_url,
-                               const FilePath::StringType& directory_name,
+                               const std::string& directory_name,
                                const GetResourceEntryCallback& callback) = 0;
 
   // Downloads a file identified by its |content_url|. The downloaded file will

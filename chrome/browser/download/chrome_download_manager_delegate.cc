@@ -33,6 +33,7 @@
 #include "chrome/browser/history/history.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/intents/web_intents_util.h"
+#include "chrome/browser/platform_util.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/safe_browsing_service.h"
@@ -523,6 +524,15 @@ void ChromeDownloadManagerDelegate::ChooseSavePath(
 #endif
 }
 
+void ChromeDownloadManagerDelegate::OpenDownload(DownloadItem* download) {
+  platform_util::OpenItem(download->GetFullPath());
+}
+
+void ChromeDownloadManagerDelegate::ShowDownloadInShell(
+    DownloadItem* download) {
+  platform_util::ShowItemInFolder(download->GetFullPath());
+}
+
 void ChromeDownloadManagerDelegate::ClearLastDownloadPath() {
   last_download_path_.clear();
 }
@@ -546,10 +556,6 @@ bool ChromeDownloadManagerDelegate::IsDangerousFile(
     bool visited_referrer_before) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
 
-  // Anything loaded directly from the address bar is OK.
-  if (download.GetTransitionType() & content::PAGE_TRANSITION_FROM_ADDRESS_BAR)
-    return false;
-
   // Extensions that are not from the gallery are considered dangerous.
   // When off-store install is disabled we skip this, since in this case, we
   // will not offer to install the extension.
@@ -568,8 +574,13 @@ bool ChromeDownloadManagerDelegate::IsDangerousFile(
   // page has been visited before today.
   download_util::DownloadDangerLevel danger_level =
       download_util::GetFileDangerLevel(suggested_path.BaseName());
-  if (danger_level == download_util::AllowOnUserGesture)
+  if (danger_level == download_util::AllowOnUserGesture) {
+    if (download.GetTransitionType() &
+            content::PAGE_TRANSITION_FROM_ADDRESS_BAR) {
+      return false;
+    }
     return !download.HasUserGesture() || !visited_referrer_before;
+  }
 
   return danger_level == download_util::Dangerous;
 }
@@ -795,6 +806,15 @@ void ChromeDownloadManagerDelegate::SubstituteDriveDownloadPathCallback(
       download_manager_->GetDownload(download_id);
   if (!download || (download->GetState() != DownloadItem::IN_PROGRESS))
     return;
+
+  if (suggested_path.empty()) {
+    // Substitution failed.
+    callback.Run(FilePath(),
+                 DownloadItem::TARGET_DISPOSITION_OVERWRITE,
+                 danger_type,
+                 FilePath());
+    return;
+  }
 
   GetReservedPath(
       *download, suggested_path, download_prefs_->DownloadPath(),

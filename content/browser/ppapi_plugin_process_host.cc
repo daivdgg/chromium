@@ -137,6 +137,16 @@ void PpapiPluginProcessHost::DidDeleteOutOfProcessInstance(
   // That's OK, we can just ignore this message.
 }
 
+// static
+void PpapiPluginProcessHost::FindByName(
+    const string16& name,
+    std::vector<PpapiPluginProcessHost*>* hosts) {
+  for (PpapiPluginProcessHostIterator iter; !iter.Done(); ++iter) {
+    if (iter->process_.get() && iter->process_->GetData().name == name)
+      hosts->push_back(*iter);
+  }
+}
+
 bool PpapiPluginProcessHost::Send(IPC::Message* message) {
   return process_->Send(message);
 }
@@ -165,12 +175,13 @@ PpapiPluginProcessHost::PpapiPluginProcessHost(
   process_.reset(new BrowserChildProcessHostImpl(
       PROCESS_TYPE_PPAPI_PLUGIN, this));
 
-  filter_ = new PepperMessageFilter(PepperMessageFilter::PLUGIN,
+  filter_ = new PepperMessageFilter(process_->GetData().type,
                                     permissions_,
                                     host_resolver);
 
   host_impl_.reset(new BrowserPpapiHostImpl(this, permissions_, info.name,
-      profile_data_directory));
+                                            profile_data_directory,
+                                            process_->GetData().type));
 
   process_->GetHost()->AddFilter(filter_.get());
   process_->GetHost()->AddFilter(host_impl_->message_filter());
@@ -193,7 +204,8 @@ PpapiPluginProcessHost::PpapiPluginProcessHost()
   std::string plugin_name;
   FilePath profile_data_directory;
   host_impl_.reset(new BrowserPpapiHostImpl(this, permissions, plugin_name,
-      profile_data_directory));
+                                            profile_data_directory,
+                                            process_->GetData().type));
 }
 
 bool PpapiPluginProcessHost::Init(const PepperPluginInfo& info) {

@@ -38,6 +38,7 @@
 #include "content/public/browser/browser_ppapi_host.h"
 #include "content/public/browser/child_process_data.h"
 #include "content/public/common/child_process_host.h"
+#include "content/public/common/process_type.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/url_pattern.h"
 #include "ipc/ipc_channel.h"
@@ -168,7 +169,6 @@ NaClProcessHost::NaClProcessHost(const GURL& manifest_url,
       enable_debug_stub_(false),
       uses_irt_(uses_irt),
       off_the_record_(off_the_record),
-      enable_ipc_proxy_(false),
       ALLOW_THIS_IN_INITIALIZER_LIST(ipc_plugin_listener_(this)),
       render_view_id_(render_view_id) {
   process_.reset(content::BrowserChildProcessHost::Create(
@@ -189,13 +189,6 @@ NaClProcessHost::NaClProcessHost(const GURL& manifest_url,
   }
   enable_debug_stub_ = CommandLine::ForCurrentProcess()->HasSwitch(
       switches::kEnableNaClDebug);
-
-  enable_ipc_proxy_ = !CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kEnableNaClSRPCProxy);
-  // If render_view_id == 0 we do not need PPAPI, so we can skip
-  // PPAPI IPC proxy channel creation, etc.
-  if (!render_view_id_)
-    enable_ipc_proxy_ = false;
 }
 
 NaClProcessHost::~NaClProcessHost() {
@@ -720,7 +713,8 @@ bool NaClProcessHost::StartNaClExecution() {
   params.enable_exception_handling = enable_exception_handling_;
   params.enable_debug_stub = enable_debug_stub_ &&
       NaClBrowser::GetInstance()->URLMatchesDebugPatterns(manifest_url_);
-  params.enable_ipc_proxy = enable_ipc_proxy_;
+  // Enable PPAPI proxy channel creation only for renderer processes.
+  params.enable_ipc_proxy = enable_ppapi_proxy();
   params.uses_irt = uses_irt_;
 
   const ChildProcessData& data = process_->GetData();
@@ -779,7 +773,7 @@ bool NaClProcessHost::StartNaClExecution() {
 }
 
 bool NaClProcessHost::SendStart() {
-  if (!enable_ipc_proxy_) {
+  if (!enable_ppapi_proxy()) {
     if (!ReplyToRenderer(IPC::ChannelHandle()))
       return false;
   }
@@ -791,10 +785,13 @@ bool NaClProcessHost::SendStart() {
 // listener.
 void NaClProcessHost::OnPpapiChannelCreated(
     const IPC::ChannelHandle& channel_handle) {
-  DCHECK(enable_ipc_proxy_);
+  // Only renderer processes should create a channel.
+  DCHECK(enable_ppapi_proxy());
   // If the proxy channel is null, this must be the initial NaCl-Browser IPC
   // channel.
   if (!ipc_proxy_channel_.get()) {
+    DCHECK_EQ(content::PROCESS_TYPE_NACL_LOADER, process_->GetData().type);
+
     ipc_proxy_channel_.reset(
         new IPC::ChannelProxy(channel_handle,
                               IPC::Channel::MODE_CLIENT,
@@ -803,7 +800,7 @@ void NaClProcessHost::OnPpapiChannelCreated(
     // Create the browser ppapi host and enable PPAPI message dispatching to the
     // browser process.
     ppapi_host_.reset(content::BrowserPpapiHost::CreateExternalPluginProcess(
-        ipc_proxy_channel_.get(), //process_.get(),  // sender
+        ipc_proxy_channel_.get(),  // sender
         permissions_,
         process_->GetData().handle,
         ipc_proxy_channel_.get(),

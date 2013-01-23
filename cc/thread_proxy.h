@@ -63,17 +63,22 @@ public:
     virtual void onCanDrawStateChanged(bool canDraw) OVERRIDE;
     virtual void onHasPendingTreeStateChanged(bool hasPendingTree) OVERRIDE;
     virtual void setNeedsRedrawOnImplThread() OVERRIDE;
+    virtual void didSwapUseIncompleteTileOnImplThread() OVERRIDE;
+    virtual void didUploadVisibleHighResolutionTileOnImplThread() OVERRIDE;
     virtual void setNeedsCommitOnImplThread() OVERRIDE;
     virtual void setNeedsManageTilesOnImplThread() OVERRIDE;
     virtual void postAnimationEventsToMainThreadOnImplThread(scoped_ptr<AnimationEventsVector>, base::Time wallClockTime) OVERRIDE;
     virtual bool reduceContentsTextureMemoryOnImplThread(size_t limitBytes, int priorityCutoff) OVERRIDE;
     virtual void sendManagedMemoryStats() OVERRIDE;
+    virtual bool isInsideDraw() OVERRIDE;
+    virtual void renewTreePriority() OVERRIDE;
 
     // SchedulerClient implementation
     virtual void scheduledActionBeginFrame() OVERRIDE;
     virtual ScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapIfPossible() OVERRIDE;
     virtual ScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapForced() OVERRIDE;
     virtual void scheduledActionCommit() OVERRIDE;
+    virtual void scheduledActionCheckForCompletedTileUploads() OVERRIDE;
     virtual void scheduledActionActivatePendingTreeIfNeeded() OVERRIDE;
     virtual void scheduledActionBeginContextRecreation() OVERRIDE;
     virtual void scheduledActionAcquireLayerTexturesForMainThread() OVERRIDE;
@@ -138,6 +143,7 @@ private:
     void setNeedsForcedCommitOnImplThread();
     void commitPendingOnImplThreadForTesting(CommitPendingRequest* request);
     void capturePictureOnImplThread(CompletionEvent*, skia::RefPtr<SkPicture>*);
+    void renewTreePriorityOnImplThread();
 
     // Accessed on main thread only.
     bool m_animateRequested; // Set only when setNeedsAnimate is called.
@@ -191,11 +197,16 @@ private:
 
     bool m_renderVSyncEnabled;
 
+    bool m_insideDraw;
+
     base::TimeDelta m_totalCommitTime;
     size_t m_totalCommitCount;
 
     bool m_deferCommits;
     scoped_ptr<BeginFrameAndCommitState> m_pendingDeferredCommit;
+
+    base::TimeTicks m_smoothnessTakesPriorityExpirationTime;
+    bool m_renewTreePriorityOnImplThreadPending;
 };
 
 }  // namespace cc

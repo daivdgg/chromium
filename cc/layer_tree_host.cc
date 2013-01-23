@@ -254,6 +254,10 @@ void LayerTreeHost::finishCommitOnImplThread(LayerTreeHostImpl* hostImpl)
 {
     DCHECK(m_proxy->isImplThread());
 
+    // If there are linked evicted backings, these backings' resources may be put into the
+    // impl tree, so we can't draw yet. Determine this before clearing all evicted backings.
+    bool newImplTreeHasNoEvictedResources = !m_contentsTextureManager->linkedEvictedBackingsExist();
+
     m_contentsTextureManager->updateBackingsInDrawingImplTree();
     m_contentsTextureManager->reduceMemory(hostImpl->resourceProvider());
 
@@ -281,7 +285,6 @@ void LayerTreeHost::finishCommitOnImplThread(LayerTreeHostImpl* hostImpl)
         TRACE_EVENT0("cc", "LayerTreeHost::pushProperties");
         TreeSynchronizer::pushProperties(rootLayer(), syncTree->RootLayer());
     }
-    syncTree->FindRootScrollLayer();
 
     m_needsFullTreeSync = false;
 
@@ -294,11 +297,24 @@ void LayerTreeHost::finishCommitOnImplThread(LayerTreeHostImpl* hostImpl)
     syncTree->set_background_color(m_backgroundColor);
     syncTree->set_has_transparent_background(m_hasTransparentBackground);
 
+    syncTree->FindRootScrollLayer();
+
+    if (!m_settings.implSidePainting) {
+        // If we're not in impl-side painting, the tree is immediately
+        // considered active.
+        syncTree->DidBecomeActive();
+    }
+
     hostImpl->setViewportSize(layoutViewportSize(), deviceViewportSize());
     hostImpl->setDeviceScaleFactor(deviceScaleFactor());
     hostImpl->setPageScaleFactorAndLimits(m_pageScaleFactor, m_minPageScaleFactor, m_maxPageScaleFactor);
     hostImpl->setDebugState(m_debugState);
     hostImpl->savePaintTime(m_renderingStats.totalPaintTime);
+
+    if (newImplTreeHasNoEvictedResources) {
+        if (syncTree->ContentsTexturesPurged())
+            syncTree->ResetContentsTexturesPurged();
+    }
 
     m_commitNumber++;
 }

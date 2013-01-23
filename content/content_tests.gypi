@@ -308,6 +308,7 @@
         'browser/renderer_host/media/video_capture_controller_unittest.cc',
         'browser/renderer_host/media/video_capture_host_unittest.cc',
         'browser/renderer_host/media/video_capture_manager_unittest.cc',
+        'browser/renderer_host/media/web_contents_audio_input_stream_unittest.cc',
         'browser/renderer_host/media/web_contents_video_capture_device_unittest.cc',
         'browser/renderer_host/pepper/browser_ppapi_host_test.cc',
         'browser/renderer_host/pepper/browser_ppapi_host_test.h',
@@ -404,6 +405,7 @@
         '../webkit/blob/mock_blob_url_request_context.cc',
         '../webkit/blob/mock_blob_url_request_context.h',
         '../webkit/blob/shareable_file_reference_unittest.cc',
+        '../webkit/chromeos/fileapi/cros_mount_point_provider_unittest.cc',
         '../webkit/database/database_connections_unittest.cc',
         '../webkit/database/database_quota_client_unittest.cc',
         '../webkit/database/databases_table_unittest.cc',
@@ -415,6 +417,7 @@
         '../webkit/dom_storage/dom_storage_database_unittest.cc',
         '../webkit/dom_storage/dom_storage_map_unittest.cc',
         '../webkit/dom_storage/session_storage_database_unittest.cc',
+        '../webkit/fileapi/external_mount_points_unittest.cc',
         '../webkit/fileapi/file_system_database_test_helper.cc',
         '../webkit/fileapi/file_system_database_test_helper.h',
         '../webkit/fileapi/file_system_directory_database_unittest.cc',
@@ -661,6 +664,7 @@
             '../testing/gtest.gyp:gtest',
             '../third_party/mesa/mesa.gyp:osmesa',
             '../ui/gl/gl.gyp:gl',
+            '../ui/ui.gyp:shell_dialogs',
             '../ui/ui.gyp:ui',
             '../webkit/support/webkit_support.gyp:clearkeycdmplugin',
             '../webkit/support/webkit_support.gyp:glue',
@@ -839,7 +843,8 @@
                 'browser/plugin_browsertest.cc',
               ],
             }],
-            ['target_arch!="arm"', {
+            ['OS!="android" and OS!="ios"', {
+              # npapi test plugin doesn't build on android or ios
               'dependencies': [
                 # Runtime dependencies
                 '../webkit/webkit.gyp:copy_npapi_test_plugin',
@@ -878,6 +883,7 @@
               '../base/base.gyp:base',
               '../testing/gtest.gyp:gtest',
               '../media/media.gyp:media',
+              '../ui/gl/gl.gyp:gl',
               '../ui/ui.gyp:ui',
             ],
             'include_dirs': [
@@ -912,11 +918,6 @@
                 'dependencies': [
                   '../base/allocator/allocator.gyp:allocator',
                 ],
-              }],
-              ['target_arch != "arm"', {
-                 'dependencies': [
-                   '../ui/gl/gl.gyp:gl',
-                 ],
               }],
               ['target_arch != "arm" and (OS=="linux" or chromeos == 1)', {
                 'include_dirs': [

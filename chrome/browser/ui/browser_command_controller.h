@@ -14,7 +14,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/notification_registrar.h"
-#include "webkit/glue/window_open_disposition.h"
+#include "ui/base/window_open_disposition.h"
 
 class Browser;
 class BrowserWindow;
@@ -65,6 +65,18 @@ class BrowserCommandController : public CommandUpdaterDelegate,
   void FullscreenStateChanged();
   void PrintingStateChanged();
   void LoadingStateChanged(bool is_loading, bool force);
+
+  // Shared state updating: these functions are static and public to share with
+  // outside code.
+
+  // Updates the open-file state.
+  static void UpdateOpenFileState(CommandUpdater* command_updater);
+
+  // Update commands whose state depends on incognito mode availability and that
+  // only depend on the profile.
+  static void UpdateSharedCommandsForIncognitoAvailability(
+      CommandUpdater* command_updater,
+      Profile* profile);
 
  private:
   enum FullScreenMode {
@@ -162,9 +174,6 @@ class BrowserCommandController : public CommandUpdaterDelegate,
 
   // Updates the save-page-as command state.
   void UpdateSaveAsState();
-
-  // Updates the open-file state (Mac Only).
-  void UpdateOpenFileState();
 
   // Ask the Reload/Stop button to change its icon, and update the Stop command
   // state.  |is_loading| is true if the current WebContents is loading.

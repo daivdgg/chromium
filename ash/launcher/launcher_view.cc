@@ -20,7 +20,6 @@
 #include "ash/shell_delegate.h"
 #include "ash/wm/shelf_layout_manager.h"
 #include "base/auto_reset.h"
-#include "base/command_line.h"
 #include "base/memory/scoped_ptr.h"
 #include "grit/ash_strings.h"
 #include "grit/ash_resources.h"
@@ -763,10 +762,15 @@ void LauncherView::ConfigureChildView(views::View* view) {
   view->layer()->SetFillsBoundsOpaquely(false);
 }
 
-void LauncherView::ShowOverflowBubble() {
+void LauncherView::ToggleOverflowBubble() {
   int first_overflow_index = last_visible_index_ + 1;
   DCHECK_LE(first_overflow_index, last_hidden_index_);
   DCHECK_LT(last_hidden_index_, view_model_->view_size());
+
+  if (IsShowingOverflowBubble()) {
+    overflow_bubble_->Hide();
+    return;
+  }
 
   if (!overflow_bubble_.get())
     overflow_bubble_.reset(new OverflowBubble());
@@ -963,8 +967,7 @@ void LauncherView::LauncherItemChanged(int model_index,
       break;
     }
     case TYPE_BROWSER_SHORTCUT:
-      if (!CommandLine::ForCurrentProcess()->HasSwitch(
-              ash::switches::kAshEnablePerAppLauncher))
+      if (!Shell::IsLauncherPerDisplayEnabled())
         break;
       // Fallthrough for the new Launcher since it needs to show the activation
       // change as well.
@@ -1111,7 +1114,7 @@ void LauncherView::ButtonPressed(views::Button* sender,
     return;
 
   if (sender == overflow_button_) {
-    ShowOverflowBubble();
+    ToggleOverflowBubble();
     return;
   }
 

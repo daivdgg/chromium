@@ -13,6 +13,7 @@
 #include "chrome/browser/memory_purger.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/prefs/scoped_user_pref_update.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/host_desktop.h"
@@ -28,6 +29,7 @@
 #include "ui/base/models/table_model_observer.h"
 #include "ui/views/background.h"
 #include "ui/views/context_menu_controller.h"
+#include "ui/views/controls/button/chrome_style.h"
 #include "ui/views/controls/button/text_button.h"
 #include "ui/views/controls/link.h"
 #include "ui/views/controls/link_listener.h"
@@ -43,10 +45,6 @@
 #if defined(OS_WIN)
 #include "win8/util/win8_util.h"
 #endif
-
-// The task manager window default size.
-static const int kDefaultWidth = 460;
-static const int kDefaultHeight = 270;
 
 // Yellow highlight used when highlighting background resources.
 static const SkColor kBackgroundResourceHighlight =
@@ -215,8 +213,7 @@ class TaskManagerView : public views::ButtonListener,
   // Shows the Task manager window, or re-activates an existing one. If
   // |highlight_background_resources| is true, highlights the background
   // resources in the resource display.
-  static void Show(bool highlight_background_resources,
-                   chrome::HostDesktopType desktop_type);
+  static void Show(bool highlight_background_resources, Browser* browser);
 
   // views::View:
   virtual void Layout() OVERRIDE;
@@ -419,9 +416,13 @@ void TaskManagerView::Init() {
       switches::kPurgeMemoryButton)) {
     purge_memory_button_ = new views::NativeTextButton(this,
         l10n_util::GetStringUTF16(IDS_TASK_MANAGER_PURGE_MEMORY));
+    if (DialogDelegate::UseNewStyle())
+      views::ApplyChromeStyle(purge_memory_button_);
   }
   kill_button_ = new views::NativeTextButton(this,
       l10n_util::GetStringUTF16(IDS_TASK_MANAGER_KILL));
+  if (DialogDelegate::UseNewStyle())
+    views::ApplyChromeStyle(kill_button_);
   about_memory_link_ = new views::Link(
       l10n_util::GetStringUTF16(IDS_TASK_MANAGER_ABOUT_MEMORY_LINK));
   about_memory_link_->set_listener(this);
@@ -481,26 +482,13 @@ void TaskManagerView::ViewHierarchyChanged(bool is_add,
 }
 
 void TaskManagerView::Layout() {
+  bool new_style = views::DialogDelegate::UseNewStyle();
   gfx::Size size = kill_button_->GetPreferredSize();
-  int prefered_width = size.width();
-  int prefered_height = size.height();
-
-  tab_table_->SetBounds(
-      x() + views::kPanelHorizMargin,
-      y() + views::kPanelVertMargin,
-      width() - 2 * views::kPanelHorizMargin,
-      height() - 2 * views::kPanelVertMargin - prefered_height);
-
-  // y-coordinate of button top left.
   gfx::Rect parent_bounds = parent()->GetContentsBounds();
-  int y_buttons =
-      parent_bounds.bottom() - prefered_height - views::kButtonVEdgeMargin;
-
-  kill_button_->SetBounds(
-      x() + width() - prefered_width - views::kPanelHorizMargin,
-      y_buttons,
-      prefered_width,
-      prefered_height);
+  int x = width() - size.width() - (new_style ? 0 : views::kPanelHorizMargin);
+  int y_buttons = new_style ? GetLocalBounds().bottom() - size.height() :
+      parent_bounds.bottom() - size.height() - views::kButtonVEdgeMargin;
+  kill_button_->SetBounds(x, y_buttons, size.width(), size.height());
 
   if (purge_memory_button_) {
     size = purge_memory_button_->GetPreferredSize();
@@ -511,29 +499,30 @@ void TaskManagerView::Layout() {
   }
 
   size = about_memory_link_->GetPreferredSize();
-  int link_prefered_width = size.width();
-  int link_prefered_height = size.height();
-  // center between the two buttons horizontally, and line up with
-  // bottom of buttons vertically.
-  int link_y_offset = std::max(0, prefered_height - link_prefered_height) / 2;
-  about_memory_link_->SetBounds(
-      x() + views::kPanelHorizMargin,
-      y_buttons + prefered_height - link_prefered_height - link_y_offset,
-      link_prefered_width,
-      link_prefered_height);
+  about_memory_link_->SetBounds(new_style ? 0 : views::kPanelHorizMargin,
+      y_buttons + (kill_button_->height() - size.height()) / 2,
+      size.width(), size.height());
+
+  gfx::Rect rect = GetLocalBounds();
+  if (!new_style)
+    rect.Inset(views::kPanelHorizMargin, views::kPanelVertMargin);
+  rect.Inset(0, 0, 0,
+             kill_button_->height() + views::kUnrelatedControlVerticalSpacing);
+  tab_table_->SetBoundsRect(rect);
 }
 
 gfx::Size TaskManagerView::GetPreferredSize() {
-  return gfx::Size(kDefaultWidth, kDefaultHeight);
+  return gfx::Size(460, 270);
 }
 
 // static
 void TaskManagerView::Show(bool highlight_background_resources,
-                           chrome::HostDesktopType desktop_type) {
+                           Browser* browser) {
 #if defined(OS_WIN)
   // In Windows Metro it's not good to open this native window.
   DCHECK(!win8::IsSingleWindowMetroMode());
 #endif
+  const chrome::HostDesktopType desktop_type = browser->host_desktop_type();
 
   if (instance_) {
     if (instance_->highlight_background_resources_ !=
@@ -547,7 +536,8 @@ void TaskManagerView::Show(bool highlight_background_resources,
     }
   }
   instance_ = new TaskManagerView(highlight_background_resources, desktop_type);
-  views::Widget::CreateWindow(instance_);
+  DialogDelegateView::CreateDialogWidget(instance_,
+      browser->window()->GetNativeWindow(), NULL);
   instance_->InitAlwaysOnTopState();
   instance_->model_->StartUpdating();
   instance_->GetWidget()->Show();
@@ -764,12 +754,12 @@ bool TaskManagerView::GetSavedAlwaysOnTopState(bool* always_on_top) const {
 namespace chrome {
 
 // Declared in browser_dialogs.h so others don't need to depend on our header.
-void ShowTaskManager(chrome::HostDesktopType desktop_type) {
-  TaskManagerView::Show(false, desktop_type);
+void ShowTaskManager(Browser* browser) {
+  TaskManagerView::Show(false, browser);
 }
 
-void ShowBackgroundPages(chrome::HostDesktopType desktop_type) {
-  TaskManagerView::Show(true, desktop_type);
+void ShowBackgroundPages(Browser* browser) {
+  TaskManagerView::Show(true, browser);
 }
 
 }  // namespace chrome

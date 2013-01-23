@@ -18,8 +18,8 @@
 
 namespace {
 
-NSColor* BorderColor() {
-  return [NSColor colorForControlTint:[NSColor currentControlTint]];
+NSColor* BackgroundColor() {
+  return [NSColor whiteColor];
 }
 
 NSColor* SeparatorColor() {
@@ -28,6 +28,14 @@ NSColor* SeparatorColor() {
 
 NSColor* HighlightColor() {
   return [NSColor selectedControlColor];
+}
+
+NSColor* NameColor() {
+  return [NSColor blackColor];
+}
+
+NSColor* SubtextColor() {
+  return [NSColor grayColor];
 }
 
 }  // anonymous namespace
@@ -96,23 +104,8 @@ NSColor* HighlightColor() {
   if (!controller_)
     return;
 
-  // TODO(isherman): Is there a better way to leave room for the border?
-  // TODO(isherman): Drawing the border as part of the content view means that
-  // the rest of the content has to be careful not to overlap the border.
-  // Should the border be part of the window instead?  If not, should the rest
-  // of the view be a subview?  Or should I just draw the window content
-  // carefully?
-  // TODO(isherman): We should consider using asset-based drawing for the
-  // border, creating simple bitmaps for the view's border and background, and
-  // drawing them using NSDrawNinePartImage().
-  NSRect borderRect = NSInsetRect([self bounds], 0.5, 0.5);
-  NSBezierPath* border = [NSBezierPath bezierPathWithRect:borderRect];
-
-  [[NSColor whiteColor] set];
-  [border fill];
-
-  [BorderColor() set];
-  [border stroke];
+  [BackgroundColor() set];
+  [NSBezierPath fillRect:[self bounds]];
 
   for (size_t i = 0; i < controller_->names().size(); ++i) {
     // Skip rows outside of the dirty rect.
@@ -207,15 +200,19 @@ NSColor* HighlightColor() {
 
   BOOL isRTL = base::i18n::IsRTL();
 
-  // TODO(isherman): Set font, colors, and any other appropriate attributes.
-  NSSize nameSize = [name sizeWithAttributes:nil];
+  NSDictionary* nameAttributes =
+      [NSDictionary dictionaryWithObjectsAndKeys:
+           controller_->name_font().GetNativeFont(), NSFontAttributeName,
+           NameColor(), NSForegroundColorAttributeName,
+           nil];
+  NSSize nameSize = [name sizeWithAttributes:nameAttributes];
   CGFloat x = bounds.origin.x +
       (isRTL ?
        bounds.size.width - AutofillPopupView::kEndPadding - nameSize.width:
        AutofillPopupView::kEndPadding);
   CGFloat y = bounds.origin.y + (bounds.size.height - nameSize.height) / 2;
 
-  [name drawAtPoint:NSMakePoint(x, y) withAttributes:nil];
+  [name drawAtPoint:NSMakePoint(x, y) withAttributes:nameAttributes];
 
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
 
@@ -271,11 +268,16 @@ NSColor* HighlightColor() {
   }
 
   // Draw the subtext.
-  NSSize subtextSize = [subtext sizeWithAttributes:nil];
+  NSDictionary* subtextAttributes =
+      [NSDictionary dictionaryWithObjectsAndKeys:
+           controller_->subtext_font().GetNativeFont(), NSFontAttributeName,
+           SubtextColor(), NSForegroundColorAttributeName,
+           nil];
+  NSSize subtextSize = [subtext sizeWithAttributes:subtextAttributes];
   x += isRTL ? 0 : -subtextSize.width;
   y = bounds.origin.y + (bounds.size.height - subtextSize.height) / 2;
 
-  [subtext drawAtPoint:NSMakePoint(x, y) withAttributes:nil];
+  [subtext drawAtPoint:NSMakePoint(x, y) withAttributes:subtextAttributes];
 }
 
 - (NSImage*)iconAtIndex:(size_t)index {

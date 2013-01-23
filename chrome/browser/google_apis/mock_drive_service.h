@@ -33,6 +33,7 @@ class MockDriveService : public DriveServiceInterface {
   MOCK_METHOD1(CancelForFilePath, bool(const FilePath& file_path));
   MOCK_CONST_METHOD0(GetProgressStatusList,
       OperationProgressStatusList());
+  MOCK_CONST_METHOD0(GetRootResourceId, std::string());
   MOCK_METHOD6(GetResourceList,
       void(const GURL& feed_url,
           int64 start_changestamp,
@@ -45,8 +46,7 @@ class MockDriveService : public DriveServiceInterface {
           const GetResourceEntryCallback& callback));
   MOCK_METHOD1(GetAccountMetadata,
       void(const GetAccountMetadataCallback& callback));
-  MOCK_METHOD1(GetApplicationInfo,
-      void(const GetDataCallback& callback));
+  MOCK_METHOD1(GetAppList, void(const GetAppListCallback& callback));
   MOCK_METHOD2(DeleteResource,
       void(const GURL& edit_url,
           const EntryActionCallback& callback));
@@ -58,11 +58,11 @@ class MockDriveService : public DriveServiceInterface {
           const DownloadActionCallback& callback));
   MOCK_METHOD3(CopyHostedDocument,
       void(const std::string& resource_id,
-           const FilePath::StringType& new_name,
-           const GetResourceEntryCallback& callback));
+          const std::string& new_name,
+          const GetResourceEntryCallback& callback));
   MOCK_METHOD3(RenameResource,
       void(const GURL& edit_url,
-          const FilePath::StringType& new_name,
+          const std::string& new_name,
           const EntryActionCallback& callback));
   MOCK_METHOD3(AddResourceToDirectory,
       void(const GURL& parent_content_url,
@@ -74,8 +74,8 @@ class MockDriveService : public DriveServiceInterface {
           const EntryActionCallback& callback));
   MOCK_METHOD3(AddNewDirectory,
       void(const GURL& parent_content_url,
-          const FilePath::StringType& directory_name,
-          const GetResourceEntryCallback& callback));
+           const std::string& directory_name,
+           const GetResourceEntryCallback& callback));
   MOCK_METHOD5(
       DownloadFile,
       void(const FilePath& virtual_path,
@@ -136,13 +136,13 @@ class MockDriveService : public DriveServiceInterface {
   // Will call |callback| with HTTP_SUCCESS and the current value of
   // |document_data_|.
   void CopyHostedDocumentStub(const std::string& resource_id,
-      const FilePath::StringType& new_name,
-      const GetResourceEntryCallback& callback);
+                              const std::string& new_name,
+                              const GetResourceEntryCallback& callback);
 
   // Will call |callback| with HTTP_SUCCESS.
   void RenameResourceStub(const GURL& edit_url,
-      const FilePath::StringType& new_name,
-      const EntryActionCallback& callback);
+                          const std::string& new_name,
+                          const EntryActionCallback& callback);
 
   // Will call |callback| with HTTP_SUCCESS.
   void AddResourceToDirectoryStub(
@@ -159,8 +159,8 @@ class MockDriveService : public DriveServiceInterface {
   // Will call |callback| with HTTP_SUCCESS and the current value of
   // |directory_data_|.
   void CreateDirectoryStub(const GURL& parent_content_url,
-      const FilePath::StringType& directory_name,
-      const GetResourceEntryCallback& callback);
+                           const std::string& directory_name,
+                           const GetResourceEntryCallback& callback);
 
   // Will call |callback| with HTTP_SUCCESS, the given URL, and the host+path
   // portion of the URL as the temporary file path. If |file_data_| is not null,

@@ -314,6 +314,12 @@ IPC_MESSAGE_CONTROL4(PpapiMsg_CreateNaClChannel,
                      bool /* incognito */,
                      ppapi::proxy::SerializedHandle /* channel_handle */)
 
+// Instructs the plugin process to crash.
+IPC_MESSAGE_CONTROL0(PpapiMsg_Crash)
+
+// Instructs the plugin process to hang.
+IPC_MESSAGE_CONTROL0(PpapiMsg_Hang)
+
 // Each plugin may be referenced by multiple renderers. We need the instance
 // IDs to be unique within a plugin, despite coming from different renderers,
 // and unique within a renderer, despite going to different plugins. This means
@@ -429,22 +435,6 @@ IPC_MESSAGE_ROUTED4(PpapiMsg_PPBAudio_NotifyAudioStreamCreated,
                     int32_t /* result_code (will be != PP_OK on failure) */,
                     ppapi::proxy::SerializedHandle /* socket_handle */,
                     ppapi::proxy::SerializedHandle /* handle */)
-
-// PPB_FileIO.
-IPC_MESSAGE_ROUTED2(PpapiMsg_PPBFileIO_GeneralComplete,
-                    ppapi::HostResource /* file_io */,
-                    int32_t /* result */)
-IPC_MESSAGE_ROUTED2(PpapiMsg_PPBFileIO_OpenFileComplete,
-                    ppapi::HostResource /* file_io */,
-                    int32_t /* result */)
-IPC_MESSAGE_ROUTED3(PpapiMsg_PPBFileIO_QueryComplete,
-                    ppapi::HostResource /* file_io */,
-                    int32_t /* result */,
-                    PP_FileInfo /* info */)
-IPC_MESSAGE_ROUTED3(PpapiMsg_PPBFileIO_ReadComplete,
-                    ppapi::HostResource /* file_io */,
-                    int32_t /* result */,
-                    std::string /* data */)
 
 // PPB_FileRef.
 IPC_MESSAGE_ROUTED3(
@@ -682,24 +672,6 @@ IPC_MESSAGE_ROUTED4(PpapiMsg_PPBTCPSocket_WriteACK,
                     bool /* succeeded */,
                     int32_t /* bytes_written */)
 
-// PPB_UDPSocket_Private.
-IPC_MESSAGE_ROUTED4(PpapiMsg_PPBUDPSocket_BindACK,
-                    uint32 /* plugin_dispatcher_id */,
-                    uint32 /* socket_id */,
-                    bool /* succeeded */,
-                    PP_NetAddress_Private /* bound_addr */)
-IPC_MESSAGE_ROUTED5(PpapiMsg_PPBUDPSocket_RecvFromACK,
-                    uint32 /* plugin_dispatcher_id */,
-                    uint32 /* socket_id */,
-                    bool /* succeeded */,
-                    std::string /* data */,
-                    PP_NetAddress_Private /* remote_addr */)
-IPC_MESSAGE_ROUTED4(PpapiMsg_PPBUDPSocket_SendToACK,
-                    uint32 /* plugin_dispatcher_id */,
-                    uint32 /* socket_id */,
-                    bool /* succeeded */,
-                    int32_t /* bytes_written */)
-
 // PPB_URLLoader_Trusted
 IPC_MESSAGE_ROUTED1(
     PpapiMsg_PPBURLLoader_UpdateProgress,
@@ -803,43 +775,6 @@ IPC_MESSAGE_ROUTED1(PpapiHostMsg_PPBCore_AddRefResource,
                     ppapi::HostResource)
 IPC_MESSAGE_ROUTED1(PpapiHostMsg_PPBCore_ReleaseResource,
                     ppapi::HostResource)
-
-// PPB_FileIO.
-IPC_SYNC_MESSAGE_ROUTED1_1(PpapiHostMsg_PPBFileIO_Create,
-                           PP_Instance /* instance */,
-                           ppapi::HostResource /* result */)
-IPC_MESSAGE_ROUTED3(PpapiHostMsg_PPBFileIO_Open,
-                    ppapi::HostResource /* host_resource */,
-                    ppapi::HostResource /* file_ref_resource */,
-                    int32_t /* open_flags */)
-IPC_MESSAGE_ROUTED1(PpapiHostMsg_PPBFileIO_Close,
-                    ppapi::HostResource /* host_resource */)
-IPC_MESSAGE_ROUTED1(PpapiHostMsg_PPBFileIO_Query,
-                    ppapi::HostResource /* host_resource */)
-IPC_MESSAGE_ROUTED3(PpapiHostMsg_PPBFileIO_Touch,
-                    ppapi::HostResource /* host_resource */,
-                    PP_Time /* last_access_time */,
-                    PP_Time /* last_modified_time */)
-IPC_MESSAGE_ROUTED3(PpapiHostMsg_PPBFileIO_Read,
-                    ppapi::HostResource /* host_resource */,
-                    int64_t /* offset */,
-                    int32_t /* bytes_to_read */)
-IPC_MESSAGE_ROUTED3(PpapiHostMsg_PPBFileIO_Write,
-                    ppapi::HostResource /* host_resource */,
-                    int64_t /* offset */,
-                    std::string /* data */)
-IPC_MESSAGE_ROUTED2(PpapiHostMsg_PPBFileIO_SetLength,
-                    ppapi::HostResource /* host_resource */,
-                    int64_t /* length */)
-IPC_MESSAGE_ROUTED1(PpapiHostMsg_PPBFileIO_Flush,
-                    ppapi::HostResource /* host_resource */)
-IPC_MESSAGE_ROUTED3(PpapiHostMsg_PPBFileIO_WillWrite,
-                    ppapi::HostResource /* host_resource */,
-                    int64_t /* offset */,
-                    int32_t /* bytes_to_write */)
-IPC_MESSAGE_ROUTED2(PpapiHostMsg_PPBFileIO_WillSetLength,
-                    ppapi::HostResource /* host_resource */,
-                    int64_t /* length */)
 
 // PPB_FileRef.
 IPC_SYNC_MESSAGE_ROUTED2_1(PpapiHostMsg_PPBFileRef_Create,
@@ -1279,30 +1214,29 @@ IPC_MESSAGE_CONTROL2(PpapiHostMsg_PPBTCPSocket_Write,
 IPC_MESSAGE_CONTROL1(PpapiHostMsg_PPBTCPSocket_Disconnect,
                      uint32 /* socket_id */)
 
-// PPB_UDPSocket_Private.
-IPC_SYNC_MESSAGE_CONTROL2_1(PpapiHostMsg_PPBUDPSocket_Create,
-                            int32 /* routing_id */,
-                            uint32 /* plugin_dispatcher_id */,
-                            uint32 /* socket_id */)
-IPC_MESSAGE_CONTROL4(PpapiHostMsg_PPBUDPSocket_SetBoolSocketFeature,
-                     int32 /* routing_id */,
-                     uint32 /* socket_id */,
+// UDPSocketPrivate.
+IPC_MESSAGE_CONTROL0(PpapiHostMsg_UDPSocketPrivate_Create)
+IPC_MESSAGE_CONTROL2(PpapiHostMsg_UDPSocketPrivate_SetBoolSocketFeature,
                      int32_t /* name */,
                      bool /* value */)
-IPC_MESSAGE_CONTROL3(PpapiHostMsg_PPBUDPSocket_Bind,
-                     int32 /* routing_id */,
-                     uint32 /* socket_id */,
+IPC_MESSAGE_CONTROL1(PpapiHostMsg_UDPSocketPrivate_Bind,
                      PP_NetAddress_Private /* net_addr */)
-IPC_MESSAGE_CONTROL2(PpapiHostMsg_PPBUDPSocket_RecvFrom,
-                     uint32 /* socket_id */,
+IPC_MESSAGE_CONTROL1(PpapiHostMsg_UDPSocketPrivate_RecvFrom,
                      int32_t /* num_bytes */)
-IPC_MESSAGE_CONTROL4(PpapiHostMsg_PPBUDPSocket_SendTo,
-                     int32 /* routing_id */,
-                     uint32 /* socket_id */,
+IPC_MESSAGE_CONTROL2(PpapiHostMsg_UDPSocketPrivate_SendTo,
                      std::string /* data */,
                      PP_NetAddress_Private /* net_addr */)
-IPC_MESSAGE_CONTROL1(PpapiHostMsg_PPBUDPSocket_Close,
-                     uint32 /* socket_id */)
+IPC_MESSAGE_CONTROL0(PpapiHostMsg_UDPSocketPrivate_Close)
+IPC_MESSAGE_CONTROL2(PpapiPluginMsg_UDPSocketPrivate_BindReply,
+                     bool /* succeeded */,
+                     PP_NetAddress_Private /* bound_addr */)
+IPC_MESSAGE_CONTROL3(PpapiPluginMsg_UDPSocketPrivate_RecvFromReply,
+                     bool /* succeeded */,
+                     std::string /* data */,
+                     PP_NetAddress_Private /* remote_addr */)
+IPC_MESSAGE_CONTROL2(PpapiPluginMsg_UDPSocketPrivate_SendToReply,
+                     bool /* succeeded */,
+                     int32_t /* bytes_written */)
 
 // PPB_TCPServerSocket_Private.
 IPC_MESSAGE_CONTROL5(PpapiHostMsg_PPBTCPServerSocket_Listen,
@@ -1399,6 +1333,38 @@ IPC_MESSAGE_CONTROL4(PpapiHostMsg_FileChooser_Show,
                      std::vector<std::string> /* accept_mime_types */)
 IPC_MESSAGE_CONTROL1(PpapiPluginMsg_FileChooser_ShowReply,
                      std::vector<ppapi::PPB_FileRef_CreateInfo> /* files */)
+
+// FileIO
+IPC_MESSAGE_CONTROL0(PpapiHostMsg_FileIO_Create)
+IPC_MESSAGE_CONTROL2(PpapiHostMsg_FileIO_Open,
+                     PP_Resource /* file_ref_resource */,
+                     int32_t /* open_flags */)
+IPC_MESSAGE_CONTROL0(PpapiPluginMsg_FileIO_OpenReply)
+IPC_MESSAGE_CONTROL0(PpapiHostMsg_FileIO_Close)
+IPC_MESSAGE_CONTROL0(PpapiHostMsg_FileIO_Query)
+IPC_MESSAGE_CONTROL1(PpapiPluginMsg_FileIO_QueryReply, PP_FileInfo /* info */)
+IPC_MESSAGE_CONTROL2(PpapiHostMsg_FileIO_Touch,
+                     PP_Time /* last_access_time */,
+                     PP_Time /* last_modified_time */)
+IPC_MESSAGE_CONTROL2(PpapiHostMsg_FileIO_Read,
+                     int64_t /* offset */,
+                     int32_t /* bytes_to_read */)
+IPC_MESSAGE_CONTROL1(PpapiPluginMsg_FileIO_ReadReply, std::string /* data */)
+IPC_MESSAGE_CONTROL2(PpapiHostMsg_FileIO_Write,
+                     int64_t /* offset */,
+                     std::string /* data */)
+IPC_MESSAGE_CONTROL1(PpapiHostMsg_FileIO_SetLength,
+                     int64_t /* length */)
+IPC_MESSAGE_CONTROL0(PpapiHostMsg_FileIO_Flush)
+IPC_MESSAGE_CONTROL2(PpapiHostMsg_FileIO_WillWrite,
+                     int64_t /* offset */,
+                     int32_t /* bytes_to_write */)
+IPC_MESSAGE_CONTROL1(PpapiHostMsg_FileIO_WillSetLength,
+                     int64_t /* length */)
+IPC_MESSAGE_CONTROL0(PpapiHostMsg_FileIO_GetOSFileDescriptor)
+IPC_MESSAGE_CONTROL1(PpapiPluginMsg_FileIO_GetOSFileDescriptorReply,
+                     int32_t /* file descriptor */)
+IPC_MESSAGE_CONTROL0(PpapiPluginMsg_FileIO_GeneralReply)
 
 // Flash device ID.
 IPC_MESSAGE_CONTROL0(PpapiHostMsg_FlashDeviceID_Create)

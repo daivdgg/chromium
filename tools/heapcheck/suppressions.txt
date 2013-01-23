@@ -1680,43 +1680,6 @@
   fun:::BookmarkUIUtilsTest_HasBookmarkURLs_Test::TestBody
 }
 {
-   bug_169675a
-   Heapcheck:Leak
-   fun:fileapi::IsolatedMountPointProvider::CreateFileSystemOperation
-   fun:fileapi::FileSystemContext::CreateFileSystemOperation
-   fun:NativeMediaFileUtilTest::NewOperation
-}
-{
-   bug_169675b
-   Heapcheck:Leak
-   ...
-   fun:fileapi::MediaPathFilter::EnsureInitialized
-   fun:fileapi::MediaPathFilter::Match
-   fun:fileapi::NativeMediaFileUtil::GetFileInfo
-   fun:fileapi::FileUtilHelper::PathExists
-   fun:fileapi::::CrossFileUtilHelper::PerformErrorCheckAndPreparation
-   fun:fileapi::::CrossFileUtilHelper::DoWork
-   fun:fileapi::FileUtilHelper::*
-}
-{
-   bug_169675c
-   Heapcheck:Leak
-   ...
-   fun:fileapi::MediaPathFilter::EnsureInitialized
-   fun:fileapi::MediaPathFilter::Match
-   fun:fileapi::NativeMediaFileUtil::GetFileInfo
-   fun:fileapi::FileUtilHelper::PathExists
-   fun:fileapi::::CrossFileUtilHelper::PerformErrorCheckAndPreparation
-   fun:fileapi::::CrossFileUtilHelper::DoWork
-   fun:fileapi::FileUtilHelper::*
-}
-{
-   bug_169675d
-   Heapcheck:Leak
-   ...
-   fun:NativeMediaFileUtilTest::SetUp
-}
-{
    bug_169678
    Heapcheck:Leak
    fun:v8::internal::SlotsBufferAllocator::AllocateBuffer
@@ -1746,13 +1709,6 @@
    fun:testing::internal::TestFactoryImpl::CreateTest
 }
 {
-   bug_170332
-   Heapcheck:Leak
-   fun:CancelableTaskTracker::NewTrackedTaskId
-   fun:PasswordStore::GetLogins
-   fun:PasswordStoreTest_IgnoreOldWwwGoogleLogins_Test::TestBody
-}
-{
    bug_170602
    Heapcheck:Leak
    fun:v8::internal::SlotsBufferAllocator::AllocateBuffer
@@ -1764,4 +1720,30 @@
    fun:EventUnittest
    fun:EventUnittest_AddingFilterWithUrlFieldNotAListThrowsException_Test
 }
-
+{
+   bug_171547_a
+   Heapcheck:Leak
+   ...
+   fun:ManagedUserService::ManagedUserService
+   fun:ManagedUserServiceTest_ExtensionManagementPolicyProvider_Test::TestBody
+}
+{
+   bug_171547_b
+   Heapcheck:Leak
+   ...
+   fun:FilterBuilder
+   fun:::LoadWhitelistsOnBlockingPoolThread
+}
+{
+   bug_171547_c
+   Heapcheck:Leak
+   ...
+   fun:FilterBuilder::Build
+   fun:::LoadWhitelistsOnBlockingPoolThread
+}
+{
+   bug_171547_d
+   Heapcheck:Leak
+   fun:MessageLoop::MessageLoop
+   fun:ManagedUserServiceTest_ExtensionManagementPolicyProvider_Test::TestBody
+}

@@ -177,20 +177,20 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSearchableFormData.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSecurityOrigin.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSecurityPolicy.h"
+#include "third_party/WebKit/Source/WebKit/chromium/public/WebSerializedScriptValue.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSettings.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebStorageQuotaCallbacks.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebUserMediaClient.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebView.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebWindowFeatures.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/default/WebRenderTheme.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/platform/WebSerializedScriptValue.h"
 #include "third_party/skia/include/core/SkBitmap.h"
-#include "ui/base/dialogs/selected_file_info.h"
 #include "ui/base/ui_base_switches.h"
 #include "ui/gfx/native_widget_types.h"
 #include "ui/gfx/point.h"
 #include "ui/gfx/rect.h"
 #include "ui/gfx/size_conversions.h"
+#include "ui/shell_dialogs/selected_file_info.h"
 #include "v8/include/v8.h"
 #include "webkit/appcache/web_application_cache_host_impl.h"
 #include "webkit/base/file_path_string_conversions.h"
@@ -2537,12 +2537,14 @@ bool RenderViewImpl::isPointerLocked() {
 }
 
 void RenderViewImpl::didActivateCompositor(int input_handler_identifier) {
+#if !defined(OS_MACOSX) // many events are unhandled - http://crbug.com/138003
 #if !defined(OS_WIN)  // http://crbug.com/160122
   CompositorThread* compositor_thread =
       RenderThreadImpl::current()->compositor_thread();
   if (compositor_thread)
     compositor_thread->AddInputHandler(
         routing_id_, input_handler_identifier, AsWeakPtr());
+#endif
 #endif
 
   RenderWidget::didActivateCompositor(input_handler_identifier);
@@ -2752,6 +2754,8 @@ void RenderViewImpl::didDisownOpener(WebKit::WebFrame* frame) {
 }
 
 void RenderViewImpl::frameDetached(WebFrame* frame) {
+  Send(new ViewHostMsg_FrameDetached(routing_id_, frame->identifier()));
+
   if (is_loading_) {
     pending_frame_tree_update_ = true;
     // Make sure observers are notified, even if we return right away.
@@ -3705,6 +3709,10 @@ void RenderViewImpl::willSendRequest(WebFrame* frame,
                                      unsigned identifier,
                                      WebURLRequest& request,
                                      const WebURLResponse& redirect_response) {
+  // The request my be empty during tests.
+  if (request.url().isEmpty())
+    return;
+
   WebFrame* top_frame = frame->top();
   if (!top_frame)
     top_frame = frame;
@@ -5390,29 +5398,31 @@ void RenderViewImpl::OnSetRendererPrefs(
   UpdateFontRenderingFromRendererPrefs();
 
 #if defined(USE_DEFAULT_RENDER_THEME) || defined(TOOLKIT_GTK)
-  WebColorName name = WebKit::WebColorWebkitFocusRingColor;
-  WebKit::setNamedColors(&name, &renderer_prefs.focus_ring_color, 1);
-  WebKit::setCaretBlinkInterval(renderer_prefs.caret_blink_interval);
+  if (renderer_prefs.use_custom_colors) {
+    WebColorName name = WebKit::WebColorWebkitFocusRingColor;
+    WebKit::setNamedColors(&name, &renderer_prefs.focus_ring_color, 1);
+    WebKit::setCaretBlinkInterval(renderer_prefs.caret_blink_interval);
 #if defined(TOOLKIT_GTK)
-  ui::NativeTheme::instance()->SetScrollbarColors(
-      renderer_prefs.thumb_inactive_color,
-      renderer_prefs.thumb_active_color,
-      renderer_prefs.track_color);
-#endif  // defined(TOOLKIT_GTK)
-
-  if (webview()) {
-#if defined(TOOLKIT_GTK)
-    webview()->setScrollbarColors(
+    ui::NativeTheme::instance()->SetScrollbarColors(
         renderer_prefs.thumb_inactive_color,
         renderer_prefs.thumb_active_color,
         renderer_prefs.track_color);
 #endif  // defined(TOOLKIT_GTK)
-    webview()->setSelectionColors(
-        renderer_prefs.active_selection_bg_color,
-        renderer_prefs.active_selection_fg_color,
-        renderer_prefs.inactive_selection_bg_color,
-        renderer_prefs.inactive_selection_fg_color);
-    webview()->themeChanged();
+
+    if (webview()) {
+#if defined(TOOLKIT_GTK)
+      webview()->setScrollbarColors(
+          renderer_prefs.thumb_inactive_color,
+          renderer_prefs.thumb_active_color,
+          renderer_prefs.track_color);
+#endif  // defined(TOOLKIT_GTK)
+      webview()->setSelectionColors(
+          renderer_prefs.active_selection_bg_color,
+          renderer_prefs.active_selection_fg_color,
+          renderer_prefs.inactive_selection_bg_color,
+          renderer_prefs.inactive_selection_fg_color);
+      webview()->themeChanged();
+    }
   }
 #endif  // defined(USE_DEFAULT_RENDER_THEME) || defined(TOOLKIT_GTK)
 

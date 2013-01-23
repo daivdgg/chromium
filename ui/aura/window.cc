@@ -320,8 +320,7 @@ void Window::SetExternalTexture(ui::Texture* texture) {
 
 void Window::SetDefaultParentByRootWindow(RootWindow* root_window,
                                           const gfx::Rect& bounds_in_screen) {
-  // TODO(erg): Enable this DCHECK once it is safe.
-  //  DCHECK(root_window);
+  DCHECK(root_window);
 
   // Stacking clients are mandatory on RootWindow objects.
   client::StackingClient* client = client::GetStackingClient(root_window);
@@ -698,11 +697,12 @@ void Window::SetVisible(bool visible) {
   }
   visible_ = visible;
   SchedulePaint();
+  if (parent_ && parent_->layout_manager_.get())
+    parent_->layout_manager_->OnChildWindowVisibilityChanged(this, visible);
+
   if (delegate_)
     delegate_->OnWindowTargetVisibilityChanged(visible);
 
-  if (parent_ && parent_->layout_manager_.get())
-    parent_->layout_manager_->OnChildWindowVisibilityChanged(this, visible);
   FOR_EACH_OBSERVER(WindowObserver, observers_,
                     OnWindowVisibilityChanged(this, visible));
 

@@ -238,8 +238,6 @@
         'controls/tree/tree_view_controller.h',
         'controls/tree/tree_view_views.cc',
         'controls/tree/tree_view_views.h',
-        'controls/tree/tree_view_win.cc',
-        'controls/tree/tree_view_win.h',
         'corewm/base_focus_rules.cc',
         'corewm/base_focus_rules.h',
         'corewm/compound_event_filter.cc',
@@ -372,8 +370,6 @@
         'widget/desktop_aura/desktop_screen_win.cc',
         'widget/desktop_aura/desktop_screen_win.h',
         'widget/desktop_aura/desktop_screen_x11.cc',
-        'widget/desktop_aura/desktop_stacking_client.cc',
-        'widget/desktop_aura/desktop_stacking_client.h',
         'widget/desktop_aura/x11_desktop_handler.cc',
         'widget/desktop_aura/x11_desktop_handler.h',
         'widget/desktop_aura/x11_desktop_window_move_client.cc',
@@ -479,11 +475,6 @@
                 ['include', 'widget/desktop_aura/desktop_root_window_host_win.cc'],
               ],
             }],
-            ['OS!="win"', {
-              'sources/': [
-                ['exclude', 'controls/menu/menu_2.*'],
-              ],
-            }],
           ],
         }],
         ['use_aura==0', {
@@ -516,8 +507,6 @@
             'controls/table/table_view_row_background_painter.h',
             'controls/table/table_view_views.cc',
             'controls/table/table_view_views.h',
-            'controls/tree/tree_view_views.cc',
-            'controls/tree/tree_view_views.h',
           ],
         }],
         ['use_aura==1 and OS=="win"', {
@@ -553,6 +542,9 @@
         }],
         ['OS!="win"', {
           'sources!': [
+            'controls/menu/menu_wrapper.h',
+            'controls/menu/menu_2.cc',
+            'controls/menu/menu_2.h',
             'win/fullscreen_handler.cc',
             'win/fullscreen_handler.h',
             'win/hwnd_message_handler.cc',

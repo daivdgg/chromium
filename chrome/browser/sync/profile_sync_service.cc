@@ -162,6 +162,8 @@ ProfileSyncService::ProfileSyncService(ProfileSyncComponentsFactory* factory,
       channel == chrome::VersionInfo::CHANNEL_BETA) {
     sync_service_url_ = GURL(kSyncServerUrl);
   }
+  if (signin_)
+    signin_->signin_global_error()->AddProvider(this);
 }
 
 ProfileSyncService::~ProfileSyncService() {
@@ -532,6 +534,9 @@ void ProfileSyncService::Shutdown() {
   // use it.
   invalidator_registrar_.reset();
 
+  if (signin_)
+    signin_->signin_global_error()->RemoveProvider(this);
+
   ShutdownImpl(false);
 }
 
@@ -590,7 +595,9 @@ void ProfileSyncService::ShutdownImpl(bool sync_disabled) {
   encrypt_everything_ = false;
   encrypted_types_ = syncer::SyncEncryptionHandler::SensitiveTypes();
   passphrase_required_reason_ = syncer::REASON_PASSPHRASE_NOT_REQUIRED;
-  last_auth_error_ = AuthError::None();
+  // Revert to "no auth error".
+  if (last_auth_error_.state() != GoogleServiceAuthError::NONE)
+    UpdateAuthErrorState(GoogleServiceAuthError::None());
 
   if (sync_global_error_.get()) {
     GlobalErrorServiceFactory::GetForProfile(profile_)->RemoveGlobalError(
@@ -916,6 +923,8 @@ void ProfileSyncService::UpdateAuthErrorState(const AuthError& error) {
 
   // Fan the notification out to interested UI-thread components.
   NotifyObservers();
+  if (signin())
+    signin()->signin_global_error()->AuthStatusChanged();
 }
 
 namespace {
@@ -1216,6 +1225,10 @@ const AuthError& ProfileSyncService::GetAuthError() const {
   return last_auth_error_;
 }
 
+GoogleServiceAuthError ProfileSyncService::GetAuthStatus() const {
+  return GetAuthError();
+}
+
 bool ProfileSyncService::FirstSetupInProgress() const {
   return !HasSyncSetupCompleted() && setup_in_progress_;
 }
@@ -1308,7 +1321,7 @@ void ProfileSyncService::UpdateSelectedTypesHistogram(
     browser_sync::user_selectable_type::TYPED_URLS
   };
 
-  COMPILE_ASSERT(22 == syncer::MODEL_TYPE_COUNT, UpdateCustomConfigHistogram);
+  COMPILE_ASSERT(23 == syncer::MODEL_TYPE_COUNT, UpdateCustomConfigHistogram);
   COMPILE_ASSERT(arraysize(model_types) ==
                  browser_sync::user_selectable_type::SELECTABLE_DATATYPE_COUNT,
                  UpdateCustomConfigHistogram);

@@ -455,12 +455,11 @@ void BrowserWindowCocoa::ShowUpdateChromeDialog() {
   restart_browser::RequestRestart(window());
 }
 
-void BrowserWindowCocoa::ShowTaskManager(chrome::HostDesktopType desktop_type) {
+void BrowserWindowCocoa::ShowTaskManager() {
   TaskManagerMac::Show(false);
 }
 
-void BrowserWindowCocoa::ShowBackgroundPages(
-    chrome::HostDesktopType desktop_type) {
+void BrowserWindowCocoa::ShowBackgroundPages() {
   TaskManagerMac::Show(true);
 }
 
@@ -617,10 +616,6 @@ gfx::Rect BrowserWindowCocoa::GetInstantBounds() {
   gfx::Rect bounds(NSRectToCGRect(frame));
   bounds.set_y(NSHeight(monitorFrame) - bounds.y() - bounds.height());
   return bounds;
-}
-
-bool BrowserWindowCocoa::IsInstantTabShowing()  {
-  return [controller_ isInstantTabShowing];
 }
 
 WindowOpenDisposition BrowserWindowCocoa::GetDispositionForPopupBounds(

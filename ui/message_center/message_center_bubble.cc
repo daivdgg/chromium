@@ -47,8 +47,8 @@ const SkColor kButtonTextHoverColor = SkColorSetRGB(0x32, 0x32, 0x32);
 const SkColor kFocusBorderColor = SkColorSetRGB(0x40, 0x80, 0xfa);
 
 bool UseNewDesign() {
-  return CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kEnableNewMessageCenterBubble);
+  return !CommandLine::ForCurrentProcess()->HasSwitch(
+      switches::kDisableNewMessageCenterBubble);
 }
 
 class WebNotificationButtonViewBase : public views::View {
@@ -365,9 +365,11 @@ class MessageCenterContentsView : public views::View {
     scroller_->SetContents(scroll_content_);
     AddChildView(scroller_);
 
-    scroller_->SetPaintToLayer(true);
-    scroller_->SetFillsBoundsOpaquely(false);
-    scroller_->layer()->SetMasksToBounds(true);
+    if (get_use_acceleration_when_possible()) {
+      scroller_->SetPaintToLayer(true);
+      scroller_->SetFillsBoundsOpaquely(false);
+      scroller_->layer()->SetMasksToBounds(true);
+    }
 
     if (UseNewDesign())
       button_view_ = new WebNotificationButtonView2(list_delegate);

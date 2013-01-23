@@ -299,7 +299,8 @@ RenderWidgetHostViewAura::RenderWidgetHostViewAura(RenderWidgetHost* host)
       paint_canvas_(NULL),
       synthetic_move_sent_(false),
       accelerated_compositing_state_changed_(false),
-      can_lock_compositor_(YES) {
+      can_lock_compositor_(YES),
+      paint_observer_(NULL) {
   host_->SetView(this);
   window_observer_.reset(new WindowObserver(this));
   window_->AddObserver(window_observer_.get());
@@ -466,11 +467,13 @@ gfx::NativeView RenderWidgetHostViewAura::GetNativeView() const {
 
 gfx::NativeViewId RenderWidgetHostViewAura::GetNativeViewId() const {
 #if defined(OS_WIN)
-  HWND window = window_->GetRootWindow()->GetAcceleratedWidget();
-  return reinterpret_cast<gfx::NativeViewId>(window);
-#else
-  return static_cast<gfx::NativeViewId>(NULL);
+  aura::RootWindow* root_window = window_->GetRootWindow();
+  if (root_window) {
+    HWND window = root_window->GetAcceleratedWidget();
+    return reinterpret_cast<gfx::NativeViewId>(window);
+  }
 #endif
+  return static_cast<gfx::NativeViewId>(NULL);
 }
 
 gfx::NativeViewAccessible RenderWidgetHostViewAura::GetNativeViewAccessible() {
@@ -568,6 +571,8 @@ void RenderWidgetHostViewAura::UpdateCursor(const WebCursor& cursor) {
 }
 
 void RenderWidgetHostViewAura::SetIsLoading(bool is_loading) {
+  if (is_loading_ && !is_loading && paint_observer_)
+    paint_observer_->OnPageLoadComplete();
   is_loading_ = is_loading;
   UpdateCursorIfOverSelf();
 }
@@ -621,6 +626,9 @@ void RenderWidgetHostViewAura::DidUpdateBackingStore(
   if (!scroll_rect.IsEmpty())
     SchedulePaintIfNotInClip(scroll_rect, clip_rect);
 
+#if defined(OS_WIN)
+  aura::RootWindow* root_window = window_->GetRootWindow();
+#endif
   for (size_t i = 0; i < copy_rects.size(); ++i) {
     gfx::Rect rect = gfx::SubtractRects(copy_rects[i], scroll_rect);
     if (rect.IsEmpty())
@@ -629,12 +637,14 @@ void RenderWidgetHostViewAura::DidUpdateBackingStore(
     SchedulePaintIfNotInClip(rect, clip_rect);
 
 #if defined(OS_WIN)
-    // Send the invalid rect in screen coordinates.
-    gfx::Rect screen_rect = GetViewBounds();
-    gfx::Rect invalid_screen_rect(rect);
-    invalid_screen_rect.Offset(screen_rect.x(), screen_rect.y());
-    HWND hwnd = window_->GetRootWindow()->GetAcceleratedWidget();
-    PaintPluginWindowsHelper(hwnd, invalid_screen_rect);
+    if (root_window) {
+      // Send the invalid rect in screen coordinates.
+      gfx::Rect screen_rect = GetViewBounds();
+      gfx::Rect invalid_screen_rect(rect);
+      invalid_screen_rect.Offset(screen_rect.x(), screen_rect.y());
+      HWND hwnd = root_window->GetAcceleratedWidget();
+      PaintPluginWindowsHelper(hwnd, invalid_screen_rect);
+    }
 #endif  // defined(OS_WIN)
   }
 }
@@ -893,6 +903,8 @@ void RenderWidgetHostViewAura::AcceleratedSurfaceBuffersSwapped(
     window_->SchedulePaintInRect(gfx::Rect(surface_size));
   }
 
+  if (paint_observer_)
+    paint_observer_->OnUpdateCompositorContent();
   SwapBuffersCompleted(ack_params);
 }
 
@@ -952,6 +964,8 @@ void RenderWidgetHostViewAura::AcceleratedSurfacePostSubBuffer(
     rect_to_paint.Inset(-1, -1);
     rect_to_paint.Intersect(window_->bounds());
 
+    if (paint_observer_)
+      paint_observer_->OnUpdateCompositorContent();
     window_->SchedulePaintInRect(rect_to_paint);
   }
 
@@ -1013,7 +1027,7 @@ void RenderWidgetHostViewAura::SetBackground(const SkBitmap& background) {
 }
 
 void RenderWidgetHostViewAura::GetScreenInfo(WebScreenInfo* results) {
-  GetScreenInfoForWindow(results, window_);
+  GetScreenInfoForWindow(results, window_->GetRootWindow() ? window_ : NULL);
 }
 
 gfx::Rect RenderWidgetHostViewAura::GetBoundsInRootWindow() {
@@ -1176,14 +1190,18 @@ gfx::Rect RenderWidgetHostViewAura::ConvertRectToScreen(const gfx::Rect& rect) {
   gfx::Point end = gfx::Point(rect.right(), rect.bottom());
 
   aura::RootWindow* root_window = window_->GetRootWindow();
-  aura::client::ScreenPositionClient* screen_position_client =
-      aura::client::GetScreenPositionClient(root_window);
-  screen_position_client->ConvertPointToScreen(window_, &origin);
-  screen_position_client->ConvertPointToScreen(window_, &end);
-  return gfx::Rect(origin.x(),
-                   origin.y(),
-                   end.x() - origin.x(),
-                   end.y() - origin.y());
+  if (root_window) {
+    aura::client::ScreenPositionClient* screen_position_client =
+        aura::client::GetScreenPositionClient(root_window);
+    screen_position_client->ConvertPointToScreen(window_, &origin);
+    screen_position_client->ConvertPointToScreen(window_, &end);
+    return gfx::Rect(origin.x(),
+                     origin.y(),
+                     end.x() - origin.x(),
+                     end.y() - origin.y());
+  }
+
+  return rect;
 }
 
 gfx::Rect RenderWidgetHostViewAura::GetCaretBounds() {
@@ -1357,6 +1375,8 @@ void RenderWidgetHostViewAura::OnPaint(gfx::Canvas* canvas) {
   if (backing_store) {
     static_cast<BackingStoreAura*>(backing_store)->SkiaShowRect(gfx::Point(),
                                                                 canvas);
+    if (paint_observer_)
+      paint_observer_->OnPaintComplete();
   } else if (aura::Env::GetInstance()->render_white_bg()) {
     canvas->DrawColor(SK_ColorWHITE);
   }
@@ -1673,7 +1693,10 @@ void RenderWidgetHostViewAura::OnGestureEvent(ui::GestureEvent* event) {
 // RenderWidgetHostViewAura, aura::client::ActivationDelegate implementation:
 
 bool RenderWidgetHostViewAura::ShouldActivate() const {
-  const ui::Event* event = window_->GetRootWindow()->current_event();
+  aura::RootWindow* root_window = window_->GetRootWindow();
+  if (!root_window)
+    return true;
+  const ui::Event* event = root_window->current_event();
   if (!event)
     return true;
   return is_fullscreen_;
@@ -1756,6 +1779,8 @@ void RenderWidgetHostViewAura::OnCompositingStarted(
 
 void RenderWidgetHostViewAura::OnCompositingEnded(
     ui::Compositor* compositor) {
+  if (paint_observer_)
+    paint_observer_->OnCompositingComplete();
 }
 
 void RenderWidgetHostViewAura::OnCompositingAborted(
@@ -1796,6 +1821,8 @@ void RenderWidgetHostViewAura::OnLostResources() {
 // RenderWidgetHostViewAura, private:
 
 RenderWidgetHostViewAura::~RenderWidgetHostViewAura() {
+  if (paint_observer_)
+    paint_observer_->OnViewDestroyed();
   if (!shared_surface_handle_.is_null()) {
     ImageTransportFactory* factory = ImageTransportFactory::GetInstance();
     factory->DestroySharedSurfaceHandle(shared_surface_handle_);

@@ -16,6 +16,7 @@
 #include "content/public/browser/web_contents.h"
 #include "grit/theme_resources.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/base/models/combobox_model.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/canvas.h"
 #include "ui/views/background.h"
@@ -202,6 +203,38 @@ ui::MouseEvent AutofillDialogViews::SectionContainer::ProxyEvent(
   return event_copy;
 }
 
+// AutofilDialogViews::SuggestionView ------------------------------------------
+
+AutofillDialogViews::SuggestionView::SuggestionView(
+    const string16& edit_label,
+    views::LinkListener* edit_listener)
+    : label_(new views::Label()) {
+  label_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  AddChildView(label_);
+
+  // TODO(estade): The link needs to have a different color when hovered.
+  views::Link* edit_link = new views::Link(edit_label);
+  edit_link->set_listener(edit_listener);
+  edit_link->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  edit_link->SetUnderline(false);
+
+  // This container prevents the edit link from being horizontally stretched.
+  views::View* link_container = new views::View();
+  link_container->SetLayoutManager(
+      new views::BoxLayout(views::BoxLayout::kHorizontal, 0, 0, 0));
+  link_container->AddChildView(edit_link);
+  AddChildView(link_container);
+
+  SetLayoutManager(new views::BoxLayout(views::BoxLayout::kVertical, 0, 0, 0));
+}
+
+AutofillDialogViews::SuggestionView::~SuggestionView() {}
+
+void AutofillDialogViews::SuggestionView::SetSuggestionText(
+    const string16& text) {
+  label_->SetText(text);
+}
+
 // AutofillDialogView ----------------------------------------------------------
 
 // static
@@ -219,10 +252,13 @@ AutofillDialogViews::AutofillDialogViews(AutofillDialogController* controller)
       contents_(NULL),
       notification_label_(NULL),
       use_billing_for_shipping_(NULL),
+      sign_in_link_(NULL),
       sign_in_container_(NULL),
       cancel_sign_in_(NULL),
       sign_in_webview_(NULL),
       main_container_(NULL),
+      button_strip_extra_view_(NULL),
+      save_in_chrome_checkbox_(NULL),
       focus_manager_(NULL) {
   DCHECK(controller);
   detail_groups_.insert(std::make_pair(SECTION_EMAIL,
@@ -281,6 +317,10 @@ bool AutofillDialogViews::UseBillingForShipping() {
   return use_billing_for_shipping_->checked();
 }
 
+bool AutofillDialogViews::SaveDetailsLocally() {
+  return save_in_chrome_checkbox_->checked();
+}
+
 const content::NavigationController& AutofillDialogViews::ShowSignIn() {
   // TODO(abodenha) Also hide Submit and Cancel buttons.
   // See http://crbug.com/165193
@@ -335,8 +375,11 @@ string16 AutofillDialogViews::GetDialogButtonLabel(ui::DialogButton button)
 }
 
 bool AutofillDialogViews::IsDialogButtonEnabled(ui::DialogButton button) const {
-  return button == ui::DIALOG_BUTTON_OK ?
-      controller_->ConfirmButtonEnabled() : true;
+  return true;
+}
+
+views::View* AutofillDialogViews::GetExtraView() {
+  return button_strip_extra_view_;
 }
 
 bool AutofillDialogViews::Cancel() {
@@ -355,7 +398,7 @@ void AutofillDialogViews::ButtonPressed(views::Button* sender,
                                         const ui::Event& event) {
   if (sender == use_billing_for_shipping_) {
     UpdateDetailsGroupState(*GroupForSection(SECTION_SHIPPING));
-  } else  if (sender == cancel_sign_in_) {
+  } else if (sender == cancel_sign_in_) {
     controller_->EndSignInFlow();
   } else {
     // TODO(estade): Should the menu be shown on mouse down?
@@ -396,7 +439,7 @@ bool AutofillDialogViews::HandleKeyEvent(views::Textfield* sender,
 #else
   content::NativeWebKeyboardEvent event(copy.get());
 #endif
-  return controller_->HandleKeyPressEvent(event);
+  return controller_->HandleKeyPressEventInInput(event);
 }
 
 bool AutofillDialogViews::HandleMouseEvent(views::Textfield* sender,
@@ -417,10 +460,33 @@ void AutofillDialogViews::OnDidChangeFocus(
     views::View* focused_now) {}
 
 void AutofillDialogViews::LinkClicked(views::Link* source, int event_flags) {
-  controller_->StartSignInFlow();
+  // Sign in link.
+  if (source == sign_in_link_) {
+    controller_->StartSignInFlow();
+    return;
+  }
+
+  // Edit links.
+  for (DetailGroupMap::iterator iter = detail_groups_.begin();
+       iter != detail_groups_.end(); ++iter) {
+    if (iter->second.suggested_info->Contains(source)) {
+      controller_->EditClickedForSection(iter->first);
+      return;
+    }
+  }
 }
 
 void AutofillDialogViews::InitChildViews() {
+  button_strip_extra_view_ = new views::View();
+  button_strip_extra_view_->SetLayoutManager(
+      new views::BoxLayout(views::BoxLayout::kHorizontal, 0, 0, 0));
+
+  // TODO(estade): i18n.
+  save_in_chrome_checkbox_ =
+      new views::Checkbox(controller_->SaveLocallyText());
+  button_strip_extra_view_->AddChildView(save_in_chrome_checkbox_);
+  // TODO(estade): add other views, like the Autocheckout progress bar.
+
   contents_ = new views::View();
   contents_->SetLayoutManager(
       new views::BoxLayout(views::BoxLayout::kHorizontal, 0, 0, 0));
@@ -458,10 +524,10 @@ views::View* AutofillDialogViews::CreateMainContainer() {
   layout->StartRow(0, single_column_set);
   // TODO(abodenha) Create a chooser control to allow account selection.
   // See http://crbug.com/169858
-  views::Link* signin = new views::Link(controller_->SignInText());
-  signin->SetHorizontalAlignment(gfx::ALIGN_RIGHT);
-  signin->set_listener(this);
-  layout->AddView(signin);
+  sign_in_link_ = new views::Link(controller_->SignInText());
+  sign_in_link_->SetHorizontalAlignment(gfx::ALIGN_RIGHT);
+  sign_in_link_->set_listener(this);
+  layout->AddView(sign_in_link_);
 
   layout->StartRow(0, single_column_set);
   layout->AddView(CreateNotificationArea());
@@ -489,7 +555,7 @@ views::View* AutofillDialogViews::CreateNotificationArea() {
 
 void AutofillDialogViews::UpdateNotificationArea() {
   DCHECK(notification_label_);
-  const DialogNotification& notification = controller_->Notification();
+  const DialogNotification& notification = controller_->CurrentNotification();
   notification_label_->parent()->background()->SetNativeControlColor(
       notification.GetBackgroundColor());
   notification_label_->SetText(notification.display_text());
@@ -560,8 +626,8 @@ views::View* AutofillDialogViews::CreateInputsContainer(DialogSection section) {
 
   views::View* manual_inputs = InitInputsView(section);
   info_view->AddChildView(manual_inputs);
-  views::Label* suggested_info = new views::Label();
-  suggested_info->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  SuggestionView* suggested_info =
+      new SuggestionView(controller_->EditSuggestionText(), this);
   info_view->AddChildView(suggested_info);
   layout->AddView(info_view);
 
@@ -651,7 +717,7 @@ void AutofillDialogViews::UpdateDetailsGroupState(const DetailsGroup& group) {
       controller_->SuggestionTextForSection(group.section);
   bool show_suggestions = !suggestion_text.empty();
   group.suggested_info->SetVisible(show_suggestions);
-  group.suggested_info->SetText(suggestion_text);
+  group.suggested_info->SetSuggestionText(suggestion_text);
 
   if (group.section == SECTION_SHIPPING) {
     bool show_checkbox = !show_suggestions;
@@ -668,11 +734,25 @@ void AutofillDialogViews::UpdateDetailsGroupState(const DetailsGroup& group) {
     group.manual_input->SetVisible(!show_suggestions);
   }
 
+  // Show or hide the "Save in chrome" checkbox. If nothing is in editing mode,
+  // hide.
+  save_in_chrome_checkbox_->SetVisible(AtLeastOneSectionIsEditing());
+
   if (group.container)
     group.container->SetForwardMouseEvents(show_suggestions);
 
   if (GetWidget())
     GetWidget()->SetSize(GetWidget()->non_client_view()->GetPreferredSize());
+}
+
+bool AutofillDialogViews::AtLeastOneSectionIsEditing() {
+  for (DetailGroupMap::iterator iter = detail_groups_.begin();
+       iter != detail_groups_.end(); ++iter) {
+    if (iter->second.manual_input && iter->second.manual_input->visible())
+      return true;
+  }
+
+  return false;
 }
 
 bool AutofillDialogViews::ValidateForm() {

@@ -1,4 +1,4 @@
-# Copyright 2012 The Chromium Authors. All rights reserved.
+ # Copyright 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 {
@@ -462,12 +462,16 @@
         'browser/autofill/phone_field_unittest.cc',
         'browser/autofill/phone_number_unittest.cc',
         'browser/autofill/phone_number_i18n_unittest.cc',
+        'browser/autofill/validation_unittest.cc',
         'browser/autofill/wallet/cart_unittest.cc',
         'browser/autofill/wallet/full_wallet_unittest.cc',
+        'browser/autofill/wallet/instrument_unittest.cc',
         'browser/autofill/wallet/wallet_address_unittest.cc',
         'browser/autofill/wallet/wallet_client_unittest.cc',
         'browser/autofill/wallet/wallet_items_unittest.cc',
         'browser/autofill/wallet/wallet_service_url_unittest.cc',
+        'browser/autofill/wallet/wallet_test_util.cc',
+        'browser/autofill/wallet/wallet_test_util.h',
         'browser/automation/automation_provider_unittest.cc',
         'browser/automation/automation_tab_helper_unittest.cc',
         'browser/background/background_application_list_model_unittest.cc',
@@ -505,6 +509,7 @@
         'browser/chrome_browser_application_mac_unittest.mm',
         'browser/chrome_browser_main_unittest.cc',
         'browser/chrome_page_zoom_unittest.cc',
+        'browser/chromeos/accessibility/magnification_manager_unittest.cc',
         'browser/chromeos/contacts/contact_database_unittest.cc',
         'browser/chromeos/contacts/contact_manager_stub.cc',
         'browser/chromeos/contacts/contact_manager_stub.h',
@@ -643,6 +648,8 @@
         'browser/download/download_status_updater_unittest.cc',
         'browser/enumerate_modules_model_unittest_win.cc',
         'browser/extensions/active_tab_unittest.cc',
+        'browser/extensions/activity_database_unittest.cc',
+        'browser/extensions/activity_log_unittest.cc',
         'browser/extensions/admin_policy_unittest.cc',
         'browser/extensions/api/alarms/alarms_api_unittest.cc',
         'browser/extensions/api/api_resource_manager_unittest.cc',
@@ -834,7 +841,9 @@
         'browser/mac/keystone_glue_unittest.mm',
         'browser/managed_mode/managed_mode_unittest.cc',
         'browser/managed_mode/managed_mode_url_filter_unittest.cc',
+        'browser/managed_mode/managed_user_service_unittest.cc',
         'browser/media/media_internals_unittest.cc',
+        'browser/media_gallery/linux/mtp_device_object_enumerator_unittest.cc',
         'browser/media_gallery/media_file_system_registry_unittest.cc',
         'browser/media_gallery/media_galleries_dialog_controller_mock.cc',
         'browser/media_gallery/media_galleries_dialog_controller_mock.h',
@@ -940,6 +949,8 @@
         'browser/policy/policy_path_parser_unittest.cc',
         'browser/policy/policy_service_impl_unittest.cc',
         'browser/policy/policy_statistics_collector_unittest.cc',
+        'browser/policy/preferences_mock_mac.cc',
+        'browser/policy/preferences_mock_mac.h',
         'browser/policy/proxy_policy_provider_unittest.cc',
         'browser/policy/testing_cloud_policy_subsystem.cc',
         'browser/policy/testing_cloud_policy_subsystem.h',
@@ -958,8 +969,6 @@
         'browser/predictors/resource_prefetch_predictor_unittest.cc',
         'browser/predictors/resource_prefetch_predictor_tables_unittest.cc',
         'browser/predictors/resource_prefetcher_unittest.cc',
-        'browser/preferences_mock_mac.cc',
-        'browser/preferences_mock_mac.h',
         'browser/prefs/command_line_pref_store_unittest.cc',
         'browser/prefs/incognito_mode_prefs_unittest.cc',
         'browser/prefs/pref_model_associator_unittest.cc',
@@ -1002,7 +1011,6 @@
         'browser/resources/print_preview/data/measurement_system_unittest.gtestjs',
         'browser/resources/print_preview/print_preview_utils.js',
         'browser/resources/print_preview/print_preview_utils_unittest.gtestjs',
-        'browser/resources/shared/js/cr.js',
         'browser/resources_util_unittest.cc',
         'browser/rlz/rlz_unittest.cc',
         'browser/safe_browsing/browser_feature_extractor_unittest.cc',
@@ -1039,6 +1047,7 @@
         'browser/shell_integration_win_unittest.cc',
         'browser/signin/oauth2_token_service_request_unittest.cc',
         'browser/signin/oauth2_token_service_unittest.cc',
+        'browser/signin/signin_global_error_unittest.cc',
         'browser/signin/signin_manager_fake.cc',
         'browser/signin/signin_manager_fake.h',
         'browser/signin/signin_manager_unittest.cc',
@@ -1123,7 +1132,6 @@
         'browser/sync/profile_sync_test_util.h',
         'browser/sync/sync_global_error_unittest.cc',
         'browser/sync/sync_prefs_unittest.cc',
-        'browser/sync/sync_ui_util_mac_unittest.mm',
         'browser/sync/sync_ui_util_unittest.cc',
         'browser/sync/test/test_http_bridge_factory.cc',
         'browser/sync/test/test_http_bridge_factory.h',
@@ -1146,13 +1154,19 @@
         'browser/system_monitor/media_device_notifications_utils_unittest.cc',
         'browser/system_monitor/media_storage_util_unittest.cc',
         'browser/system_monitor/media_transfer_protocol_device_observer_linux_unittest.cc',
+        'browser/system_monitor/mock_removable_storage_observer.cc',
+        'browser/system_monitor/mock_removable_storage_observer.h',
         'browser/system_monitor/removable_device_notifications_chromeos_unittest.cc',
         'browser/system_monitor/removable_device_notifications_linux_unittest.cc',
         'browser/system_monitor/removable_device_notifications_mac_unittest.mm',
         'browser/system_monitor/removable_device_notifications_window_win_unittest.cc',
-        'browser/system_monitor/mock_removable_storage_observer.cc',
-        'browser/system_monitor/mock_removable_storage_observer.h',
         'browser/system_monitor/removable_storage_notifications_unittest.cc',
+        'browser/system_monitor/test_portable_device_watcher_win.cc',
+        'browser/system_monitor/test_portable_device_watcher_win.h',
+        'browser/system_monitor/test_removable_device_notifications_window_win.cc',
+        'browser/system_monitor/test_removable_device_notifications_window_win.h',
+        'browser/system_monitor/test_volume_mount_watcher_win.cc',
+        'browser/system_monitor/test_volume_mount_watcher_win.h',
         'browser/tab_contents/render_view_context_menu_test_util.cc',
         'browser/tab_contents/render_view_context_menu_test_util.h',
         'browser/tab_contents/render_view_context_menu_unittest.cc',
@@ -1161,8 +1175,8 @@
         'browser/themes/browser_theme_pack_unittest.cc',
         'browser/themes/theme_service_unittest.cc',
         'browser/themes/theme_syncable_service_unittest.cc',
+        'browser/thumbnails/simple_thumbnail_crop_unittest.cc',
         'browser/thumbnails/thumbnail_service_unittest.cc',
-        'browser/thumbnails/thumbnail_tab_helper_unittest.cc',
         'browser/ui/android/tab_model/tab_model_unittest.cc',
         'browser/ui/ash/event_rewriter_unittest.cc',
         'browser/ui/ash/ime_controller_chromeos_unittest.cc',
@@ -1171,7 +1185,6 @@
         'browser/ui/ash/launcher/chrome_launcher_controller_per_browser_unittest.cc',
         'browser/ui/ash/launcher/launcher_context_menu_unittest.cc',
         'browser/ui/ash/window_positioner_unittest.cc',
-        'browser/ui/auto_login_prompter_unittest.cc',
         'browser/ui/autofill/autofill_popup_controller_unittest.cc',
         'browser/ui/bookmarks/bookmark_context_menu_controller_unittest.cc',
         'browser/ui/bookmarks/bookmark_prompt_controller_unittest.cc',
@@ -1434,7 +1447,6 @@
         'browser/value_store/value_store_frontend_unittest.cc',
         'browser/value_store/value_store_unittest.cc',
         'browser/value_store/value_store_unittest.h',
-        'browser/visitedlink/visitedlink_unittest.cc',
         'browser/web_applications/web_app_mac_unittest.mm',
         'browser/web_applications/web_app_unittest.cc',
         'browser/web_resource/promo_resource_service_mobile_ntp_unittest.cc',
@@ -1642,6 +1654,7 @@
         '../ui/views/test/test_views_delegate.h',
         '../ui/views/test/views_test_base.cc',
         '../ui/views/test/views_test_base.h',
+        '../ui/webui/resources/js/cr.js',
         '../webkit/blob/mock_blob_url_request_context.cc',
         '../webkit/blob/mock_blob_url_request_context.h',
         '../webkit/fileapi/syncable/canned_syncable_file_system.cc',
@@ -1652,6 +1665,11 @@
         '../webkit/glue/web_intent_service_data_unittest.cc',
         '../webkit/quota/mock_storage_client.cc',
         '../webkit/quota/mock_storage_client.h',
+
+        # TODO(boliu): Move this to components_unittests target under
+        # components/.
+        '../components/auto_login_parser/auto_login_parser_unittest.cc',
+        '../components/visitedlink/test/visitedlink_unittest.cc',
       ],
       'conditions': [
         ['OS!="ios"', {
@@ -1740,6 +1758,8 @@
         }],
         ['enable_extensions==0', {
           'sources/': [
+            ['exclude', '^browser/extensions/activity_database_unittest.cc'],
+            ['exclude', '^browser/extensions/activity_log_unittest.cc'],
             ['exclude', '^browser/extensions/api/'],
             ['exclude', '^browser/sync/glue/chrome_extensions_activity_monitor_unittest.cc'],
             ['exclude', '^common/extensions/api/'],
@@ -1799,7 +1819,6 @@
         ['configuration_policy==0', {
           'sources!': [
             'browser/extensions/api/storage/policy_value_store_unittest.cc',
-            'browser/managed_mode/managed_mode_url_filter_unittest.cc',
             'browser/prefs/proxy_policy_unittest.cc',
             'browser/ui/webui/policy_ui_unittest.cc',
           ],
@@ -2109,8 +2128,6 @@
 
             'browser/browser_commands_unittest.cc',
             'browser/download/download_shelf_unittest.cc',
-            'browser/managed_mode/managed_mode_unittest.cc',
-            'browser/managed_mode/managed_mode_url_filter_unittest.cc',
             'browser/net/gaia/gaia_oauth_fetcher_unittest.cc',
             'browser/page_cycler/page_cycler_unittest.cc',
             'browser/profiles/off_the_record_profile_impl_unittest.cc',
@@ -2238,6 +2255,11 @@
         # google_apis_unittests target is established.
         ['use_official_google_api_keys==1', {
           'defines': ['USE_OFFICIAL_GOOGLE_API_KEYS=1'],
+        }],
+        ['enable_managed_users!=1', {
+          'sources/': [
+            ['exclude', '^browser/managed_mode/'],
+          ],
         }],
       ],
       'target_conditions': [

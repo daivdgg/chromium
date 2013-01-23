@@ -291,7 +291,8 @@ static bool subtreeShouldRenderToSeparateSurface(LayerType* layer, bool axisAlig
     }
 
     // If the layer clips its descendants but it is not axis-aligned with respect to its parent.
-    if (layerClipsSubtree(layer) && !axisAlignedWithRespectToParent && !layer->drawProperties().descendants_can_clip_selves)
+    bool layerClipsExternalContent = layerClipsSubtree(layer) || layer->hasDelegatedContent();
+    if (layerClipsExternalContent && !axisAlignedWithRespectToParent && !layer->drawProperties().descendants_can_clip_selves)
     {
         TRACE_EVENT_INSTANT0("cc", "LayerTreeHostCommon::requireSurface clipping");
         return true;
@@ -302,8 +303,7 @@ static bool subtreeShouldRenderToSeparateSurface(LayerType* layer, bool axisAlig
     // subtree overlap. But checking layer overlaps is unnecessarily costly so
     // instead we conservatively create a surface whenever at least two layers
     // draw content for this subtree.
-    bool atLeastTwoLayersInSubtreeDrawContent = layer->hasDelegatedContent() ||
-        (numDescendantsThatDrawContent > 0 && (layer->drawsContent() || numDescendantsThatDrawContent > 1));
+    bool atLeastTwoLayersInSubtreeDrawContent = numDescendantsThatDrawContent > 0 && (layer->drawsContent() || numDescendantsThatDrawContent > 1);
 
     if (layer->opacity() != 1 && !layer->preserves3D() && atLeastTwoLayersInSubtreeDrawContent) {
         TRACE_EVENT_INSTANT0("cc", "LayerTreeHostCommon::requireSurface opacity");
@@ -495,6 +495,15 @@ static inline void removeSurfaceForEarlyExit(LayerType* layerToRemove, LayerList
 template<typename LayerType>
 static void preCalculateMetaInformation(LayerType* layer)
 {
+    if (layer->hasDelegatedContent()) {
+        // Layers with delegated content need to be treated as if they have as many children as the number
+        // of layers they own delegated quads for. Since we don't know this number right now, we choose
+        // one that acts like infinity for our purposes.
+        layer->drawProperties().num_descendants_that_draw_content = 1000;
+        layer->drawProperties().descendants_can_clip_selves = false;
+        return;
+    }
+
     int numDescendantsThatDrawContent = 0;
     bool descendantsCanClipSelves = true;
     bool sublayerTransformPreventsClip = !layer->sublayerTransform().IsPositiveScaleOrTranslation();

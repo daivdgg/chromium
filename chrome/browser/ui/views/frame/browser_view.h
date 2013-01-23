@@ -246,6 +246,10 @@ class BrowserView : public BrowserWindow,
   }
 #endif
 
+  BookmarkBarView* bookmark_bar() const {
+    return bookmark_bar_view_.get();
+  }
+
   // Overridden from BrowserWindow:
   virtual void Show() OVERRIDE;
   virtual void ShowInactive() OVERRIDE;
@@ -306,9 +310,8 @@ class BrowserView : public BrowserWindow,
                                         Profile* profile) OVERRIDE;
   virtual void ToggleBookmarkBar() OVERRIDE;
   virtual void ShowUpdateChromeDialog() OVERRIDE;
-  virtual void ShowTaskManager(chrome::HostDesktopType desktop_type) OVERRIDE;
-  virtual void ShowBackgroundPages(
-      chrome::HostDesktopType desktop_type) OVERRIDE;
+  virtual void ShowTaskManager() OVERRIDE;
+  virtual void ShowBackgroundPages() OVERRIDE;
   virtual void ShowBookmarkBubble(const GURL& url,
                                   bool already_bookmarked) OVERRIDE;
   virtual void ShowBookmarkPrompt() OVERRIDE;
@@ -346,7 +349,6 @@ class BrowserView : public BrowserWindow,
   virtual void Copy() OVERRIDE;
   virtual void Paste() OVERRIDE;
   virtual gfx::Rect GetInstantBounds() OVERRIDE;
-  virtual bool IsInstantTabShowing() OVERRIDE;
   virtual WindowOpenDisposition GetDispositionForPopupBounds(
       const gfx::Rect& bounds) OVERRIDE;
   virtual FindBar* CreateFindBar() OVERRIDE;
@@ -590,9 +592,6 @@ class BrowserView : public BrowserWindow,
   // Shows the next app-modal dialog box, if there is one to be shown, or moves
   // an existing showing one to the front.
   void ActivateAppModalDialog() const;
-
-  // If search mode is |MODE_NTP| and bookmark bar is visible, stack it at top.
-  void MaybeStackBookmarkBarAtTop();
 
   // Last focused view that issued a tab traversal.
   int last_focused_view_storage_id_;

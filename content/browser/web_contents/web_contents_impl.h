@@ -14,7 +14,6 @@
 #include "base/memory/scoped_ptr.h"
 #include "base/observer_list.h"
 #include "base/process.h"
-#include "content/browser/renderer_host/java/java_bridge_dispatcher_host_manager.h"
 #include "content/browser/renderer_host/render_view_host_delegate.h"
 #include "content/browser/renderer_host/render_widget_host_delegate.h"
 #include "content/browser/web_contents/navigation_controller_impl.h"
@@ -46,6 +45,7 @@ class ColorChooser;
 class DateTimeChooserAndroid;
 class DownloadItem;
 class InterstitialPageImpl;
+class JavaBridgeDispatcherHostManager;
 class JavaScriptDialogCreator;
 class RenderViewHost;
 class RenderViewHostDelegateView;
@@ -159,9 +159,11 @@ class CONTENT_EXPORT WebContentsImpl
     opener_web_ui_type_ = opener_web_ui_type;
   }
 
+#if defined(ENABLE_JAVA_BRIDGE)
   JavaBridgeDispatcherHostManager* java_bridge_dispatcher_host_manager() const {
     return java_bridge_dispatcher_host_manager_.get();
   }
+#endif
 
   // Expose the render manager for testing.
   RenderViewHostManager* GetRenderManagerForTesting();
@@ -565,15 +567,15 @@ class CONTENT_EXPORT WebContentsImpl
   void OnRequestPpapiBrokerPermission(int request_id,
                                       const GURL& url,
                                       const FilePath& plugin_path);
-  void OnBrowserPluginCreateGuest(
-      int instance_id,
-      const BrowserPluginHostMsg_CreateGuest_Params& params);
+  void OnBrowserPluginAllocateInstanceID(const IPC::Message& message,
+                                         int request_id);
   void OnDidDownloadFavicon(int id,
                             const GURL& image_url,
                             int requested_size,
                             const std::vector<SkBitmap>& bitmaps);
   void OnUpdateFaviconURL(int32 page_id,
                           const std::vector<FaviconURL>& candidates);
+  void OnFrameDetached(int64 frame_id);
 
   // Changes the IsLoading state and notifies delegate as needed
   // |details| is used to provide details on the load that just finished
@@ -719,10 +721,12 @@ class CONTENT_EXPORT WebContentsImpl
   // Manages creation and swapping of render views.
   RenderViewHostManager render_manager_;
 
+#if defined(ENABLE_JAVA_BRIDGE)
   // Manages injecting Java objects into all RenderViewHosts associated with
   // this WebContentsImpl.
   scoped_ptr<JavaBridgeDispatcherHostManager>
       java_bridge_dispatcher_host_manager_;
+#endif
 
   // SavePackage, lazily created.
   scoped_refptr<SavePackage> save_package_;

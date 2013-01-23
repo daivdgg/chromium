@@ -950,12 +950,11 @@ void BrowserWindowGtk::ShowUpdateChromeDialog() {
   UpdateRecommendedDialog::Show(window_);
 }
 
-void BrowserWindowGtk::ShowTaskManager(chrome::HostDesktopType desktop_type) {
+void BrowserWindowGtk::ShowTaskManager() {
   TaskManagerGtk::Show(false);
 }
 
-void BrowserWindowGtk::ShowBackgroundPages(
-    chrome::HostDesktopType desktop_type) {
+void BrowserWindowGtk::ShowBackgroundPages() {
   TaskManagerGtk::Show(true);
 }
 
@@ -1135,10 +1134,6 @@ void BrowserWindowGtk::Paste() {
 
 gfx::Rect BrowserWindowGtk::GetInstantBounds() {
   return ui::GetWidgetScreenBounds(contents_container_->widget());
-}
-
-bool BrowserWindowGtk::IsInstantTabShowing() {
-  return contents_container_->HasPreview();
 }
 
 WindowOpenDisposition BrowserWindowGtk::GetDispositionForPopupBounds(
@@ -1506,7 +1501,7 @@ void BrowserWindowGtk::RegisterUserPrefs(PrefServiceSyncable* prefs) {
   }
   prefs->RegisterBooleanPref(prefs::kUseCustomChromeFrame,
                              custom_frame_default,
-                             PrefServiceSyncable::SYNCABLE_PREF);
+                             PrefServiceSyncable::UNSYNCABLE_PREF);
 }
 
 WebContents* BrowserWindowGtk::GetDisplayedTab() {

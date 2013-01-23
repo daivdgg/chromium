@@ -10,6 +10,7 @@
 #include "base/string_number_conversions.h"
 #include "base/stringprintf.h"
 #include "base/utf_string_conversions.h"
+#include "chrome/browser/google_apis/drive_api_parser.h"
 #include "chrome/browser/google_apis/gdata_wapi_parser.h"
 #include "chrome/browser/google_apis/test_util.h"
 #include "content/public/browser/browser_thread.h"
@@ -81,7 +82,7 @@ bool FakeDriveService::LoadAccountMetadataForWapi(
   return account_metadata_value_;
 }
 
-bool FakeDriveService::LoadApplicationInfoForDriveApi(
+bool FakeDriveService::LoadAppListForDriveApi(
     const std::string& relative_path) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   app_info_value_ = test_util::LoadJSONFile(relative_path);
@@ -128,6 +129,11 @@ bool FakeDriveService::HasRefreshToken() const {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   return true;
 }
+
+std::string FakeDriveService::GetRootResourceId() const {
+  return "fake_root";
+}
+
 void FakeDriveService::GetResourceList(
     const GURL& feed_url,
     int64 start_changestamp,
@@ -263,13 +269,12 @@ void FakeDriveService::GetAccountMetadata(
                  base::Passed(&account_metadata)));
 }
 
-void FakeDriveService::GetApplicationInfo(
-    const GetDataCallback& callback) {
+void FakeDriveService::GetAppList(const GetAppListCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
 
   if (offline_) {
-    scoped_ptr<base::Value> null;
+    scoped_ptr<AppList> null;
     MessageLoop::current()->PostTask(
         FROM_HERE,
         base::Bind(callback,
@@ -278,14 +283,10 @@ void FakeDriveService::GetApplicationInfo(
     return;
   }
 
-  scoped_ptr<base::Value> copied_app_info_value(
-      app_info_value_->DeepCopy());
+  scoped_ptr<AppList> app_list(AppList::CreateFrom(*app_info_value_));
   MessageLoop::current()->PostTask(
       FROM_HERE,
-      base::Bind(callback,
-                 HTTP_SUCCESS,
-                 base::Passed(&copied_app_info_value)));
-
+      base::Bind(callback, HTTP_SUCCESS, base::Passed(&app_list)));
 }
 
 void FakeDriveService::DeleteResource(
@@ -400,7 +401,7 @@ void FakeDriveService::DownloadFile(
 
 void FakeDriveService::CopyHostedDocument(
     const std::string& resource_id,
-    const FilePath::StringType& new_name,
+    const std::string& new_name,
     const GetResourceEntryCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -445,8 +446,7 @@ void FakeDriveService::CopyHostedDocument(
             scoped_ptr<DictionaryValue> copied_entry(entry->DeepCopy());
             copied_entry->SetString("gd$resourceId.$t",
                                     resource_id + "_copied");
-            copied_entry->SetString("title.$t",
-                                    FilePath(new_name).AsUTF8Unsafe());
+            copied_entry->SetString("title.$t", new_name);
 
             AddNewChangestamp(copied_entry.get());
 
@@ -476,7 +476,7 @@ void FakeDriveService::CopyHostedDocument(
 
 void FakeDriveService::RenameResource(
     const GURL& edit_url,
-    const FilePath::StringType& new_name,
+    const std::string& new_name,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -489,8 +489,7 @@ void FakeDriveService::RenameResource(
 
   base::DictionaryValue* entry = FindEntryByEditUrl(edit_url);
   if (entry) {
-    entry->SetString("title.$t",
-                     FilePath(new_name).AsUTF8Unsafe());
+    entry->SetString("title.$t", new_name);
     AddNewChangestamp(entry);
     MessageLoop::current()->PostTask(
         FROM_HERE, base::Bind(callback, HTTP_SUCCESS));
@@ -582,6 +581,14 @@ void FakeDriveService::RemoveResourceFromDirectory(
           return;
         }
       }
+
+      // We are dealing with a no-"parent"-link file as in the root directory.
+      if (parent_content_url.is_empty()) {
+        AddNewChangestamp(entry);
+        MessageLoop::current()->PostTask(
+            FROM_HERE, base::Bind(callback, HTTP_SUCCESS));
+        return;
+      }
     }
   }
 
@@ -591,7 +598,7 @@ void FakeDriveService::RemoveResourceFromDirectory(
 
 void FakeDriveService::AddNewDirectory(
     const GURL& parent_content_url,
-    const FilePath::StringType& directory_name,
+    const std::string& directory_name,
     const GetResourceEntryCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -624,7 +631,7 @@ void FakeDriveService::AddNewDirectory(
   scoped_ptr<base::DictionaryValue> new_entry(new base::DictionaryValue);
   // Set the resource ID and the title
   new_entry->SetString("gd$resourceId.$t", new_resource_id);
-  new_entry->SetString("title.$t", FilePath(directory_name).AsUTF8Unsafe());
+  new_entry->SetString("title.$t", directory_name);
 
   // Add "category" which sets the resource type to folder.
   base::ListValue* categories = new base::ListValue;

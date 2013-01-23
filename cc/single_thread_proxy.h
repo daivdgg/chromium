@@ -54,11 +54,15 @@ public:
     virtual void onCanDrawStateChanged(bool canDraw) OVERRIDE { }
     virtual void onHasPendingTreeStateChanged(bool havePendingTree) OVERRIDE;
     virtual void setNeedsRedrawOnImplThread() OVERRIDE;
+    virtual void didSwapUseIncompleteTileOnImplThread() OVERRIDE;
+    virtual void didUploadVisibleHighResolutionTileOnImplThread() OVERRIDE;
     virtual void setNeedsCommitOnImplThread() OVERRIDE;
     virtual void setNeedsManageTilesOnImplThread() OVERRIDE;
     virtual void postAnimationEventsToMainThreadOnImplThread(scoped_ptr<AnimationEventsVector>, base::Time wallClockTime) OVERRIDE;
     virtual bool reduceContentsTextureMemoryOnImplThread(size_t limitBytes, int priorityCutoff) OVERRIDE;
     virtual void sendManagedMemoryStats() OVERRIDE;
+    virtual bool isInsideDraw() OVERRIDE;
+    virtual void renewTreePriority() OVERRIDE { }
 
     // Called by the legacy path where RenderWidget does the scheduling.
     void compositeImmediately();
@@ -85,6 +89,8 @@ private:
     RendererCapabilities m_RendererCapabilitiesForMainThread;
 
     bool m_nextFrameIsNewlyCommittedFrame;
+
+    bool m_insideDraw;
 
     base::TimeDelta m_totalCommitTime;
     size_t m_totalCommitCount;

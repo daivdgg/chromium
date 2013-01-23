@@ -35,13 +35,13 @@
 #include "chrome/browser/ui/webui/theme_source.h"
 #include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/chrome_switches.h"
-#include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "grit/browser_resources.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/webui/jstemplate_builder.h"
 
 using content::WebContents;
 
@@ -69,6 +69,9 @@ class OobeUIHTMLSource : public content::URLDataSource {
       const content::URLDataSource::GotDataCallback& callback);
   virtual std::string GetMimeType(const std::string&) const {
     return "text/html";
+  }
+  virtual bool ShouldAddContentSecurityPolicy() const OVERRIDE {
+    return false;
   }
 
  private:
@@ -120,8 +123,7 @@ std::string OobeUIHTMLSource::GetDataResource(int resource_id) const {
   const base::StringPiece html(
       ResourceBundle::GetSharedInstance().GetRawDataResource(
           resource_id));
-  return jstemplate_builder::GetI18nTemplateHtml(html,
-                                                 localized_strings_.get());
+  return webui::GetI18nTemplateHtml(html, localized_strings_.get());
 }
 
 // OobeUI ----------------------------------------------------------------------

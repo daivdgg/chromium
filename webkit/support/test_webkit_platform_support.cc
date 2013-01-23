@@ -346,8 +346,7 @@ TestWebKitPlatformSupport::createLocalStorageNamespace(
 // to a real profile directory during IPC.
 class TestWebIDBFactory : public WebKit::WebIDBFactory {
  public:
-  TestWebIDBFactory()
-      : factory_(WebKit::WebIDBFactory::create()) {
+  TestWebIDBFactory() {
     // Create a new temp directory for Indexed DB storage, specific to this
     // factory. If this fails, WebKit uses in-memory storage.
     if (!indexed_db_dir_.CreateUniqueTempDir()) {
@@ -357,12 +356,16 @@ class TestWebIDBFactory : public WebKit::WebIDBFactory {
     }
     data_dir_ = webkit_support::GetAbsoluteWebStringFromUTF8Path(
       indexed_db_dir_.path().AsUTF8Unsafe());
+
+    // Lazily construct factory_ so that it gets allocated on the thread where
+    // it will be used.  TestWebIDBFactory gets allocated on the main thread.
   }
 
   virtual void getDatabaseNames(WebKit::WebIDBCallbacks* callbacks,
                                 const WebKit::WebSecurityOrigin& origin,
                                 WebKit::WebFrame* frame,
                                 const WebString& dataDir) {
+    EnsureFactory();
     factory_->getDatabaseNames(callbacks, origin, frame,
                                dataDir.isEmpty() ? data_dir_ : dataDir);
   }
@@ -375,9 +378,10 @@ class TestWebIDBFactory : public WebKit::WebIDBFactory {
                     const WebKit::WebSecurityOrigin& origin,
                     WebKit::WebFrame* frame,
                     const WebString& dataDir) {
-      factory_->open(name, version, transaction_id, callbacks,
-                     databaseCallbacks, origin, frame,
-                     dataDir.isEmpty() ? data_dir_ : dataDir);
+    EnsureFactory();
+    factory_->open(name, version, transaction_id, callbacks,
+                   databaseCallbacks, origin, frame,
+                   dataDir.isEmpty() ? data_dir_ : dataDir);
   }
 
   virtual void deleteDatabase(const WebString& name,
@@ -385,10 +389,16 @@ class TestWebIDBFactory : public WebKit::WebIDBFactory {
                               const WebKit::WebSecurityOrigin& origin,
                               WebKit::WebFrame* frame,
                               const WebString& dataDir) {
+    EnsureFactory();
     factory_->deleteDatabase(name, callbacks, origin, frame,
                              dataDir.isEmpty() ? data_dir_ : dataDir);
   }
  private:
+  void EnsureFactory() {
+    if (!factory_)
+      factory_.reset(WebKit::WebIDBFactory::create());
+  }
+
   scoped_ptr<WebIDBFactory> factory_;
   base::ScopedTempDir indexed_db_dir_;
   WebString data_dir_;
@@ -536,12 +546,8 @@ size_t TestWebKitPlatformSupport::computeLastHyphenLocation(
   if (!hyphen_dictionary_) {
     // Initialize the hyphen library with a sample dictionary. To avoid test
     // flakiness, this code synchronously loads the dictionary.
-    FilePath path;
-    if (!PathService::Get(base::DIR_SOURCE_ROOT, &path))
-      return 0;
-    path = path.AppendASCII("third_party");
-    path = path.AppendASCII("hyphen");
-    path = path.AppendASCII("hyph_en_US.dic");
+    FilePath path = webkit_support::GetChromiumRootDirFilePath();
+    path = path.Append(FILE_PATH_LITERAL("third_party/hyphen/hyph_en_US.dic"));
     std::string dictionary;
     if (!file_util::ReadFileToString(path, &dictionary))
       return 0;

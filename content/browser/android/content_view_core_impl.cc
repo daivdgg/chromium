@@ -8,6 +8,7 @@
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/android/scoped_java_ref.h"
+#include "base/command_line.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/utf_string_conversions.h"
@@ -37,6 +38,7 @@
 #include "content/public/browser/notification_types.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_client.h"
+#include "content/public/common/content_switches.h"
 #include "content/public/common/page_transition_types.h"
 #include "jni/ContentViewCore_jni.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebBindings.h"
@@ -45,6 +47,8 @@
 #include "ui/gfx/android/java_bitmap.h"
 #include "ui/gfx/android/window_android.h"
 #include "ui/gfx/screen.h"
+#include "ui/gfx/size_conversions.h"
+#include "ui/gfx/size_f.h"
 #include "webkit/glue/webmenuitem.h"
 #include "webkit/user_agent/user_agent_util.h"
 
@@ -168,7 +172,8 @@ ContentViewCoreImpl::ContentViewCoreImpl(JNIEnv* env, jobject obj,
 
   InitJNI(env, obj);
 
-  if (!gfx::Screen::GetNativeScreen()->IsDIPEnabled()) {
+  if (CommandLine::ForCurrentProcess()->HasSwitch(
+      switches::kEnableCssTransformPinch)) {
     dpi_scale_ = 1;
   } else {
     scoped_ptr<content::DeviceInfo> device_info(new content::DeviceInfo());
@@ -585,13 +590,17 @@ void ContentViewCoreImpl::ShowDisambiguationPopup(
                                                java_bitmap.obj());
 }
 
-gfx::Rect ContentViewCoreImpl::GetBounds() const {
+gfx::Size ContentViewCoreImpl::GetPhysicalSize() const {
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jobject> j_obj = java_ref_.get(env);
   if (j_obj.is_null())
-    return gfx::Rect();
-  return gfx::Rect(Java_ContentViewCore_getWidth(env, j_obj.obj()),
+    return gfx::Size();
+  return gfx::Size(Java_ContentViewCore_getWidth(env, j_obj.obj()),
                    Java_ContentViewCore_getHeight(env, j_obj.obj()));
+}
+
+gfx::Size ContentViewCoreImpl::GetDIPSize() const {
+  return gfx::ToCeiledSize(gfx::ScaleSize(GetPhysicalSize(), 1 / DpiScale()));
 }
 
 void ContentViewCoreImpl::AttachLayer(scoped_refptr<cc::Layer> layer) {
@@ -757,7 +766,7 @@ jboolean ContentViewCoreImpl::SendTouchEvent(JNIEnv* env,
   if (rwhv) {
     using WebKit::WebTouchEvent;
     WebKit::WebTouchEvent event;
-    TouchPoint::BuildWebTouchEvent(env, type, time_ms, pts, event);
+    TouchPoint::BuildWebTouchEvent(env, type, time_ms, DpiScale(), pts, event);
     UpdateVSyncFlagOnInputEvent(&event);
     rwhv->SendTouchEvent(event);
     return true;
@@ -1061,15 +1070,21 @@ void ContentViewCoreImpl::AddJavascriptInterface(
     jobject /* obj */,
     jobject object,
     jstring name,
-    jclass safe_annotation_clazz) {
+    jclass safe_annotation_clazz,
+    jobject retained_object_set) {
   ScopedJavaLocalRef<jobject> scoped_object(env, object);
   ScopedJavaLocalRef<jclass> scoped_clazz(env, safe_annotation_clazz);
+  JavaObjectWeakGlobalRef weak_retained_object_set(env, retained_object_set);
 
   // JavaBoundObject creates the NPObject with a ref count of 1, and
   // JavaBridgeDispatcherHostManager takes its own ref.
-  NPObject* bound_object = JavaBoundObject::Create(scoped_object, scoped_clazz);
-  web_contents_->java_bridge_dispatcher_host_manager()->AddNamedObject(
-      ConvertJavaStringToUTF16(env, name), bound_object);
+  JavaBridgeDispatcherHostManager* java_bridge =
+      web_contents_->java_bridge_dispatcher_host_manager();
+  java_bridge->SetRetainedObjectSet(weak_retained_object_set);
+  NPObject* bound_object = JavaBoundObject::Create(scoped_object, scoped_clazz,
+                                                   java_bridge->AsWeakPtr());
+  java_bridge->AddNamedObject(ConvertJavaStringToUTF16(env, name),
+                              bound_object);
   WebKit::WebBindings::releaseObject(bound_object);
 }
 

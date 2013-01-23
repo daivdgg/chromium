@@ -23,7 +23,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/chrome_paths.h"
-#include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
@@ -37,6 +36,7 @@
 #include "net/base/escape.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/webui/jstemplate_builder.h"
 
 using content::WebContents;
 using content::WebUIMessageHandler;
@@ -55,6 +55,9 @@ class SystemInfoUIHTMLSource : public content::URLDataSource{
       const content::URLDataSource::GotDataCallback& callback) OVERRIDE;
   virtual std::string GetMimeType(const std::string&) const OVERRIDE {
     return "text/html";
+  }
+  virtual bool ShouldAddContentSecurityPolicy() const OVERRIDE {
+    return false;
   }
 
  private:
@@ -153,7 +156,7 @@ void SystemInfoUIHTMLSource::RequestComplete() {
   static const base::StringPiece systeminfo_html(
       ResourceBundle::GetSharedInstance().GetRawDataResource(
           IDR_ABOUT_SYS_HTML));
-  std::string full_html = jstemplate_builder::GetTemplatesHtml(
+  std::string full_html = webui::GetTemplatesHtml(
       systeminfo_html, &strings, "t" /* template root node id */);
   callback_.Run(base::RefCountedString::TakeString(&full_html));
 }

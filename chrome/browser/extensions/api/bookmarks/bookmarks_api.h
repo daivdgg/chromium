@@ -12,12 +12,12 @@
 #include "base/compiler_specific.h"
 #include "base/memory/ref_counted.h"
 #include "chrome/browser/bookmarks/bookmark_model_observer.h"
+#include "chrome/browser/extensions/api/profile_keyed_api_factory.h"
 #include "chrome/browser/extensions/event_router.h"
 #include "chrome/browser/extensions/extension_function.h"
-#include "chrome/browser/profiles/profile_keyed_service.h"
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/notification_registrar.h"
-#include "ui/base/dialogs/select_file_dialog.h"
+#include "ui/shell_dialogs/select_file_dialog.h"
 
 class FilePath;
 
@@ -69,21 +69,32 @@ class BookmarkEventRouter : public BookmarkModelObserver {
   DISALLOW_COPY_AND_ASSIGN(BookmarkEventRouter);
 };
 
-class BookmarkAPI : public ProfileKeyedService,
+class BookmarksAPI : public ProfileKeyedAPI,
                     public EventRouter::Observer {
  public:
-  explicit BookmarkAPI(Profile* profile);
-  virtual ~BookmarkAPI();
+  explicit BookmarksAPI(Profile* profile);
+  virtual ~BookmarksAPI();
 
   // ProfileKeyedService implementation.
   virtual void Shutdown() OVERRIDE;
+
+  // ProfileKeyedAPI implementation.
+  static ProfileKeyedAPIFactory<BookmarksAPI>* GetFactoryInstance();
 
   // EventRouter::Observer implementation.
   virtual void OnListenerAdded(const EventListenerInfo& details)
       OVERRIDE;
 
  private:
+  friend class ProfileKeyedAPIFactory<BookmarksAPI>;
+
   Profile* profile_;
+
+  // ProfileKeyedAPI implementation.
+  static const char* service_name() {
+    return "BookmarksAPI";
+  }
+  static const bool kServiceIsNULLWhileTesting = true;
 
   // Created lazily upon OnListenerAdded.
   scoped_ptr<BookmarkEventRouter> bookmark_event_router_;
@@ -118,7 +129,7 @@ class BookmarksFunction : public AsyncExtensionFunction,
 
 class BookmarksGetTreeFunction : public BookmarksFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.get")
+  DECLARE_EXTENSION_FUNCTION("bookmarks.get", BOOKMARKS_GET)
 
  protected:
   virtual ~BookmarksGetTreeFunction() {}
@@ -129,7 +140,7 @@ class BookmarksGetTreeFunction : public BookmarksFunction {
 
 class BookmarksGetChildrenFunction : public BookmarksFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.getChildren")
+  DECLARE_EXTENSION_FUNCTION("bookmarks.getChildren", BOOKMARKS_GETCHILDREN)
 
  protected:
   virtual ~BookmarksGetChildrenFunction() {}
@@ -140,7 +151,7 @@ class BookmarksGetChildrenFunction : public BookmarksFunction {
 
 class BookmarksGetFunction : public BookmarksFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.getRecent")
+  DECLARE_EXTENSION_FUNCTION("bookmarks.getRecent", BOOKMARKS_GETRECENT)
 
  protected:
   virtual ~BookmarksGetFunction() {}
@@ -151,7 +162,7 @@ class BookmarksGetFunction : public BookmarksFunction {
 
 class BookmarksGetSubTreeFunction : public BookmarksFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.getTree")
+  DECLARE_EXTENSION_FUNCTION("bookmarks.getTree", BOOKMARKS_GETTREE)
 
  protected:
   virtual ~BookmarksGetSubTreeFunction() {}
@@ -162,7 +173,7 @@ class BookmarksGetSubTreeFunction : public BookmarksFunction {
 
 class BookmarksGetRecentFunction : public BookmarksFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.getSubTree")
+  DECLARE_EXTENSION_FUNCTION("bookmarks.getSubTree", BOOKMARKS_GETSUBTREE)
 
  protected:
   virtual ~BookmarksGetRecentFunction() {}
@@ -173,7 +184,7 @@ class BookmarksGetRecentFunction : public BookmarksFunction {
 
 class BookmarksSearchFunction : public BookmarksFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.search")
+  DECLARE_EXTENSION_FUNCTION("bookmarks.search", BOOKMARKS_SEARCH)
 
  protected:
   virtual ~BookmarksSearchFunction() {}
@@ -184,7 +195,7 @@ class BookmarksSearchFunction : public BookmarksFunction {
 
 class BookmarksRemoveFunction : public BookmarksFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.remove")
+  DECLARE_EXTENSION_FUNCTION("bookmarks.remove", BOOKMARKS_REMOVE)
 
   // Returns true on successful parse and sets invalid_id to true if conversion
   // from id string to int64 failed.
@@ -203,7 +214,7 @@ class BookmarksRemoveFunction : public BookmarksFunction {
 
 class BookmarksRemoveTreeFunction : public BookmarksRemoveFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.removeTree")
+  DECLARE_EXTENSION_FUNCTION("bookmarks.removeTree", BOOKMARKS_REMOVETREE)
 
  protected:
   virtual ~BookmarksRemoveTreeFunction() {}
@@ -211,7 +222,7 @@ class BookmarksRemoveTreeFunction : public BookmarksRemoveFunction {
 
 class BookmarksCreateFunction : public BookmarksFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.create")
+  DECLARE_EXTENSION_FUNCTION("bookmarks.create", BOOKMARKS_CREATE)
 
   // ExtensionFunction:
   virtual void GetQuotaLimitHeuristics(
@@ -226,7 +237,7 @@ class BookmarksCreateFunction : public BookmarksFunction {
 
 class BookmarksMoveFunction : public BookmarksFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.move")
+  DECLARE_EXTENSION_FUNCTION("bookmarks.move", BOOKMARKS_MOVE)
 
   static bool ExtractIds(const base::ListValue* args, std::list<int64>* ids,
                          bool* invalid_id);
@@ -244,7 +255,7 @@ class BookmarksMoveFunction : public BookmarksFunction {
 
 class BookmarksUpdateFunction : public BookmarksFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.update")
+  DECLARE_EXTENSION_FUNCTION("bookmarks.update", BOOKMARKS_UPDATE)
 
   static bool ExtractIds(const base::ListValue* args, std::list<int64>* ids,
                          bool* invalid_id);
@@ -288,7 +299,7 @@ class BookmarksIOFunction : public BookmarksFunction,
 
 class BookmarksImportFunction : public BookmarksIOFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.import");
+  DECLARE_EXTENSION_FUNCTION("bookmarks.import", BOOKMARKS_IMPORT)
 
   // BookmarkManagerIOFunction:
   virtual void FileSelected(const FilePath& path, int index, void* params)
@@ -303,7 +314,7 @@ class BookmarksImportFunction : public BookmarksIOFunction {
 
 class BookmarksExportFunction : public BookmarksIOFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("bookmarks.export");
+  DECLARE_EXTENSION_FUNCTION("bookmarks.export", BOOKMARKS_EXPORT)
 
   // BookmarkManagerIOFunction:
   virtual void FileSelected(const FilePath& path, int index, void* params)

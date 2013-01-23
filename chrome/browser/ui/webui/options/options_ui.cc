@@ -44,7 +44,6 @@
 #include "chrome/browser/ui/webui/options/startup_pages_handler.h"
 #include "chrome/browser/ui/webui/theme_source.h"
 #include "chrome/browser/ui/webui/web_ui_util.h"
-#include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/time_format.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/notification_types.h"
@@ -60,6 +59,7 @@
 #include "grit/theme_resources.h"
 #include "net/base/escape.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/webui/jstemplate_builder.h"
 
 #if defined(OS_CHROMEOS)
 #include "chrome/browser/chromeos/system/pointer_device_observer.h"
@@ -112,8 +112,9 @@ class OptionsUIHTMLSource : public content::URLDataSource {
   virtual void StartDataRequest(
       const std::string& path,
       bool is_incognito,
-      const content::URLDataSource::GotDataCallback& callback);
-  virtual std::string GetMimeType(const std::string&) const;
+      const content::URLDataSource::GotDataCallback& callback) OVERRIDE;
+  virtual std::string GetMimeType(const std::string&) const OVERRIDE;
+  virtual bool ShouldDenyXFrameOptions() const OVERRIDE;
 
  private:
   virtual ~OptionsUIHTMLSource();
@@ -142,9 +143,9 @@ void OptionsUIHTMLSource::StartDataRequest(
 
   if (path == kLocalizedStringsFile) {
     // Return dynamically-generated strings from memory.
-    jstemplate_builder::UseVersion2 version;
+    webui::UseVersion2 version;
     std::string strings_js;
-    jstemplate_builder::AppendJsonJS(localized_strings_.get(), &strings_js);
+    webui::AppendJsonJS(localized_strings_.get(), &strings_js);
     response_bytes = base::RefCountedString::TakeString(&strings_js);
   } else if (path == kOptionsBundleJsFile) {
     // Return (and cache) the options javascript code.
@@ -164,6 +165,10 @@ std::string OptionsUIHTMLSource::GetMimeType(const std::string& path) const {
     return "application/javascript";
 
   return "text/html";
+}
+
+bool OptionsUIHTMLSource::ShouldDenyXFrameOptions() const {
+  return false;
 }
 
 OptionsUIHTMLSource::~OptionsUIHTMLSource() {}

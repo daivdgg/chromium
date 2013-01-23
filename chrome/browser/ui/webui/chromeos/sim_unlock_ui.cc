@@ -20,7 +20,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/chrome_notification_types.h"
-#include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/notification_service.h"
@@ -32,6 +31,7 @@
 #include "grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/webui/jstemplate_builder.h"
 
 using content::BrowserThread;
 using content::WebContents;
@@ -83,6 +83,9 @@ class SimUnlockUIHTMLSource : public content::URLDataSource {
       const content::URLDataSource::GotDataCallback& callback) OVERRIDE;
   virtual std::string GetMimeType(const std::string&) const OVERRIDE {
     return "text/html";
+  }
+  virtual bool ShouldAddContentSecurityPolicy() const OVERRIDE {
+    return false;
   }
 
  private:
@@ -317,8 +320,7 @@ void SimUnlockUIHTMLSource::StartDataRequest(
       ResourceBundle::GetSharedInstance().GetRawDataResource(
           IDR_SIM_UNLOCK_HTML));
 
-  std::string full_html = jstemplate_builder::GetI18nTemplateHtml(html,
-                                                                  &strings);
+  std::string full_html = webui::GetI18nTemplateHtml(html, &strings);
 
   callback.Run(base::RefCountedString::TakeString(&full_html));
 }

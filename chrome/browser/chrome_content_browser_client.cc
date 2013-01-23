@@ -959,7 +959,6 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
       switches::kEnableIPCFuzzing,
       switches::kEnableInteractiveAutocomplete,
       switches::kEnableNaCl,
-      switches::kEnableNaClSRPCProxy,
       switches::kEnablePasswordGeneration,
       switches::kEnablePnacl,
       switches::kEnableWatchdog,
@@ -1192,14 +1191,6 @@ ChromeContentBrowserClient::OverrideRequestContextForURL(
 QuotaPermissionContext*
 ChromeContentBrowserClient::CreateQuotaPermissionContext() {
   return new ChromeQuotaPermissionContext();
-}
-
-void ChromeContentBrowserClient::OpenItem(const FilePath& path) {
-  platform_util::OpenItem(path);
-}
-
-void ChromeContentBrowserClient::ShowItemInFolder(const FilePath& path) {
-  platform_util::ShowItemInFolder(path);
 }
 
 void ChromeContentBrowserClient::AllowCertificateError(
@@ -1830,7 +1821,7 @@ void ChromeContentBrowserClient::GetAdditionalMappedFilesForChildProcess(
       data_path.AppendASCII("chrome_100_percent.pak");
   f = base::CreatePlatformFile(chrome_resources_pak, flags, NULL, NULL);
   DCHECK(f != base::kInvalidPlatformFileValue);
-  mappings->push_back(FileDescriptorInfo(kAndroidUIResourcesPakDescriptor,
+  mappings->push_back(FileDescriptorInfo(kAndroidChrome100PercentPakDescriptor,
                                          FileDescriptor(f, true)));
 
   const std::string locale = GetApplicationLocale();
@@ -1841,14 +1832,23 @@ void ChromeContentBrowserClient::GetAdditionalMappedFilesForChildProcess(
   mappings->push_back(FileDescriptorInfo(kAndroidLocalePakDescriptor,
                                          FileDescriptor(f, true)));
 
+  FilePath resources_pack_path;
+  PathService::Get(chrome::FILE_RESOURCES_PACK, &resources_pack_path);
+  f = base::CreatePlatformFile(resources_pack_path, flags, NULL, NULL);
+  DCHECK(f != base::kInvalidPlatformFileValue);
+  mappings->push_back(FileDescriptorInfo(kAndroidUIResourcesPakDescriptor,
+                                         FileDescriptor(f, true)));
+
 #if defined(USE_LINUX_BREAKPAD)
-  f = CrashDumpManager::GetInstance()->CreateMinidumpFile(child_process_id);
-  if (f == base::kInvalidPlatformFileValue) {
-    LOG(ERROR) << "Failed to create file for minidump, crash reporting will be "
-        "disabled for this process.";
-  } else {
-    mappings->push_back(FileDescriptorInfo(kAndroidMinidumpDescriptor,
-                                           FileDescriptor(f, true)));
+  if (IsCrashReporterEnabled()) {
+    f = CrashDumpManager::GetInstance()->CreateMinidumpFile(child_process_id);
+    if (f == base::kInvalidPlatformFileValue) {
+      LOG(ERROR) << "Failed to create file for minidump, crash reporting will "
+                 "be disabled for this process.";
+    } else {
+      mappings->push_back(FileDescriptorInfo(kAndroidMinidumpDescriptor,
+                                             FileDescriptor(f, true)));
+    }
   }
 #endif  // defined(USE_LINUX_BREAKPAD)
 

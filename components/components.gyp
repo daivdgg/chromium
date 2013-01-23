@@ -4,7 +4,9 @@
 
 {
   'includes': [
+    'auto_login_parser.gypi',
     'components_tests.gypi',
+    'visitedlink.gypi',
     'web_contents_delegate_android.gypi',
   ],
 }

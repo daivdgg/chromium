@@ -23,6 +23,8 @@
 #include "base/utf_string_conversions.h"
 #include "chrome/browser/api/infobars/infobar_service.h"
 #include "chrome/browser/api/sync/profile_sync_service_base.h"
+#include "chrome/browser/autofill/autocheckout_manager.h"
+#include "chrome/browser/autofill/autocheckout_infobar_delegate.h"
 #include "chrome/browser/autofill/autocomplete_history_manager.h"
 #include "chrome/browser/autofill/autofill_cc_infobar_delegate.h"
 #include "chrome/browser/autofill/autofill_country.h"
@@ -40,7 +42,7 @@
 #include "chrome/browser/autofill/phone_number.h"
 #include "chrome/browser/autofill/phone_number_i18n.h"
 #include "chrome/browser/prefs/pref_service.h"
-#include "chrome/browser/ui/autofill/autofill_dialog_controller.h"
+#include "chrome/browser/ui/autofill/autofill_dialog_controller_impl.h"
 #include "chrome/common/autofill_messages.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/chrome_switches.h"
@@ -200,6 +202,7 @@ AutofillManager::AutofillManager(content::WebContents* web_contents,
       download_manager_(delegate->GetBrowserContext(), this),
       disable_download_manager_requests_(false),
       autocomplete_history_manager_(web_contents),
+      autocheckout_manager_(this),
       metric_logger_(new AutofillMetrics),
       has_logged_autofill_enabled_(false),
       has_logged_address_suggestions_count_(false),
@@ -575,6 +578,18 @@ void AutofillManager::OnQueryFormFieldAutofill(int query_id,
         }
       }
     }
+
+    // If form is known to be at the start of the autofillable flow (i.e, when
+    // Autofill server said so), then trigger payments UI while also returning
+    // standard autofill suggestions to renderer process.
+    if (form_structure->IsStartOfAutofillableFlow()) {
+      AutocheckoutInfoBarDelegate::Create(
+          *metric_logger_,
+          form.origin,
+          form.ssl_status,
+          &autocheckout_manager_,
+          manager_delegate_->GetInfoBarService());
+    }
   }
 
   // Add the results from AutoComplete.  They come back asynchronously, so we
@@ -653,6 +668,26 @@ void AutofillManager::OnFillAutofillFormData(int query_id,
       form_group->FillFormField(*cached_field,
                                 use_variant,
                                 &result.fields[i]);
+      // Mark the cached field as autofilled, so that we can detect when a user
+      // edits an autofilled field (for metrics).
+      form_structure->field(i)->is_autofilled = true;
+    } else if (cached_field->type() == FIELD_WITH_DEFAULT_VALUE &&
+               cached_field->is_checkable) {
+      // For a form with radio buttons, like:
+      // <form>
+      //   <input type="radio" name="sex" value="male">Male<br>
+      //   <input type="radio" name="sex" value="female">Female
+      // </form>
+      // If the default value specified at the server is "female", then
+      // Autofill server responds back with following field mappings
+      //   (fieldtype: FIELD_WITH_DEFAULT_VALUE, value: "female")
+      //   (fieldtype: FIELD_WITH_DEFAULT_VALUE, value: "female")
+      // Note that, the field mapping is repeated twice to respond to both the
+      // input elements with the same name/signature in the form.
+      string16 default_value = UTF8ToUTF16(cached_field->default_value());
+      // Mark the field checked if server says the default value of the field
+      // to be this field's value.
+      result.fields[i].is_checked = (default_value == result.fields[i].value);
       // Mark the cached field as autofilled, so that we can detect when a user
       // edits an autofilled field (for metrics).
       form_structure->field(i)->is_autofilled = true;
@@ -749,6 +784,10 @@ void AutofillManager::RemoveAutocompleteEntry(const string16& name,
   autocomplete_history_manager_.OnRemoveAutocompleteEntry(name, value);
 }
 
+content::WebContents* AutofillManager::GetWebContents() {
+  return web_contents();
+}
+
 void AutofillManager::OnAddPasswordFormMapping(
       const FormFieldData& form,
       const PasswordFormFillData& fill_data) {
@@ -793,12 +832,12 @@ void AutofillManager::OnRequestAutocomplete(
 
   base::Callback<void(const FormStructure*)> callback =
       base::Bind(&AutofillManager::ReturnAutocompleteData, this);
-  autofill::AutofillDialogController* controller =
-      new autofill::AutofillDialogController(web_contents(),
-                                             form,
-                                             frame_url,
-                                             ssl_status,
-                                             callback);
+  autofill::AutofillDialogControllerImpl* controller =
+      new autofill::AutofillDialogControllerImpl(web_contents(),
+                                                 form,
+                                                 frame_url,
+                                                 ssl_status,
+                                                 callback);
   controller->Show();
 }
 
@@ -947,6 +986,7 @@ AutofillManager::AutofillManager(content::WebContents* web_contents,
       download_manager_(delegate->GetBrowserContext(), this),
       disable_download_manager_requests_(true),
       autocomplete_history_manager_(web_contents),
+      autocheckout_manager_(this),
       metric_logger_(new AutofillMetrics),
       has_logged_autofill_enabled_(false),
       has_logged_address_suggestions_count_(false),

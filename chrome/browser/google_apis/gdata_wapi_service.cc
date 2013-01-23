@@ -185,6 +185,10 @@ const char kSpreadsheetsScope[] = "https://spreadsheets.google.com/feeds/";
 const char kUserContentScope[] = "https://docs.googleusercontent.com/";
 const char kDriveAppsScope[] = "https://www.googleapis.com/auth/drive.apps";
 
+// The resource ID for the root directory for WAPI is defined in the spec:
+// https://developers.google.com/google-apps/documents-list/
+const char kWapiRootDirectoryResourceId[] = "folder:root";
+
 }  // namespace
 
 GDataWapiService::GDataWapiService(
@@ -258,6 +262,10 @@ OperationProgressStatusList GDataWapiService::GetProgressStatusList() const {
   return operation_registry()->GetProgressStatusList();
 }
 
+std::string GDataWapiService::GetRootResourceId() const {
+  return kWapiRootDirectoryResourceId;
+}
+
 void GDataWapiService::GetResourceList(
     const GURL& url,
     int64 start_changestamp,
@@ -311,8 +319,7 @@ void GDataWapiService::GetAccountMetadata(
           base::Bind(&ParseAccounetMetadataAndRun, callback)));
 }
 
-void GDataWapiService::GetApplicationInfo(
-    const GetDataCallback& callback) {
+void GDataWapiService::GetAppList(const GetAppListCallback& callback) {
   // For WAPI, AccountMetadata includes Drive application information, and
   // this function is not used.
   NOTREACHED();
@@ -372,7 +379,7 @@ void GDataWapiService::DeleteResource(
 
 void GDataWapiService::AddNewDirectory(
     const GURL& parent_content_url,
-    const FilePath::StringType& directory_name,
+    const std::string& directory_name,
     const GetResourceEntryCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -389,7 +396,7 @@ void GDataWapiService::AddNewDirectory(
 
 void GDataWapiService::CopyHostedDocument(
     const std::string& resource_id,
-    const FilePath::StringType& new_name,
+    const std::string& new_name,
     const GetResourceEntryCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -406,7 +413,7 @@ void GDataWapiService::CopyHostedDocument(
 
 void GDataWapiService::RenameResource(
     const GURL& edit_url,
-    const FilePath::StringType& new_name,
+    const std::string& new_name,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -445,6 +452,7 @@ void GDataWapiService::RemoveResourceFromDirectory(
   runner_->StartOperationWithRetry(
       new RemoveResourceFromDirectoryOperation(operation_registry(),
                                                url_request_context_getter_,
+                                               url_generator_,
                                                callback,
                                                parent_content_url,
                                                resource_id));

@@ -31,8 +31,8 @@ class FakeDriveService : public DriveServiceInterface {
   // specified.
   bool LoadAccountMetadataForWapi(const std::string& relative_path);
 
-  // Loads the application info for Drive API. Returns true on success.
-  bool LoadApplicationInfoForDriveApi(const std::string& relative_path);
+  // Loads the app list for Drive API. Returns true on success.
+  bool LoadAppListForDriveApi(const std::string& relative_path);
 
   // Changes the offline state. All functions fail with GDATA_NO_CONNECTION
   // when offline. By default the offline state is false.
@@ -60,6 +60,7 @@ class FakeDriveService : public DriveServiceInterface {
   virtual void CancelAll() OVERRIDE;
   virtual bool CancelForFilePath(const FilePath& file_path) OVERRIDE;
   virtual OperationProgressStatusList GetProgressStatusList() const OVERRIDE;
+  virtual std::string GetRootResourceId() const OVERRIDE;
   virtual bool HasAccessToken() const OVERRIDE;
   virtual bool HasRefreshToken() const OVERRIDE;
   virtual void GetResourceList(
@@ -74,7 +75,7 @@ class FakeDriveService : public DriveServiceInterface {
       const GetResourceEntryCallback& callback) OVERRIDE;
   virtual void GetAccountMetadata(
       const GetAccountMetadataCallback& callback) OVERRIDE;
-  virtual void GetApplicationInfo(const GetDataCallback& callback) OVERRIDE;
+  virtual void GetAppList(const GetAppListCallback& callback) OVERRIDE;
   virtual void DeleteResource(const GURL& edit_url,
                               const EntryActionCallback& callback) OVERRIDE;
   virtual void DownloadHostedDocument(
@@ -93,10 +94,10 @@ class FakeDriveService : public DriveServiceInterface {
   // |resource_id| + "_copied".
   virtual void CopyHostedDocument(
       const std::string& resource_id,
-      const FilePath::StringType& new_name,
+      const std::string& new_name,
       const GetResourceEntryCallback& callback) OVERRIDE;
   virtual void RenameResource(const GURL& edit_url,
-                              const FilePath::StringType& new_name,
+                              const std::string& new_name,
                               const EntryActionCallback& callback) OVERRIDE;
   virtual void AddResourceToDirectory(
       const GURL& parent_content_url,
@@ -108,7 +109,7 @@ class FakeDriveService : public DriveServiceInterface {
       const EntryActionCallback& callback) OVERRIDE;
   virtual void AddNewDirectory(
       const GURL& parent_content_url,
-      const FilePath::StringType& directory_name,
+      const std::string& directory_name,
       const GetResourceEntryCallback& callback) OVERRIDE;
   virtual void InitiateUpload(const InitiateUploadParams& params,
                               const InitiateUploadCallback& callback) OVERRIDE;

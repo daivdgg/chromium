@@ -7,6 +7,8 @@
 #include <shellapi.h>
 #include <shlobj.h>
 
+#include <string>
+
 #include "base/at_exit.h"
 #include "base/basictypes.h"
 #include "base/command_line.h"
@@ -884,6 +886,16 @@ installer::InstallStatus InstallProductsHelper(
                                                       chrome_exe);
           }
         }
+
+        if (prefs.install_chrome_app_launcher() &&
+            InstallUtil::GetInstallReturnCode(install_status) == 0) {
+          std::string webstore_item(google_update::GetUntrustedDataValue(
+              installer::kInstallFromWebstore));
+          if (!webstore_item.empty()) {
+            bool success = installer::InstallFromWebstore(webstore_item);
+            VLOG_IF(1, !success) << "Failed to launch app installation.";
+          }
+        }
       }
     }
 
@@ -1151,7 +1163,8 @@ installer::InstallStatus RegisterDevChrome(
   // Only proceed with registering a dev chrome if no real Chrome installation
   // of the same distribution are present on this system.
   const ProductState* existing_chrome =
-    original_state.GetProductState(false, BrowserDistribution::CHROME_BROWSER);
+      original_state.GetProductState(false,
+                                     BrowserDistribution::CHROME_BROWSER);
   if (!existing_chrome) {
     existing_chrome =
       original_state.GetProductState(true, BrowserDistribution::CHROME_BROWSER);

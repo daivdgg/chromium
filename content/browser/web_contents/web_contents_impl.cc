@@ -47,6 +47,7 @@
 #include "content/port/browser/render_widget_host_view_port.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/color_chooser.h"
+#include "content/public/browser/compositor_util.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/download_manager.h"
@@ -98,6 +99,10 @@
 #include "ui/aura/window.h"
 #include "ui/base/touch/touch_factory.h"
 #endif // defined (USE_AURA) && defined(USE_X11)
+
+#if defined(ENABLE_JAVA_BRIDGE)
+#include "content/browser/renderer_host/java/java_bridge_dispatcher_host_manager.h"
+#endif
 
 // Cross-Site Navigations
 //
@@ -485,7 +490,7 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
       GpuProcessHost::gpu_enabled() &&
       !command_line.HasSwitch(switches::kDisableAcceleratedCompositing);
   prefs.force_compositing_mode =
-      command_line.HasSwitch(switches::kForceCompositingMode) &&
+      content::IsForceCompositingModeEnabled() &&
       !command_line.HasSwitch(switches::kDisableForceCompositingMode);
   prefs.fixed_position_compositing_enabled =
       command_line.HasSwitch(switches::kEnableCompositingForFixedPosition);
@@ -553,10 +558,9 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
    prefs.touch_adjustment_enabled =
        !command_line.HasSwitch(switches::kDisableTouchAdjustment);
 
-#if defined(OS_MACOSX)
+#if defined(OS_MACOSX) || defined(OS_CHROMEOS)
   bool default_enable_scroll_animator = true;
 #else
-  // On CrOS, the launcher always passes in the --enable flag.
   bool default_enable_scroll_animator = false;
 #endif
   prefs.enable_scroll_animator = default_enable_scroll_animator;
@@ -741,8 +745,8 @@ bool WebContentsImpl::OnMessageReceived(RenderViewHost* render_view_host,
     IPC_MESSAGE_HANDLER(ViewHostMsg_WebUISend, OnWebUISend)
     IPC_MESSAGE_HANDLER(ViewHostMsg_RequestPpapiBrokerPermission,
                         OnRequestPpapiBrokerPermission)
-    IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_CreateGuest,
-                        OnBrowserPluginCreateGuest)
+    IPC_MESSAGE_HANDLER(BrowserPluginHostMsg_AllocateInstanceID,
+                        OnBrowserPluginAllocateInstanceID)
     IPC_MESSAGE_HANDLER(IconHostMsg_DidDownloadFavicon, OnDidDownloadFavicon)
     IPC_MESSAGE_HANDLER(IconHostMsg_UpdateFaviconURL, OnUpdateFaviconURL)
 #if defined(OS_ANDROID)
@@ -751,6 +755,7 @@ bool WebContentsImpl::OnMessageReceived(RenderViewHost* render_view_host,
     IPC_MESSAGE_HANDLER(ViewHostMsg_OpenDateTimeDialog,
                         OnOpenDateTimeDialog)
 #endif
+    IPC_MESSAGE_HANDLER(ViewHostMsg_FrameDetached, OnFrameDetached)
     IPC_MESSAGE_UNHANDLED(handled = false)
   IPC_END_MESSAGE_MAP_EX()
   message_source_ = NULL;
@@ -2367,27 +2372,22 @@ void WebContentsImpl::OnPpapiBrokerPermissionResult(int request_id,
                                                     result));
 }
 
-void WebContentsImpl::OnBrowserPluginCreateGuest(
-    int instance_id,
-    const BrowserPluginHostMsg_CreateGuest_Params& params) {
+void WebContentsImpl::OnBrowserPluginAllocateInstanceID(
+    const IPC::Message& message, int request_id) {
   // This creates a BrowserPluginEmbedder, which handles all the BrowserPlugin
-  // specific messages for this WebContents (through its
-  // BrowserPluginEmbedderHelper). This means that any message from browser
-  // plugin renderer prior to CreateGuest will be ignored.
+  // specific messages for this WebContents. This means that any message from
+  // a BrowserPlugin prior to AllocateInstanceID will be ignored.
   // For more info, see comment above classes BrowserPluginEmbedder and
   // BrowserPluginGuest.
-  // The first BrowserPluginHostMsg_CreateGuest message from this WebContents'
-  // embedder render process is handled here. Once BrowserPluginEmbedder is
-  // created, all subsequent BrowserPluginHostMsg_CreateGuest messages are
-  // intercepted by the BrowserPluginEmbedderHelper and handled by the
-  // BrowserPluginEmbedder. Thus, this code will not be executed if a
-  // BrowserPluginEmbedder exists for this WebContents.
+  // The first BrowserPluginHostMsg_AllocateInstanceID message from this
+  // WebContents' embedder render process is handled here. Once
+  // BrowserPluginEmbedder is created, all subsequent BrowserPluginHostMsg_*
+  // messages are handled in BrowserPluginEmbedder. Thus, this code will not be
+  // executed if a BrowserPluginEmbedder exists for this WebContents.
   CHECK(!browser_plugin_embedder_.get());
   browser_plugin_embedder_.reset(
       BrowserPluginEmbedder::Create(this, GetRenderViewHost()));
-  BrowserPluginHostMsg_CreateGuest create_guest_msg(
-      GetRenderViewHost()->GetRoutingID(), instance_id, params);
-  browser_plugin_embedder_->OnMessageReceived(create_guest_msg);
+  browser_plugin_embedder_->OnMessageReceived(message);
 }
 
 void WebContentsImpl::OnDidDownloadFavicon(
@@ -2412,6 +2412,11 @@ void WebContentsImpl::OnUpdateFaviconURL(
     const std::vector<FaviconURL>& candidates) {
   FOR_EACH_OBSERVER(WebContentsObserver, observers_,
                     DidUpdateFaviconURL(page_id, candidates));
+}
+
+void WebContentsImpl::OnFrameDetached(int64 frame_id) {
+  FOR_EACH_OBSERVER(WebContentsObserver, observers_,
+                    FrameDetached(message_source_, frame_id));
 }
 
 void WebContentsImpl::DidBlock3DAPIs(const GURL& url,

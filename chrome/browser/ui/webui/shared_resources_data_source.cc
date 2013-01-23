@@ -12,25 +12,20 @@
 #include "chrome/browser/io_thread.h"
 #include "chrome/common/url_constants.h"
 #include "grit/generated_resources.h"
-#include "grit/shared_resources.h"
-#include "grit/shared_resources_map.h"
 #include "grit/theme_resources.h"
 #include "grit/ui_resources.h"
+#include "grit/webui_resources.h"
+#include "grit/webui_resources_map.h"
 #include "net/base/mime_util.h"
 #include "ui/base/resource/resource_bundle.h"
 
 namespace {
 
 int PathToIDR(const std::string& path) {
-  // The name of the files in the grd list are prefixed with the following
-  // directory:
-  std::string key("shared/");
-  key += path;
-
   int idr = -1;
-  for (size_t i = 0; i < kSharedResourcesSize; ++i) {
-    if (kSharedResources[i].name == key) {
-      idr = kSharedResources[i].value;
+  for (size_t i = 0; i < kWebuiResourcesSize; ++i) {
+    if (kWebuiResources[i].name == path) {
+      idr = kWebuiResources[i].value;
       break;
     }
   }
@@ -65,11 +60,10 @@ void SharedResourcesDataSource::StartDataRequest(
 
 std::string SharedResourcesDataSource::GetMimeType(
     const std::string& path) const {
-  // Requests should not block on the disk!  On Windows this goes to the
-  // registry.
-  //   http://code.google.com/p/chromium/issues/detail?id=59849
-  base::ThreadRestrictions::ScopedAllowIO allow_io;
+  // Requests should not block on the disk!  On POSIX this goes to disk.
+  // http://code.google.com/p/chromium/issues/detail?id=59849
 
+  base::ThreadRestrictions::ScopedAllowIO allow_io;
   std::string mime_type;
   net::GetMimeTypeFromFile(FilePath().AppendASCII(path), &mime_type);
   return mime_type;

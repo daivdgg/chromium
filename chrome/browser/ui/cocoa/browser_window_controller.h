@@ -14,7 +14,6 @@
 
 #include "base/memory/scoped_nsobject.h"
 #include "base/memory/scoped_ptr.h"
-#include "chrome/browser/sync/sync_ui_util.h"
 #import "chrome/browser/ui/cocoa/bookmarks/bookmark_bar_controller.h"
 #import "chrome/browser/ui/cocoa/bookmarks/bookmark_bubble_controller.h"
 #import "chrome/browser/ui/cocoa/browser_command_executor.h"
@@ -175,6 +174,13 @@ class WebContents;
 // BWC. This method returns nil if no window in the chain has a BWC.
 + (BrowserWindowController*)browserWindowControllerForView:(NSView*)view;
 
+// Helper method used to update the "Signin" menu item to reflect the current
+// signed in state. Class-level function as it's still required even when there
+// are no open browser windows.
++ (void)updateSigninItem:(id)signinItem
+              shouldShow:(BOOL)showSigninMenuItem
+          currentProfile:(Profile*)profile;
+
 // Load the browser window nib and do any Cocoa-specific initialization.
 // Takes ownership of |browser|.
 - (id)initWithBrowser:(Browser*)browser;
@@ -313,7 +319,6 @@ class WebContents;
 
 // Shows or hides the Instant preview contents.
 - (void)commitInstant;
-- (BOOL)isInstantTabShowing;
 
 // Returns the frame, in Cocoa (unflipped) screen coordinates, of the area where
 // Instant results are.  If Instant is not showing, returns the frame of where

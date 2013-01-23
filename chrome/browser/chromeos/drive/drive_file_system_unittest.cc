@@ -623,7 +623,7 @@ class DriveFileSystemTest : public testing::Test {
     DriveEntryProto* dir_base = root_dir->mutable_drive_entry();
     PlatformFileInfoProto* platform_info = dir_base->mutable_file_info();
     dir_base->set_title("drive");
-    dir_base->set_resource_id(kWAPIRootDirectoryResourceId);
+    dir_base->set_resource_id(fake_drive_service_->GetRootResourceId());
     dir_base->set_upload_url("http://resumable-create-media/1");
     platform_info->set_is_directory(true);
 
@@ -789,7 +789,7 @@ TEST_F(DriveFileSystemTest, SearchRootDirectory) {
   scoped_ptr<DriveEntryProto> entry = GetEntryInfoByPathSync(
       FilePath(FILE_PATH_LITERAL(kFilePath)));
   ASSERT_TRUE(entry.get());
-  EXPECT_EQ(kWAPIRootDirectoryResourceId, entry->resource_id());
+  EXPECT_EQ(fake_drive_service_->GetRootResourceId(), entry->resource_id());
 }
 
 TEST_F(DriveFileSystemTest, SearchExistingFile) {
@@ -1209,7 +1209,9 @@ TEST_F(DriveFileSystemTest, TransferFileFromLocalToRemote_HostedDocument) {
       FILE_PATH_LITERAL("drive/Directory 1/Document 1.gdoc"));
   EXPECT_FALSE(EntryExists(remote_dest_file_path));
 
-  // We'll add a file to "Directory 1" directory on Drive.
+  // We'll add a file to the Drive root and then move to "Directory 1".
+  EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
+      Eq(FilePath(FILE_PATH_LITERAL("drive"))))).Times(1);
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
       Eq(FilePath(FILE_PATH_LITERAL("drive/Directory 1"))))).Times(1);
 
@@ -1442,7 +1444,7 @@ TEST_F(DriveFileSystemTest, MoveFileFromRootToSubDirectory) {
 
   // Expect notification for both source and destination directories.
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
-      Eq(FilePath(FILE_PATH_LITERAL("drive"))))).Times(1);
+      Eq(FilePath(FILE_PATH_LITERAL("drive"))))).Times(2);
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
       Eq(FilePath(FILE_PATH_LITERAL("drive/Directory 1"))))).Times(1);
 
@@ -1484,7 +1486,7 @@ TEST_F(DriveFileSystemTest, MoveFileFromSubDirectoryToRoot) {
 
   // Expect notification for both source and destination directories.
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
-      Eq(FilePath(FILE_PATH_LITERAL("drive"))))).Times(1);
+      Eq(FilePath(FILE_PATH_LITERAL("drive"))))).Times(2);
   EXPECT_CALL(*mock_directory_observer_, OnDirectoryChanged(
       Eq(FilePath(FILE_PATH_LITERAL("drive/Directory 1"))))).Times(1);
 
@@ -2223,7 +2225,7 @@ TEST_F(DriveFileSystemTest, ContentSearchWithNewEntry) {
   scoped_ptr<google_apis::ResourceEntry> resource_entry;
   fake_drive_service_->AddNewDirectory(
       GURL(),  // Add to the root directory.
-      FILE_PATH_LITERAL("New Directory 1!"),
+      "New Directory 1!",
       base::Bind(
           &google_apis::test_util::CopyResultsFromGetResourceEntryCallback,
           &error,

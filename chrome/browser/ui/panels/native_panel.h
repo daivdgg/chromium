@@ -41,7 +41,7 @@ class NativePanel {
   virtual void DeactivatePanel() = 0;
   virtual bool IsPanelActive() const = 0;
   virtual void PreventActivationByOS(bool prevent_activation) = 0;
-  virtual gfx::NativeWindow GetNativePanelHandle() = 0;
+  virtual gfx::NativeWindow GetNativePanelWindow() = 0;
   virtual void UpdatePanelTitleBar() = 0;
   virtual void UpdatePanelLoadingAnimations(bool should_animate) = 0;
   virtual void NotifyPanelOnUserChangedTheme() = 0;
@@ -114,6 +114,9 @@ class NativePanelTesting {
   // Verifies, on a deepest possible level, if the native panel is really
   // showing a correct app icon (taskbar icon).
   virtual bool VerifyAppIcon() const = 0;
+  // Verifies, on a deepest possible level, if the native panel is really
+  // minimized by the system.
+  virtual bool VerifySystemMinimizeState() const = 0;
 
   virtual bool IsWindowSizeKnown() const = 0;
   virtual bool IsAnimatingBounds() const = 0;

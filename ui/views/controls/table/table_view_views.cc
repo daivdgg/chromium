@@ -13,6 +13,7 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/rect_conversions.h"
 #include "ui/gfx/skia_util.h"
+#include "ui/native_theme/native_theme.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/table/group_table_model.h"
 #include "ui/views/controls/table/table_grouper.h"
@@ -24,11 +25,6 @@
 // Padding around the text (on each side).
 static const int kTextVerticalPadding = 3;
 static const int kTextHorizontalPadding = 6;
-
-// TODO: these should come from native theme or something.
-static const SkColor kSelectedBackgroundColor = SkColorSetRGB(0xEE, 0xEE, 0xEE);
-static const SkColor kTextColor = SK_ColorBLACK;
-static const SkColor kGroupingIndicatorColor = SkColorSetRGB(0xCC, 0xCC, 0xCC);
 
 // Size of images.
 static const int kImageSize = 16;
@@ -56,6 +52,20 @@ void GetModelIndexToRangeStart(TableGrouper* grouper,
       (*model_index_to_range_start)[range_counter + model_index] = model_index;
     model_index += range.length;
   }
+}
+
+// Returns the color id for the background of selected text. |has_focus|
+// indicates if the table has focus.
+ui::NativeTheme::ColorId text_background_color_id(bool has_focus) {
+  return has_focus ?
+      ui::NativeTheme::kColorId_TableSelectionBackgroundFocused :
+      ui::NativeTheme::kColorId_TableSelectionBackgroundUnfocused;
+}
+
+// Returns the color id for text. |has_focus| indicates if the table has focus.
+ui::NativeTheme::ColorId selected_text_color_id(bool has_focus) {
+  return has_focus ? ui::NativeTheme::kColorId_TableSelectedText :
+      ui::NativeTheme::kColorId_TableSelectedTextUnfocused;
 }
 
 } // namespace
@@ -116,6 +126,7 @@ TableView::TableView(ui::TableModel* model,
       columns_(columns),
       header_(NULL),
       table_type_(table_type),
+      single_selection_(single_selection),
       table_view_observer_(NULL),
       row_height_(font_.GetHeight() + kTextVerticalPadding * 2),
       last_parent_width_(0),
@@ -128,7 +139,6 @@ TableView::TableView(ui::TableModel* model,
     visible_columns_.push_back(visible_column);
   }
   set_focusable(true);
-  set_background(Background::CreateSolidBackground(SK_ColorWHITE));
   SetModel(model);
 }
 
@@ -351,19 +361,23 @@ bool TableView::OnKeyPressed(const ui::KeyEvent& event) {
 
 bool TableView::OnMousePressed(const ui::MouseEvent& event) {
   RequestFocus();
-  int row = event.y() / row_height_;
-  if (row >= 0 && row < RowCount()) {
-    SelectByViewIndex(row);
-    if (table_view_observer_ && event.flags() & ui::EF_IS_DOUBLE_CLICK)
-      table_view_observer_->OnDoubleClick();
-  }
-  return true;
-}
+  if (!event.IsOnlyLeftMouseButton())
+    return true;
 
-bool TableView::OnMouseDragged(const ui::MouseEvent& event) {
-  int row = event.y() / row_height_;
-  if (row >= 0 && row < RowCount())
+  const int row = event.y() / row_height_;
+  if (row < 0 || row >= RowCount())
+    return true;
+
+  if (event.GetClickCount() == 2) {
     SelectByViewIndex(row);
+    if (table_view_observer_)
+      table_view_observer_->OnDoubleClick();
+  } else if (event.GetClickCount() == 1) {
+    ui::ListSelectionModel new_model;
+    ConfigureSelectionModelForEvent(event, &new_model);
+    SetSelectionModel(new_model);
+  }
+
   return true;
 }
 
@@ -425,7 +439,9 @@ gfx::Point TableView::GetKeyboardContextMenuLocation() {
 
 void TableView::OnPaint(gfx::Canvas* canvas) {
   // Don't invoke View::OnPaint so that we can render our own focus border.
-  OnPaintBackground(canvas);
+
+  canvas->DrawColor(GetNativeTheme()->GetSystemColor(
+                        ui::NativeTheme::kColorId_TableBackground));
 
   if (!RowCount() || visible_columns_.empty())
     return;
@@ -434,11 +450,18 @@ void TableView::OnPaint(gfx::Canvas* canvas) {
   if (region.min_column == -1)
     return;  // No need to paint anything.
 
+  const SkColor selected_bg_color = GetNativeTheme()->GetSystemColor(
+      text_background_color_id(HasFocus()));
+  const SkColor fg_color = GetNativeTheme()->GetSystemColor(
+      ui::NativeTheme::kColorId_TableText);
+  const SkColor selected_fg_color = GetNativeTheme()->GetSystemColor(
+      selected_text_color_id(HasFocus()));
   for (int i = region.min_row; i < region.max_row; ++i) {
     const int model_index = ViewToModel(i);
-    if (selection_model_.IsSelected(model_index)) {
+    const bool is_selected = selection_model_.IsSelected(model_index);
+    if (is_selected) {
       const gfx::Rect row_bounds(GetRowBounds(i));
-      canvas->FillRect(row_bounds, kSelectedBackgroundColor);
+      canvas->FillRect(row_bounds, selected_bg_color);
       if (HasFocus() && !header_ && !grouper_)
         canvas->DrawFocusRect(row_bounds);
     } else if (row_background_painter_) {
@@ -470,7 +493,7 @@ void TableView::OnPaint(gfx::Canvas* canvas) {
       if (text_x < cell_bounds.right() - kTextHorizontalPadding) {
         canvas->DrawStringInt(
             model_->GetText(model_index, visible_columns_[j].column.id), font_,
-            kTextColor,
+            is_selected ? selected_fg_color : fg_color,
             GetMirroredXWithWidthInView(text_x, cell_bounds.right() - text_x -
                                         kTextHorizontalPadding),
             cell_bounds.y() + kTextVerticalPadding,
@@ -485,8 +508,10 @@ void TableView::OnPaint(gfx::Canvas* canvas) {
   if (!grouper_ || region.min_column > 0)
     return;
 
+  const SkColor grouping_color = GetNativeTheme()->GetSystemColor(
+      ui::NativeTheme::kColorId_TableGroupingIndicatorColor);
   SkPaint grouping_paint;
-  grouping_paint.setColor(kGroupingIndicatorColor);
+  grouping_paint.setColor(grouping_color);
   grouping_paint.setStyle(SkPaint::kFill_Style);
   grouping_paint.setAntiAlias(true);
   const int group_indicator_x = GetMirroredXInView(GetCellBounds(0, 0).x() +
@@ -508,7 +533,7 @@ void TableView::OnPaint(gfx::Canvas* canvas) {
                            start_cell_bounds.CenterPoint().y(),
                            kGroupingIndicatorSize,
                            last_cell_bounds.y() - start_cell_bounds.y()),
-                       kGroupingIndicatorColor);
+                       grouping_color);
       canvas->DrawCircle(gfx::Point(group_indicator_x,
                                     last_cell_bounds.CenterPoint().y()),
                          kGroupingIndicatorSize / 2, grouping_paint);
@@ -686,10 +711,9 @@ ui::TableColumn TableView::FindColumnByID(int id) const {
 void TableView::SelectByViewIndex(int view_index) {
   ui::ListSelectionModel new_selection;
   if (view_index != -1) {
-    const GroupRange range(GetGroupRange(ViewToModel(view_index)));
-    new_selection.SetSelectedIndex(range.start);
-    for (int i = 1; i < range.length; ++i)
-      new_selection.AddIndexToSelection(range.start + i);
+    SelectRowsInRangeFrom(view_index, true, &new_selection);
+    new_selection.set_anchor(new_selection.selected_indices()[0]);
+    new_selection.set_active(new_selection.selected_indices()[0]);
   }
 
   SetSelectionModel(new_selection);
@@ -736,6 +760,60 @@ void TableView::AdvanceSelection(AdvanceDirection direction) {
                                range.length));
   }
   SelectByViewIndex(view_index);
+}
+
+void TableView::ConfigureSelectionModelForEvent(
+    const ui::MouseEvent& event,
+    ui::ListSelectionModel* model) const {
+  int view_index = event.y() / row_height_;
+  DCHECK(view_index >= 0 && view_index < RowCount());
+
+  if (selection_model_.anchor() == -1 ||
+      single_selection_ ||
+      (!event.IsControlDown() && !event.IsShiftDown())) {
+    SelectRowsInRangeFrom(view_index, true, model);
+    model->set_anchor(model->selected_indices()[0]);
+    model->set_active(model->selected_indices()[0]);
+    return;
+  }
+  if ((event.IsControlDown() && event.IsShiftDown()) || event.IsShiftDown()) {
+    // control-shift: copy existing model and make sure rows between anchor and
+    // |view_index| are selected.
+    // shift: reset selection so that only rows between anchor and |view_index|
+    // are selected.
+    if (event.IsControlDown() && event.IsShiftDown())
+      model->Copy(selection_model_);
+    else
+      model->set_anchor(selection_model_.anchor());
+    for (int i = std::min(view_index, ModelToView(model->anchor())),
+             end = std::max(view_index, ModelToView(model->anchor()));
+         i <= end; ++i) {
+      SelectRowsInRangeFrom(i, true, model);
+    }
+    model->set_active(ViewToModel(view_index));
+  } else {
+    DCHECK(event.IsControlDown());
+    // Toggle the selection state of |view_index| and set the anchor/active to
+    // it and don't change the state of any other rows.
+    model->Copy(selection_model_);
+    model->set_anchor(ViewToModel(view_index));
+    model->set_active(ViewToModel(view_index));
+    SelectRowsInRangeFrom(view_index,
+                          !model->IsSelected(ViewToModel(view_index)),
+                          model);
+  }
+}
+
+void TableView::SelectRowsInRangeFrom(int view_index,
+                                      bool select,
+                                      ui::ListSelectionModel* model) const {
+  const GroupRange range(GetGroupRange(ViewToModel(view_index)));
+  for (int i = 0; i < range.length; ++i) {
+    if (select)
+      model->AddIndexToSelection(range.start + i);
+    else
+      model->RemoveIndexFromSelection(range.start + i);
+  }
 }
 
 GroupRange TableView::GetGroupRange(int model_index) const {

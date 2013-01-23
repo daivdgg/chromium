@@ -6,12 +6,11 @@
 #define CHROME_BROWSER_CHROMEOS_EXTENSIONS_FILE_MANAGER_UTIL_H_
 
 #include <string>
-#include <vector>
 
 #include "base/file_path.h"
-#include "chrome/browser/google_apis/drive_service_interface.h"
+#include "chrome/browser/google_apis/operation_registry.h"
 #include "googleurl/src/gurl.h"
-#include "ui/base/dialogs/select_file_dialog.h"
+#include "ui/shell_dialogs/select_file_dialog.h"
 
 class Browser;
 class Profile;
@@ -72,12 +71,8 @@ void ViewRemovableDrive(const FilePath& path);
 // One of the actions is opening the File Manager.
 void OpenActionChoiceDialog(const FilePath& path);
 
-// Opens file browser UI in its own tab on file system location defined with
-// |dir|.
-void ViewFolder(const FilePath& dir);
-
-// Opens file with the default File Browser handler.
-void ViewFile(const FilePath& path);
+// Opens item with the default File Browser handler.
+void ViewItem(const FilePath& path);
 
 // Opens file browser on the folder containing the file, with the file selected.
 void ShowFileInFolder(const FilePath& path);
@@ -88,8 +83,6 @@ bool ExecuteBuiltinHandler(
     Browser* browser,
     const FilePath& path,
     const std::string& internal_task_id);
-
-void InstallCRX(Browser* browser, const FilePath& path);
 
 bool ShouldBeOpenedWithPdfPlugin(Profile* profile, const char* file_extension);
 

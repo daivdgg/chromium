@@ -17,7 +17,7 @@
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/rect_conversions.h"
 #include "ui/gfx/skia_util.h"
-#include "ui/views/background.h"
+#include "ui/native_theme/native_theme.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/controls/tree/tree_view_controller.h"
@@ -40,14 +40,33 @@ static const int kTextHorizontalPadding = 2;
 // How much children are indented from their parent.
 static const int kIndent = 20;
 
-// TODO: these should come from native theme or something.
-static const SkColor kArrowColor = SkColorSetRGB(0x7A, 0x7A, 0x7A);
-static const SkColor kSelectedBackgroundColor = SkColorSetRGB(0xEE, 0xEE, 0xEE);
-static const SkColor kTextColor = SK_ColorBLACK;
+namespace {
+
+// Returns the color id for the background of selected text. |has_focus|
+// indicates if the tree has focus.
+ui::NativeTheme::ColorId text_background_color_id(bool has_focus) {
+  return has_focus ?
+      ui::NativeTheme::kColorId_TreeSelectionBackgroundFocused :
+      ui::NativeTheme::kColorId_TreeSelectionBackgroundUnfocused;
+}
+
+// Returns the color id for text. |has_focus| indicates if the tree has focus
+// and |is_selected| is true if the item is selected.
+ui::NativeTheme::ColorId text_color_id(bool has_focus, bool is_selected) {
+  if (is_selected) {
+    if (has_focus)
+      return ui::NativeTheme::kColorId_TreeSelectedText;
+    return ui::NativeTheme::kColorId_TreeSelectedTextUnfocused;
+  }
+  return ui::NativeTheme::kColorId_TreeText;
+}
+
+}  // namespace
 
 TreeView::TreeView()
     : model_(NULL),
       selected_node_(NULL),
+      editing_(false),
       editor_(NULL),
       focus_manager_(NULL),
       auto_expand_children_(false),
@@ -57,7 +76,6 @@ TreeView::TreeView()
       has_custom_icons_(false),
       row_height_(font_.GetHeight() + kTextVerticalPadding * 2) {
   set_focusable(true);
-  set_background(Background::CreateSolidBackground(SK_ColorWHITE));
   closed_icon_ = *ui::ResourceBundle::GetSharedInstance().GetImageNamed(
       (base::i18n::IsRTL() ? IDR_FOLDER_CLOSED_RTL
                            : IDR_FOLDER_CLOSED)).ToImageSkia();
@@ -128,16 +146,20 @@ void TreeView::StartEditing(TreeModelNode* node) {
   SetSelectedNode(node);
   if (GetSelectedNode() != node)
     return;  // Selection failed for some reason, don't start editing.
-  DCHECK(!editor_);
-  editor_ = new Textfield;
-  // Add the editor immediately as GetPreferredSize returns the wrong thing if
-  // not parented.
-  AddChildView(editor_);
-  editor_->SetFont(font_);
-  empty_editor_size_ = editor_->GetPreferredSize();
+  DCHECK(!editing_);
+  editing_ = true;
+  if (!editor_) {
+    editor_ = new Textfield;
+    // Add the editor immediately as GetPreferredSize returns the wrong thing if
+    // not parented.
+    AddChildView(editor_);
+    editor_->SetFont(font_);
+    empty_editor_size_ = editor_->GetPreferredSize();
+    editor_->SetController(this);
+  }
   editor_->SetText(selected_node_->model_node()->GetTitle());
-  editor_->SetController(this);
   LayoutEditor();
+  editor_->SetVisible(true);
   SchedulePaintForNode(selected_node_);
   editor_->RequestFocus();
   editor_->SelectAll(false);
@@ -149,23 +171,22 @@ void TreeView::StartEditing(TreeModelNode* node) {
 }
 
 void TreeView::CancelEdit() {
-  if (!editor_)
+  if (!editing_)
     return;
 
+  // WARNING: don't touch |selected_node_|, it may be bogus.
+
+  editing_ = false;
   if (focus_manager_) {
     focus_manager_->RemoveFocusChangeListener(this);
     focus_manager_ = NULL;
   }
-  // WARNING: don't touch selected_node_, it may be bogus.
-  RemoveChildView(editor_);
-  // Don't delete immediately as we may be servicing a callback from the editor.
-  MessageLoop::current()->DeleteSoon(FROM_HERE, editor_);
-  editor_ = NULL;
+  editor_->SetVisible(false);
   SchedulePaint();
 }
 
 void TreeView::CommitEdit() {
-  if (!editor_)
+  if (!editing_)
     return;
 
   DCHECK(selected_node_);
@@ -175,11 +196,11 @@ void TreeView::CommitEdit() {
 }
 
 TreeModelNode* TreeView::GetEditingNode() {
-  return editor_ ? selected_node_->model_node() : NULL;
+  return editing_ ? selected_node_->model_node() : NULL;
 }
 
 void TreeView::SetSelectedNode(TreeModelNode* model_node) {
-  if (editor_ || model_node != selected_node_)
+  if (editing_ || model_node != selected_node_)
     CancelEdit();
   if (model_node && model_->GetParent(model_node))
     Expand(model_->GetParent(model_node));
@@ -451,7 +472,7 @@ bool TreeView::OnKeyPressed(const ui::KeyEvent& event) {
 
   switch (event.key_code()) {
     case ui::VKEY_F2:
-      if (!editor_) {
+      if (!editing_) {
         TreeModelNode* selected_node = GetSelectedNode();
         if (selected_node && (!controller_ ||
                               controller_->CanEdit(this, selected_node))) {
@@ -488,7 +509,8 @@ bool TreeView::OnKeyPressed(const ui::KeyEvent& event) {
 
 void TreeView::OnPaint(gfx::Canvas* canvas) {
   // Don't invoke View::OnPaint so that we can render our own focus border.
-  OnPaintBackground(canvas);
+  canvas->DrawColor(GetNativeTheme()->GetSystemColor(
+                        ui::NativeTheme::kColorId_TreeBackground));
 
   int min_y, max_y;
   {
@@ -598,7 +620,7 @@ void TreeView::UpdatePreferredSize() {
 }
 
 void TreeView::LayoutEditor() {
-  if (!editor_)
+  if (!editing_)
     return;
 
   DCHECK(selected_node_);
@@ -670,17 +692,22 @@ void TreeView::PaintRow(gfx::Canvas* canvas,
       icon, icon_x,
       bounds.y() + (bounds.height() - icon.height()) / 2);
 
-  if (!editor_ || node != selected_node_) {
+  if (!editing_ || node != selected_node_) {
     gfx::Rect text_bounds(bounds.x() + text_offset_, bounds.y(),
                           bounds.width() - text_offset_, bounds.height());
     if (base::i18n::IsRTL())
       text_bounds.set_x(bounds.x());
     if (node == selected_node_) {
-      canvas->FillRect(text_bounds, kSelectedBackgroundColor);
+      const SkColor bg_color = GetNativeTheme()->GetSystemColor(
+          text_background_color_id(HasFocus()));
+      canvas->FillRect(text_bounds, bg_color);
       if (HasFocus())
         canvas->DrawFocusRect(text_bounds);
     }
-    canvas->DrawStringInt(node->model_node()->GetTitle(), font_, kTextColor,
+    const ui::NativeTheme::ColorId color_id =
+        text_color_id(HasFocus(), node == selected_node_);
+    canvas->DrawStringInt(node->model_node()->GetTitle(), font_,
+                          GetNativeTheme()->GetSystemColor(color_id),
                           text_bounds.x() + kTextHorizontalPadding,
                           text_bounds.y() + kTextVerticalPadding,
                           text_bounds.width() - kTextHorizontalPadding * 2,
@@ -699,19 +726,21 @@ void TreeView::PaintExpandControl(gfx::Canvas* canvas,
     center_x = node_bounds.x() + (kArrowRegionSize - 4) / 2;
   }
   int center_y = node_bounds.y() + node_bounds.height() / 2;
+  const SkColor arrow_color = GetNativeTheme()->GetSystemColor(
+      ui::NativeTheme::kColorId_TreeArrow);
   // TODO: this should come from an image.
   if (!expanded) {
     int delta = base::i18n::IsRTL() ? 1 : -1;
     for (int i = 0; i < 4; ++i) {
       canvas->FillRect(gfx::Rect(center_x + delta * (2 - i),
                                  center_y - (3 - i), 1, (3 - i) * 2 + 1),
-                       kArrowColor);
+                       arrow_color);
     }
   } else {
     center_y -= 2;
     for (int i = 0; i < 4; ++i) {
       canvas->FillRect(gfx::Rect(center_x - (3 - i), center_y + i,
-                                 (3 - i) * 2 + 1, 1), kArrowColor);
+                                 (3 - i) * 2 + 1, 1), arrow_color);
     }
   }
 }

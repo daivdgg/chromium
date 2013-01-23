@@ -44,6 +44,7 @@ class DevToolsDataSource : public content::URLDataSource {
       bool is_incognito,
       const content::URLDataSource::GotDataCallback& callback) OVERRIDE;
   virtual std::string GetMimeType(const std::string& path) const OVERRIDE;
+  virtual bool ShouldAddContentSecurityPolicy() const OVERRIDE;
 
  private:
   ~DevToolsDataSource() {}
@@ -93,6 +94,10 @@ std::string DevToolsDataSource::GetMimeType(const std::string& path) const {
   return "text/plain";
 }
 
+bool DevToolsDataSource::ShouldAddContentSecurityPolicy() const {
+  return false;
+}
+
 // static
 void DevToolsUI::RegisterDevToolsDataSource(Profile* profile) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
@@ -104,6 +109,7 @@ void DevToolsUI::RegisterDevToolsDataSource(Profile* profile) {
 }
 
 DevToolsUI::DevToolsUI(content::WebUI* web_ui) : WebUIController(web_ui) {
+  web_ui->SetBindings(0);
   ChromeURLDataManager::AddDataSource(
       Profile::FromWebUI(web_ui), new DevToolsDataSource);
 }

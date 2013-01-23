@@ -10,9 +10,9 @@
 #include "base/memory/ref_counted_memory.h"
 #include "base/string_util.h"
 #include "chrome/browser/ui/webui/web_ui_util.h"
-#include "chrome/common/jstemplate_builder.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/webui/jstemplate_builder.h"
 
 // Internal class to hide the fact that ChromeWebUIDataSource implements
 // content::URLDataSource.
@@ -38,10 +38,31 @@ class ChromeWebUIDataSource::InternalDataSource
       const content::URLDataSource::GotDataCallback& callback) OVERRIDE {
     return parent_->StartDataRequest(path, is_incognito, callback);
   }
+  virtual bool ShouldAddContentSecurityPolicy() const OVERRIDE {
+    return parent_->add_csp_;
+  }
+  virtual std::string GetContentSecurityPolicyObjectSrc() const OVERRIDE {
+    if (parent_->object_src_set_)
+      return parent_->object_src_;
+    return content::URLDataSource::GetContentSecurityPolicyObjectSrc();
+  }
+  virtual std::string GetContentSecurityPolicyFrameSrc() const OVERRIDE {
+    if (parent_->frame_src_set_)
+      return parent_->frame_src_;
+    return content::URLDataSource::GetContentSecurityPolicyFrameSrc();
+  }
+  virtual bool ShouldDenyXFrameOptions() const OVERRIDE {
+    return parent_->deny_xframe_options_;
+  }
 
  private:
   ChromeWebUIDataSource* parent_;
 };
+
+content::WebUIDataSource* ChromeWebUIDataSource::Create(
+    const std::string& source_name) {
+  return new ChromeWebUIDataSource(source_name);
+}
 
 ChromeWebUIDataSource::ChromeWebUIDataSource(const std::string& source_name)
     : URLDataSourceImpl(
@@ -49,7 +70,11 @@ ChromeWebUIDataSource::ChromeWebUIDataSource(const std::string& source_name)
           new InternalDataSource(ALLOW_THIS_IN_INITIALIZER_LIST(this))),
       source_name_(source_name),
       default_resource_(-1),
-      json_js_format_v2_(false) {
+      json_js_format_v2_(false),
+      add_csp_(true),
+      object_src_set_(false),
+      frame_src_set_(false),
+      deny_xframe_options_(true) {
 }
 
 ChromeWebUIDataSource::~ChromeWebUIDataSource() {
@@ -75,9 +100,50 @@ void ChromeWebUIDataSource::AddLocalizedStrings(
   localized_strings_.MergeDictionary(&localized_strings);
 }
 
+void ChromeWebUIDataSource::AddBoolean(const std::string& name, bool value) {
+  localized_strings_.SetBoolean(name, value);
+}
+
+void ChromeWebUIDataSource::SetJsonPath(const std::string& path) {
+  json_path_ = path;
+}
+
+void ChromeWebUIDataSource::SetUseJsonJSFormatV2() {
+  json_js_format_v2_ = true;
+}
+
+void ChromeWebUIDataSource::AddResourcePath(const std::string &path,
+                                            int resource_id) {
+  path_to_idr_map_[path] = resource_id;
+}
+
+void ChromeWebUIDataSource::SetDefaultResource(int resource_id) {
+  default_resource_ = resource_id;
+}
+
 void ChromeWebUIDataSource::SetRequestFilter(
-    const HandleRequestCallback& callback) {
+    const content::WebUIDataSource::HandleRequestCallback& callback) {
   filter_callback_ = callback;
+}
+
+void ChromeWebUIDataSource::DisableContentSecurityPolicy() {
+  add_csp_ = false;
+}
+
+void ChromeWebUIDataSource::OverrideContentSecurityPolicyObjectSrc(
+    const std::string& data) {
+  object_src_set_ = true;
+  object_src_ = data;
+}
+
+void ChromeWebUIDataSource::OverrideContentSecurityPolicyFrameSrc(
+    const std::string& data) {
+  frame_src_set_ = true;
+  frame_src_ = data;
+}
+
+void ChromeWebUIDataSource::DisableDenyXFrameOptions() {
+  deny_xframe_options_ = false;
 }
 
 std::string ChromeWebUIDataSource::GetSource() {
@@ -125,11 +191,11 @@ void ChromeWebUIDataSource::SendLocalizedStringsAsJSON(
   std::string template_data;
   web_ui_util::SetFontAndTextDirection(&localized_strings_);
 
-  scoped_ptr<jstemplate_builder::UseVersion2> version2;
+  scoped_ptr<webui::UseVersion2> version2;
   if (json_js_format_v2_)
-    version2.reset(new jstemplate_builder::UseVersion2);
+    version2.reset(new webui::UseVersion2);
 
-  jstemplate_builder::AppendJsonJS(&localized_strings_, &template_data);
+  webui::AppendJsonJS(&localized_strings_, &template_data);
   callback.Run(base::RefCountedString::TakeString(&template_data));
 }
 

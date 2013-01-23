@@ -118,8 +118,7 @@ namespace options {
 BrowserOptionsHandler::BrowserOptionsHandler()
     : page_initialized_(false),
       template_url_service_(NULL),
-      ALLOW_THIS_IN_INITIALIZER_LIST(weak_ptr_factory_for_file_(this)),
-      ALLOW_THIS_IN_INITIALIZER_LIST(weak_ptr_factory_for_ui_(this)) {
+      ALLOW_THIS_IN_INITIALIZER_LIST(weak_ptr_factory_(this)) {
   multiprofile_ = ProfileManager::IsMultipleProfilesEnabled();
 #if !defined(OS_MACOSX)
   default_browser_worker_ = new ShellIntegration::DefaultBrowserWorker(this);
@@ -426,19 +425,21 @@ void BrowserOptionsHandler::GetLocalizedValues(DictionaryValue* values) {
                     chrome::kChromeAccessibilityHelpURL);
 
   // Creates magnifierList.
-  base::ListValue* magnifierList = new base::ListValue();
-  base::ListValue* option_full = new base::ListValue();
-  option_full->Append(base::Value::CreateIntegerValue(ash::MAGNIFIER_FULL));
-  option_full->Append(new base::StringValue(l10n_util::GetStringUTF16(
-      IDS_OPTIONS_SETTINGS_ACCESSIBILITY_SCREEN_MAGNIFIER_FULL)));
-  base::ListValue* option_partial = new base::ListValue();
-  option_partial->Append(base::Value::CreateIntegerValue(
-      ash::MAGNIFIER_PARTIAL));
+  scoped_ptr<base::ListValue> magnifier_list(new base::ListValue);
+
+  scoped_ptr<base::ListValue> option_full(new base::ListValue);
+  option_full->AppendInteger(ash::MAGNIFIER_FULL);
+  option_full->AppendString(l10n_util::GetStringUTF16(
+      IDS_OPTIONS_SETTINGS_ACCESSIBILITY_SCREEN_MAGNIFIER_FULL));
+  magnifier_list->Append(option_full.release());
+
+  scoped_ptr<base::ListValue> option_partial(new base::ListValue);
+  option_partial->AppendInteger(ash::MAGNIFIER_PARTIAL);
   option_partial->Append(new base::StringValue(l10n_util::GetStringUTF16(
       IDS_OPTIONS_SETTINGS_ACCESSIBILITY_SCREEN_MAGNIFIER_PARTIAL)));
-  magnifierList->Append(option_full);
-  magnifierList->Append(option_partial);
-  values->Set("magnifierList", magnifierList);
+  magnifier_list->Append(option_partial.release());
+
+  values->Set("magnifierList", magnifier_list.release());
 
 #endif
 #if defined(OS_MACOSX)
@@ -613,10 +614,8 @@ void BrowserOptionsHandler::InitializeHandler() {
       !command_line.HasSwitch(switches::kUserDataDir)) {
     BrowserThread::PostTask(BrowserThread::FILE, FROM_HERE,
         base::Bind(&BrowserOptionsHandler::CheckAutoLaunch,
-                   weak_ptr_factory_for_ui_.GetWeakPtr(),
-                   weak_ptr_factory_for_file_.GetWeakPtr(),
+                   weak_ptr_factory_.GetWeakPtr(),
                    profile->GetPath()));
-    weak_ptr_factory_for_ui_.DetachFromThread();
   }
 #endif
 
@@ -681,6 +680,7 @@ void BrowserOptionsHandler::InitializePage() {
 #endif
 }
 
+// static
 void BrowserOptionsHandler::CheckAutoLaunch(
     base::WeakPtr<BrowserOptionsHandler> weak_this,
     const FilePath& profile_path) {

@@ -19,7 +19,8 @@ LayerTreeImpl::LayerTreeImpl(LayerTreeHostImpl* layer_tree_host_impl)
     , currently_scrolling_layer_(0)
     , background_color_(0)
     , has_transparent_background_(false)
-    , scrolling_layer_id_from_previous_tree_(0) {
+    , scrolling_layer_id_from_previous_tree_(0)
+    , contents_textures_purged_(false) {
 }
 
 LayerTreeImpl::~LayerTreeImpl() {
@@ -69,11 +70,22 @@ scoped_ptr<LayerImpl> LayerTreeImpl::DetachLayerTree() {
   // Clear all data structures that have direct references to the layer tree.
   scrolling_layer_id_from_previous_tree_ =
     currently_scrolling_layer_ ? currently_scrolling_layer_->id() : 0;
+  root_scroll_layer_ = NULL;
   currently_scrolling_layer_ = NULL;
 
   render_surface_layer_list_.clear();
   SetNeedsUpdateDrawProperties();
   return root_layer_.Pass();
+}
+
+LayerImpl* LayerTreeImpl::RootScrollLayer() {
+  DCHECK(IsActiveTree());
+  return root_scroll_layer_;
+}
+
+LayerImpl* LayerTreeImpl::CurrentlyScrollingLayer() {
+  DCHECK(IsActiveTree());
+  return currently_scrolling_layer_;
 }
 
 void LayerTreeImpl::ClearCurrentlyScrollingLayer() {
@@ -82,37 +94,30 @@ void LayerTreeImpl::ClearCurrentlyScrollingLayer() {
 }
 
 void LayerTreeImpl::UpdateMaxScrollOffset() {
-  if (!root_scroll_layer() || !root_scroll_layer()->children().size())
+  if (!root_scroll_layer_ || !root_scroll_layer_->children().size())
     return;
 
-  gfx::SizeF view_bounds = device_viewport_size();
-  if (LayerImpl* clip_layer = root_scroll_layer()->parent()) {
-    // Compensate for non-overlay scrollbars.
-    if (clip_layer->masksToBounds())
-      view_bounds = gfx::ScaleSize(clip_layer->bounds(), device_scale_factor());
-  }
-
-  gfx::Size content_bounds = ContentSize();
-  if (settings().pageScalePinchZoomEnabled) {
-    // Pinch with pageScale scrolls entirely in layout space.  ContentSize
-    // returns the bounds including the page scale factor, so calculate the
-    // pre page-scale layout size here.
-    float page_scale_factor = pinch_zoom_viewport().page_scale_factor();
-    content_bounds.set_width(content_bounds.width() / page_scale_factor);
-    content_bounds.set_height(content_bounds.height() / page_scale_factor);
-  } else {
+  gfx::SizeF view_bounds;
+  if (!settings().pageScalePinchZoomEnabled) {
+    view_bounds = device_viewport_size();
+    if (LayerImpl* clip_layer = root_scroll_layer_->parent()) {
+      // Compensate for non-overlay scrollbars.
+      if (clip_layer->masksToBounds())
+        view_bounds = gfx::ScaleSize(clip_layer->bounds(), device_scale_factor());
+    }
     view_bounds.Scale(1 / pinch_zoom_viewport().page_scale_delta());
+  } else {
+    view_bounds = layout_viewport_size();
   }
 
-  gfx::Vector2dF max_scroll = gfx::Rect(content_bounds).bottom_right() -
+  gfx::Vector2dF max_scroll = gfx::Rect(ScrollableSize()).bottom_right() -
       gfx::RectF(view_bounds).bottom_right();
-  max_scroll.Scale(1 / device_scale_factor());
 
   // The viewport may be larger than the contents in some cases, such as
   // having a vertical scrollbar but no horizontal overflow.
   max_scroll.ClampToMin(gfx::Vector2dF());
 
-  root_scroll_layer()->setMaxScrollOffset(gfx::ToFlooredVector2d(max_scroll));
+  root_scroll_layer_->setMaxScrollOffset(gfx::ToFlooredVector2d(max_scroll));
 }
 
 void LayerTreeImpl::UpdateDrawProperties() {
@@ -120,8 +125,8 @@ void LayerTreeImpl::UpdateDrawProperties() {
   if (!RootLayer())
     return;
 
-  if (root_scroll_layer()) {
-    root_scroll_layer()->setImplTransform(
+  if (root_scroll_layer_) {
+    root_scroll_layer_->setImplTransform(
         layer_tree_host_impl_->implTransform());
   }
 
@@ -175,12 +180,10 @@ const LayerTreeImpl::LayerList& LayerTreeImpl::RenderSurfaceLayerList() const {
   return render_surface_layer_list_;
 }
 
-gfx::Size LayerTreeImpl::ContentSize() const {
-  // TODO(aelias): Hardcoding the first child here is weird. Think of
-  // a cleaner way to get the contentBounds on the Impl side.
-  if (!root_scroll_layer() || root_scroll_layer()->children().empty())
+gfx::Size LayerTreeImpl::ScrollableSize() const {
+  if (!root_scroll_layer_ || root_scroll_layer_->children().empty())
     return gfx::Size();
-  return root_scroll_layer()->children()[0]->contentBounds();
+  return root_scroll_layer_->children()[0]->bounds();
 }
 
 LayerImpl* LayerTreeImpl::LayerById(int id) {
@@ -213,6 +216,22 @@ static void DidBecomeActiveRecursive(LayerImpl* layer) {
 void LayerTreeImpl::DidBecomeActive() {
   if (RootLayer())
     DidBecomeActiveRecursive(RootLayer());
+  FindRootScrollLayer();
+  UpdateMaxScrollOffset();
+}
+
+bool LayerTreeImpl::ContentsTexturesPurged() const {
+  return contents_textures_purged_;
+}
+
+void LayerTreeImpl::SetContentsTexturesPurged() {
+  contents_textures_purged_ = true;
+  layer_tree_host_impl_->OnCanDrawStateChangedForTree(this);
+}
+
+void LayerTreeImpl::ResetContentsTexturesPurged() {
+  contents_textures_purged_ = false;
+  layer_tree_host_impl_->OnCanDrawStateChangedForTree(this);
 }
 
 const LayerTreeSettings& LayerTreeImpl::settings() const {
@@ -233,6 +252,10 @@ TileManager* LayerTreeImpl::tile_manager() const {
 
 FrameRateCounter* LayerTreeImpl::frame_rate_counter() const {
   return layer_tree_host_impl_->fpsCounter();
+}
+
+PaintTimeCounter* LayerTreeImpl::paint_time_counter() const {
+  return layer_tree_host_impl_->paintTimeCounter();
 }
 
 bool LayerTreeImpl::IsActiveTree() const {

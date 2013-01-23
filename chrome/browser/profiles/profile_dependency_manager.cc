@@ -8,26 +8,28 @@
 #include <deque>
 #include <iterator>
 
+#include "apps/app_restore_service_factory.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/browser/background/background_contents_service_factory.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/content_settings/cookie_settings.h"
 #include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
 #include "chrome/browser/download/download_service_factory.h"
+#include "chrome/browser/extensions/activity_log.h"
 #include "chrome/browser/extensions/api/bluetooth/bluetooth_api_factory.h"
-#include "chrome/browser/extensions/api/bookmarks/bookmark_api_factory.h"
-#include "chrome/browser/extensions/api/commands/command_service_factory.h"
+#include "chrome/browser/extensions/api/bookmarks/bookmarks_api.h"
+#include "chrome/browser/extensions/api/commands/command_service.h"
 #include "chrome/browser/extensions/api/cookies/cookies_api.h"
 #include "chrome/browser/extensions/api/dial/dial_api_factory.h"
 #include "chrome/browser/extensions/api/discovery/suggested_links_registry_factory.h"
-#include "chrome/browser/extensions/api/extension_action/script_badge_api.h"
+#include "chrome/browser/extensions/api/extension_action/extension_action_api.h"
 #include "chrome/browser/extensions/api/file_handlers/file_handlers_api.h"
-#include "chrome/browser/extensions/api/font_settings/font_settings_api_factory.h"
-#include "chrome/browser/extensions/api/history/history_api_factory.h"
+#include "chrome/browser/extensions/api/font_settings/font_settings_api.h"
+#include "chrome/browser/extensions/api/history/history_api.h"
 #include "chrome/browser/extensions/api/idle/idle_manager_factory.h"
 #include "chrome/browser/extensions/api/managed_mode/managed_mode_api.h"
 #include "chrome/browser/extensions/api/management/management_api.h"
-#include "chrome/browser/extensions/api/media_galleries_private/media_galleries_private_api_factory.h"
+#include "chrome/browser/extensions/api/media_galleries_private/media_galleries_private_api.h"
 #include "chrome/browser/extensions/api/omnibox/omnibox_api.h"
 #include "chrome/browser/extensions/api/preference/preference_api.h"
 #include "chrome/browser/extensions/api/processes/processes_api.h"
@@ -35,7 +37,6 @@
 #include "chrome/browser/extensions/api/tab_capture/tab_capture_registry_factory.h"
 #include "chrome/browser/extensions/api/tabs/tabs_windows_api.h"
 #include "chrome/browser/extensions/api/web_navigation/web_navigation_api.h"
-#include "chrome/browser/extensions/app_restore_service_factory.h"
 #include "chrome/browser/extensions/extension_system_factory.h"
 #include "chrome/browser/extensions/manifest_url_parser.h"
 #include "chrome/browser/extensions/web_accessible_resources_parser.h"
@@ -251,16 +252,18 @@ void ProfileDependencyManager::AssertFactoriesBuilt() {
 #endif
   DownloadServiceFactory::GetInstance();
 #if defined(ENABLE_EXTENSIONS)
-  extensions::AppRestoreServiceFactory::GetInstance();
-  extensions::BookmarkAPIFactory::GetInstance();
+  apps::AppRestoreServiceFactory::GetInstance();
+  extensions::ActivityLogFactory::GetInstance();
+  extensions::BookmarksAPI::GetFactoryInstance();
   extensions::BluetoothAPIFactory::GetInstance();
-  extensions::CommandServiceFactory::GetInstance();
+  extensions::CommandService::GetFactoryInstance();
   extensions::CookiesAPI::GetFactoryInstance();
   extensions::DialAPIFactory::GetInstance();
+  extensions::ExtensionActionAPI::GetFactoryInstance();
   extensions::ExtensionSystemFactory::GetInstance();
   extensions::FileHandlersAPI::GetFactoryInstance();
-  extensions::FontSettingsAPIFactory::GetInstance();
-  extensions::HistoryAPIFactory::GetInstance();
+  extensions::FontSettingsAPI::GetFactoryInstance();
+  extensions::HistoryAPI::GetFactoryInstance();
   extensions::IdleManagerFactory::GetInstance();
 #if defined(OS_CHROMEOS)
   extensions::InputImeAPI::GetFactoryInstance();
@@ -269,7 +272,7 @@ void ProfileDependencyManager::AssertFactoriesBuilt() {
   extensions::ManagedModeAPI::GetFactoryInstance();
   extensions::ManagementAPI::GetFactoryInstance();
   extensions::ManifestURLParser::GetFactoryInstance();
-  extensions::MediaGalleriesPrivateAPIFactory::GetInstance();
+  extensions::MediaGalleriesPrivateAPI::GetFactoryInstance();
 #if defined(OS_CHROMEOS)
   extensions::MediaPlayerAPI::GetFactoryInstance();
 #endif
@@ -277,7 +280,6 @@ void ProfileDependencyManager::AssertFactoriesBuilt() {
   extensions::PreferenceAPI::GetFactoryInstance();
   extensions::ProcessesAPI::GetFactoryInstance();
   extensions::PushMessagingAPI::GetFactoryInstance();
-  extensions::ScriptBadgeAPI::GetFactoryInstance();
 #if defined(ENABLE_INPUT_SPEECH)
   extensions::SpeechInputAPI::GetFactoryInstance();
 #endif

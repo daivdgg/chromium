@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "ash/launcher/launcher_model.h"
+#include "ash/launcher/launcher_util.h"
 #include "ash/shell.h"
 #include "ash/wm/window_util.h"
 #include "base/command_line.h"
@@ -14,6 +15,7 @@
 #include "base/values.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/extensions/extension_service.h"
+#include "chrome/browser/extensions/extension_system.h"
 #include "chrome/browser/favicon/favicon_tab_helper.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/prefs/pref_service.h"
@@ -22,7 +24,6 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/ash/app_sync_ui_state.h"
 #include "chrome/browser/ui/ash/chrome_launcher_prefs.h"
-#include "chrome/browser/ui/ash/extension_utils.h"
 #include "chrome/browser/ui/ash/launcher/app_shortcut_launcher_item_controller.h"
 #include "chrome/browser/ui/ash/launcher/chrome_launcher_app_menu_item.h"
 #include "chrome/browser/ui/ash/launcher/chrome_launcher_app_menu_item_browser.h"
@@ -39,6 +40,8 @@
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/extensions/application_launch.h"
+#include "chrome/browser/ui/extensions/extension_enable_flow.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/common/chrome_notification_types.h"
@@ -283,12 +286,7 @@ void ChromeLauncherControllerPerApp::SetItemStatus(
       return;
   }
   // Determine the new browser's active state and change if necessary.
-  int browser_index = -1;
-  for (size_t index = 0; index < model_->items().size() && browser_index == -1;
-       index++) {
-    if (model_->items()[index].type == ash::TYPE_BROWSER_SHORTCUT)
-      browser_index = index;
-  }
+  int browser_index = ash::launcher::GetBrowserItemIndex(*model_);
   DCHECK(browser_index >= 0);
   ash::LauncherItem browser_item = model_->items()[browser_index];
   ash::LauncherItemStatus browser_status = browser_item.status;
@@ -420,10 +418,28 @@ bool ChromeLauncherControllerPerApp::IsPlatformApp(ash::LauncherID id) {
 
 void ChromeLauncherControllerPerApp::LaunchApp(const std::string& app_id,
                                                int event_flags) {
+  // |extension| could be NULL when it is being unloaded for updating.
   const Extension* extension = GetExtensionForAppID(app_id);
-  extension_utils::OpenExtension(GetProfileForNewWindows(),
-                                 extension,
-                                 event_flags);
+  if (!extension)
+    return;
+
+  const ExtensionService* service =
+      extensions::ExtensionSystem::Get(profile_)->extension_service();
+  if (!service->IsExtensionEnabledForLauncher(app_id)) {
+    // Do nothing if there is already a running enable flow.
+    if (extension_enable_flow_)
+      return;
+
+    extension_enable_flow_.reset(
+        new ExtensionEnableFlow(profile_, app_id, this));
+    extension_enable_flow_->StartForNativeWindow(NULL);
+    return;
+  }
+
+  application_launch::OpenApplication(application_launch::LaunchParams(
+      GetProfileForNewWindows(),
+      extension,
+      event_flags));
 }
 
 void ChromeLauncherControllerPerApp::ActivateApp(const std::string& app_id,
@@ -792,10 +808,19 @@ ash::LauncherID ChromeLauncherControllerPerApp::GetIDByWindow(
   for (IDToItemControllerMap::const_iterator i =
            id_to_item_controller_map_.begin();
        i != id_to_item_controller_map_.end(); ++i) {
-    if (i->second->HasWindow(window))
+    if (i->second->HasWindow(window)) {
+      // Since this might be a reserved index, there might be no item in the
+      // launcher for it.
+      if (model_->ItemIndexByID(i->first) < 0)
+        break;
       return i->first;
+    }
   }
-  return 0;
+  // Coming here we are looking for the associated browser item as the default.
+  int browser_index = ash::launcher::GetBrowserItemIndex(*model_);
+  // Note that there should always be a browser item in the launcher.
+  DCHECK_GE(browser_index, 0);
+  return model_->items()[browser_index].id;
 }
 
 bool ChromeLauncherControllerPerApp::IsDraggable(
@@ -844,16 +869,29 @@ void ChromeLauncherControllerPerApp::Observe(
     const content::NotificationDetails& details) {
   switch (type) {
     case chrome::NOTIFICATION_EXTENSION_LOADED: {
+      const Extension* extension =
+          content::Details<const Extension>(details).ptr();
+      if (IsAppPinned(extension->id())) {
+        // Clear and re-fetch to ensure icon is up-to-date.
+        app_icon_loader_->ClearImage(extension->id());
+        app_icon_loader_->FetchImage(extension->id());
+      }
+
       UpdateAppLaunchersFromPref();
       break;
     }
     case chrome::NOTIFICATION_EXTENSION_UNLOADED: {
-      const content::Details<extensions::UnloadedExtensionInfo> unload_info(
+      const content::Details<extensions::UnloadedExtensionInfo>& unload_info(
           details);
       const Extension* extension = unload_info->extension;
-      if (IsAppPinned(extension->id()))
-        DoUnpinAppsWithID(extension->id());
-      app_icon_loader_->ClearImage(extension->id());
+      if (IsAppPinned(extension->id())) {
+        if (unload_info->reason == extension_misc::UNLOAD_REASON_UNINSTALL) {
+          DoUnpinAppsWithID(extension->id());
+          app_icon_loader_->ClearImage(extension->id());
+        } else {
+          app_icon_loader_->UpdateImage(extension->id());
+        }
+      }
       break;
     }
     default:
@@ -902,6 +940,16 @@ void ChromeLauncherControllerPerApp::OnAppSyncUIStatusChanged() {
     model_->SetStatus(ash::LauncherModel::STATUS_LOADING);
   else
     model_->SetStatus(ash::LauncherModel::STATUS_NORMAL);
+}
+
+void ChromeLauncherControllerPerApp::ExtensionEnableFlowFinished() {
+  LaunchApp(extension_enable_flow_->extension_id(), ui::EF_NONE);
+  extension_enable_flow_.reset();
+}
+
+void ChromeLauncherControllerPerApp::ExtensionEnableFlowAborted(
+    bool user_initiated) {
+  extension_enable_flow_.reset();
 }
 
 ChromeLauncherAppMenuItems* ChromeLauncherControllerPerApp::GetApplicationList(

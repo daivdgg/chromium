@@ -608,6 +608,7 @@ void ChromeMainDelegate::PreSandboxStartup() {
 
     int extra_pak_keys[] = {
       kAndroidChromePakDescriptor,
+      kAndroidChrome100PercentPakDescriptor,
       kAndroidUIResourcesPakDescriptor,
     };
     for (size_t i = 0; i < arraysize(extra_pak_keys); ++i) {
@@ -622,6 +623,11 @@ void ChromeMainDelegate::PreSandboxStartup() {
 #else
     const std::string loaded_locale =
         ResourceBundle::InitSharedInstanceWithLocale(locale, NULL);
+
+    FilePath resources_pack_path;
+    PathService::Get(chrome::FILE_RESOURCES_PACK, &resources_pack_path);
+    ResourceBundle::GetSharedInstance().AddDataPackFromPath(
+        resources_pack_path, ui::SCALE_FACTOR_NONE);
 #endif
     CHECK(!loaded_locale.empty()) << "Locale could not be found for " <<
         locale;
@@ -639,16 +645,7 @@ void ChromeMainDelegate::PreSandboxStartup() {
   // need to call InitCrashReporter() in RunZygote().
   if (!process_type.empty() && process_type != switches::kZygoteProcess) {
 #if defined(OS_ANDROID)
-    // On Android we need to provide a FD to the file where the minidump is
-    // generated as the renderer and browser run with different UIDs
-    // (preventing the browser from inspecting the renderer process).
-    int minidump_fd = base::GlobalDescriptors::GetInstance()->
-        MaybeGet(kAndroidMinidumpDescriptor);
-    if (minidump_fd == base::kInvalidPlatformFileValue) {
-      NOTREACHED() << "Could not find minidump FD, crash reporting disabled.";
-    } else {
-      InitNonBrowserCrashReporterForAndroid(minidump_fd);
-    }
+    InitNonBrowserCrashReporterForAndroid();
 #else
     InitCrashReporter();
 #endif

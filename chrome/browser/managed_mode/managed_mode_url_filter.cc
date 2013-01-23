@@ -157,15 +157,14 @@ scoped_ptr<ManagedModeURLFilter::Contents> LoadWhitelistsOnBlockingPoolThread(
 }  // namespace
 
 ManagedModeURLFilter::ManagedModeURLFilter()
-    : ALLOW_THIS_IN_INITIALIZER_LIST(weak_ptr_factory_(this)),
-      default_behavior_(ALLOW),
+    : default_behavior_(ALLOW),
       contents_(new Contents()),
       url_manual_list_allow_(new policy::URLBlacklist()),
       url_manual_list_block_(new policy::URLBlacklist()) {
   // Set empty manual lists in the begining.
-  scoped_ptr<base::ListValue> whitelist(new base::ListValue());
-  scoped_ptr<base::ListValue> blacklist(new base::ListValue());
-  SetManualLists(whitelist.Pass(), blacklist.Pass());
+  base::ListValue whitelist;
+  base::ListValue blacklist;
+  SetManualLists(&whitelist, &blacklist);
   // Detach from the current thread so we can be constructed on a different
   // thread than the one where we're used.
   DetachFromThread();
@@ -254,8 +253,7 @@ void ManagedModeURLFilter::SetDefaultFilteringBehavior(
 }
 
 void ManagedModeURLFilter::LoadWhitelists(
-    ScopedVector<ManagedModeSiteList> site_lists,
-    const base::Closure& continuation) {
+    ScopedVector<ManagedModeSiteList> site_lists) {
   DCHECK(CalledOnValidThread());
 
   base::PostTaskAndReplyWithResult(
@@ -263,44 +261,41 @@ void ManagedModeURLFilter::LoadWhitelists(
       FROM_HERE,
       base::Bind(&LoadWhitelistsOnBlockingPoolThread,
                  base::Passed(&site_lists)),
-      base::Bind(&ManagedModeURLFilter::SetContents,
-                 weak_ptr_factory_.GetWeakPtr(), continuation));
+      base::Bind(&ManagedModeURLFilter::SetContents, this));
 }
 
 void ManagedModeURLFilter::SetFromPatterns(
-    const std::vector<std::string>& patterns,
-    const base::Closure& continuation) {
+    const std::vector<std::string>& patterns) {
   DCHECK(CalledOnValidThread());
 
   base::PostTaskAndReplyWithResult(
       BrowserThread::GetBlockingPool(),
       FROM_HERE,
       base::Bind(&CreateWhitelistFromPatterns, patterns),
-      base::Bind(&ManagedModeURLFilter::SetContents,
-                 weak_ptr_factory_.GetWeakPtr(), continuation));
+      base::Bind(&ManagedModeURLFilter::SetContents, this));
 }
 
-void ManagedModeURLFilter::SetManualLists(scoped_ptr<ListValue> whitelist,
-                                          scoped_ptr<ListValue> blacklist){
+void ManagedModeURLFilter::SetManualLists(const ListValue* whitelist,
+                                          const ListValue* blacklist) {
   DCHECK(CalledOnValidThread());
   url_manual_list_block_.reset(new policy::URLBlacklist);
   url_manual_list_allow_.reset(new policy::URLBlacklist);
-  url_manual_list_block_->Block(blacklist.get());
+  url_manual_list_block_->Block(blacklist);
   ListValue all_sites;
   all_sites.Append(new base::StringValue("*"));
-  url_manual_list_allow_->Allow(whitelist.get());
+  url_manual_list_allow_->Allow(whitelist);
   url_manual_list_allow_->Block(&all_sites);
 
   // Debug
   DVLOG(1) << "Loaded whitelist: ";
-  for (ListValue::iterator it = whitelist->begin();
+  for (ListValue::const_iterator it = whitelist->begin();
        it != whitelist->end(); ++it){
     std::string item;
     (*it)->GetAsString(&item);
     DVLOG(1) << item;
   }
   DVLOG(1) << "Loaded blacklist: ";
-  for (ListValue::iterator it = blacklist->begin();
+  for (ListValue::const_iterator it = blacklist->begin();
        it != blacklist->end(); ++it){
     std::string item;
     (*it)->GetAsString(&item);
@@ -320,9 +315,16 @@ void ManagedModeURLFilter::AddURLPatternToManualList(
     url_manual_list_block_->Block(&list);
 }
 
-void ManagedModeURLFilter::SetContents(const base::Closure& continuation,
-                                       scoped_ptr<Contents> contents) {
+void ManagedModeURLFilter::AddObserver(Observer* observer) {
+  observers_.AddObserver(observer);
+}
+
+void ManagedModeURLFilter::RemoveObserver(Observer* observer) {
+  observers_.RemoveObserver(observer);
+}
+
+void ManagedModeURLFilter::SetContents(scoped_ptr<Contents> contents) {
   DCHECK(CalledOnValidThread());
   contents_ = contents.Pass();
-  continuation.Run();
+  FOR_EACH_OBSERVER(Observer, observers_, OnSiteListUpdated());
 }

@@ -112,35 +112,35 @@ void NinePatchLayerImpl::appendQuads(QuadSink& quadSink, AppendQuadsData& append
     scoped_ptr<TextureDrawQuad> quad;
 
     quad = TextureDrawQuad::Create();
-    quad->SetNew(sharedQuadState, topLeft, opaqueRect, m_resourceId, premultipliedAlpha, uvTopLeft, vertex_opacity, flipped);
+    quad->SetNew(sharedQuadState, topLeft, opaqueRect, m_resourceId, premultipliedAlpha, uvTopLeft.origin(), uvTopLeft.bottom_right(), vertex_opacity, flipped);
     quadSink.append(quad.PassAs<DrawQuad>(), appendQuadsData);
 
     quad = TextureDrawQuad::Create();
-    quad->SetNew(sharedQuadState, topRight, opaqueRect, m_resourceId, premultipliedAlpha, uvTopRight, vertex_opacity, flipped);
+    quad->SetNew(sharedQuadState, topRight, opaqueRect, m_resourceId, premultipliedAlpha, uvTopRight.origin(), uvTopRight.bottom_right(), vertex_opacity, flipped);
     quadSink.append(quad.PassAs<DrawQuad>(), appendQuadsData);
 
     quad = TextureDrawQuad::Create();
-    quad->SetNew(sharedQuadState, bottomLeft, opaqueRect, m_resourceId, premultipliedAlpha, uvBottomLeft, vertex_opacity, flipped);
+    quad->SetNew(sharedQuadState, bottomLeft, opaqueRect, m_resourceId, premultipliedAlpha, uvBottomLeft.origin(), uvBottomLeft.bottom_right(), vertex_opacity, flipped);
     quadSink.append(quad.PassAs<DrawQuad>(), appendQuadsData);
 
     quad = TextureDrawQuad::Create();
-    quad->SetNew(sharedQuadState, bottomRight, opaqueRect, m_resourceId, premultipliedAlpha, uvBottomRight, vertex_opacity, flipped);
+    quad->SetNew(sharedQuadState, bottomRight, opaqueRect, m_resourceId, premultipliedAlpha, uvBottomRight.origin(), uvBottomRight.bottom_right(), vertex_opacity, flipped);
     quadSink.append(quad.PassAs<DrawQuad>(), appendQuadsData);
 
     quad = TextureDrawQuad::Create();
-    quad->SetNew(sharedQuadState, top, opaqueRect, m_resourceId, premultipliedAlpha, uvTop, vertex_opacity, flipped);
+    quad->SetNew(sharedQuadState, top, opaqueRect, m_resourceId, premultipliedAlpha, uvTop.origin(), uvTop.bottom_right(), vertex_opacity, flipped);
     quadSink.append(quad.PassAs<DrawQuad>(), appendQuadsData);
 
     quad = TextureDrawQuad::Create();
-    quad->SetNew(sharedQuadState, left, opaqueRect, m_resourceId, premultipliedAlpha, uvLeft, vertex_opacity, flipped);
+    quad->SetNew(sharedQuadState, left, opaqueRect, m_resourceId, premultipliedAlpha, uvLeft.origin(), uvLeft.bottom_right(), vertex_opacity, flipped);
     quadSink.append(quad.PassAs<DrawQuad>(), appendQuadsData);
 
     quad = TextureDrawQuad::Create();
-    quad->SetNew(sharedQuadState, right, opaqueRect, m_resourceId, premultipliedAlpha, uvRight, vertex_opacity, flipped);
+    quad->SetNew(sharedQuadState, right, opaqueRect, m_resourceId, premultipliedAlpha, uvRight.origin(), uvRight.bottom_right(), vertex_opacity, flipped);
     quadSink.append(quad.PassAs<DrawQuad>(), appendQuadsData);
 
     quad = TextureDrawQuad::Create();
-    quad->SetNew(sharedQuadState, bottom, opaqueRect, m_resourceId, premultipliedAlpha, uvBottom, vertex_opacity, flipped);
+    quad->SetNew(sharedQuadState, bottom, opaqueRect, m_resourceId, premultipliedAlpha, uvBottom.origin(), uvBottom.bottom_right(), vertex_opacity, flipped);
     quadSink.append(quad.PassAs<DrawQuad>(), appendQuadsData);
 }
 
@@ -162,6 +162,7 @@ void NinePatchLayerImpl::dumpLayerProperties(std::string* str, int indent) const
 {
     str->append(indentString(indent));
     base::StringAppendF(str, "imageAperture: %s\n", m_imageAperture.ToString().c_str());
+    base::StringAppendF(str, "imageBounds: %s\n", m_imageBounds.ToString().c_str());
     LayerImpl::dumpLayerProperties(str, indent);
 }
 
@@ -175,6 +176,11 @@ base::DictionaryValue* NinePatchLayerImpl::layerTreeAsJson() const
     list->AppendInteger(m_imageAperture.size().width());
     list->AppendInteger(m_imageAperture.size().height());
     result->Set("ImageAperture", list);
+
+    list = new base::ListValue;
+    list->AppendInteger(m_imageBounds.width());
+    list->AppendInteger(m_imageBounds.height());
+    result->Set("ImageBounds", list);
 
     return result;
 }

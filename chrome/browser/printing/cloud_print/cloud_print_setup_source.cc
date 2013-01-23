@@ -10,7 +10,6 @@
 #include "base/values.h"
 #include "chrome/browser/google/google_util.h"
 #include "chrome/browser/ui/webui/web_ui_util.h"
-#include "chrome/common/jstemplate_builder.h"
 #include "chrome/common/url_constants.h"
 #include "googleurl/src/gurl.h"
 #include "grit/browser_resources.h"
@@ -20,6 +19,7 @@
 #include "grit/ui_resources.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/webui/jstemplate_builder.h"
 
 // Define the values of standard URLs.
 const char CloudPrintSetupSource::kInvalidPasswordHelpUrl[] =
@@ -75,7 +75,7 @@ void CloudPrintSetupSource::StartDataRequest(
     static const base::StringPiece html(ResourceBundle::GetSharedInstance()
         .GetRawDataResource(IDR_CLOUD_PRINT_SETUP_LOGIN_HTML));
     web_ui_util::SetFontAndTextDirection(dict);
-    response = jstemplate_builder::GetI18nTemplateHtml(html, dict);
+    response = webui::GetI18nTemplateHtml(html, dict);
   } else if (path_raw == kCloudPrintGaiaLoginPath) {
     // Start by setting the per-locale URLs we show on the setup wizard.
     dict->SetString("invalidpasswordhelpurl",
@@ -111,7 +111,7 @@ void CloudPrintSetupSource::StartDataRequest(
     static const base::StringPiece html(ResourceBundle::GetSharedInstance()
         .GetRawDataResource(IDR_GAIA_LOGIN_HTML));
     web_ui_util::SetFontAndTextDirection(dict);
-    response = jstemplate_builder::GetI18nTemplateHtml(html, dict);
+    response = webui::GetI18nTemplateHtml(html, dict);
   } else if (path_raw == kCloudPrintSetupDonePath) {
     AddString(dict, "testpage", IDS_CLOUD_PRINT_SETUP_TEST_PAGE);
     AddString(dict, "success", IDS_SYNC_SUCCESS);
@@ -119,7 +119,7 @@ void CloudPrintSetupSource::StartDataRequest(
     static const base::StringPiece html(ResourceBundle::GetSharedInstance()
         .GetRawDataResource(IDR_CLOUD_PRINT_SETUP_DONE_HTML));
     web_ui_util::SetFontAndTextDirection(dict);
-    response = jstemplate_builder::GetI18nTemplateHtml(html, dict);
+    response = webui::GetI18nTemplateHtml(html, dict);
   } else if (path_raw == kCloudPrintSetupFlowPath) {
     static const base::StringPiece html(
         ResourceBundle::GetSharedInstance()
@@ -132,6 +132,10 @@ void CloudPrintSetupSource::StartDataRequest(
 
 std::string CloudPrintSetupSource::GetMimeType(const std::string& path) const {
   return "text/html";
+}
+
+bool CloudPrintSetupSource::ShouldAddContentSecurityPolicy() const {
+  return false;
 }
 
 std::string CloudPrintSetupSource::GetLocalizedUrl(

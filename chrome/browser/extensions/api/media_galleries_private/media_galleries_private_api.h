@@ -8,10 +8,10 @@
 #include <string>
 
 #include "base/memory/scoped_ptr.h"
+#include "chrome/browser/extensions/api/profile_keyed_api_factory.h"
 #include "chrome/browser/extensions/event_router.h"
 #include "chrome/browser/extensions/extension_function.h"
 #include "chrome/browser/media_gallery/media_galleries_preferences.h"
-#include "chrome/browser/profiles/profile_keyed_service.h"
 
 class FilePath;
 class Profile;
@@ -23,7 +23,7 @@ class MediaGalleriesPrivateEventRouter;
 
 // The profile-keyed service that manages the media galleries private extension
 // API.
-class MediaGalleriesPrivateAPI : public ProfileKeyedService,
+class MediaGalleriesPrivateAPI : public ProfileKeyedAPI,
                                  public EventRouter::Observer {
  public:
   explicit MediaGalleriesPrivateAPI(Profile* profile);
@@ -32,13 +32,27 @@ class MediaGalleriesPrivateAPI : public ProfileKeyedService,
   // ProfileKeyedService implementation.
   virtual void Shutdown() OVERRIDE;
 
+  // ProfileKeyedAPI implementation.
+  static ProfileKeyedAPIFactory<MediaGalleriesPrivateAPI>* GetFactoryInstance();
+
+  // Convenience method to get the MediaGalleriesPrivateAPI for a profile.
+  static MediaGalleriesPrivateAPI* Get(Profile* profile);
+
   // EventRouter::Observer implementation.
   virtual void OnListenerAdded(const EventListenerInfo& details) OVERRIDE;
 
   MediaGalleriesPrivateEventRouter* GetEventRouter();
 
  private:
+  friend class ProfileKeyedAPIFactory<MediaGalleriesPrivateAPI>;
+
   void MaybeInitializeEventRouter();
+
+  // ProfileKeyedAPI implementation.
+  static const char* service_name() {
+    return "MediaGalleriesPrivateAPI";
+  }
+  static const bool kServiceIsNULLWhileTesting = true;
 
   // Current profile.
   Profile* profile_;
@@ -57,7 +71,8 @@ class MediaGalleriesPrivateAPI : public ProfileKeyedService,
 class MediaGalleriesPrivateAddGalleryWatchFunction
     : public AsyncExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("mediaGalleriesPrivate.addGalleryWatch");
+  DECLARE_EXTENSION_FUNCTION("mediaGalleriesPrivate.addGalleryWatch",
+                             MEDIAGALLERIESPRIVATE_ADDGALLERYWATCH);
 
  protected:
   virtual ~MediaGalleriesPrivateAddGalleryWatchFunction();
@@ -75,7 +90,8 @@ class MediaGalleriesPrivateAddGalleryWatchFunction
 class MediaGalleriesPrivateRemoveGalleryWatchFunction
     : public SyncExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION_NAME("mediaGalleriesPrivate.removeGalleryWatch");
+  DECLARE_EXTENSION_FUNCTION("mediaGalleriesPrivate.removeGalleryWatch",
+                             MEDIAGALLERIESPRIVATE_REMOVEGALLERYWATCH);
 
  protected:
   virtual ~MediaGalleriesPrivateRemoveGalleryWatchFunction();

@@ -42,7 +42,6 @@ const char* PictureLayerImpl::layerTypeAsString() const {
 
 void PictureLayerImpl::appendQuads(QuadSink& quadSink,
                                    AppendQuadsData& appendQuadsData) {
-
   const gfx::Rect& rect = visibleContentRect();
   gfx::Rect content_rect(gfx::Point(), contentBounds());
 
@@ -180,7 +179,7 @@ void PictureLayerImpl::didUpdateTransforms() {
 }
 
 void PictureLayerImpl::didBecomeActive() {
-  tilings_.MoveTilePriorities(PENDING_TREE, ACTIVE_TREE);
+  tilings_.DidBecomeActive();
 }
 
 void PictureLayerImpl::didLoseOutputSurface() {
@@ -237,6 +236,10 @@ scoped_refptr<Tile> PictureLayerImpl::CreateTile(PictureLayerTiling* tiling,
       tiling->contents_scale()));
 }
 
+void PictureLayerImpl::UpdatePile(Tile* tile) {
+  tile->set_picture_pile(pile_);
+}
+
 void PictureLayerImpl::SyncFromActiveLayer() {
   DCHECK(layerTreeImpl()->IsPendingTree());
   if (!drawsContent())
@@ -254,6 +257,7 @@ void PictureLayerImpl::SyncFromActiveLayer() {
 
 void PictureLayerImpl::SyncFromActiveLayer(const PictureLayerImpl* other) {
   tilings_.CloneAll(other->tilings_, invalidation_);
+  DCHECK(bounds() == tilings_.LayerBounds());
 }
 
 void PictureLayerImpl::SyncTiling(

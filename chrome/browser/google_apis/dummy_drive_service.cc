@@ -32,6 +32,10 @@ bool DummyDriveService::HasAccessToken() const { return true; }
 
 bool DummyDriveService::HasRefreshToken() const { return true; }
 
+std::string DummyDriveService::GetRootResourceId() const {
+  return "dummy_root";
+}
+
 void DummyDriveService::GetResourceList(
     const GURL& feed_url,
     int64 start_changestamp,
@@ -47,7 +51,7 @@ void DummyDriveService::GetResourceEntry(
 void DummyDriveService::GetAccountMetadata(
     const GetAccountMetadataCallback& callback) {}
 
-void DummyDriveService::GetApplicationInfo(const GetDataCallback& callback) {}
+void DummyDriveService::GetAppList(const GetAppListCallback& callback) {}
 
 void DummyDriveService::DeleteResource(const GURL& edit_url,
                                        const EntryActionCallback& callback) {}
@@ -68,11 +72,11 @@ void DummyDriveService::DownloadFile(
 
 void DummyDriveService::CopyHostedDocument(
     const std::string& resource_id,
-    const FilePath::StringType& new_name,
+    const std::string& new_name,
     const GetResourceEntryCallback& callback) {}
 
 void DummyDriveService::RenameResource(const GURL& edit_url,
-                                       const FilePath::StringType& new_name,
+                                       const std::string& new_name,
                                        const EntryActionCallback& callback) {}
 
 void DummyDriveService::AddResourceToDirectory(
@@ -87,7 +91,7 @@ void DummyDriveService::RemoveResourceFromDirectory(
 
 void DummyDriveService::AddNewDirectory(
     const GURL& parent_content_url,
-    const FilePath::StringType& directory_name,
+    const std::string& directory_name,
     const GetResourceEntryCallback& callback) {}
 
 void DummyDriveService::InitiateUpload(const InitiateUploadParams& params,

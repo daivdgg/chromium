@@ -50,6 +50,7 @@
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
+#include "chrome/common/startup_metric_utils.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/host_zoom_map.h"
@@ -69,6 +70,12 @@
 #include "net/url_request/ftp_protocol_handler.h"
 #include "net/url_request/url_request.h"
 #include "net/url_request/url_request_job_factory_impl.h"
+
+#if defined(ENABLE_MANAGED_USERS)
+#include "chrome/browser/managed_mode/managed_mode_url_filter.h"
+#include "chrome/browser/managed_mode/managed_user_service.h"
+#include "chrome/browser/managed_mode/managed_user_service_factory.h"
+#endif
 
 #if defined(OS_CHROMEOS)
 #include "chrome/browser/chromeos/drive/drive_protocol_handler.h"
@@ -178,10 +185,17 @@ void ProfileIOData::InitializeOnUIThread(Profile* profile) {
       protocol_handler_registry->CreateJobInterceptorFactory();
 
   ChromeProxyConfigService* proxy_config_service =
-      ProxyServiceFactory::CreateProxyConfigService(true);
+      ProxyServiceFactory::CreateProxyConfigService();
   params->proxy_config_service.reset(proxy_config_service);
   profile->GetProxyConfigTracker()->SetChromeProxyConfigService(
       proxy_config_service);
+#if defined(ENABLE_MANAGED_USERS)
+  ManagedUserService* managed_user_service =
+      ManagedUserServiceFactory::GetForProfile(profile);
+  params->managed_mode_url_filter =
+      managed_user_service->GetURLFilterForIOThread();
+#endif
+
   params->profile = profile;
   profile_params_.reset(params.release());
 
@@ -520,6 +534,9 @@ void ProfileIOData::LazyInitialize() const {
   if (initialized_)
     return;
 
+  startup_metric_utils::ScopedSlowStartupUMA
+      scoped_timer("Startup.SlowStartupProfileIODataInit");
+
   // TODO(jhawkins): Remove once crbug.com/102004 is fixed.
   CHECK(initialized_on_UI_thread_);
 
@@ -589,6 +606,10 @@ void ProfileIOData::LazyInitialize() const {
     resource_prefetch_predictor_observer_.reset(
         profile_params_->resource_prefetch_predictor_observer_.release());
   }
+
+#if defined(ENABLE_MANAGED_USERS)
+  managed_mode_url_filter_ = profile_params_->managed_mode_url_filter;
+#endif
 
   LazyInitializeInternal(profile_params_.get());
 

@@ -319,11 +319,11 @@
           'target_name': 'page_transition_types_java',
           'type': 'none',
           'sources': [
-            'public/common/page_transition_types_list.h',
             'public/android/java/src/org/chromium/content/browser/PageTransitionTypes.template',
           ],
           'variables': {
             'package_name': 'org.chromium.content.browser',
+            'template_deps': ['public/common/page_transition_types_list.h'],
           },
           'includes': [ '../build/android/java_cpp_template.gypi' ],
         },
@@ -348,9 +348,21 @@
           'includes': [ '../build/jar_file_jni_generator.gypi' ],
         },
         {
+          'target_name': 'java_set_jni_headers',
+          'type': 'none',
+          'variables': {
+            'jni_gen_dir': 'content',
+            'input_java_class': 'java/util/HashSet.class',
+            'input_jar_file': '<(android_sdk)/android.jar',
+          },
+          'includes': [ '../build/jar_file_jni_generator.gypi' ],
+        },
+
+        {
           'target_name': 'content_jni_headers',
           'type': 'none',
           'dependencies': [
+            'java_set_jni_headers',
             'surface_texture_jni_headers',
             'surface_jni_headers',
           ],

@@ -13,8 +13,8 @@
 #include "chrome/browser/ui/host_desktop.h"
 #include "chrome/browser/ui/sync/one_click_signin_sync_starter.h"
 #include "chrome/common/content_settings_types.h"
+#include "ui/base/window_open_disposition.h"
 #include "ui/gfx/native_widget_types.h"
-#include "webkit/glue/window_open_disposition.h"
 
 class Browser;
 class BrowserWindowTesting;
@@ -201,10 +201,10 @@ class BrowserWindow : public BaseWindow {
   virtual void ShowUpdateChromeDialog() = 0;
 
   // Shows the Task manager.
-  virtual void ShowTaskManager(chrome::HostDesktopType desktop_type) = 0;
+  virtual void ShowTaskManager() = 0;
 
   // Shows task information related to background pages.
-  virtual void ShowBackgroundPages(chrome::HostDesktopType desktop_type) = 0;
+  virtual void ShowBackgroundPages() = 0;
 
   // Shows the Bookmark bubble. |url| is the URL being bookmarked,
   // |already_bookmarked| is true if the url is already bookmarked.
@@ -318,9 +318,6 @@ class BrowserWindow : public BaseWindow {
   // Instant isn't currently visible this returns the bounds Instant would be
   // placed at.
   virtual gfx::Rect GetInstantBounds() = 0;
-
-  // Checks if an Instant's tab contents is being shown.
-  virtual bool IsInstantTabShowing() = 0;
 
   // Return the correct disposition for a popup window based on |bounds|.
   virtual WindowOpenDisposition GetDispositionForPopupBounds(

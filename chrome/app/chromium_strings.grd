@@ -845,6 +845,9 @@ For Chromium, processes used to display diagnostics information (such as this "a
       <message name="IDS_AUTOFILL_OPTIONS_POPUP" desc="The value of the Autofill options menu entry.">
         Chromium Autofill settings
       </message>
+      <message name="IDS_AUTOFILL_DIALOG_SAVE_LOCALLY_CHECKBOX" desc="Checkbox that controls whether info the user types into the autofill dialog is saved by chrome.">
+        Save details in Chromium
+      </message>
 
       <!-- Web Intents -->
       <message name="IDS_INTENT_PICKER_INSTALL_EXTENSION" desc="Text on the button in the web intent picker that installs an extension then uses the extension as an intent service.">
@@ -865,7 +868,7 @@ For Chromium, processes used to display diagnostics information (such as this "a
         If this does not resolve the issue, we recommend selecting this option
         again for improved performance.
       </message>
-      <if expr="is_macosx">
+      <if expr="is_macosx and not pp_ifdef('ios')">
         <message name="IDS_ERRORPAGES_SUGGESTION_PROXY_DISABLE_PLATFORM" desc="Mac OSX instructions for disabling use of a proxy server.">
           Go to
           <ph name="BEGIN_BOLD">&lt;strong&gt;</ph>
@@ -896,7 +899,11 @@ For Chromium, processes used to display diagnostics information (such as this "a
           is set to &quot;Direct&quot;.
         </message>
       </if>
-      <if expr="not pp_ifdef('chromeos') and is_posix and not is_macosx">
+      <if expr="pp_ifdef('android') or pp_ifdef('ios')">
+        <message name="IDS_ERRORPAGES_SUGGESTION_PROXY_DISABLE_PLATFORM" desc="Instructions for disabling use of a proxy server (leave empty for Android and iOS).">
+        </message>
+      </if>
+      <if expr="not pp_ifdef('chromeos') and is_posix and not is_macosx and not pp_ifdef('android') and not pp_ifdef('ios')">
         <message name="IDS_ERRORPAGES_SUGGESTION_PROXY_DISABLE_PLATFORM" desc="Linux instructions for disabling use of a proxy server.">
           Go to
           <ph name="BEGIN_BOLD">&lt;strong&gt;</ph>

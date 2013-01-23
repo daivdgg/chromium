@@ -827,7 +827,7 @@ void AppLauncherHandler::PromptToEnableApp(const std::string& extension_id) {
   extension_id_prompting_ = extension_id;
   extension_enable_flow_.reset(new ExtensionEnableFlow(
       Profile::FromWebUI(web_ui()), extension_id, this));
-  extension_enable_flow_->Start();
+  extension_enable_flow_->StartForWebContents(web_ui()->GetWebContents());
 }
 
 void AppLauncherHandler::ExtensionUninstallAccepted() {
@@ -848,10 +848,6 @@ void AppLauncherHandler::ExtensionUninstallAccepted() {
 
 void AppLauncherHandler::ExtensionUninstallCanceled() {
   CleanupAfterUninstall();
-}
-
-ExtensionInstallPrompt* AppLauncherHandler::CreateExtensionInstallPrompt() {
-  return new ExtensionInstallPrompt(web_ui()->GetWebContents());
 }
 
 void AppLauncherHandler::ExtensionEnableFlowFinished() {
@@ -890,7 +886,8 @@ ExtensionUninstallDialog* AppLauncherHandler::GetExtensionUninstallDialog() {
     Browser* browser = chrome::FindBrowserWithWebContents(
         web_ui()->GetWebContents());
     extension_uninstall_dialog_.reset(
-        ExtensionUninstallDialog::Create(browser, this));
+        ExtensionUninstallDialog::Create(extension_service_->profile(),
+                                         browser, this));
   }
   return extension_uninstall_dialog_.get();
 }

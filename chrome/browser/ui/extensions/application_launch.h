@@ -8,7 +8,7 @@
 #include "base/file_path.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "googleurl/src/gurl.h"
-#include "webkit/glue/window_open_disposition.h"
+#include "ui/base/window_open_disposition.h"
 
 class Browser;
 class CommandLine;
@@ -39,6 +39,12 @@ struct LaunchParams {
   LaunchParams(Profile* profile,
                const extensions::Extension* extension,
                WindowOpenDisposition disposition);
+
+  // Helper to create LaunchParams using event flags that allows user to
+  // override the user-configured container using modifier keys.
+  LaunchParams(Profile* profile,
+               const extensions::Extension* extension,
+               int event_flags);
 
   // The profile to load the application from.
   Profile* profile;

@@ -389,37 +389,6 @@
         '..',
       ],
     },
-    {
-      # TODO(rvargas): Remove this when gyp finally supports a clean model.
-      # See bug 36232.
-      'target_name': 'base_static_win64',
-      'type': 'static_library',
-      'sources': [
-        'base_switches.cc',
-        'base_switches.h',
-        'win/pe_image.cc',
-        'win/pe_image.h',
-      ],
-      'sources!': [
-        # base64.cc depends on modp_b64.
-        'base64.cc',
-      ],
-      'include_dirs': [
-        '..',
-      ],
-      'configurations': {
-        'Common_Base': {
-          'msvs_target_platform': 'x64',
-        },
-      },
-      'defines': [
-        'NACL_WIN64',
-      ],
-      # TODO(rvargas): Bug 78117. Remove this.
-      'msvs_disabled_warnings': [
-        4244,
-      ],
-    },
     # Include this target for a main() function that simply instantiates
     # and runs a base::TestSuite.
     {
@@ -503,6 +472,7 @@
         'mac/scoped_sending_event_unittest.mm',
         'md5_unittest.cc',
         'memory/aligned_memory_unittest.cc',
+        'memory/discardable_memory_unittest.cc',
         'memory/linked_ptr_unittest.cc',
         'memory/ref_counted_memory_unittest.cc',
         'memory/ref_counted_unittest.cc',
@@ -534,6 +504,7 @@
         'pickle_unittest.cc',
         'platform_file_unittest.cc',
         'posix/file_descriptor_shuffle_unittest.cc',
+        'posix/unix_domain_socket_linux_unittest.cc',
         'pr_time_unittest.cc',
         'prefs/overlay_user_pref_store_unittest.cc',
         'prefs/pref_value_map_unittest.cc',
@@ -806,17 +777,6 @@
             'test/test_file_util_linux.cc',
           ],
         }],
-        ['OS=="win"', {
-          'direct_dependent_settings': {
-            'msvs_settings': {
-              'VCLinkerTool': {
-                'DelayLoadDLLs': [
-                  'propsys.dll',
-                ],
-              },
-            },
-          },
-        }],
       ],
       'sources': [
         'perftimer.cc',
@@ -930,7 +890,7 @@
         },
       ],
     }],
-    ['OS == "win"', {
+    ['OS == "win" and target_arch=="ia32"', {
       'targets': [
         {
           'target_name': 'base_nacl_win64',
@@ -995,6 +955,37 @@
               'msvs_target_platform': 'x64',
             },
           },
+        },
+        {
+          # TODO(rvargas): Remove this when gyp finally supports a clean model.
+          # See bug 36232.
+          'target_name': 'base_static_win64',
+          'type': 'static_library',
+          'sources': [
+            'base_switches.cc',
+            'base_switches.h',
+            'win/pe_image.cc',
+            'win/pe_image.h',
+          ],
+          'sources!': [
+            # base64.cc depends on modp_b64.
+            'base64.cc',
+          ],
+          'include_dirs': [
+            '..',
+          ],
+          'configurations': {
+            'Common_Base': {
+              'msvs_target_platform': 'x64',
+            },
+          },
+          'defines': [
+            'NACL_WIN64',
+          ],
+          # TODO(rvargas): Bug 78117. Remove this.
+          'msvs_disabled_warnings': [
+            4244,
+          ],
         },
       ],
     }],

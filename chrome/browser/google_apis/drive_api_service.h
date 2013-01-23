@@ -55,6 +55,7 @@ class DriveAPIService : public DriveServiceInterface,
   virtual OperationProgressStatusList GetProgressStatusList() const OVERRIDE;
   virtual bool HasAccessToken() const OVERRIDE;
   virtual bool HasRefreshToken() const OVERRIDE;
+  virtual std::string GetRootResourceId() const OVERRIDE;
   virtual void GetResourceList(
       const GURL& feed_url,
       int64 start_changestamp,
@@ -68,7 +69,7 @@ class DriveAPIService : public DriveServiceInterface,
 
   virtual void GetAccountMetadata(
       const GetAccountMetadataCallback& callback) OVERRIDE;
-  virtual void GetApplicationInfo(const GetDataCallback& callback) OVERRIDE;
+  virtual void GetAppList(const GetAppListCallback& callback) OVERRIDE;
   virtual void DeleteResource(
       const GURL& edit_url,
       const EntryActionCallback& callback) OVERRIDE;
@@ -86,11 +87,11 @@ class DriveAPIService : public DriveServiceInterface,
       const GetContentCallback& get_content_callback) OVERRIDE;
   virtual void CopyHostedDocument(
       const std::string& resource_id,
-      const FilePath::StringType& new_name,
+      const std::string& new_name,
       const GetResourceEntryCallback& callback) OVERRIDE;
   virtual void RenameResource(
       const GURL& edit_url,
-      const FilePath::StringType& new_name,
+      const std::string& new_name,
       const EntryActionCallback& callback) OVERRIDE;
   virtual void AddResourceToDirectory(
       const GURL& parent_content_url,
@@ -102,7 +103,7 @@ class DriveAPIService : public DriveServiceInterface,
       const EntryActionCallback& callback) OVERRIDE;
   virtual void AddNewDirectory(
       const GURL& parent_content_url,
-      const FilePath::StringType& directory_name,
+      const std::string& directory_name,
       const GetResourceEntryCallback& callback) OVERRIDE;
   virtual void InitiateUpload(
       const InitiateUploadParams& params,

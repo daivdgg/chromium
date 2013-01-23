@@ -13,7 +13,7 @@
 #include "content/public/common/three_d_api_types.h"
 #include "ipc/ipc_listener.h"
 #include "ipc/ipc_sender.h"
-#include "webkit/glue/window_open_disposition.h"
+#include "ui/base/window_open_disposition.h"
 
 namespace content {
 
@@ -103,6 +103,9 @@ class CONTENT_EXPORT WebContentsObserver : public IPC::Listener,
                                    WindowOpenDisposition disposition,
                                    PageTransition transition,
                                    int64 source_frame_id) {}
+
+  virtual void FrameDetached(RenderViewHost* render_view_host,
+                             int64 frame_id) {}
 
   virtual void WasShown() {}
 

@@ -155,8 +155,7 @@
                 "name": "info",
                 "type": "object",
                 "properties": {
-                  "login": { "type": "string" },
-                  "token": { "type": "string", "optional": true }
+                  "login": { "type": "string" }
                 }
               }
             ]
@@ -187,32 +186,6 @@
             "type": "function",
             "optional": "true",
             "parameters": []
-          }
-        ]
-      },
-      {
-        "name": "promptBrowserLogin",
-        "description": "Causes the browser to bring up the browser login UI.",
-        "parameters": [
-          {
-            "name": "preferred_email",
-            "type": "string",
-            "description": "The email address to use to pre-populate the login dialog (can be an empty string)."
-          },
-          {
-            "name": "callback",
-            "type": "function",
-            "optional": "true",
-            "parameters": [
-              {
-                "name": "info",
-                "type": "object",
-                "properties": {
-                  "login": { "type": "string", "optional": true },
-                  "token": { "type": "string", "optional": true }
-                }
-              }
-            ]
           }
         ]
       },
