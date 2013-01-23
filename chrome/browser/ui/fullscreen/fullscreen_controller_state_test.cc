@@ -289,7 +289,6 @@ bool FullscreenControllerStateTest::InvokeEvent(Event event) {
       << std::setw(MAX_EVENT_NAME_LENGTH) << GetEventString(event)
       << ") to "
       << std::setw(MAX_STATE_NAME_LENGTH) << GetStateString(next_state);
-fprintf(stderr, "InvokeEvent(%s) to state %s\n", GetEventString(event), GetStateString(next_state));
 
   state_ = next_state;
 
@@ -363,10 +362,6 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       break;
     case STATE_BROWSER_FULLSCREEN_NO_CHROME:
 #if defined(OS_MACOSX)
-      // http://crbug.com/169138 - Fullscreen controller currently transitions
-      // Mac into fullscreen with and without chrome differently than other
-      // platforms, and the result is a name mismatch between the named
-      // state_ and the window()->IsFullscreenWith...() methods.
       EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithChrome())
           << GetAndClearDebugLog();
       EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithoutChrome())
@@ -438,10 +433,6 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       break;
     case STATE_TO_BROWSER_FULLSCREEN_NO_CHROME:
 #if defined(OS_MACOSX)
-      // http://crbug.com/169138 - Fullscreen controller currently transitions
-      // Mac into fullscreen with and without chrome differently than other
-      // platforms, and the result is a name mismatch between the named
-      // state_ and the window()->IsFullscreenWith...() methods.
       EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithChrome())
           << GetAndClearDebugLog();
       EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithoutChrome())
@@ -597,15 +588,6 @@ bool FullscreenControllerStateTest::ShouldSkipTest(State state,
   // exited by the reentrant call.
   if (reentrant && (transition_table_[state][WINDOW_CHANGE] != state)) {
     debugging_log_ << "\nSkipping reentrant test for transitory source state "
-        << GetStateString(state) << ".\n";
-    return true;
-  }
-
-  // Toggle Fullscreen only available on Mac OSX 10.7 and later, earlier
-  // versions only have presentation mode.
-  if (!base::mac::IsOSLionOrLater() && event == TOGGLE_FULLSCREEN) {
-    debugging_log_ << "\nSkipping TOGGLE_FULLSCREEN on Mac OSX earlier than "
-        << "10.7."
         << GetStateString(state) << ".\n";
     return true;
   }
