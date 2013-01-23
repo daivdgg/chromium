@@ -8,7 +8,7 @@ vars = {
   "sourceforge_url": "http://%(repo)s.svn.sourceforge.net/svnroot/%(repo)s",
   "webkit_trunk": "http://svn.webkit.org/repository/webkit/trunk",
   "nacl_trunk": "http://src.chromium.org/native_client/trunk",
-  "webkit_revision": "140218",
+  "webkit_revision": "140473",
   "chromium_git": "https://chromium.googlesource.com",
   "chromiumos_git": "https://chromium.googlesource.com/chromiumos",
   "swig_revision": "69281",
@@ -20,7 +20,7 @@ vars = {
 
   "libjingle_revision": "266",
   "libphonenumber_revision": "456",
-  "libvpx_revision": "177298",
+  "libvpx_revision": "178115",
   "lss_revision": "17",
 
   # These two FFmpeg variables must be updated together.  One is used for SVN
@@ -29,15 +29,15 @@ vars = {
   "ffmpeg_hash": "fe7d5497f1490914d7c3bb0236a1c722afccf4e4",
 
   "sfntly_revision": "134",
-  "skia_revision": "7300",
+  "skia_revision": "7329",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling Skia
   # and V8 without interference from each other.
-  "v8_revision": "13451",
+  "v8_revision": "13482",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling WebRTC
   # and V8 without interference from each other.
-  "webrtc_revision": "3370",
+  "webrtc_revision": "3402",
   "jsoncpp_revision": "248",
   "nss_revision": "177437",
 }
@@ -106,7 +106,7 @@ deps = {
     (Var("googlecode_url") % "gyp") + "/trunk@1564",
 
   "src/tools/swarm_client":
-    "/trunk/tools/swarm_client@178069",
+    "/trunk/tools/swarm_client@178290",
 
   "src/v8":
     (Var("googlecode_url") % "v8") + "/trunk@" + Var("v8_revision"),

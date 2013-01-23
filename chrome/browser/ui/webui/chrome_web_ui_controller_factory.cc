@@ -35,6 +35,7 @@
 #include "chrome/browser/ui/webui/instant_ui.h"
 #include "chrome/browser/ui/webui/local_omnibox_popup/local_omnibox_popup_ui.h"
 #include "chrome/browser/ui/webui/media/media_internals_ui.h"
+#include "chrome/browser/ui/webui/media/webrtc_internals_ui.h"
 #if !defined(DISABLE_NACL)
 #include "chrome/browser/ui/webui/nacl_ui.h"
 #endif
@@ -50,12 +51,10 @@
 #include "chrome/browser/ui/webui/quota_internals_ui.h"
 #include "chrome/browser/ui/webui/signin_internals_ui.h"
 #include "chrome/browser/ui/webui/sync_internals_ui.h"
-#include "chrome/browser/ui/webui/task_manager/task_manager_ui.h"
 #include "chrome/browser/ui/webui/test_chrome_web_ui_controller_factory.h"
 #include "chrome/browser/ui/webui/tracing_ui.h"
 #include "chrome/browser/ui/webui/user_actions/user_actions_ui.h"
 #include "chrome/browser/ui/webui/version_ui.h"
-#include "chrome/browser/ui/webui/webrtc_internals_ui.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/common/extensions/feature_switch.h"
@@ -334,10 +333,6 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
   if (url.host() == chrome::kChromeUIPolicyHost)
     return &NewWebUI<PolicyUI>;
 #endif
-#if defined(USE_AURA)
-  if (url.host() == chrome::kChromeUITaskManagerHost)
-    return &NewWebUI<TaskManagerUI>;
-#endif  // defined(USE_AURA)
 
 #if (defined(OS_LINUX) && defined(TOOLKIT_VIEWS)) || defined(USE_AURA)
   if (url.host() == chrome::kChromeUITabModalConfirmDialogHost) {

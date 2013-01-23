@@ -39,6 +39,7 @@
 #include "cc/solid_color_draw_quad.h"
 #include "cc/texture_uploader.h"
 #include "cc/top_controls_manager.h"
+#include "cc/tree_synchronizer.h"
 #include "cc/util.h"
 #include "ui/gfx/size_conversions.h"
 #include "ui/gfx/vector2d_conversions.h"
@@ -174,8 +175,9 @@ LayerTreeHostImpl::~LayerTreeHostImpl()
         // The layer trees must be destroyed before the layer tree host. We've
         // made a contract with our animation controllers that the registrar
         // will outlive them, and we must make good.
-        m_activeTree.reset();
+        m_recycleTree.reset();
         m_pendingTree.reset();
+        m_activeTree.reset();
     }
 }
 
@@ -194,9 +196,6 @@ void LayerTreeHostImpl::commitComplete()
     if (m_settings.implSidePainting)
         updateDrawProperties();
 
-    // Recompute max scroll position; must be after layer content bounds are
-    // updated.
-    updateMaxScrollOffset();
     m_client->sendManagedMemoryStats();
 }
 
@@ -839,6 +838,7 @@ void LayerTreeHostImpl::finishAllRendering()
 
 bool LayerTreeHostImpl::isContextLost()
 {
+    DCHECK(m_proxy->isImplThread());
     return m_renderer && m_renderer->isContextLost();
 }
 
@@ -931,7 +931,10 @@ static LayerImpl* findScrollLayerForContentLayer(LayerImpl* layerImpl)
 void LayerTreeHostImpl::createPendingTree()
 {
     CHECK(!m_pendingTree);
-    m_pendingTree = LayerTreeImpl::create(this);
+    if (m_recycleTree)
+        m_recycleTree.swap(m_pendingTree);
+    else
+        m_pendingTree = LayerTreeImpl::create(this);
     m_client->onCanDrawStateChanged(canDraw());
     m_client->onHasPendingTreeStateChanged(pendingTree());
 }
@@ -962,9 +965,26 @@ void LayerTreeHostImpl::activatePendingTree()
     CHECK(m_pendingTree);
 
     m_activeTree->PushPersistedState(m_pendingTree.get());
-    m_activeTree.swap(m_pendingTree);
-    // TODO(enne): consider recycling this tree to prevent layer churn
-    m_pendingTree.reset();
+    m_activeTree->SetRootLayer(TreeSynchronizer::synchronizeTrees(m_pendingTree->RootLayer(), m_activeTree->DetachLayerTree(), m_activeTree.get()));
+    TreeSynchronizer::pushProperties(m_pendingTree->RootLayer(), m_activeTree->RootLayer());
+    DCHECK(!m_recycleTree);
+
+    // This should match the property synchronization in
+    // LayerTreeHost::finishCommitOnImplThread().
+    m_activeTree->set_source_frame_number(m_pendingTree->source_frame_number());
+    m_activeTree->set_background_color(m_pendingTree->background_color());
+    m_activeTree->set_has_transparent_background(m_pendingTree->has_transparent_background());
+    if (m_pendingTree->ContentsTexturesPurged())
+        m_activeTree->SetContentsTexturesPurged();
+    else
+        m_activeTree->ResetContentsTexturesPurged();
+
+    // Now that we've synced everything from the pending tree to the active
+    // tree, rename the pending tree the recycle tree so we can reuse it on the
+    // next sync.
+    m_pendingTree.swap(m_recycleTree);
+    m_recycleTree->ClearRenderSurfaces();
+
     m_activeTree->DidBecomeActive();
 
     m_client->onCanDrawStateChanged(canDraw());
@@ -1002,6 +1022,8 @@ bool LayerTreeHostImpl::initializeRenderer(scoped_ptr<OutputSurface> outputSurfa
         sendDidLoseOutputSurfaceRecursive(activeTree()->RootLayer());
     if (pendingTree() && pendingTree()->RootLayer())
         sendDidLoseOutputSurfaceRecursive(pendingTree()->RootLayer());
+    if (m_recycleTree && m_recycleTree->RootLayer())
+        sendDidLoseOutputSurfaceRecursive(m_recycleTree->RootLayer());
 
     // Note: order is important here.
     m_renderer.reset();
@@ -1116,8 +1138,6 @@ void LayerTreeHostImpl::setPageScaleDelta(float delta)
 void LayerTreeHostImpl::updateMaxScrollOffset()
 {
     activeTree()->UpdateMaxScrollOffset();
-    if (pendingTree())
-        pendingTree()->UpdateMaxScrollOffset();
 }
 
 void LayerTreeHostImpl::setNeedsUpdateDrawProperties()
@@ -1663,7 +1683,6 @@ void LayerTreeHostImpl::setTreePriority(TreePriority priority)
     if (new_state.tree_priority == priority)
         return;
 
-    TRACE_COUNTER_ID1("cc", "TreePriority", this, priority);
     new_state.tree_priority = priority;
     m_tileManager->SetGlobalState(new_state);
 }

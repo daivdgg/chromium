@@ -115,19 +115,11 @@ class WEBKIT_STORAGE_EXPORT LocalFileSystemOperation
       scoped_ptr<FileSystemOperationContext> operation_context);
 
   FileSystemContext* file_system_context() const {
-    return operation_context_->file_system_context();
+    return file_system_context_;
   }
 
   FileSystemOperationContext* operation_context() const {
     return operation_context_.get();
-  }
-
-  // The unit tests that need to specify and control the lifetime of the
-  // file_util on their own should call this before performing the actual
-  // operation. If it is given it will not be overwritten by the class.
-  void set_override_file_util(FileSystemFileUtil* file_util) {
-    src_util_ = file_util;
-    dest_util_ = file_util;
   }
 
   // Queries the quota and usage and then runs the given |task|.
@@ -237,6 +229,8 @@ class WEBKIT_STORAGE_EXPORT LocalFileSystemOperation
   // Used only for internal assertions.
   // Returns false if there's another inflight pending operation.
   bool SetPendingOperationType(OperationType type);
+
+  scoped_refptr<FileSystemContext> file_system_context_;
 
   scoped_ptr<FileSystemOperationContext> operation_context_;
   FileSystemFileUtil* src_util_;  // Not owned.

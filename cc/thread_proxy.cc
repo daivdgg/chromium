@@ -27,7 +27,7 @@ namespace {
 const double contextRecreationTickRate = 0.03;
 
 // Measured in seconds.
-const double smoothnessTakesPriorityExpirationDelay = 0.5;
+const double smoothnessTakesPriorityExpirationDelay = 0.25;
 
 }  // namespace
 
@@ -305,6 +305,15 @@ void ThreadProxy::didLoseOutputSurfaceOnImplThread()
 {
     DCHECK(isImplThread());
     TRACE_EVENT0("cc", "ThreadProxy::didLoseOutputSurfaceOnImplThread");
+    Proxy::implThread()->postTask(base::Bind(&ThreadProxy::checkOutputSurfaceStatusOnImplThread, m_implThreadWeakPtr));
+}
+
+void ThreadProxy::checkOutputSurfaceStatusOnImplThread()
+{
+    DCHECK(isImplThread());
+    TRACE_EVENT0("cc", "ThreadProxy::checkOutputSurfaceStatusOnImplThread");
+    if (!m_layerTreeHostImpl->isContextLost())
+        return;
     m_schedulerOnImplThread->didLoseOutputSurface();
 }
 
@@ -847,6 +856,9 @@ ScheduledActionDrawAndSwapResult ThreadProxy::scheduledActionDrawAndSwapInternal
         Proxy::mainThread()->postTask(base::Bind(&ThreadProxy::didCommitAndDrawFrame, m_mainThreadWeakPtr));
     }
 
+    if (drawFrame)
+        checkOutputSurfaceStatusOnImplThread();
+
     return result;
 }
 
@@ -1110,6 +1122,13 @@ void ThreadProxy::renewTreePriority()
     bool smoothnessTakesPriority =
         m_layerTreeHostImpl->pinchGestureActive() ||
         m_layerTreeHostImpl->currentlyScrollingLayer();
+
+    // Notify the the client of this compositor via the output surface.
+    // TODO(epenner): Route this to compositor-thread instead of output-surface
+    // after GTFO refactor of compositor-thread (http://crbug/170828).
+    OutputSurface* output_surface = m_layerTreeHostImpl->outputSurface();
+    if (output_surface)
+        output_surface->UpdateSmoothnessTakesPriority(smoothnessTakesPriority);
 
     // Update expiration time if smoothness currently takes priority.
     if (smoothnessTakesPriority) {

@@ -487,6 +487,7 @@
         }],
 
         ['OS=="android"', {
+          'enable_automation%': 0,
           'enable_extensions%': 0,
           'enable_google_now%': 0,
           'enable_language_detection%': 0,
@@ -1279,7 +1280,7 @@
           },{
             'msvs_large_module_debug_link_mode%': '2',  # Yes
           }],
-          ['MSVS_VERSION=="2010e" or MSVS_VERSION=="2008e" or MSVS_VERSION=="2005e"', {
+          ['MSVS_VERSION=="2012e" or MSVS_VERSION=="2010e"', {
             'msvs_express%': 1,
             'secure_atl%': 0,
           },{
@@ -1434,7 +1435,18 @@
       ['OS=="linux" and clang_type_profiler==1', {
         'clang%': 1,
         'clang_use_chrome_plugins%': 0,
-        'make_clang_dir%': 'third_party/llvm-allocated-type/Linux_x64',
+        'conditions': [
+          ['host_arch=="x64"', {
+            'make_clang_dir%': 'third_party/llvm-allocated-type/Linux_x64',
+          }],
+          ['host_arch=="ia32"', {
+            # 32-bit Clang is unsupported.  It may not build.  Put your 32-bit
+            # Clang in this directory at your own risk if needed for some
+            # purpose (e.g. to compare 32-bit and 64-bit behavior like memory
+            # usage).  Any failure by this compiler should not close the tree.
+            'make_clang_dir%': 'third_party/llvm-allocated-type/Linux_ia32',
+          }],
+        ],
       }],
 
       # On valgrind bots, override the optimizer settings so we don't inline too
@@ -1619,6 +1631,11 @@
         'dependencies': [
           '<(DEPTH)/base/allocator/allocator.gyp:type_profiler',
         ],
+      }],
+      ['OS=="linux" and clang==1 and host_arch=="ia32"', {
+        # TODO(dmikurube): Remove -Wno-sentinel when Clang/LLVM is fixed.
+        # See http://crbug.com/162818.
+        'cflags+': ['-Wno-sentinel'],
       }],
       ['OS=="win" and "<(msbuild_toolset)"!=""', {
         'msbuild_toolset': '<(msbuild_toolset)',
@@ -2789,7 +2806,7 @@
                 'cflags': [
                   '-fsanitize=thread',
                   '-fno-omit-frame-pointer',
-                  '-fPIE',
+                  '-fPIC',
                   '-mllvm', '-tsan-blacklist=<(tsan_blacklist)',
                 ],
                 'ldflags': [
@@ -3689,11 +3706,6 @@
               '_HAS_EXCEPTIONS=0',
             ],
           }],
-          ['MSVS_VERSION=="2008"', {
-            'defines': [
-              '_HAS_TR1=0',
-            ],
-          }],
           ['secure_atl', {
             'defines': [
               '_SECURE_ATL',
@@ -3753,7 +3765,6 @@
           '$(VSInstallDir)/VC/atlmfc/include',
         ],
         'msvs_cygwin_dirs': ['<(DEPTH)/third_party/cygwin'],
-        'msvs_cygwin_shell': 0,
         'msvs_disabled_warnings': [4351, 4396, 4503, 4819,
           # TODO(maruel): These warnings are level 4. They will be slowly
           # removed as code is fixed.
@@ -3797,20 +3808,6 @@
               'dbghelp.lib',
               'winmm.lib',
               'shlwapi.lib',
-            ],
-
-            'conditions': [
-              ['MSVS_VERSION=="2005e"', {
-                # Non-express versions link automatically to these
-                'AdditionalDependencies': [
-                  'advapi32.lib',
-                  'comdlg32.lib',
-                  'ole32.lib',
-                  'shell32.lib',
-                  'user32.lib',
-                  'winspool.lib',
-                ],
-              }],
             ],
             'AdditionalLibraryDirectories': [
               '<(windows_sdk_path)/Lib/win8/um/x86',

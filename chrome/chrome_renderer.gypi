@@ -223,11 +223,11 @@
         'renderer/prerender/prerender_webmediaplayer.h',
         'renderer/prerender/prerenderer_client.cc',
         'renderer/prerender/prerenderer_client.h',
-        'renderer/print_web_view_helper.cc',
-        'renderer/print_web_view_helper.h',
-        'renderer/print_web_view_helper_linux.cc',
-        'renderer/print_web_view_helper_mac.mm',
-        'renderer/print_web_view_helper_win.cc',
+        'renderer/printing/print_web_view_helper.cc',
+        'renderer/printing/print_web_view_helper.h',
+        'renderer/printing/print_web_view_helper_linux.cc',
+        'renderer/printing/print_web_view_helper_mac.mm',
+        'renderer/printing/print_web_view_helper_win.cc',
         'renderer/safe_browsing/feature_extractor_clock.cc',
         'renderer/safe_browsing/feature_extractor_clock.h',
         'renderer/safe_browsing/features.cc',
@@ -264,6 +264,8 @@
         'renderer/spellchecker/spellcheck_provider.h',
         'renderer/spellchecker/spellcheck.cc',
         'renderer/spellchecker/spellcheck.h',
+        'renderer/spellchecker/spellcheck_language.cc',
+        'renderer/spellchecker/spellcheck_language.h',
         'renderer/spellchecker/spellcheck_worditerator.cc',
         'renderer/spellchecker/spellcheck_worditerator.h',
         'renderer/spellchecker/spelling_engine.h',
@@ -324,11 +326,16 @@
             '../sandbox/sandbox.gyp:sandbox',
           ],
         }],
+	['enable_automation==0', {
+	  'sources/': [
+            ['exclude', '^renderer/automation/']
+	  ]
+	}],
         ['OS=="android"', {
           'sources!': [
             'renderer/prerender/prerender_webmediaplayer.cc',
             'renderer/prerender/prerender_webmediaplayer.h',
-            'renderer/print_web_view_helper.cc',
+            'renderer/printing/print_web_view_helper.cc',
           ],
           'defines': [
             'ENABLE_MOBILE_YOUTUBE_PLUGIN',

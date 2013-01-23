@@ -756,6 +756,8 @@
         'test/chromedriver/status.cc',
         'test/chromedriver/status.h',
         'test/chromedriver/synchronized_map.h',
+        'test/chromedriver/version.cc',
+        'test/chromedriver/version.h',
       ],
       'actions': [
         {
@@ -928,6 +930,7 @@
         'browser/chromeos/drive/drive_test_util.h',
         'browser/chromeos/extensions/echo_private_apitest.cc',
         'browser/chromeos/extensions/external_filesystem_apitest.cc',
+        'browser/chromeos/extensions/file_browser_event_router_browsertest.cc',
         'browser/chromeos/extensions/file_browser_handler_api_test.cc',
         'browser/chromeos/extensions/file_browser_notifications_browsertest.cc',
         'browser/chromeos/extensions/file_browser_private_apitest.cc',
@@ -1219,7 +1222,6 @@
         'browser/ui/cocoa/applescript/window_applescript_test.mm',
         'browser/ui/cocoa/browser_window_cocoa_browsertest.mm',
         'browser/ui/cocoa/browser_window_controller_browsertest.mm',
-        'browser/ui/cocoa/bookmarks/bookmark_bar_controller_browsertest.mm',
         'browser/ui/cocoa/constrained_window/constrained_window_mac_browsertest.mm',
         'browser/ui/cocoa/content_settings/collected_cookies_mac_browsertest.mm',
         'browser/ui/cocoa/content_settings/content_setting_bubble_cocoa_unittest.mm',
@@ -1312,7 +1314,7 @@
         'renderer/automation/automation_renderer_helper_browsertest.cc',
         'renderer/content_settings_observer_browsertest.cc',
         'renderer/page_click_tracker_browsertest.cc',
-        'renderer/print_web_view_helper_browsertest.cc',
+        'renderer/printing/print_web_view_helper_browsertest.cc',
         'renderer/safe_browsing/malware_dom_details_browsertest.cc',
         'renderer/safe_browsing/phishing_classifier_browsertest.cc',
         'renderer/safe_browsing/phishing_classifier_delegate_browsertest.cc',

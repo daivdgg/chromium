@@ -74,8 +74,7 @@ class MESSAGE_CENTER_EXPORT MessageCenter : public NotificationList::Delegate {
     virtual ~Delegate() {}
   };
 
-  static MessageCenter* GetInstance();
-
+  MessageCenter();
   virtual ~MessageCenter();
 
   // Called to set the delegate.  Generally called only once, except in tests.
@@ -98,10 +97,10 @@ class MESSAGE_CENTER_EXPORT MessageCenter : public NotificationList::Delegate {
 
   // Adds a new notification. |id| is a unique identifier, used to update or
   // remove notifications. |title| and |meesage| describe the notification text.
-  // Use SetNotificationPrimaryIcon and SetNotificationSecondaryIcon to set
-  // images. If |extension_id| is provided then 'Disable extension' will appear
-  // in a dropdown menu and the id will be used to disable notifications from
-  // the extension. Otherwise if |display_source| is provided, a menu item
+  // Use SetNotificationIcon, SetNotificationImage, or SetNotificationButtonIcon
+  // to set images. If |extension_id| is provided then 'Disable extension' will
+  // appear in a dropdown menu and the id will be used to disable notifications
+  // from the extension. Otherwise if |display_source| is provided, a menu item
   // showing the source and allowing notifications from that source to be
   // disabled will be shown. All actual disabling is handled by the Delegate.
   void AddNotification(ui::notifications::NotificationType type,
@@ -123,13 +122,15 @@ class MESSAGE_CENTER_EXPORT MessageCenter : public NotificationList::Delegate {
   // Removes an existing notification.
   void RemoveNotification(const std::string& id);
 
-  void SetNotificationPrimaryIcon(const std::string& id,
-                                  const gfx::ImageSkia& image);
+  void SetNotificationIcon(const std::string& notification_id,
+                           const gfx::ImageSkia& image);
 
-  void SetNotificationSecondaryIcon(const std::string& id,
-                                    const gfx::ImageSkia& image);
+  void SetNotificationImage(const std::string& notification_id,
+                            const gfx::ImageSkia& image);
 
-  void SetNotificationImage(const std::string& id, const gfx::ImageSkia& image);
+  void SetNotificationButtonIcon(const std::string& notification_id,
+                                 int button_index,
+                                 const gfx::ImageSkia& image);
 
   NotificationList* notification_list() { return notification_list_.get(); }
 
@@ -146,9 +147,6 @@ class MESSAGE_CENTER_EXPORT MessageCenter : public NotificationList::Delegate {
   virtual NotificationList* GetNotificationList() OVERRIDE;
 
  private:
-  friend struct DefaultSingletonTraits<MessageCenter>;
-  MessageCenter();
-
   // Calls OnMessageCenterChanged on each observer.
   void NotifyMessageCenterChanged(bool new_notification);
 
