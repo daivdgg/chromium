@@ -423,9 +423,9 @@ void BrowserCommandController::ExecuteCommandWithDisposition(
       break;
     case IDC_FULLSCREEN:
 #if defined(OS_MACOSX)
-      chrome::ToggleFullscreenMode(browser_);
+      chrome::ToggleFullscreenWithChrome(browser_);
 #else
-      chrome::ToggleFullscreen(browser_);
+      chrome::ToggleFullscreenMode(browser_);
 #endif
       break;
 
