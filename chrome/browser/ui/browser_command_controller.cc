@@ -422,7 +422,11 @@ void BrowserCommandController::ExecuteCommandWithDisposition(
       ConvertPopupToTabbedBrowser(browser_);
       break;
     case IDC_FULLSCREEN:
-      chrome::ToggleFullscreenMode(browser_);
+#if defined(OS_MACOSX)
+      chrome::ToggleFullscreenWithChrome(browser_);
+#else
+      chrome::ToggleFullscreenWithoutChrome(browser_);
+#endif
       break;
 
 #if defined(USE_ASH)
@@ -451,7 +455,7 @@ void BrowserCommandController::ExecuteCommandWithDisposition(
 
 #if defined(OS_MACOSX)
     case IDC_PRESENTATION_MODE:
-      browser_->TogglePresentationMode();
+      chrome::ToggleFullscreenWithoutChrome(browser_);
       break;
 #endif
     case IDC_EXIT:

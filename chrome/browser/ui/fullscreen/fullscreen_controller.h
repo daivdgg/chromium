@@ -43,7 +43,7 @@ class FullscreenController : public content::NotificationObserver {
   // transitioned to fullscreen by a browser (vs tab) mode transition.
   bool IsFullscreenForBrowser() const;
 
-  void ToggleFullscreenMode();
+  void ToggleFullscreenWithoutChrome();
 
   // Tab/HTML Fullscreen ///////////////////////////////////////////////////////
 
@@ -74,7 +74,7 @@ class FullscreenController : public content::NotificationObserver {
 #endif
 
 #if defined(OS_MACOSX)
-  void TogglePresentationMode();
+  void ToggleFullscreenWithChrome();
 #endif
 
   // Mouse Lock ////////////////////////////////////////////////////////////////

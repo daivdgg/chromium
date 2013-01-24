@@ -140,7 +140,10 @@ void ToggleSpeechInput(Browser* browser);
 bool CanRequestTabletSite(content::WebContents* current_tab);
 bool IsRequestingTabletSite(Browser* browser);
 void ToggleRequestTabletSite(Browser* browser);
-void ToggleFullscreenMode(Browser* browser);
+void ToggleFullscreenWithoutChrome(Browser* browser);
+#if defined(OS_MACOSX)
+void ToggleFullscreenWithChrome(Browser* browser);
+#endif
 void ClearCache(Browser* browser);
 bool IsDebuggerAttachedToCurrentTab(Browser* browser);
 
