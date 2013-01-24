@@ -143,6 +143,8 @@ class FullscreenController : public content::NotificationObserver {
 
   // TODO(koz): Change |for_tab| to an enum.
   void ToggleFullscreenModeInternal(bool for_tab, bool with_chrome);
+  void EnterFullscreenModeInternal(bool for_tab, bool with_chrome);
+  void ExitFullscreenModeInternal(bool for_tab, bool with_chrome);
   void SetFullscreenedTab(content::WebContents* tab);
   void SetMouseLockTab(content::WebContents* tab);
 
