@@ -55,7 +55,7 @@ bool FullscreenController::IsFullscreenForBrowser() const {
   return window_->IsFullscreen() && !tab_caused_fullscreen_;
 }
 
-void FullscreenController::ToggleFullscreenWithoutChrome() {
+void FullscreenController::ToggleFullscreenMode() {
   extension_caused_fullscreen_ = GURL();
   ToggleFullscreenModeInternal(false);
 }

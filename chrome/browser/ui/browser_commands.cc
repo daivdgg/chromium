@@ -956,8 +956,8 @@ void ToggleRequestTabletSite(Browser* browser) {
   controller.ReloadOriginalRequestURL(true);
 }
 
-void ToggleFullscreenWithoutChrome(Browser* browser) {
-  browser->fullscreen_controller()->ToggleFullscreenWithoutChrome();
+void ToggleFullscreenMode(Browser* browser) {
+  browser->fullscreen_controller()->ToggleFullscreenMode();
 }
 
 #if defined(OS_MACOSX)

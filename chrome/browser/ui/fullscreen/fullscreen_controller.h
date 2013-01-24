@@ -43,7 +43,7 @@ class FullscreenController : public content::NotificationObserver {
   // transitioned to fullscreen by a browser (vs tab) mode transition.
   bool IsFullscreenForBrowser() const;
 
-  void ToggleFullscreenWithoutChrome();
+  void ToggleFullscreenMode();
 
   // Tab/HTML Fullscreen ///////////////////////////////////////////////////////
 

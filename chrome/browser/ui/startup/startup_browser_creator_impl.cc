@@ -795,7 +795,7 @@ Browser* StartupBrowserCreatorImpl::OpenTabsInBrowser(Browser* browser,
 
   // In kiosk mode, we want to always be fullscreen, so switch to that now.
   if (CommandLine::ForCurrentProcess()->HasSwitch(switches::kKioskMode))
-    chrome::ToggleFullscreenWithoutChrome(browser);
+    chrome::ToggleFullscreenMode(browser);
 
   bool first_tab = true;
   for (size_t i = 0; i < tabs.size(); ++i) {
