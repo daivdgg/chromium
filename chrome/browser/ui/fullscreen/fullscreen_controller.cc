@@ -498,7 +498,7 @@ void FullscreenController::ToggleFullscreenModeInternal(bool for_tab,
   // When a Mac user requests a toggle they may be toggling between
   // FullscreenWithoutChrome and FullscreenWithChrome.
   if (!IsFullscreenForTabOrPending()) {
-    enter_fullscreen |= with_chrome && window_->IsFullscreenWithoutChrome()
+    enter_fullscreen |= with_chrome && window_->IsFullscreenWithoutChrome();
     enter_fullscreen |= !with_chrome && window_->IsFullscreenWithChrome();
   }
 #endif
