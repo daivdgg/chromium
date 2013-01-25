@@ -484,7 +484,7 @@ void FullscreenController::NotifyMouseLockChange() {
 }
 
 // TODO(koz): Change |for_tab| to an enum.
-void FullscreenController::ToggleFullscreenModeInternal(bool for_tab, 
+void FullscreenController::ToggleFullscreenModeInternal(bool for_tab,
                                                         bool with_chrome) {
 #if defined(OS_WIN)
   // When in Metro snap mode, toggling in and out of fullscreen is prevented.
