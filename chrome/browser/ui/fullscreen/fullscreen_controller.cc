@@ -487,6 +487,7 @@ void FullscreenController::NotifyMouseLockChange() {
 // TODO(koz): Change |for_tab| to an enum.
 void FullscreenController::ToggleFullscreenModeInternal(bool for_tab, 
                                                         bool with_chrome) {
+fprintf(stderr, "%s:ToggleFullscreenModeInternal(%d, %d):%d\n", __FILE__, for_tab, with_chrome, __LINE__);
 #if defined(OS_WIN)
   // When in Metro snap mode, toggling in and out of fullscreen is prevented.
   if (IsInMetroSnapMode())
@@ -517,25 +518,32 @@ void FullscreenController::ToggleFullscreenModeInternal(bool for_tab,
 
 void FullscreenController::EnterFullscreenModeInternal(bool for_tab,
                                                        bool with_chrome) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   toggled_into_fullscreen_ = true;
   GURL url;
   if (for_tab) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     url = chrome::GetActiveWebContents(browser_)->GetURL();
     tab_fullscreen_accepted_ =
         GetFullscreenSetting(url) == CONTENT_SETTING_ALLOW;
   } else {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     if (!extension_caused_fullscreen_.is_empty())
       url = extension_caused_fullscreen_;
     content::RecordAction(UserMetricsAction("ToggleFullscreen"));
   }
 #if defined(OS_MACOSX)
   if (with_chrome) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     CHECK(!for_tab);  // EnterFullscreenWithChrome invalid for tab fullscreen.
     CHECK(base::mac::IsOSLionOrLater());
     window_->EnterFullscreenWithChrome();
   } else
 #else
+{
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
       window_->EnterFullscreen(url, GetFullscreenExitBubbleType());
+}
 #endif
 
   UpdateFullscreenExitBubbleContent();
@@ -547,6 +555,7 @@ void FullscreenController::EnterFullscreenModeInternal(bool for_tab,
 }
 
 void FullscreenController::ExitFullscreenModeInternal() {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   toggled_into_fullscreen_ = false;
 #if defined(OS_MACOSX)
   // Mac windows report a state change instantly, and so we must also clear
