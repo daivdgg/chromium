@@ -533,18 +533,18 @@ fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     content::RecordAction(UserMetricsAction("ToggleFullscreen"));
   }
 #if defined(OS_MACOSX)
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   if (with_chrome) {
 fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     CHECK(!for_tab);  // EnterFullscreenWithChrome invalid for tab fullscreen.
     CHECK(base::mac::IsOSLionOrLater());
     window_->EnterFullscreenWithChrome();
   } else
-#else
+#endif
 {
 fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
       window_->EnterFullscreen(url, GetFullscreenExitBubbleType());
 }
-#endif
 
   UpdateFullscreenExitBubbleContent();
 
