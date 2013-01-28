@@ -274,14 +274,15 @@ bool FullscreenController::HandleUserPressedEscape() {
 }
 
 void FullscreenController::ExitTabOrBrowserFullscreenToPreviousState() {
-  if (IsFullscreenForTabOrPending())
+  if (IsFullscreenForTabOrPending()) {
     ExitTabFullscreenOrMouseLockIfNecessary();
-  else if (IsFullscreenForBrowser())
+  } else if (IsFullscreenForBrowser()) {
 #if defined(OS_MACOSX)
     TogglePresentationMode();
 #else
     ToggleFullscreenMode();
 #endif
+  }
 }
 
 void FullscreenController::OnAcceptFullscreenPermission() {
