@@ -13,7 +13,7 @@
 #include "base/utf_string_conversions.h"
 //  These are only used for commented out tests.  If someone wants to enable
 //  them, they should be moved to chrome first.
-//  #include "chrome/browser/history/history.h"
+//  #include "chrome/browser/history/history_service.h"
 //  #include "chrome/browser/profiles/profile_manager.h"
 //  #include "chrome/browser/sessions/session_service.h"
 //  #include "chrome/browser/sessions/session_service_factory.h"
@@ -49,7 +49,7 @@ gfx::Image CreateImage(SkColor color) {
   bitmap.setConfig(SkBitmap::kARGB_8888_Config, 1, 1);
   bitmap.allocPixels();
   bitmap.eraseColor(color);
-  return gfx::Image(bitmap);
+  return gfx::Image::CreateFrom1xBitmap(bitmap);
 }
 
 // Returns true if images |a| and |b| have the same pixel data.
@@ -3039,14 +3039,20 @@ TEST_F(NavigationControllerTest, MAYBE_PurgeScreenshot) {
     const GURL url(base::StringPrintf("http://foo%d/", i));
     NavigateAndCommit(url);
     EXPECT_EQ(i, controller.GetCurrentEntryIndex());
+  }
 
+  for (int i = 0; i < controller.GetEntryCount(); ++i) {
     entry = NavigationEntryImpl::FromNavigationEntry(
-        controller.GetActiveEntry());
+        controller.GetEntryAtIndex(i));
     controller.OnScreenshotTaken(entry->GetUniqueID(), &bitmap, true);
     EXPECT_TRUE(entry->screenshot());
   }
+
   NavigateAndCommit(GURL("https://foo/"));
   EXPECT_EQ(13, controller.GetEntryCount());
+  entry = NavigationEntryImpl::FromNavigationEntry(
+      controller.GetEntryAtIndex(11));
+  controller.OnScreenshotTaken(entry->GetUniqueID(), &bitmap, true);
 
   for (int i = 0; i < 2; ++i) {
     entry = NavigationEntryImpl::FromNavigationEntry(
@@ -3091,6 +3097,17 @@ TEST_F(NavigationControllerTest, MAYBE_PurgeScreenshot) {
     entry = NavigationEntryImpl::FromNavigationEntry(
         controller.GetEntryAtIndex(i));
     EXPECT_FALSE(entry->screenshot()) << "Screenshot " << i << " not purged";
+  }
+
+  // Clear all screenshots.
+  EXPECT_EQ(13, controller.GetEntryCount());
+  EXPECT_EQ(10, controller.screenshot_count_);
+  controller.ClearAllScreenshots();
+  EXPECT_EQ(0, controller.screenshot_count_);
+  for (int i = 0; i < controller.GetEntryCount(); ++i) {
+    entry = NavigationEntryImpl::FromNavigationEntry(
+        controller.GetEntryAtIndex(i));
+    EXPECT_FALSE(entry->screenshot()) << "Screenshot " << i << " not cleared";
   }
 }
 

@@ -39,6 +39,23 @@ enum TileManagerBin {
   EVENTUALLY_BIN = 2, // Nice to have, if we've got memory and time.
   NEVER_BIN = 3, // Dont bother.
   NUM_BINS = 4
+  // Be sure to update TileManagerBinAsValue when adding new fields.
+};
+scoped_ptr<base::Value> TileManagerBinAsValue(
+    TileManagerBin bin);
+
+enum TileManagerBinPriority {
+  HIGH_PRIORITY_BIN = 0,
+  LOW_PRIORITY_BIN = 1,
+  NUM_BIN_PRIORITIES = 2
+};
+
+enum TileRasterState {
+  IDLE_STATE = 0,
+  WAITING_FOR_RASTER_STATE = 1,
+  RASTER_STATE = 2,
+  SET_PIXELS_STATE = 3,
+  NUM_STATES = 4
 };
 
 // This is state that is specific to a tile that is
@@ -56,9 +73,11 @@ class CC_EXPORT ManagedTileState {
   bool contents_swizzled;
   bool need_to_gather_pixel_refs;
   std::list<skia::LazyPixelRef*> pending_pixel_refs;
+  TileRasterState raster_state;
 
   // Ephemeral state, valid only during Manage.
-  TileManagerBin bin;
+  TileManagerBin bin[NUM_BIN_PRIORITIES];
+  TileManagerBin tree_bin[NUM_TREES];
   // The bin that the tile would have if the GPU memory manager had a maximally permissive policy,
   // send to the GPU memory manager to determine policy.
   TileManagerBin gpu_memmgr_stats_bin;
@@ -84,11 +103,13 @@ class CC_EXPORT TileManager {
 
   void ManageTiles();
   void CheckForCompletedTileUploads();
+
+  scoped_ptr<base::Value> AsValue() const;
   void GetMemoryStats(size_t* memoryRequiredBytes,
                       size_t* memoryNiceToHaveBytes,
-                      size_t* memoryUsedBytes);
-
+                      size_t* memoryUsedBytes) const;
   void GetRenderingStats(RenderingStats* stats);
+  bool HasPendingWorkScheduled(WhichTree tree) const;
 
  protected:
   // Methods called by Tile
@@ -110,12 +131,18 @@ class CC_EXPORT TileManager {
       scoped_refptr<Tile> tile, skia::LazyPixelRef* pixel_ref);
   void OnImageDecodeTaskCompleted(
       scoped_refptr<Tile> tile, uint32_t pixel_ref_id);
+  bool CanDispatchRasterTask(Tile* tile);
   void DispatchOneRasterTask(scoped_refptr<Tile> tile);
   void OnRasterTaskCompleted(
       scoped_refptr<Tile> tile,
       scoped_ptr<ResourcePool::Resource> resource,
       int manage_tiles_call_count_when_dispatched);
   void DidFinishTileInitialization(Tile* tile);
+  void DidTileRasterStateChange(Tile* tile, TileRasterState state);
+  void DidTileBinChange(Tile* tile,
+                        TileManagerBin bin,
+                        WhichTree tree);
+  scoped_ptr<Value> GetMemoryRequirementsAsValue() const;
 
   TileManagerClient* client_;
   scoped_ptr<ResourcePool> resource_pool_;
@@ -139,8 +166,12 @@ class CC_EXPORT TileManager {
 
   typedef std::queue<scoped_refptr<Tile> > TileQueue;
   TileQueue tiles_with_pending_set_pixels_;
+  size_t bytes_pending_set_pixels_;
+  bool ever_exceeded_memory_budget_;
 
   RenderingStats rendering_stats_;
+
+  int raster_state_count_[NUM_STATES][NUM_TREES][NUM_BINS];
 
   DISALLOW_COPY_AND_ASSIGN(TileManager);
 };

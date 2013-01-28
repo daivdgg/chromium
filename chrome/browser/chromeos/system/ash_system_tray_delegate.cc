@@ -40,6 +40,7 @@
 #include "chrome/browser/chromeos/accessibility/accessibility_util.h"
 #include "chrome/browser/chromeos/accessibility/magnification_manager.h"
 #include "chrome/browser/chromeos/audio/audio_handler.h"
+#include "chrome/browser/chromeos/bluetooth/bluetooth_pairing_dialog.h"
 #include "chrome/browser/chromeos/cros/cros_library.h"
 #include "chrome/browser/chromeos/cros/network_library.h"
 #include "chrome/browser/chromeos/drive/drive_system_service.h"
@@ -268,7 +269,7 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
     network_icon_->SetResourceColorTheme(NetworkMenuIcon::COLOR_LIGHT);
     network_icon_dark_->SetResourceColorTheme(NetworkMenuIcon::COLOR_DARK);
 
-    device::BluetoothAdapterFactory::RunCallbackOnAdapterReady(
+    device::BluetoothAdapterFactory::GetAdapter(
         base::Bind(&SystemTrayDelegate::InitializeOnAdapterReady,
                    ui_weak_ptr_factory_->GetWeakPtr()));
   }
@@ -515,6 +516,11 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
           NULL,
           base::Bind(&base::DoNothing),
           base::Bind(&BluetoothDeviceConnectError));
+    } else {  // Show paring dialog for the unpaired device.
+      BluetoothPairingDialog* dialog =
+          new BluetoothPairingDialog(GetNativeWindow(), device);
+      // The dialog deletes itself on close.
+      dialog->Show();
     }
   }
 

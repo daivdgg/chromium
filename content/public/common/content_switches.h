@@ -141,7 +141,6 @@ extern const char kGpuLauncher[];
 CONTENT_EXPORT extern const char kGpuProcess[];
 extern const char kGpuStartupDialog[];
 extern const char kGpuVendorID[];
-CONTENT_EXPORT extern const char kGuestRenderer[];
 CONTENT_EXPORT extern const char kHostResolverRules[];
 CONTENT_EXPORT extern const char kIgnoreCertificateErrors[];
 CONTENT_EXPORT extern const char kIgnoreGpuBlacklist[];
@@ -241,7 +240,7 @@ extern const char kDisableCarbonInterposing[];
 CONTENT_EXPORT extern const char kTestCompositor[];
 #endif
 
-CONTENT_EXPORT extern const char kEnableOverscrollHistoryNavigation[];
+CONTENT_EXPORT extern const char kDisableOverscrollHistoryNavigation[];
 
 }  // namespace switches
 

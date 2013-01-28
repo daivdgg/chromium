@@ -86,7 +86,7 @@ public:
     virtual bool haveTouchEventHandlersAt(const gfx::Point&) OVERRIDE;
 
     // TopControlsManagerClient implementation.
-    virtual void setNeedsUpdateDrawProperties() OVERRIDE;
+    virtual void setActiveTreeNeedsUpdateDrawProperties() OVERRIDE;
     virtual void setNeedsRedraw() OVERRIDE;
     virtual bool haveRootScrollLayer() const OVERRIDE;
     virtual float rootScrollLayerTotalScrollY() const OVERRIDE;
@@ -172,6 +172,7 @@ public:
     const LayerTreeImpl* recycleTree() const { return m_recycleTree.get(); }
     void createPendingTree();
     void checkForCompletedTileUploads();
+    scoped_ptr<base::Value> activationStateAsValue() const;
     virtual void activatePendingTreeIfNeeded();
 
     // Shortcuts to layers on the active tree.
@@ -199,8 +200,6 @@ public:
     void startPageScaleAnimation(gfx::Vector2d targetOffset, bool useAnchor, float scale, base::TimeDelta duration);
 
     bool needsAnimateLayers() const { return !m_animationRegistrar->active_animation_controllers().empty(); }
-
-    bool needsUpdateDrawProperties() const { return m_needsUpdateDrawProperties; }
 
     void renderingStats(RenderingStats*) const;
 
@@ -283,13 +282,14 @@ private:
     void animatePageScale(base::TimeTicks monotonicTime);
     void animateScrollbars(base::TimeTicks monotonicTime);
 
-    void updateDrawProperties();
-
     void computeDoubleTapZoomDeltas(ScrollAndScaleSet* scrollInfo);
     void computePinchZoomDeltas(ScrollAndScaleSet* scrollInfo);
     void makeScrollAndScaleSet(ScrollAndScaleSet* scrollInfo, gfx::Vector2d scrollOffset, float pageScale);
 
     void setPageScaleDelta(float);
+    gfx::Vector2dF scrollPinchZoomViewport(gfx::Vector2dF delta);
+    gfx::Vector2dF scrollLayerWithViewportSpaceDelta(LayerImpl* layerImpl, float scaleFromViewportToScreenSpace, gfx::PointF viewportPoint, gfx::Vector2dF viewportDelta);
+
     void updateMaxScrollOffset();
     void trackDamageForAllSurfaces(LayerImpl* rootDrawLayer, const LayerList& renderSurfaceLayerList);
 
@@ -336,7 +336,6 @@ private:
     bool m_visible;
     ManagedMemoryPolicy m_managedMemoryPolicy;
 
-    bool m_needsUpdateDrawProperties;
     bool m_pinchGestureActive;
     gfx::Point m_previousPinchAnchor;
 

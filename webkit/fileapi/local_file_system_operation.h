@@ -25,6 +25,7 @@ class CrosMountPointProvider;
 namespace fileapi {
 
 class FileSystemContext;
+class RecursiveOperationDelegate;
 
 // FileSystemOperation implementation for local file systems.
 class WEBKIT_STORAGE_EXPORT LocalFileSystemOperation
@@ -78,9 +79,72 @@ class WEBKIT_STORAGE_EXPORT LocalFileSystemOperation
       const FileSystemURL& path,
       const SnapshotFileCallback& callback) OVERRIDE;
 
+  // Copies in a single file from a different filesystem.
+  //
+  // This returns:
+  // - PLATFORM_FILE_ERROR_NOT_FOUND if |src_file_path|
+  //   or the parent directory of |dest_url| does not exist.
+  // - PLATFORM_FILE_ERROR_INVALID_OPERATION if |dest_url| exists and
+  //   is not a file.
+  // - PLATFORM_FILE_ERROR_FAILED if |dest_url| does not exist and
+  //   its parent path is a file.
+  //
   void CopyInForeignFile(const FilePath& src_local_disk_path,
                          const FileSystemURL& dest_url,
                          const StatusCallback& callback);
+
+  // Removes a single file.
+  //
+  // This returns:
+  // - PLATFORM_FILE_ERROR_NOT_FOUND if |url| does not exist.
+  // - PLATFORM_FILE_ERROR_NOT_A_FILE if |url| is not a file.
+  //
+  void RemoveFile(const FileSystemURL& url,
+                  const StatusCallback& callback);
+
+  // Removes a single empty directory.
+  //
+  // This returns:
+  // - PLATFORM_FILE_ERROR_NOT_FOUND if |url| does not exist.
+  // - PLATFORM_FILE_ERROR_NOT_A_DIRECTORY if |url| is not a directory.
+  // - PLATFORM_FILE_ERROR_NOT_EMPTY if |url| is not empty.
+  //
+  void RemoveDirectory(const FileSystemURL& url,
+                       const StatusCallback& callback);
+
+  // Copies a file from |src_url| to |dest_url|.
+  // This must be called for files that belong to the same filesystem
+  // (i.e. type() and origin() of the |src_url| and |dest_url| must match).
+  //
+  // This returns:
+  // - PLATFORM_FILE_ERROR_NOT_FOUND if |src_url|
+  //   or the parent directory of |dest_url| does not exist.
+  // - PLATFORM_FILE_ERROR_NOT_A_FILE if |src_url| exists but is not a file.
+  // - PLATFORM_FILE_ERROR_INVALID_OPERATION if |dest_url| exists and
+  //   is not a file.
+  // - PLATFORM_FILE_ERROR_FAILED if |dest_url| does not exist and
+  //   its parent path is a file.
+  //
+  void CopyFileLocal(const FileSystemURL& src_url,
+                     const FileSystemURL& dest_url,
+                     const StatusCallback& callback);
+
+  // Moves a local file from |src_url| to |dest_url|.
+  // This must be called for files that belong to the same filesystem
+  // (i.e. type() and origin() of the |src_url| and |dest_url| must match).
+  //
+  // This returns:
+  // - PLATFORM_FILE_ERROR_NOT_FOUND if |src_url|
+  //   or the parent directory of |dest_url| does not exist.
+  // - PLATFORM_FILE_ERROR_NOT_A_FILE if |src_url| exists but is not a file.
+  // - PLATFORM_FILE_ERROR_INVALID_OPERATION if |dest_url| exists and
+  //   is not a file.
+  // - PLATFORM_FILE_ERROR_FAILED if |dest_url| does not exist and
+  //   its parent path is a file.
+  //
+  void MoveFileLocal(const FileSystemURL& src_url,
+                     const FileSystemURL& dest_url,
+                     const StatusCallback& callback);
 
   // Synchronously gets the platform path for the given |url|.
   void SyncGetPlatformPath(const FileSystemURL& url, FilePath* platform_path);
@@ -108,6 +172,8 @@ class WEBKIT_STORAGE_EXPORT LocalFileSystemOperation
   friend class FileSystemQuotaTest;
   friend class LocalFileSystemTestOriginHelper;
 
+  friend class RecursiveOperationDelegate;
+  friend class CrossOperationDelegate;
   friend class SyncableFileSystemOperation;
 
   LocalFileSystemOperation(
@@ -119,6 +185,8 @@ class WEBKIT_STORAGE_EXPORT LocalFileSystemOperation
   }
 
   FileSystemOperationContext* operation_context() const {
+    if (overriding_operation_context_)
+      return overriding_operation_context_;
     return operation_context_.get();
   }
 
@@ -159,15 +227,15 @@ class WEBKIT_STORAGE_EXPORT LocalFileSystemOperation
                          const StatusCallback& callback,
                          bool exclusive,
                          bool recursive);
-  void DoCopy(const FileSystemURL& src,
-              const FileSystemURL& dest,
-              const StatusCallback& callback);
+  void DoCopyFileLocal(const FileSystemURL& src,
+                       const FileSystemURL& dest,
+                       const StatusCallback& callback);
+  void DoMoveFileLocal(const FileSystemURL& src,
+                       const FileSystemURL& dest,
+                       const StatusCallback& callback);
   void DoCopyInForeignFile(const FilePath& src_local_disk_file_path,
                            const FileSystemURL& dest,
                            const StatusCallback& callback);
-  void DoMove(const FileSystemURL& src,
-              const FileSystemURL& dest,
-              const StatusCallback& callback);
   void DoTruncate(const FileSystemURL& url,
                   const StatusCallback& callback, int64 length);
   void DoOpenFile(const FileSystemURL& url,
@@ -186,6 +254,10 @@ class WEBKIT_STORAGE_EXPORT LocalFileSystemOperation
   // Generic callback that translates platform errors to WebKit error codes.
   void DidFinishFileOperation(const StatusCallback& callback,
                               base::PlatformFileError rv);
+
+  // Generic callback when we delegated the operation.
+  void DidFinishDelegatedOperation(const StatusCallback& callback,
+                                   base::PlatformFileError rv);
 
   void DidDirectoryExists(const StatusCallback& callback,
                           base::PlatformFileError rv,
@@ -230,15 +302,31 @@ class WEBKIT_STORAGE_EXPORT LocalFileSystemOperation
   // Returns false if there's another inflight pending operation.
   bool SetPendingOperationType(OperationType type);
 
+  // Overrides this operation's operation context by given |context|.
+  // This operation won't own |context| and the |context| needs to outlive
+  // this operation.
+  //
+  // Called only from operation delegates when they create sub-operations
+  // for performing a recursive operation.
+  void set_overriding_operation_context(FileSystemOperationContext* context) {
+    overriding_operation_context_ = context;
+  }
+
+  // Sets a termination callback which is called when this instance goes away
+  // (indicates the operation is finished).
+  void set_termination_callback(const base::Closure& closure) {
+    termination_callback_ = closure;
+  }
+
   scoped_refptr<FileSystemContext> file_system_context_;
 
   scoped_ptr<FileSystemOperationContext> operation_context_;
-  FileSystemFileUtil* src_util_;  // Not owned.
-  FileSystemFileUtil* dest_util_;  // Not owned.
+  FileSystemFileUtil* file_util_;  // Not owned.
 
-  // Indicates if this operation is for cross filesystem operation or not.
-  // TODO(kinuko): This should be cleaned up.
-  bool is_cross_operation_;
+  FileSystemOperationContext* overriding_operation_context_;
+
+  // A callback that is called when this instance goes away.
+  base::Closure termination_callback_;
 
   // This is set before any write operations to dispatch
   // FileUpdateObserver::StartUpdate and FileUpdateObserver::EndUpdate.
@@ -247,6 +335,8 @@ class WEBKIT_STORAGE_EXPORT LocalFileSystemOperation
   // These are all used only by Write().
   friend class FileWriterDelegate;
   scoped_ptr<FileWriterDelegate> file_writer_delegate_;
+
+  scoped_ptr<RecursiveOperationDelegate> recursive_operation_delegate_;
 
   // write_callback is kept in this class for so that we can dispatch it when
   // the operation is cancelled. calcel_callback is kept for canceling a

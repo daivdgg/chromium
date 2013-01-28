@@ -28,6 +28,7 @@ class MessageCenterNotificationManager
   virtual ~MessageCenterNotificationManager();
 
   // NotificationUIManager
+  virtual bool DoesIdExist(const std::string& notification_id) OVERRIDE;
   virtual bool CancelById(const std::string& notification_id) OVERRIDE;
   virtual bool CancelAllBySourceOrigin(const GURL& source_origin) OVERRIDE;
   virtual bool CancelAllByProfile(Profile* profile) OVERRIDE;
@@ -45,6 +46,7 @@ class MessageCenterNotificationManager
   virtual void DisableNotificationsFromSource(
       const std::string& notification_id) OVERRIDE;
   virtual void ShowSettings(const std::string& notification_id) OVERRIDE;
+  virtual void ShowSettingsDialog(gfx::NativeView context) OVERRIDE;
   virtual void OnClicked(const std::string& notification_id) OVERRIDE;
   virtual void OnButtonClicked(const std::string& notification_id,
                                int button_index) OVERRIDE;
@@ -89,9 +91,9 @@ class MessageCenterNotificationManager
   void AddProfileNotification(ProfileNotification* profile_notification);
   void RemoveProfileNotification(ProfileNotification* profile_notification);
 
+  ProfileNotification* FindProfileNotification(const std::string& id) const;
+
   DISALLOW_COPY_AND_ASSIGN(MessageCenterNotificationManager);
 };
 
 #endif  // CHROME_BROWSER_NOTIFICATIONS_MESSAGE_CENTER_NOTIFICATION_MANAGER_H_
-
-

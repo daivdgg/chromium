@@ -96,11 +96,11 @@ class WebUITestWebUIControllerFactory : public WebUIControllerFactory {
   }
   virtual bool UseWebUIForURL(BrowserContext* browser_context,
                               const GURL& url) const OVERRIDE {
-    return GetContentClient()->HasWebUIScheme(url);
+    return HasWebUIScheme(url);
   }
   virtual bool UseWebUIBindingsForURL(BrowserContext* browser_context,
                                       const GURL& url) const OVERRIDE {
-    return GetContentClient()->HasWebUIScheme(url);
+    return HasWebUIScheme(url);
   }
   virtual bool IsURLAcceptableForWebUI(
       BrowserContext* browser_context,
@@ -108,28 +108,6 @@ class WebUITestWebUIControllerFactory : public WebUIControllerFactory {
       bool data_urls_allowed) const OVERRIDE {
     return false;
   }
-};
-
-class WebUITestClient : public ShellContentClient {
- public:
-  WebUITestClient() {
-  }
-
-  virtual bool HasWebUIScheme(const GURL& url) const OVERRIDE {
-    return url.SchemeIs(chrome::kChromeUIScheme);
-  }
-};
-
-class WebUITestBrowserClient : public ShellContentBrowserClient {
- public:
-  WebUITestBrowserClient() {}
-
-  virtual WebUIControllerFactory* GetWebUIControllerFactory() OVERRIDE {
-    return &factory_;
-  }
-
- private:
-  WebUITestWebUIControllerFactory factory_;
 };
 
 }  // namespace
@@ -342,14 +320,8 @@ TEST_F(RenderViewImplTest, OnNavigationHttpPost) {
 }
 
 TEST_F(RenderViewImplTest, DecideNavigationPolicy) {
-  WebUITestClient client;
-  WebUITestBrowserClient browser_client;
-  ContentClient* old_client = GetContentClient();
-  ContentBrowserClient* old_browser_client = GetContentClient()->browser();
-
-  SetContentClient(&client);
-  GetContentClient()->set_browser_for_testing(&browser_client);
-  client.set_renderer_for_testing(old_client->renderer());
+  WebUITestWebUIControllerFactory factory;
+  WebUIControllerFactory::RegisterFactory(&factory);
 
   // Navigations to normal HTTP URLs can be handled locally.
   WebKit::WebURLRequest request(GURL("http://foo.com"));
@@ -384,9 +356,6 @@ TEST_F(RenderViewImplTest, DecideNavigationPolicy) {
       WebKit::WebNavigationPolicyNewForegroundTab,
       false);
   EXPECT_EQ(WebKit::WebNavigationPolicyIgnore, policy);
-
-  GetContentClient()->set_browser_for_testing(old_browser_client);
-  SetContentClient(old_client);
 }
 
 TEST_F(RenderViewImplTest, DecideNavigationPolicyForWebUI) {
@@ -1857,6 +1826,32 @@ TEST_F(RenderViewImplTest, OnExtendSelectionAndDelete) {
   EXPECT_EQ("abuvwxyz", info.value);
   EXPECT_EQ(2, info.selectionStart);
   EXPECT_EQ(2, info.selectionEnd);
+}
+
+// Test that the navigating specific frames works correctly.
+TEST_F(RenderViewImplTest, NavigateFrame) {
+  // Load page A.
+  LoadHTML("hello <iframe srcdoc='fail' name='frame'></iframe>");
+
+  // Navigate the frame only.
+  ViewMsg_Navigate_Params nav_params;
+  nav_params.url = GURL("data:text/html,world");
+  nav_params.navigation_type = ViewMsg_Navigate_Type::NORMAL;
+  nav_params.transition = PAGE_TRANSITION_TYPED;
+  nav_params.current_history_list_length = 1;
+  nav_params.current_history_list_offset = 0;
+  nav_params.pending_history_list_offset = 1;
+  nav_params.page_id = -1;
+  nav_params.frame_to_navigate = "frame";
+  view()->OnNavigate(nav_params);
+  ProcessPendingMessages();
+
+  // Copy the document content to std::wstring and compare with the
+  // expected result.
+  const int kMaxOutputCharacters = 256;
+  std::wstring output = UTF16ToWideHack(
+      GetMainFrame()->contentAsText(kMaxOutputCharacters));
+  EXPECT_EQ(output, L"hello \n\nworld");
 }
 
 }  // namespace content

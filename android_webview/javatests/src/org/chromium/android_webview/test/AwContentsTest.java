@@ -30,7 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * AwContents tests.
@@ -280,5 +282,116 @@ public class AwContentsTest extends AndroidWebViewTestBase {
         } finally {
             if (webServer != null) webServer.shutdown();
         }
+    }
+
+    @Feature({"AndroidWebView"})
+    @SmallTest
+    public void testGetVisitedHistoryExerciseCodePath() throws Throwable {
+        // Due to security/privacy restrictions around the :visited css property, it is not
+        // possible test this end to end without using the flaky and brittle capturing picture of
+        // the web page. So we are doing the next best thing, exercising all the code paths.
+
+        mContentsClient.mSaveGetVisitedHistoryCallback = true;
+        AwTestContainerView testView = createAwTestContainerViewOnMainSync(mContentsClient);
+        AwContents awContents = testView.getAwContents();
+
+        final String path = "/testGetVisitedHistoryExerciseCodePath.html";
+        final String visitedLinks[] = {"http://foo.com", "http://bar.com", null};
+        final String html = "<a src=\"http://foo.com\">foo</a><a src=\"http://bar.com\">bar</a>";
+
+        TestWebServer webServer = null;
+        try {
+            webServer = new TestWebServer(false);
+            final String pageUrl = webServer.setResponse(path, html, null);
+
+            loadUrlSync(awContents, mContentsClient.getOnPageFinishedHelper(), pageUrl);
+            assertNotNull(mContentsClient.mGetVisitedHistoryCallback);
+
+            mContentsClient.mGetVisitedHistoryCallback.onReceiveValue(visitedLinks);
+            mContentsClient.mGetVisitedHistoryCallback.onReceiveValue(null);
+
+            loadUrlSync(awContents, mContentsClient.getOnPageFinishedHelper(), pageUrl);
+        } finally {
+            if (webServer != null) webServer.shutdown();
+        }
+    }
+
+    /*
+     * @Feature({"AndroidWebView"})
+     * @SmallTest
+     * Exercising code after destroy causes gpu related crashes. See crbug.com/172184.
+     */
+    @DisabledTest
+    public void testGetVisitedHistoryCallbackAfterDestroy() throws Throwable {
+        mContentsClient.mSaveGetVisitedHistoryCallback = true;
+        AwTestContainerView testView = createAwTestContainerViewOnMainSync(mContentsClient);
+        AwContents awContents = testView.getAwContents();
+
+        loadUrlSync(awContents, mContentsClient.getOnPageFinishedHelper(), "about:blank");
+        assertNotNull(mContentsClient.mGetVisitedHistoryCallback);
+
+        destroyAwContentsOnMainSync(awContents);
+        mContentsClient.mGetVisitedHistoryCallback.onReceiveValue(new String[] {"abc.def"});
+        mContentsClient.mGetVisitedHistoryCallback.onReceiveValue(null);
+    }
+
+    private void autoLoginTestHelper(final String testName, final String xAutoLoginHeader,
+            final String expectedRealm, final String expectedAccount, final String expectedArgs)
+            throws Throwable {
+        AwTestContainerView testView = createAwTestContainerViewOnMainSync(mContentsClient);
+        AwContents awContents = testView.getAwContents();
+
+        final String path = "/" + testName + ".html";
+        final String html = testName;
+        List<Pair<String, String>> headers = new ArrayList<Pair<String, String>>();
+        headers.add(Pair.create("x-auto-login", xAutoLoginHeader));
+
+        TestWebServer webServer = null;
+        try {
+            webServer = new TestWebServer(false);
+            final String pageUrl = webServer.setResponse(path, html, headers);
+
+            loadUrlSync(awContents, mContentsClient.getOnPageFinishedHelper(), pageUrl);
+
+            assertEquals(expectedRealm, mContentsClient.mLastAutoLoginRealm);
+            assertEquals(expectedAccount, mContentsClient.mLastAutoLoginAccount);
+            assertEquals(expectedArgs, mContentsClient.mLastAutoLoginArgs);
+        } finally {
+            if (webServer != null) webServer.shutdown();
+        }
+    }
+
+    @Feature({"AndroidWebView"})
+    @SmallTest
+    public void testAutoLoginOnGoogleCom() throws Throwable {
+        autoLoginTestHelper(
+                "testAutoLoginOnGoogleCom",  /* testName */
+                "realm=com.google&account=foo%40bar.com&args=random_string", /* xAutoLoginHeader */
+                "com.google",  /* expectedRealm */
+                "foo@bar.com",  /* expectedAccount */
+                "random_string"  /* expectedArgs */);
+
+    }
+
+    @Feature({"AndroidWebView"})
+    @SmallTest
+    public void testAutoLoginWithNullAccount() throws Throwable {
+        autoLoginTestHelper(
+                "testAutoLoginOnGoogleCom",  /* testName */
+                "realm=com.google&args=not.very.inventive", /* xAutoLoginHeader */
+                "com.google",  /* expectedRealm */
+                null,  /* expectedAccount */
+                "not.very.inventive"  /* expectedArgs */);
+    }
+
+    @Feature({"AndroidWebView"})
+    @SmallTest
+    public void testAutoLoginOnNonGoogle() throws Throwable {
+        autoLoginTestHelper(
+                "testAutoLoginOnGoogleCom",  /* testName */
+                "realm=com.bar&account=foo%40bar.com&args=args", /* xAutoLoginHeader */
+                "com.bar",  /* expectedRealm */
+                "foo@bar.com",  /* expectedAccount */
+                "args"  /* expectedArgs */);
     }
 }

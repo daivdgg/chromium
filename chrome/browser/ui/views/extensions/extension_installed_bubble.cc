@@ -178,7 +178,7 @@ class InstalledBubbleContent : public views::View,
       size = gfx::Size(kIconSize, kIconSize);
     icon_ = new views::ImageView();
     icon_->SetImageSize(size);
-    icon_->SetImage(gfx::ImageSkia(*icon));
+    icon_->SetImage(gfx::ImageSkia::CreateFrom1xBitmap(*icon));
     AddChildView(icon_);
 
     // Add the heading (for all flavors).
@@ -337,8 +337,7 @@ class InstalledBubbleContent : public views::View,
       return height;
     contents_area.set_width(kRightColumnWidth);
 
-    string16 full_text = signin_promo_link_text_ + ASCIIToUTF16(" ") +
-                         signin_promo_text_;
+    string16 full_text = signin_promo_link_text_ + signin_promo_text_;
 
     // The link is the first item in the text.
     const gfx::Size link_size = sign_in_link_->GetPreferredSize();

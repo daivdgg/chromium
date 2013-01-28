@@ -42,11 +42,7 @@ const char kDisableAudioFallback[] = "disable-audio-fallback";
 const char kDisableAudioOutputResampler[] = "disable-audio-output-resampler";
 
 // Controls renderer side mixing and low latency audio path for media elements.
-#if defined(OS_WIN) || defined(OS_MACOSX)
 const char kDisableRendererSideMixing[] = "disable-renderer-side-mixing";
-#else
-const char kEnableRendererSideMixing[] = "enable-renderer-side-mixing";
-#endif
 
 // Enable browser-side audio mixer.
 const char kEnableAudioMixer[] = "enable-audio-mixer";
@@ -63,5 +59,8 @@ const char kEnableEncryptedMedia[] = "enable-encrypted-media";
 
 // Enables Opus playback in media elements.
 const char kEnableOpusPlayback[] = "enable-opus-playback";
+
+// Enables VP9 playback in media elements.
+const char kEnableVp9Playback[] = "enable-vp9-playback";
 
 }  // namespace switches

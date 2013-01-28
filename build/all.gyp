@@ -243,6 +243,16 @@
             '../ui/views/views.gyp:views_unittests',
             '../webkit/webkit.gyp:test_shell_common',
            ],
+           'conditions': [
+              ['use_aura==1', {
+               'dependencies!': [
+                 '../chrome_frame/chrome_frame.gyp:npchrome_frame',
+               ],
+               'defines': [
+                 'OMIT_CHROME_FRAME',
+               ],
+             }], # use_aura==1
+           ],
         }],
         ['OS=="linux"', {
           'dependencies': [
@@ -320,6 +330,9 @@
           'dependencies': [
             '../chrome/chrome.gyp:chromedriver',
             '../chrome/chrome.gyp:chromedriver2',
+            '../chrome/chrome.gyp:chromedriver2_server',
+            '../chrome/chrome.gyp:chromedriver2_tests',
+            '../chrome/chrome.gyp:chromedriver2_unittests',
             # Dependencies of pyauto_functional tests.
             '../remoting/remoting.gyp:remoting_webapp',
           ],
@@ -542,6 +555,16 @@
             '../webkit/webkit.gyp:pull_in_copy_TestNetscapePlugIn',
             'temp_gyp/googleurl.gyp:googleurl_unittests',
           ],
+          'conditions': [
+              ['use_aura==1', {
+               'dependencies!': [
+                 '../chrome_frame/chrome_frame.gyp:npchrome_frame',
+               ],
+               'defines': [
+                 'OMIT_CHROME_FRAME',
+               ],
+             }], # use_aura==1
+          ],
         },
         {
           'target_name': 'chromium_builder_win_cf',
@@ -618,7 +641,6 @@
               'type': 'none',
               'dependencies': [
                 '../chrome/chrome.gyp:chromedriver',
-                '../chrome/chrome.gyp:chromedriver2',
                 '../chrome/chrome.gyp:crash_service',
                 '../chrome/chrome.gyp:crash_service_win64',
                 '../chrome/chrome.gyp:performance_ui_tests',
@@ -646,6 +668,14 @@
                     '../remoting/remoting.gyp:remoting_host_installation',
                   ],
                 }], # component != "shared_library"
+                ['use_aura==1', {
+                  'dependencies!': [
+                    '../chrome_frame/chrome_frame.gyp:npchrome_frame',
+                  ],
+                  'defines': [
+                    'OMIT_CHROME_FRAME',
+                  ],
+                }], # use_aura==1
               ]
             },
           ], # targets

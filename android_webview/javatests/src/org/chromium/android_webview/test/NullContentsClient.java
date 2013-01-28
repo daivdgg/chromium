@@ -9,6 +9,7 @@ import android.os.Message;
 import android.view.KeyEvent;
 import android.webkit.ConsoleMessage;
 import android.webkit.GeolocationPermissions;
+import android.webkit.ValueCallback;
 
 import org.chromium.android_webview.AwContentsClient;
 import org.chromium.android_webview.AwHttpAuthHandler;
@@ -28,6 +29,10 @@ class NullContentsClient extends AwContentsClient {
 
     @Override
     public void onUnhandledKeyEvent(KeyEvent event) {
+    }
+
+    @Override
+    public void getVisitedHistory(ValueCallback<String[]> callback) {
     }
 
     @Override
@@ -55,6 +60,10 @@ class NullContentsClient extends AwContentsClient {
     @Override
     public void onReceivedHttpAuthRequest(AwHttpAuthHandler handler, String host, String realm) {
         handler.cancel();
+    }
+
+    @Override
+    public void onReceivedLoginRequest(String realm, String account, String args) {
     }
 
     @Override

@@ -66,15 +66,11 @@ class WebContentsViewAuraTest : public ContentBrowserTest {
  public:
   WebContentsViewAuraTest() {}
 
-  virtual void SetUpCommandLine(CommandLine* command_line) {
-    command_line->AppendSwitch(switches::kEnableOverscrollHistoryNavigation);
-  }
-
   // Executes the javascript synchronously and makes sure the returned value is
   // freed properly.
   void ExecuteSyncJSFunction(RenderViewHost* rvh, const std::string& jscript) {
-    scoped_ptr<base::Value> value(rvh->ExecuteJavascriptAndGetValue(
-        string16(), ASCIIToUTF16(jscript)));
+    scoped_ptr<base::Value> value =
+        content::ExecuteScriptAndGetValue(rvh, jscript);
   }
 
   // Starts the test server and navigates to the given url. Sets a large enough
@@ -100,9 +96,8 @@ class WebContentsViewAuraTest : public ContentBrowserTest {
     EXPECT_FALSE(controller.CanGoBack());
     EXPECT_FALSE(controller.CanGoForward());
     int index = -1;
-    scoped_ptr<base::Value> value;
-    value.reset(view_host->ExecuteJavascriptAndGetValue(string16(),
-        ASCIIToUTF16("get_current()")));
+    scoped_ptr<base::Value> value =
+        content::ExecuteScriptAndGetValue(view_host, "get_current()");
     ASSERT_TRUE(value->GetAsInteger(&index));
     EXPECT_EQ(0, index);
 
@@ -111,8 +106,7 @@ class WebContentsViewAuraTest : public ContentBrowserTest {
 
     ExecuteSyncJSFunction(view_host, "navigate_next()");
     ExecuteSyncJSFunction(view_host, "navigate_next()");
-    value.reset(view_host->ExecuteJavascriptAndGetValue(string16(),
-        ASCIIToUTF16("get_current()")));
+    value = content::ExecuteScriptAndGetValue(view_host, "get_current()");
     ASSERT_TRUE(value->GetAsInteger(&index));
     EXPECT_EQ(2, index);
     EXPECT_TRUE(controller.CanGoBack());
@@ -133,8 +127,7 @@ class WebContentsViewAuraTest : public ContentBrowserTest {
           1);
       string16 actual_title = title_watcher.WaitAndGetTitle();
       EXPECT_EQ(expected_title, actual_title);
-      value.reset(view_host->ExecuteJavascriptAndGetValue(string16(),
-            ASCIIToUTF16("get_current()")));
+      value = content::ExecuteScriptAndGetValue(view_host, "get_current()");
       ASSERT_TRUE(value->GetAsInteger(&index));
       EXPECT_EQ(1, index);
       EXPECT_TRUE(controller.CanGoBack());
@@ -152,8 +145,7 @@ class WebContentsViewAuraTest : public ContentBrowserTest {
           10);
       string16 actual_title = title_watcher.WaitAndGetTitle();
       EXPECT_EQ(expected_title, actual_title);
-      value.reset(view_host->ExecuteJavascriptAndGetValue(string16(),
-            ASCIIToUTF16("get_current()")));
+      value = content::ExecuteScriptAndGetValue(view_host, "get_current()");
       ASSERT_TRUE(value->GetAsInteger(&index));
       EXPECT_EQ(0, index);
       EXPECT_FALSE(controller.CanGoBack());
@@ -171,8 +163,7 @@ class WebContentsViewAuraTest : public ContentBrowserTest {
           10);
       string16 actual_title = title_watcher.WaitAndGetTitle();
       EXPECT_EQ(expected_title, actual_title);
-      value.reset(view_host->ExecuteJavascriptAndGetValue(string16(),
-            ASCIIToUTF16("get_current()")));
+      value = content::ExecuteScriptAndGetValue(view_host, "get_current()");
       ASSERT_TRUE(value->GetAsInteger(&index));
       EXPECT_EQ(1, index);
       EXPECT_TRUE(controller.CanGoBack());
@@ -187,8 +178,7 @@ class WebContentsViewAuraTest : public ContentBrowserTest {
         web_contents->GetRenderViewHost());
     int index = -1;
     scoped_ptr<base::Value> value;
-    value.reset(view_host->ExecuteJavascriptAndGetValue(string16(),
-        ASCIIToUTF16("get_current()")));
+    value = content::ExecuteScriptAndGetValue(view_host, "get_current()");
     if (!value->GetAsInteger(&index))
       index = -1;
     return index;

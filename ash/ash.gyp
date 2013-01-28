@@ -569,6 +569,7 @@
         'drag_drop/drag_drop_tracker_unittest.cc',
         'extended_desktop_unittest.cc',
         'focus_cycler_unittest.cc',
+        'keyboard_overlay/keyboard_overlay_delegate_unittest.cc',
         'keyboard_overlay/keyboard_overlay_view_unittest.cc',
         'launcher/launcher_model_unittest.cc',
         'launcher/launcher_navigator_unittest.cc',
@@ -632,22 +633,12 @@
         '<(SHARED_INTERMEDIATE_DIR)/ash/ash_resources/ash_wallpaper_resources.rc',
       ],
       'conditions': [
-        ['use_ibus==1', {
-          'dependencies': [
-            '../build/linux/system.gyp:ibus',
-          ],
-        }],
         ['OS=="win"', {
           'sources/': [
             # TODO(zork): fix this test to build on Windows. See: crosbug.com/26906
             ['exclude', 'focus_cycler_unittest.cc'],
             # All tests for multiple displays: not supported on Windows Ash.
             ['exclude', 'accelerators/nested_dispatcher_controller_unittest.cc'],
-            ['exclude', 'display/display_controller_unittest.cc'],
-            ['exclude', 'display/display_manager_unittest.cc'],
-            ['exclude', 'display/mouse_cursor_event_filter_unittest.cc'],
-            ['exclude', 'extended_desktop_unittest.cc'],
-            ['exclude', 'screen_ash_unittest.cc'],
             ['exclude', 'wm/drag_window_resizer_unittest.cc'],
           ],
         }],

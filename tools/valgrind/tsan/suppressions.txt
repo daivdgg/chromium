@@ -810,12 +810,6 @@
   fun:base::internal::RunnableAdapter::Run
 }
 {
-  bug_108411
-  ThreadSanitizer:Race
-  ...
-  fun:pa_rtpoll_run
-}
-{
   bug_108539
   ThreadSanitizer:Race
   fun:tracked_objects::ThreadData::InitializeAndSetTrackingStatus
@@ -999,4 +993,25 @@
   fun:media::ChunkDemuxer::AppendData
   fun:media::MockMediaSource::AppendAtTime
   fun:media::PipelineIntegrationTest_MediaSource_ConfigChange_WebM_Test::TestBody
+}
+{
+  bug_172292
+  ThreadSanitizer:Race
+  fun:testing::internal::CmpHelperGE
+  fun:ThreadWatcherTest_MultipleThreadsResponding_Test::TestBody
+  fun:testing::internal::HandleSehExceptionsInMethodIfSupported
+}
+{
+  bug_172297
+  ThreadSanitizer:Race
+  fun:CustomThreadWatcher::UpdateState
+  fun:*
+  fun:base::internal::RunnableAdapter::Run
+}
+{
+  bug_172306
+  ThreadSanitizer:Race
+  fun:ThreadWatcher::OnPongMessage
+  fun:CustomThreadWatcher::OnPongMessage
+  fun:base::internal::RunnableAdapter::Run
 }

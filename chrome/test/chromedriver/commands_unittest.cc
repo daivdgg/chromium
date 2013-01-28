@@ -20,6 +20,20 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/webdriver/atoms.h"
 
+TEST(CommandsTest, GetStatus) {
+  base::DictionaryValue params;
+  scoped_ptr<base::Value> value;
+  std::string session_id;
+  ASSERT_EQ(kOk, ExecuteGetStatus(params, "", &value, &session_id).code());
+  base::DictionaryValue* dict;
+  ASSERT_TRUE(value->GetAsDictionary(&dict));
+  base::Value* unused;
+  ASSERT_TRUE(dict->Get("os.name", &unused));
+  ASSERT_TRUE(dict->Get("os.version", &unused));
+  ASSERT_TRUE(dict->Get("os.arch", &unused));
+  ASSERT_TRUE(dict->Get("build.version", &unused));
+}
+
 namespace {
 
 class StubChrome : public Chrome {
@@ -51,7 +65,19 @@ class StubChrome : public Chrome {
                                     std::string* out_frame) OVERRIDE {
     return Status(kOk);
   }
+  virtual Status DispatchMouseEvents(
+      const std::list<MouseEvent>& events) OVERRIDE {
+    return Status(kOk);
+  }
   virtual Status Quit() OVERRIDE {
+    return Status(kOk);
+  }
+  virtual Status WaitForPendingNavigations(
+      const std::string& frame_id) OVERRIDE {
+    return Status(kOk);
+  }
+  virtual Status GetMainFrame(
+      std::string* frame_id) OVERRIDE {
     return Status(kOk);
   }
 };
@@ -397,13 +423,15 @@ TEST(CommandsTest, SuccessfulFindChildElement) {
   base::DictionaryValue params;
   params.SetString("using", "tag name");
   params.SetString("value", "div");
-  params.SetString("id", "1");
+  std::string element_id = "1";
   scoped_ptr<base::Value> result;
-  ASSERT_EQ(kOk, ExecuteFindChildElement(1, &session, params, &result).code());
+  ASSERT_EQ(
+      kOk,
+      ExecuteFindChildElement(1, &session, element_id, params, &result).code());
   base::DictionaryValue locator_param;
   locator_param.SetString("tag name", "div");
   base::DictionaryValue root_element_param;
-  root_element_param.SetString("ELEMENT", "1");
+  root_element_param.SetString("ELEMENT", element_id);
   base::ListValue expected_args;
   expected_args.Append(locator_param.DeepCopy());
   expected_args.Append(root_element_param.DeepCopy());
@@ -417,10 +445,11 @@ TEST(CommandsTest, FailedFindChildElement) {
   base::DictionaryValue params;
   params.SetString("using", "id");
   params.SetString("value", "a");
-  params.SetString("id", "1");
+  std::string element_id = "1";
   scoped_ptr<base::Value> result;
-  ASSERT_EQ(kNoSuchElement,
-            ExecuteFindChildElement(1, &session, params, &result).code());
+  ASSERT_EQ(
+      kNoSuchElement,
+      ExecuteFindChildElement(1, &session, element_id, params, &result).code());
 }
 
 TEST(CommandsTest, SuccessfulFindChildElements) {
@@ -432,13 +461,16 @@ TEST(CommandsTest, SuccessfulFindChildElements) {
   base::DictionaryValue params;
   params.SetString("using", "class name");
   params.SetString("value", "c");
-  params.SetString("id", "1");
+  std::string element_id = "1";
   scoped_ptr<base::Value> result;
-  ASSERT_EQ(kOk, ExecuteFindChildElements(1, &session, params, &result).code());
+  ASSERT_EQ(
+      kOk,
+      ExecuteFindChildElements(
+          1, &session, element_id, params, &result).code());
   base::DictionaryValue locator_param;
   locator_param.SetString("class name", "c");
   base::DictionaryValue root_element_param;
-  root_element_param.SetString("ELEMENT", "1");
+  root_element_param.SetString("ELEMENT", element_id);
   base::ListValue expected_args;
   expected_args.Append(locator_param.DeepCopy());
   expected_args.Append(root_element_param.DeepCopy());
@@ -452,9 +484,12 @@ TEST(CommandsTest, FailedFindChildElements) {
   base::DictionaryValue params;
   params.SetString("using", "id");
   params.SetString("value", "a");
-  params.SetString("id", "1");
+  std::string element_id = "1";
   scoped_ptr<base::Value> result;
-  ASSERT_EQ(kOk, ExecuteFindChildElements(1, &session, params, &result).code());
+  ASSERT_EQ(
+      kOk,
+      ExecuteFindChildElements(
+          1, &session, element_id, params, &result).code());
   base::ListValue* list;
   ASSERT_TRUE(result->GetAsList(&list));
   ASSERT_EQ(0U, list->GetSize());
@@ -514,10 +549,13 @@ TEST(CommandsTest, ErrorFindChildElement) {
   base::DictionaryValue params;
   params.SetString("using", "id");
   params.SetString("value", "a");
-  params.SetString("id", "1");
-  scoped_ptr<base::Value> value;
-  ASSERT_EQ(kStaleElementReference,
-            ExecuteFindChildElement(1, &session, params, &value).code());
-  ASSERT_EQ(kStaleElementReference,
-            ExecuteFindChildElements(1, &session, params, &value).code());
+  std::string element_id = "1";
+  scoped_ptr<base::Value> result;
+  ASSERT_EQ(
+      kStaleElementReference,
+      ExecuteFindChildElement(1, &session, element_id, params, &result).code());
+  ASSERT_EQ(
+      kStaleElementReference,
+      ExecuteFindChildElements(
+          1, &session, element_id, params, &result).code());
 }

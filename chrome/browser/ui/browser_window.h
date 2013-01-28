@@ -218,6 +218,11 @@ class BrowserWindow : public BaseWindow {
   virtual void ShowChromeToMobileBubble() = 0;
 
 #if defined(ENABLE_ONE_CLICK_SIGNIN)
+  enum OneClickSigninBubbleType {
+    ONE_CLICK_SIGNIN_BUBBLE_TYPE_BUBBLE,
+    ONE_CLICK_SIGNIN_BUBBLE_TYPE_MODAL_DIALOG
+  };
+
   // Callback type used with the ShowOneClickSigninBubble() method.  If the
   // user chooses to accept the sign in, the callback is called to start the
   // sync process.
@@ -226,6 +231,7 @@ class BrowserWindow : public BaseWindow {
 
   // Shows the one-click sign in bubble.
   virtual void ShowOneClickSigninBubble(
+      OneClickSigninBubbleType type,
       const StartSyncCallback& start_sync_callback) = 0;
 #endif
 
@@ -254,15 +260,6 @@ class BrowserWindow : public BaseWindow {
   // Notification that |contents| got the focus through user action (click
   // on the page).
   virtual void WebContentsFocused(content::WebContents* contents) = 0;
-
-  // Shows the page info using the specified information.
-  // |url| is the url of the page/frame the info applies to, |ssl| is the SSL
-  // information for that page/frame.  If |show_history| is true, a section
-  // showing how many times that URL has been visited is added to the page info.
-  virtual void ShowPageInfo(content::WebContents* web_contents,
-                            const GURL& url,
-                            const content::SSLStatus& ssl,
-                            bool show_history) = 0;
 
   // Shows the website settings using the specified information. |url| is the
   // url of the page/frame the info applies to, |ssl| is the SSL information for

@@ -773,6 +773,9 @@ const char kIncognito[]                     = "incognito";
 // app/extension ID given, and then prompt the user to download and install it.
 const char kInstallFromWebstore[]    = "install-from-webstore";
 
+// Marks a renderer as an Instant process.
+const char kInstantProcess[]                = "instant-process";
+
 // URL to use for instant. If specified this overrides the url from the
 // TemplateURL.
 const char kInstantURL[]                    = "instant-url";
@@ -1310,6 +1313,10 @@ const char kUninstall[]                     = "uninstall";
 // testing flag.
 const char kUseSpdy[]                       = "use-spdy";
 
+// Uses Spdy for encoding QUIC requests instead of HTTP. This is a temporary
+// testing flag.
+const char kUseSpdyOverQuic[]               = "use-spdy-over-quic";
+
 // Disables use of the spelling web service and only provides suggestions.
 // This will only work if asynchronous spell checking is not disabled.
 const char kUseSpellingSuggestions[]            = "use-spelling-suggestions";
@@ -1324,13 +1331,13 @@ const char kMaxSpdyConcurrentStreams[]      = "max-spdy-concurrent-streams";
 // all of its state.
 const char kUserDataDir[]                   = "user-data-dir";
 
-// Uses the GAIA web-based signin flow instead of the native UI signin flow.
-const char kUseWebBasedSigninFlow[]         = "use-web-based-signin-flow";
+// Uses the ClientLogin signin flow instead of the web-based signin flow.
+const char kUseClientLoginSigninFlow[]      = "use-client-login-signin-flow";
 
 // Specifies a custom URL for the server which reports variation data to the
 // client. Specifying this switch enables the Variations service on
 // unofficial builds. See variations_service.cc.
-const char kVariationsServerURL[]            = "variations-server-url";
+const char kVariationsServerURL[]           = "variations-server-url";
 
 // Prints version information and quits.
 const char kVersion[]                       = "version";

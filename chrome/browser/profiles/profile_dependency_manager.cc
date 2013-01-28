@@ -27,6 +27,7 @@
 #include "chrome/browser/extensions/api/font_settings/font_settings_api.h"
 #include "chrome/browser/extensions/api/history/history_api.h"
 #include "chrome/browser/extensions/api/idle/idle_manager_factory.h"
+#include "chrome/browser/extensions/api/input/input.h"
 #include "chrome/browser/extensions/api/managed_mode/managed_mode_api.h"
 #include "chrome/browser/extensions/api/management/management_api.h"
 #include "chrome/browser/extensions/api/media_galleries_private/media_galleries_private_api.h"
@@ -78,7 +79,6 @@
 #include "chrome/browser/ui/find_bar/find_bar_state_factory.h"
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
 #include "chrome/browser/ui/tabs/pinned_tab_service_factory.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager_factory.h"
 #include "chrome/browser/ui/webui/ntp/ntp_resource_cache_factory.h"
 #include "chrome/browser/user_style_sheet_watcher_factory.h"
 #include "chrome/browser/webdata/web_data_service_factory.h"
@@ -92,7 +92,7 @@
 #endif
 
 #if defined(OS_CHROMEOS)
-#include "chrome/browser/chromeos/extensions/input_method_api_factory.h"
+#include "chrome/browser/chromeos/extensions/input_method_api.h"
 #include "chrome/browser/chromeos/extensions/media_player_api.h"
 #include "chrome/browser/extensions/api/input_ime/input_ime_api.h"
 #if defined(FILE_MANAGER_EXTENSION)
@@ -242,7 +242,6 @@ void ProfileDependencyManager::AssertFactoriesBuilt() {
   captive_portal::CaptivePortalServiceFactory::GetInstance();
 #endif
   ChromeGeolocationPermissionContextFactory::GetInstance();
-  ChromeURLDataManagerFactory::GetInstance();
 #if defined(ENABLE_PRINTING)
   CloudPrintProxyServiceFactory::GetInstance();
 #endif
@@ -265,9 +264,12 @@ void ProfileDependencyManager::AssertFactoriesBuilt() {
   extensions::FontSettingsAPI::GetFactoryInstance();
   extensions::HistoryAPI::GetFactoryInstance();
   extensions::IdleManagerFactory::GetInstance();
+#if defined(TOOLKIT_VIEWS)
+  extensions::InputAPI::GetFactoryInstance();
+#endif
 #if defined(OS_CHROMEOS)
   extensions::InputImeAPI::GetFactoryInstance();
-  extensions::InputMethodAPIFactory::GetInstance();
+  extensions::InputMethodAPI::GetFactoryInstance();
 #endif
   extensions::ManagedModeAPI::GetFactoryInstance();
   extensions::ManagementAPI::GetFactoryInstance();

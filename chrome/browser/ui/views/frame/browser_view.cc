@@ -28,7 +28,7 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/sessions/tab_restore_service.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
-#include "chrome/browser/speech/extension_api/tts_extension_api.h"
+#include "chrome/browser/speech/tts_controller.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/ui/app_modal_dialogs/app_modal_dialog.h"
 #include "chrome/browser/ui/app_modal_dialogs/app_modal_dialog_queue.h"
@@ -499,7 +499,7 @@ bool BrowserView::AcceleratorPressed(const ui::Accelerator& accelerator) {
   if (accelerator.key_code() == ui::VKEY_LWIN &&
       g_browser_process->local_state()->GetBoolean(
           prefs::kSpokenFeedbackEnabled)) {
-    ExtensionTtsController::GetInstance()->Stop();
+    TtsController::GetInstance()->Stop();
     return false;
   }
 #endif
@@ -642,6 +642,11 @@ bool BrowserView::IsAlwaysOnTop() const {
 }
 
 gfx::NativeWindow BrowserView::GetNativeWindow() {
+  // While the browser destruction is going on, the widget can already be gone,
+  // but utility functions like FindBrowserWithWindow will come here and crash.
+  // We short circuit therefore.
+  if (!GetWidget())
+    return NULL;
   return GetWidget()->GetTopLevelWidget()->GetNativeWindow();
 }
 
@@ -1120,9 +1125,9 @@ void BrowserView::ShowChromeToMobileBubble() {
 
 #if defined(ENABLE_ONE_CLICK_SIGNIN)
 void BrowserView::ShowOneClickSigninBubble(
+    OneClickSigninBubbleType type,
     const StartSyncCallback& start_sync_callback) {
-  OneClickSigninBubbleView::ShowBubble(toolbar_->app_menu(),
-                                       start_sync_callback);
+  OneClickSigninBubbleView::ShowBubble(type, toolbar_, start_sync_callback);
 }
 #endif
 
@@ -1184,14 +1189,6 @@ void BrowserView::WebContentsFocused(WebContents* contents) {
     preview_controller_->preview()->OnWebContentsFocused(contents);
   else
     devtools_container_->OnWebContentsFocused(contents);
-}
-
-void BrowserView::ShowPageInfo(content::WebContents* web_contents,
-                               const GURL& url,
-                               const SSLStatus& ssl,
-                               bool show_history) {
-  chrome::ShowPageInfoBubble(GetLocationBarView()->location_icon_view(),
-      web_contents, url, ssl, show_history, browser_.get());
 }
 
 void BrowserView::ShowWebsiteSettings(Profile* profile,
@@ -1540,7 +1537,8 @@ gfx::ImageSkia BrowserView::GetWindowAppIcon() {
     extensions::TabHelper* extensions_tab_helper =
         contents ? extensions::TabHelper::FromWebContents(contents) : NULL;
     if (extensions_tab_helper && extensions_tab_helper->GetExtensionAppIcon())
-      return gfx::ImageSkia(*extensions_tab_helper->GetExtensionAppIcon());
+      return gfx::ImageSkia::CreateFrom1xBitmap(
+          *extensions_tab_helper->GetExtensionAppIcon());
   }
 
   return GetWindowIcon();
@@ -2126,6 +2124,7 @@ void BrowserView::UpdateDevToolsForContents(WebContents* web_contents) {
     ShowDevToolsContainer();
   } else if (new_devtools_window) {
     UpdateDevToolsSplitPosition();
+    contents_split_->Layout();
   }
 }
 

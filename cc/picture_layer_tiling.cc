@@ -31,13 +31,6 @@ PictureLayerTiling::PictureLayerTiling(float contents_scale,
 PictureLayerTiling::~PictureLayerTiling() {
 }
 
-const PictureLayerTiling& PictureLayerTiling::operator=(
-    const PictureLayerTiling& tiler) {
-  tiling_data_ = tiler.tiling_data_;
-  tiles_ = tiler.tiles_;
-  return *this;
-}
-
 void PictureLayerTiling::SetClient(PictureLayerTilingClient* client) {
   client_ = client;
 }
@@ -59,8 +52,10 @@ void PictureLayerTiling::CreateTile(int i, int j) {
   gfx::Rect tile_rect = tiling_data_.TileBoundsWithBorder(i, j);
   tile_rect.set_size(tiling_data_.max_texture_size());
   TileMapKey key(i, j);
-  DCHECK(!tiles_[key]);
-  tiles_[key] = client_->CreateTile(this, tile_rect);
+  DCHECK(tiles_.find(key) == tiles_.end());
+  scoped_refptr<Tile> tile = client_->CreateTile(this, tile_rect);
+  if (tile)
+    tiles_[key] = tile;
 }
 
 Region PictureLayerTiling::OpaqueRegionInContentRect(
@@ -74,7 +69,9 @@ void PictureLayerTiling::SetLayerBounds(gfx::Size layer_bounds) {
   if (layer_bounds_ == layer_bounds)
     return;
 
+  gfx::Size old_layer_bounds = layer_bounds_;
   layer_bounds_ = layer_bounds;
+  gfx::Size old_content_bounds = tiling_data_.total_size();
   gfx::Size content_bounds =
       gfx::ToCeiledSize(gfx::ScaleSize(layer_bounds_, contents_scale_));
 
@@ -84,25 +81,31 @@ void PictureLayerTiling::SetLayerBounds(gfx::Size layer_bounds) {
     return;
   }
 
-  int right = tiling_data_.TileXIndexFromSrcCoord(content_bounds.width() - 1);
-  int bottom = tiling_data_.TileYIndexFromSrcCoord(content_bounds.height() - 1);
-
-  // TODO(enne): Be more efficient about what tiles are created.
-  for (int j = 0; j <= bottom; ++j) {
-    for (int i = 0; i <= right; ++i) {
-      if (tiles_.find(TileMapKey(i, j)) == tiles_.end())
-        CreateTile(i, j);
-    }
-  }
-
   // Any tiles outside our new bounds are invalid and should be dropped.
-  std::vector<TileMapKey> invalid_tile_keys;
-  for (TileMap::const_iterator it = tiles_.begin(); it != tiles_.end(); ++it) {
-    if (it->first.first > right || it->first.second > bottom)
-      invalid_tile_keys.push_back(it->first);
+  if (old_content_bounds.width() > content_bounds.width() ||
+      old_content_bounds.height() > content_bounds.height()) {
+    int right =
+        tiling_data_.TileXIndexFromSrcCoord(content_bounds.width() - 1);
+    int bottom =
+        tiling_data_.TileYIndexFromSrcCoord(content_bounds.height() - 1);
+
+    std::vector<TileMapKey> invalid_tile_keys;
+    for (TileMap::const_iterator it = tiles_.begin();
+         it != tiles_.end(); ++it) {
+      if (it->first.first > right || it->first.second > bottom)
+        invalid_tile_keys.push_back(it->first);
+    }
+    for (size_t i = 0; i < invalid_tile_keys.size(); ++i)
+      tiles_.erase(invalid_tile_keys[i]);
   }
-  for (size_t i = 0; i < invalid_tile_keys.size(); ++i)
-    tiles_.erase(invalid_tile_keys[i]);
+
+  // Create tiles for newly exposed areas.
+  Region layer_region((gfx::Rect(layer_bounds_)));
+  layer_region.Subtract(gfx::Rect(old_layer_bounds));
+  for (Region::Iterator iter(layer_region); iter.has_rect(); iter.next()) {
+    Invalidate(iter.rect());
+    CreateTilesFromLayerRect(iter.rect());
+  }
 }
 
 void PictureLayerTiling::Invalidate(const Region& layer_invalidation) {
@@ -112,24 +115,42 @@ void PictureLayerTiling::Invalidate(const Region& layer_invalidation) {
        region_iter.has_rect();
        region_iter.next()) {
 
+    gfx::Rect layer_invalidation = region_iter.rect();
+    layer_invalidation.Intersect(gfx::Rect(layer_bounds_));
     gfx::Rect rect =
-        gfx::ToEnclosingRect(ScaleRect(region_iter.rect(), contents_scale_));
-    rect.Intersect(ContentRect());
+        gfx::ToEnclosingRect(ScaleRect(layer_invalidation, contents_scale_));
 
     for (PictureLayerTiling::Iterator tile_iter(this, contents_scale_, rect);
          tile_iter;
          ++tile_iter) {
       TileMapKey key(tile_iter.tile_i_, tile_iter.tile_j_);
-      if (!tiles_[key])
+      TileMap::iterator found = tiles_.find(key);
+      if (found == tiles_.end())
         continue;
 
-      tiles_[key] = NULL;
+      tiles_.erase(found);
       new_tiles.push_back(key);
     }
   }
 
-  for (size_t i = 0; i < new_tiles.size(); ++i) {
+  for (size_t i = 0; i < new_tiles.size(); ++i)
     CreateTile(new_tiles[i].first, new_tiles[i].second);
+}
+
+void PictureLayerTiling::CreateTilesFromLayerRect(gfx::Rect layer_rect) {
+  gfx::Rect content_rect =
+      gfx::ToEnclosingRect(ScaleRect(layer_rect, contents_scale_));
+  CreateTilesFromContentRect(content_rect);
+}
+
+void PictureLayerTiling::CreateTilesFromContentRect(gfx::Rect content_rect) {
+  for (TilingData::Iterator iter(&tiling_data_, content_rect); iter; ++iter) {
+    TileMap::iterator found =
+        tiles_.find(TileMapKey(iter.index_x(), iter.index_y()));
+    // Ignore any tiles that already exist.
+    if (found != tiles_.end())
+      continue;
+    CreateTile(iter.index_x(), iter.index_y());
   }
 }
 
@@ -281,42 +302,74 @@ void PictureLayerTiling::UpdateTilePriorities(
     return;
 
   gfx::Rect view_rect(gfx::Point(), device_viewport);
-  int right = tiling_data_.TileXIndexFromSrcCoord(content_rect.width() - 1);
-  int bottom = tiling_data_.TileYIndexFromSrcCoord(content_rect.height() - 1);
+  float current_scale = current_layer_contents_scale / contents_scale_;
+  float last_scale = last_layer_contents_scale / contents_scale_;
 
-  for (TileMap::const_iterator it = tiles_.begin(); it != tiles_.end(); ++it) {
-    TileMapKey key = it->first;
-    TilePriority priority;
-    priority.resolution = resolution_;
-    if (key.first > right || key.second > bottom) {
-      priority.distance_to_visible_in_pixels = std::numeric_limits<int>::max();
+  if (last_screen_transform.IsIdentityOrTranslation() &&
+      current_screen_transform.IsIdentityOrTranslation())
+  {
+    gfx::Vector2dF current_offset(
+        current_screen_transform.matrix().get(0, 3),
+        current_screen_transform.matrix().get(1, 3));
+    gfx::Vector2dF last_offset(
+        last_screen_transform.matrix().get(0, 3),
+        last_screen_transform.matrix().get(1, 3));
+
+    for (TileMap::const_iterator it = tiles_.begin();
+        it != tiles_.end(); ++it) {
+      TileMapKey key = it->first;
+      TilePriority priority;
+      priority.resolution = resolution_;
+
+      gfx::Rect tile_bound = tiling_data_.TileBounds(key.first, key.second);
+      gfx::RectF current_screen_rect = gfx::ScaleRect(
+          tile_bound,
+          current_scale,
+          current_scale) + current_offset;
+      gfx::RectF last_screen_rect = gfx::ScaleRect(
+          tile_bound,
+          last_scale,
+          last_scale) + last_offset;
+
       priority.time_to_visible_in_seconds =
-          TilePriority::kMaxTimeToVisibleInSeconds;
+          TilePriority::TimeForBoundsToIntersect(
+              last_screen_rect, current_screen_rect, time_delta, view_rect);
+
+      priority.distance_to_visible_in_pixels =
+          TilePriority::manhattanDistance(current_screen_rect, view_rect);
       it->second->set_priority(tree, priority);
-      continue;
     }
+  }
+  else
+  {
+    for (TileMap::const_iterator it = tiles_.begin();
+           it != tiles_.end(); ++it) {
+      TileMapKey key = it->first;
+      TilePriority priority;
+      priority.resolution = resolution_;
 
-    gfx::Rect tile_bound = tiling_data_.TileBounds(key.first, key.second);
-    gfx::RectF current_layer_content_rect = gfx::ScaleRect(
-        tile_bound,
-        current_layer_contents_scale / contents_scale_,
-        current_layer_contents_scale / contents_scale_);
-    gfx::RectF current_screen_rect = MathUtil::mapClippedRect(
-        current_screen_transform, current_layer_content_rect);
-    gfx::RectF last_layer_content_rect = gfx::ScaleRect(
-        tile_bound,
-        last_layer_contents_scale / contents_scale_,
-        last_layer_contents_scale / contents_scale_);
-    gfx::RectF last_screen_rect  = MathUtil::mapClippedRect(
-        last_screen_transform, last_layer_content_rect);
+      gfx::Rect tile_bound = tiling_data_.TileBounds(key.first, key.second);
+      gfx::RectF current_layer_content_rect = gfx::ScaleRect(
+          tile_bound,
+          current_scale,
+          current_scale);
+      gfx::RectF current_screen_rect = MathUtil::mapClippedRect(
+          current_screen_transform, current_layer_content_rect);
+      gfx::RectF last_layer_content_rect = gfx::ScaleRect(
+          tile_bound,
+          last_scale,
+          last_scale);
+      gfx::RectF last_screen_rect  = MathUtil::mapClippedRect(
+          last_screen_transform, last_layer_content_rect);
 
-    priority.time_to_visible_in_seconds =
-        TilePriority::TimeForBoundsToIntersect(
-            last_screen_rect, current_screen_rect, time_delta, view_rect);
+      priority.time_to_visible_in_seconds =
+          TilePriority::TimeForBoundsToIntersect(
+              last_screen_rect, current_screen_rect, time_delta, view_rect);
 
-    priority.distance_to_visible_in_pixels =
-        TilePriority::manhattanDistance(current_screen_rect, view_rect);
-    it->second->set_priority(tree, priority);
+      priority.distance_to_visible_in_pixels =
+          TilePriority::manhattanDistance(current_screen_rect, view_rect);
+      it->second->set_priority(tree, priority);
+    }
   }
 }
 

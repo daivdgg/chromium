@@ -31,6 +31,7 @@
 #include "content/browser/renderer_host/media/media_stream_manager.h"
 #include "content/browser/speech/speech_recognition_manager_impl.h"
 #include "content/browser/trace_controller_impl.h"
+#include "content/browser/webui/url_data_manager.h"
 #include "content/public/browser/browser_main_parts.h"
 #include "content/public/browser/browser_shutdown.h"
 #include "content/public/browser/compositor_util.h"
@@ -55,6 +56,8 @@
 #include "base/android/jni_android.h"
 #include "content/browser/android/surface_texture_peer_browser_impl.h"
 #include "content/browser/device_orientation/data_fetcher_impl_android.h"
+// TODO(epenner): Move thread priorities to base. (crbug.com/170549)
+#include <sys/resource.h>
 #endif
 
 #if defined(OS_WIN)
@@ -617,6 +620,8 @@ void BrowserMainLoop::ShutdownThreadsAndCleanUp() {
   // Must happen after the I/O thread is shutdown since this class lives on the
   // I/O thread and isn't threadsafe.
   GamepadService::GetInstance()->Terminate();
+
+  URLDataManager::DeleteDataSources();
 #endif  // !defined(OS_IOS)
 
   if (parts_.get())
@@ -634,7 +639,27 @@ void BrowserMainLoop::InitializeMainThread() {
                                            MessageLoop::current()));
 }
 
+#if defined(OS_ANDROID)
+// TODO(epenner): Move thread priorities to base. (crbug.com/170549)
+namespace {
+void SetHighThreadPriority() {
+  int nice_value = -6; // High priority.
+  setpriority(PRIO_PROCESS, base::PlatformThread::CurrentId(), nice_value);
+}
+}
+#endif
+
 void BrowserMainLoop::BrowserThreadsStarted() {
+#if defined(OS_ANDROID)
+// TODO(epenner): Move thread priorities to base. (crbug.com/170549)
+  BrowserThread::PostTask(BrowserThread::UI,
+                          FROM_HERE,
+                          base::Bind(&SetHighThreadPriority));
+  BrowserThread::PostTask(BrowserThread::IO,
+                          FROM_HERE,
+                          base::Bind(&SetHighThreadPriority));
+#endif
+
 #if !defined(OS_IOS)
   HistogramSynchronizer::GetInstance();
 
@@ -702,12 +727,17 @@ void BrowserMainLoop::InitializeToolkit() {
   // TODO(stevenjb): Move platform specific code into platform specific Parts
   // (Need to add InitializeToolkit stage to BrowserParts).
 #if defined(OS_LINUX) || defined(OS_OPENBSD)
+  // g_type_init will be deprecated in 2.36. 2.35 is the development
+  // version for 2.36, hence do not call g_type_init starting 2.35.
+  // http://developer.gnome.org/gobject/unstable/gobject-Type-Information.html#g-type-init
+#if !GLIB_CHECK_VERSION(2, 35, 0)
   // Glib type system initialization. Needed at least for gconf,
   // used in net/proxy/proxy_config_service_linux.cc. Most likely
   // this is superfluous as gtk_init() ought to do this. It's
   // definitely harmless, so retained as a reminder of this
   // requirement for gconf.
   g_type_init();
+#endif
 
 #if !defined(USE_AURA)
   gfx::GtkInitFromCommandLine(parsed_command_line_);

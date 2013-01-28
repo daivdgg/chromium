@@ -30,6 +30,7 @@ AudioRendererImpl::AudioRendererImpl(
     const SetDecryptorReadyCB& set_decryptor_ready_cb)
     : sink_(sink),
       set_decryptor_ready_cb_(set_decryptor_ready_cb),
+      time_provider_(&base::Time::Now),
       state_(kUninitialized),
       pending_read_(false),
       received_end_of_stream_(false),
@@ -67,7 +68,7 @@ void AudioRendererImpl::DoPlay() {
   DCHECK(sink_);
   {
     base::AutoLock auto_lock(lock_);
-    earliest_end_time_ = base::Time::Now();
+    earliest_end_time_ = time_provider_();
   }
   sink_->Play();
 }
@@ -160,7 +161,7 @@ void AudioRendererImpl::Preroll(base::TimeDelta time,
 
     // |algorithm_| will request more reads.
     algorithm_->FlushBuffers();
-    earliest_end_time_ = base::Time::Now();
+    earliest_end_time_ = time_provider_();
   }
 
   // Pause and flush the stream when we preroll to a new location.
@@ -237,14 +238,9 @@ void AudioRendererImpl::OnDecoderSelected(
   int buffer_size = GetHighLatencyOutputBufferSize(sample_rate);
   AudioParameters::Format format = AudioParameters::AUDIO_PCM_LINEAR;
 
-  // On Windows and Mac we can use the low latency pipeline because they provide
-  // accurate and smooth delay information.  On other platforms like Linux there
-  // are jitter issues.
-  // TODO(dalecurtis): Fix bugs: http://crbug.com/138098 http://crbug.com/32757
-#if defined(OS_WIN) || defined(OS_MACOSX)
-  const CommandLine* cmd_line = CommandLine::ForCurrentProcess();
   // Either AudioOutputResampler or renderer side mixing must be enabled to use
   // the low latency pipeline.
+  const CommandLine* cmd_line = CommandLine::ForCurrentProcess();
   if (!cmd_line->HasSwitch(switches::kDisableRendererSideMixing) ||
       !cmd_line->HasSwitch(switches::kDisableAudioOutputResampler)) {
     // There are two cases here:
@@ -268,7 +264,6 @@ void AudioRendererImpl::OnDecoderSelected(
     format = AudioParameters::AUDIO_PCM_LOW_LATENCY;
     buffer_size = 2048;
   }
-#endif
 
   audio_parameters_ = AudioParameters(
       format, decoder_->channel_layout(), sample_rate,
@@ -472,6 +467,8 @@ uint32 AudioRendererImpl::FillBuffer(uint8* dest,
                                      int audio_delay_milliseconds) {
   base::TimeDelta current_time = kNoTimestamp();
   base::TimeDelta max_time = kNoTimestamp();
+  base::TimeDelta playback_delay = base::TimeDelta::FromMilliseconds(
+      audio_delay_milliseconds);
 
   size_t frames_written = 0;
   base::Closure underflow_cb;
@@ -485,14 +482,6 @@ uint32 AudioRendererImpl::FillBuffer(uint8* dest,
     float playback_rate = algorithm_->playback_rate();
     if (playback_rate == 0.0f)
       return 0;
-
-    // Adjust the delay according to playback rate.
-    base::TimeDelta playback_delay =
-        base::TimeDelta::FromMilliseconds(audio_delay_milliseconds);
-    if (playback_rate != 1.0f) {
-      playback_delay = base::TimeDelta::FromMicroseconds(static_cast<int64>(
-          ceil(playback_delay.InMicroseconds() * playback_rate)));
-    }
 
     if (state_ == kRebuffering && algorithm_->IsQueueFull())
       state_ = kPlaying;
@@ -528,7 +517,7 @@ uint32 AudioRendererImpl::FillBuffer(uint8* dest,
     //
     // Otherwise fill the buffer with whatever data we can send to the device.
     if (!algorithm_->CanFillBuffer() && received_end_of_stream_ &&
-        !rendered_end_of_stream_ && base::Time::Now() >= earliest_end_time_) {
+        !rendered_end_of_stream_ && time_provider_() >= earliest_end_time_) {
       rendered_end_of_stream_ = true;
       ended_cb_.Run();
     } else if (!algorithm_->CanFillBuffer() && !received_end_of_stream_ &&
@@ -549,8 +538,13 @@ uint32 AudioRendererImpl::FillBuffer(uint8* dest,
     // buffered at the audio device. The current time can be computed by their
     // difference.
     if (audio_time_buffered_ != kNoTimestamp()) {
+      // Adjust the delay according to playback rate.
+      base::TimeDelta adjusted_playback_delay =
+          base::TimeDelta::FromMicroseconds(ceil(
+              playback_delay.InMicroseconds() * playback_rate));
+
       base::TimeDelta previous_time = current_time_;
-      current_time_ = audio_time_buffered_ - playback_delay;
+      current_time_ = audio_time_buffered_ - adjusted_playback_delay;
 
       // Time can change in one of two ways:
       //   1) The time of the audio data at the audio device changed, or
@@ -577,7 +571,7 @@ uint32 AudioRendererImpl::FillBuffer(uint8* dest,
     audio_time_buffered_ = max_time;
 
     UpdateEarliestEndTime_Locked(
-        frames_written, playback_rate, playback_delay, base::Time::Now());
+        frames_written, playback_delay, time_provider_());
   }
 
   if (current_time != kNoTimestamp() && max_time != kNoTimestamp()) {
@@ -591,20 +585,13 @@ uint32 AudioRendererImpl::FillBuffer(uint8* dest,
 }
 
 void AudioRendererImpl::UpdateEarliestEndTime_Locked(
-    int frames_filled, float playback_rate, base::TimeDelta playback_delay,
-    base::Time time_now) {
+    int frames_filled, base::TimeDelta playback_delay, base::Time time_now) {
   if (frames_filled <= 0)
     return;
 
   base::TimeDelta predicted_play_time = base::TimeDelta::FromMicroseconds(
       static_cast<float>(frames_filled) * base::Time::kMicrosecondsPerSecond /
       audio_parameters_.sample_rate());
-
-  if (playback_rate != 1.0f) {
-    predicted_play_time = base::TimeDelta::FromMicroseconds(
-        static_cast<int64>(ceil(predicted_play_time.InMicroseconds() *
-                                playback_rate)));
-  }
 
   lock_.AssertAcquired();
   earliest_end_time_ = std::max(

@@ -18,6 +18,7 @@
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/extensions/api/commands/command_service.h"
 #include "chrome/browser/extensions/api/tabs/tabs_api.h"
+#include "chrome/browser/extensions/app_launcher.h"
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/extensions/extension_prefs.h"
 #include "chrome/browser/extensions/extension_web_ui.h"
@@ -41,7 +42,6 @@
 #include "chrome/browser/net/ssl_config_service_manager.h"
 #include "chrome/browser/notifications/desktop_notification_service.h"
 #include "chrome/browser/notifications/notification_prefs_manager.h"
-#include "chrome/browser/page_info_model.h"
 #include "chrome/browser/password_manager/password_manager.h"
 #include "chrome/browser/pepper_flash_settings_manager.h"
 #include "chrome/browser/plugins/plugin_finder.h"
@@ -153,6 +153,7 @@ void RegisterLocalState(PrefServiceSimple* local_state) {
   // Please keep this list alphabetized.
   browser_shutdown::RegisterPrefs(local_state);
   chrome::RegisterScreenshotPrefs(local_state);
+  extensions::app_launcher::RegisterPrefs(local_state);
   ExternalProtocolHandler::RegisterPrefs(local_state);
   FlagsUI::RegisterPrefs(local_state);
   geolocation::RegisterPrefs(local_state);

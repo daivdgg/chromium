@@ -27,13 +27,12 @@
 #include "chrome/browser/policy/proto/device_management_backend.pb.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
-#include "chrome/browser/ui/webui/chrome_web_ui_data_source.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/time_format.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
+#include "content/public/browser/web_ui_data_source.h"
 #include "grit/browser_resources.h"
 #include "grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -61,7 +60,7 @@ namespace {
 
 content::WebUIDataSource* CreatePolicyUIHTMLSource() {
   content::WebUIDataSource* source =
-      ChromeWebUIDataSource::Create(chrome::kChromeUIPolicyHost);
+      content::WebUIDataSource::Create(chrome::kChromeUIPolicyHost);
 
   // Localized strings.
   source->SetUseJsonJSFormatV2();
@@ -368,9 +367,12 @@ void PolicyUIHandler::RegisterMessages() {
               user_manager->GetLoggedInUser()->email(), local_account_service));
     }
   } else {
-    user_status_provider_.reset(
-        new CloudPolicyCoreStatusProvider(
-            connector->GetUserCloudPolicyManager()->core()));
+    policy::CloudPolicyManager* user_cloud_policy_manager =
+        connector->GetUserCloudPolicyManager();
+    if (user_cloud_policy_manager) {
+      user_status_provider_.reset(
+          new CloudPolicyCoreStatusProvider(user_cloud_policy_manager->core()));
+    }
   }
 #else
   policy::CloudPolicyManager* user_cloud_policy_manager =
@@ -536,7 +538,7 @@ PolicyUI::PolicyUI(content::WebUI* web_ui) : WebUIController(web_ui) {
 
   // Set up the chrome://policy/ source.
   Profile* profile = Profile::FromWebUI(web_ui);
-  ChromeURLDataManager::AddWebUIDataSource(profile, CreatePolicyUIHTMLSource());
+  content::WebUIDataSource::Add(profile, CreatePolicyUIHTMLSource());
 }
 
 PolicyUI::~PolicyUI() {

@@ -36,9 +36,6 @@
 #include "chrome/browser/ui/webui/local_omnibox_popup/local_omnibox_popup_ui.h"
 #include "chrome/browser/ui/webui/media/media_internals_ui.h"
 #include "chrome/browser/ui/webui/media/webrtc_internals_ui.h"
-#if !defined(DISABLE_NACL)
-#include "chrome/browser/ui/webui/nacl_ui.h"
-#endif
 #include "chrome/browser/ui/webui/net_internals/net_internals_ui.h"
 #include "chrome/browser/ui/webui/ntp/new_tab_ui.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox_ui.h"
@@ -68,6 +65,10 @@
 #include "ui/gfx/favicon_size.h"
 #include "ui/web_dialogs/web_dialog_ui.h"
 
+#if !defined(DISABLE_NACL)
+#include "chrome/browser/ui/webui/nacl_ui.h"
+#endif
+
 #if defined(ENABLE_CONFIGURATION_POLICY)
 #include "chrome/browser/ui/webui/policy_ui.h"
 #endif
@@ -80,6 +81,7 @@
 #endif
 
 #if defined(OS_CHROMEOS)
+#include "chrome/browser/ui/webui/chromeos/bluetooth_pairing_ui.h"
 #include "chrome/browser/ui/webui/chromeos/choose_mobile_network_ui.h"
 #include "chrome/browser/ui/webui/chromeos/cryptohome_ui.h"
 #include "chrome/browser/ui/webui/chromeos/diagnostics/diagnostics_ui.h"
@@ -117,6 +119,8 @@ using ui::ExternalWebDialogUI;
 using ui::WebDialogUI;
 
 namespace {
+
+static bool g_use_test_factory = false;
 
 // A function for creating a new WebUI. The caller owns the return value, which
 // may be NULL (for example, if the URL refers to an non-existent extension).
@@ -300,6 +304,8 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<CertificateViewerUI>;
 #endif
 #if defined(OS_CHROMEOS)
+  if (url.host() == chrome::kChromeUIBluetoothPairingHost)
+    return &NewWebUI<chromeos::BluetoothPairingUI>;
   if (url.host() == chrome::kChromeUIChooseMobileNetworkHost)
     return &NewWebUI<chromeos::ChooseMobileNetworkUI>;
   if (url.host() == chrome::kChromeUICryptohomeHost)
@@ -411,7 +417,7 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
 template<typename Type, typename TestType>
 struct PossibleTestSingletonTraits : public DefaultSingletonTraits<Type> {
   static Type* New() {
-    if (CommandLine::ForCurrentProcess()->HasSwitch(switches::kTestType))
+    if (g_use_test_factory)
       return DefaultSingletonTraits<TestType>::New();
     else
       return DefaultSingletonTraits<Type>::New();
@@ -420,12 +426,11 @@ struct PossibleTestSingletonTraits : public DefaultSingletonTraits<Type> {
 
 void RunFaviconCallbackAsync(
     const FaviconService::FaviconResultsCallback& callback,
-    const std::vector<history::FaviconBitmapResult>* results,
-    const history::IconURLSizesMap* size_map) {
+    const std::vector<history::FaviconBitmapResult>* results) {
   base::MessageLoopProxy::current()->PostTask(
       FROM_HERE,
       base::Bind(&FaviconService::FaviconResultsCallbackRunner,
-                 callback, base::Owned(results), base::Owned(size_map)));
+                 callback, base::Owned(results)));
 }
 
 }  // namespace
@@ -505,15 +510,13 @@ void ChromeWebUIControllerFactory::GetFaviconForURL(
     ExtensionWebUI::GetFaviconForURL(profile, url, callback);
 #else
     RunFaviconCallbackAsync(callback,
-                            new std::vector<history::FaviconBitmapResult>(),
-                            new history::IconURLSizesMap());
+                            new std::vector<history::FaviconBitmapResult>());
 #endif
     return;
   }
 
   std::vector<history::FaviconBitmapResult>* favicon_bitmap_results =
       new std::vector<history::FaviconBitmapResult>();
-  history::IconURLSizesMap* icon_url_sizes = new history::IconURLSizesMap();
 
   for (size_t i = 0; i < scale_factors.size(); ++i) {
     scoped_refptr<base::RefCountedMemory> bitmap(GetFaviconResourceBytes(
@@ -534,24 +537,18 @@ void ChromeWebUIControllerFactory::GetFaviconForURL(
     }
   }
 
-  // Populate IconURLSizesMap such that the requirement that all the icon URLs
-  // in |favicon_bitmap_results| be present in |icon_url_sizes| holds.
-  // Populate the favicon sizes with the pixel sizes of the bitmaps available
-  // for |url|.
-  for (size_t i = 0; i < favicon_bitmap_results->size(); ++i) {
-    const history::FaviconBitmapResult& bitmap_result =
-        (*favicon_bitmap_results)[i];
-    const GURL& icon_url = bitmap_result.icon_url;
-    (*icon_url_sizes)[icon_url].push_back(bitmap_result.pixel_size);
-  }
-
-  RunFaviconCallbackAsync(callback, favicon_bitmap_results, icon_url_sizes);
+  RunFaviconCallbackAsync(callback, favicon_bitmap_results);
 }
 
 // static
 ChromeWebUIControllerFactory* ChromeWebUIControllerFactory::GetInstance() {
   return Singleton< ChromeWebUIControllerFactory, PossibleTestSingletonTraits<
       ChromeWebUIControllerFactory, TestChromeWebUIControllerFactory> >::get();
+}
+
+// static
+void ChromeWebUIControllerFactory::UseTestFactoryForTesting() {
+  g_use_test_factory = true;
 }
 
 ChromeWebUIControllerFactory::ChromeWebUIControllerFactory() {
@@ -575,7 +572,7 @@ base::RefCountedMemory* ChromeWebUIControllerFactory::GetFaviconResourceBytes(
   }
 #endif
 
-  if (!content::GetContentClient()->HasWebUIScheme(page_url))
+  if (!content::HasWebUIScheme(page_url))
     return NULL;
 
 #if defined(OS_WIN)

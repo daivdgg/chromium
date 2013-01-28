@@ -52,7 +52,7 @@ def MaybeRelease(revision):
   print 'Zipping ChromeDriver server', server
   temp_dir = util.MakeTempDir()
   zip_path = os.path.join(temp_dir, zip_name)
-  f = zipfile.ZipFile(zip_path, 'w')
+  f = zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED)
   f.write(server, server_name)
   f.close()
 
@@ -85,7 +85,7 @@ def main():
     sys.executable,
     os.path.join(_THIS_DIR, 'run_all_tests.py'),
   ]
-  code = 0 #util.RunCommand(cmd)
+  code = util.RunCommand(cmd)
   if code != 0:
     return code
 

@@ -10,7 +10,7 @@
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_system.h"
 #include "chrome/browser/extensions/extension_system_factory.h"
-#include "chrome/browser/history/history.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/prefs/pref_model_associator.h"
 #include "chrome/browser/prefs/pref_service.h"
@@ -133,6 +133,22 @@ void ProfileSyncComponentsFactoryImpl::RegisterCommonDataTypes(
     pss->RegisterDataTypeController(
         new SessionDataTypeController(this, profile_, pss));
   }
+
+  // Password sync is enabled by default.  Register unless explicitly
+  // disabled.
+  if (!command_line_->HasSwitch(switches::kDisableSyncPasswords)) {
+#if !defined(OS_ANDROID)
+    pss->RegisterDataTypeController(
+        new PasswordDataTypeController(this, profile_, pss));
+#else
+    // On Android, enable password sync only when Keystore encryption
+    // is enabled.
+    if (command_line_->HasSwitch(switches::kSyncKeystoreEncryption)) {
+      pss->RegisterDataTypeController(
+          new PasswordDataTypeController(this, profile_, pss));
+    }
+#endif
+  }
 }
 
 void ProfileSyncComponentsFactoryImpl::RegisterDesktopDataTypes(
@@ -157,13 +173,6 @@ void ProfileSyncComponentsFactoryImpl::RegisterDesktopDataTypes(
     pss->RegisterDataTypeController(
         new ExtensionDataTypeController(syncer::EXTENSIONS,
                                         this, profile_, pss));
-  }
-
-  // Password sync is enabled by default.  Register unless explicitly
-  // disabled.
-  if (!command_line_->HasSwitch(switches::kDisableSyncPasswords)) {
-    pss->RegisterDataTypeController(
-        new PasswordDataTypeController(this, profile_, pss));
   }
 
   // Preference sync is enabled by default.  Register unless explicitly
@@ -239,11 +248,13 @@ DataTypeManager* ProfileSyncComponentsFactoryImpl::CreateDataTypeManager(
         debug_info_listener,
     SyncBackendHost* backend,
     const DataTypeController::TypeMap* controllers,
-    DataTypeManagerObserver* observer) {
+    DataTypeManagerObserver* observer,
+    const FailedDatatypesHandler* failed_datatypes_handler) {
   return new DataTypeManagerImpl(debug_info_listener,
                                  backend,
                                  controllers,
-                                 observer);
+                                 observer,
+                                 failed_datatypes_handler);
 }
 
 browser_sync::GenericChangeProcessor*

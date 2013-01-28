@@ -36,21 +36,30 @@ class CC_EXPORT PicturePileImpl : public PicturePileBase {
       float contents_scale,
       RenderingStats* stats);
 
-  void GatherPixelRefs(const gfx::Rect&, std::list<skia::LazyPixelRef*>&);
+  void GatherPixelRefs(
+      gfx::Rect content_rect,
+      float contents_scale,
+      std::list<skia::LazyPixelRef*>& pixel_refs);
 
   void PushPropertiesTo(PicturePileImpl* other);
 
   skia::RefPtr<SkPicture> GetFlattenedPicture();
 
- private:
+  void set_slow_down_raster_scale_factor(int factor) {
+    slow_down_raster_scale_factor_for_debug_ = factor;
+  }
+
+ protected:
   friend class PicturePile;
 
   PicturePileImpl();
-  ~PicturePileImpl();
+  virtual ~PicturePileImpl();
 
   typedef std::map<base::PlatformThreadId, scoped_refptr<PicturePileImpl> >
       CloneMap;
   CloneMap clones_;
+
+  int slow_down_raster_scale_factor_for_debug_;
 
   DISALLOW_COPY_AND_ASSIGN(PicturePileImpl);
 };

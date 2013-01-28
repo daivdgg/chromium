@@ -30,6 +30,7 @@
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/notification_source.h"
+#include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "grit/generated_resources.h"
@@ -191,8 +192,7 @@ void ForeignSessionHandler::Init() {
                  content::Source<Profile>(profile));
 
   // Add the data source for synced favicons.
-  ChromeURLDataManager::AddDataSource(profile,
-      new SessionFaviconSource(profile));
+  content::URLDataSource::Add(profile, new SessionFaviconSource(profile));
 }
 
 void ForeignSessionHandler::Observe(

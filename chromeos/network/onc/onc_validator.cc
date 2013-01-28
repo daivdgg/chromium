@@ -236,13 +236,13 @@ bool Validator::ValidateRecommendedField(
   CHECK(result != NULL);
 
   scoped_ptr<base::ListValue> recommended;
-  base::Value* recommended_value;
+  base::Value* recommended_value = NULL;
   // This remove passes ownership to |recommended_value|.
   if (!result->RemoveWithoutPathExpansion(onc::kRecommended,
                                           &recommended_value)) {
     return true;
   }
-  base::ListValue* recommended_list;
+  base::ListValue* recommended_list = NULL;
   recommended_value->GetAsList(&recommended_list);
   CHECK(recommended_list != NULL);
 
@@ -354,6 +354,22 @@ bool Validator::FieldExistsAndIsNotInRange(const base::DictionaryValue& object,
   return true;
 }
 
+bool Validator::FieldExistsAndIsEmpty(const base::DictionaryValue& object,
+                                      const std::string& field_name) {
+  std::string value;
+  if (!object.GetStringWithoutPathExpansion(field_name, &value) ||
+      !value.empty()) {
+    return false;
+  }
+
+  error_or_warning_found_ = true;
+  path_.push_back(field_name);
+  LOG(ERROR) << ErrorHeader() << "Found an empty string, but expected a "
+             << "non-empty string.";
+  path_.pop_back();
+  return true;
+}
+
 bool Validator::RequireField(const base::DictionaryValue& dict,
                              const std::string& field_name) {
   if (dict.HasKey(field_name))
@@ -431,10 +447,10 @@ bool Validator::ValidateNetworkConfiguration(
                                        network_type::kWiFi,
                                        network_type::kCellular,
                                        NULL };
-  if (FieldExistsAndHasNoValidValue(*result,
-                                    kType,
-                                    kValidTypes))
+  if (FieldExistsAndHasNoValidValue(*result, kType, kValidTypes) ||
+      FieldExistsAndIsEmpty(*result, kGUID)) {
     return false;
+  }
 
   bool allRequiredExist = RequireField(*result, kGUID);
 
@@ -757,8 +773,20 @@ bool Validator::ValidateCertificate(
     return false;
 
   static const char* kValidTypes[] = { kClient, kServer, kAuthority, NULL };
-  if (FieldExistsAndHasNoValidValue(*result, kType, kValidTypes))
+  if (FieldExistsAndHasNoValidValue(*result, kType, kValidTypes) ||
+      FieldExistsAndIsEmpty(*result, kGUID)) {
     return false;
+  }
+
+  std::string type;
+  result->GetStringWithoutPathExpansion(kType, &type);
+  if (onc_source_ == ONC_SOURCE_DEVICE_POLICY &&
+      (type == kServer || type == kAuthority)) {
+    error_or_warning_found_ = true;
+    LOG(ERROR) << ErrorHeader() << "Server and authority certificates are "
+               << "prohibited in ONC device policies.";
+    return false;
+  }
 
   bool allRequiredExist = RequireField(*result, kGUID);
 
@@ -767,8 +795,6 @@ bool Validator::ValidateCertificate(
   if (!remove) {
     allRequiredExist &= RequireField(*result, kType);
 
-    std::string type;
-    result->GetStringWithoutPathExpansion(kType, &type);
     if (type == kClient)
       allRequiredExist &= RequireField(*result, kPKCS12);
     else if (type == kServer || type == kAuthority)

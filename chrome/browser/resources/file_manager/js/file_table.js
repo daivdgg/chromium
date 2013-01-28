@@ -200,10 +200,6 @@ FileTable.prototype.renderName_ = function(entry, columnId, table) {
 FileTable.prototype.renderSize_ = function(entry, columnId, table) {
   var div = this.ownerDocument.createElement('div');
   div.className = 'size';
-  // Unlike other rtl languages, Herbew use MB and writes the unit to the
-  // right of the number. We use css trick to workaround this.
-  if (navigator.language == 'he')
-    div.className = 'align-end-weakrtl';
   this.updateSize_(
       div, entry, this.metadataCache_.getCached(entry, 'filesystem'));
 
@@ -227,7 +223,7 @@ FileTable.prototype.updateSize_ = function(div, entry, filesystemProps) {
              FileType.isHosted(entry)) {
     div.textContent = '--';
   } else {
-    div.textContent = util.bytesToSi(filesystemProps.size);
+    div.textContent = util.bytesToString(filesystemProps.size);
   }
 };
 
@@ -347,7 +343,7 @@ FileTable.prototype.renderOffline_ = function(entry, columnId, table) {
   div.appendChild(checkbox);
 
   this.updateOffline_(
-      div, this.metadataCache_.getCached(entry, 'gdata'));
+      div, this.metadataCache_.getCached(entry, 'drive'));
   return div;
 };
 
@@ -355,16 +351,16 @@ FileTable.prototype.renderOffline_ = function(entry, columnId, table) {
  * Sets up or updates the date cell.
  *
  * @param {HTMLDivElement} div The table cell.
- * @param {Object} gdata Metadata.
+ * @param {Object} drive Metadata.
  * @private
  */
-FileTable.prototype.updateOffline_ = function(div, gdata) {
-  if (!gdata) return;
-  if (gdata.hosted) return;
+FileTable.prototype.updateOffline_ = function(div, drive) {
+  if (!drive) return;
+  if (drive.hosted) return;
   var checkbox = div.querySelector('.pin');
   if (!checkbox) return;
   checkbox.style.display = '';
-  checkbox.checked = gdata.pinned;
+  checkbox.checked = drive.pinned;
 };
 
 /**
@@ -394,7 +390,7 @@ FileTable.prototype.updateListItemsMetadata = function(type, propsMap) {
     forEachCell('.table-row-cell > .size', function(item, entry, props) {
       this.updateSize_(item, entry, props);
     });
-  } else if (type == 'gdata') {
+  } else if (type == 'drive') {
     forEachCell('.table-row-cell > .offline',
                 function(item, entry, props, listItem) {
       this.updateOffline_(item, props);
@@ -611,7 +607,7 @@ filelist.decorateSelectionCheckbox = function(input, entry, list) {
 filelist.decorateListItem = function(li, entry, metadataCache) {
   li.classList.add(entry.isDirectory ? 'directory' : 'file');
   if (FileType.isOnGDrive(entry)) {
-    var driveProps = metadataCache.getCached(entry, 'gdata');
+    var driveProps = metadataCache.getCached(entry, 'drive');
     if (driveProps)
       filelist.updateListItemDriveProps(li, driveProps);
   }

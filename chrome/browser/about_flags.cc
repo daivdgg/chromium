@@ -30,6 +30,7 @@
 #include "ui/base/ui_base_switches.h"
 #include "ui/gfx/switches.h"
 #include "ui/gl/gl_switches.h"
+#include "ui/surface/surface_switches.h"
 
 #if defined(USE_ASH)
 #include "ash/ash_switches.h"
@@ -134,6 +135,15 @@ const Experiment::Choice kThreadedCompositingModeChoices[] = {
   { IDS_GENERIC_EXPERIMENT_CHOICE_ENABLED,
     switches::kEnableThreadedCompositing, ""}
 };
+
+const Experiment::Choice kGDIPresentChoices[] = {
+  { IDS_GENERIC_EXPERIMENT_CHOICE_DEFAULT, "", "" },
+  { IDS_FLAGS_PRESENT_WITH_GDI_FIRST_SHOW,
+    switches::kDoFirstShowPresentWithGDI, ""},
+  { IDS_FLAGS_PRESENT_WITH_GDI_ALL_SHOW,
+    switches::kDoAllShowPresentWithGDI, ""}
+};
+
 
 const Experiment::Choice kTouchEventsChoices[] = {
   { IDS_GENERIC_EXPERIMENT_CHOICE_AUTOMATIC, "", "" },
@@ -330,6 +340,13 @@ const Experiment kExperiments[] = {
     IDS_FLAGS_THREADED_COMPOSITING_MODE_DESCRIPTION,
     kOsDesktop & ~kOsCrOS,
     MULTI_VALUE_TYPE(kThreadedCompositingModeChoices)
+  },
+  {
+    "present-with-GDI",
+    IDS_FLAGS_PRESENT_WITH_GDI_NAME,
+    IDS_FLAGS_PRESENT_WITH_GDI_DESCRIPTION,
+    kOsWin,
+    MULTI_VALUE_TYPE(kGDIPresentChoices)
   },
   {
     "disable-accelerated-2d-canvas",
@@ -658,6 +675,20 @@ const Experiment kExperiments[] = {
     kOsDesktop,
     SINGLE_VALUE_TYPE(switches::kEnableOpusPlayback)
   },
+  {
+    "enable-vp9-playback",
+    IDS_FLAGS_ENABLE_VP9_PLAYBACK_NAME,
+    IDS_FLAGS_ENABLE_VP9_PLAYBACK_DESCRIPTION,
+    kOsDesktop,
+    SINGLE_VALUE_TYPE(switches::kEnableVp9Playback)
+  },
+  {
+    "enable-managed-users",
+    IDS_FLAGS_ENABLE_LOCALLY_MANAGED_USERS_NAME,
+    IDS_FLAGS_ENABLE_LOCALLY_MANAGED_USERS_DESCRIPTION,
+    kOsAll,
+    SINGLE_VALUE_TYPE(switches::kEnableManagedUsers)
+  },
 #if defined(USE_ASH)
   {
     "ash-disable-auto-window-placement",
@@ -878,11 +909,11 @@ const Experiment kExperiments[] = {
   },
 #endif
   {
-    "use-web-based-signin-flow",
-    IDS_FLAGS_USE_WEB_BASED_SIGNIN_FLOW_NAME,
-    IDS_FLAGS_USE_WEB_BASED_SIGNIN_FLOW_DESCRIPTION,
+    "use-client-login-signin-flow",
+    IDS_FLAGS_USE_CLIENT_LOGIN_SIGNIN_FLOW_NAME,
+    IDS_FLAGS_USE_CLIENT_LOGIN_SIGNIN_FLOW_DESCRIPTION,
     kOsMac | kOsWin | kOsLinux,
-    SINGLE_VALUE_TYPE(switches::kUseWebBasedSigninFlow)
+    SINGLE_VALUE_TYPE(switches::kUseClientLoginSigninFlow)
   },
   {
     "enable-desktop-guest-mode",
@@ -1175,11 +1206,11 @@ const Experiment kExperiments[] = {
   },
 #if defined(USE_AURA)
   {
-    "enable-overscroll-history-navigation",
-    IDS_FLAGS_ENABLE_OVERSCROLL_HISTORY_NAVIGATION_NAME,
-    IDS_FLAGS_ENABLE_OVERSCROLL_HISTORY_NAVIGATION_DESCRIPTION,
+    "disable-overscroll-history-navigation",
+    IDS_FLAGS_DISABLE_OVERSCROLL_HISTORY_NAVIGATION_NAME,
+    IDS_FLAGS_DISABLE_OVERSCROLL_HISTORY_NAVIGATION_DESCRIPTION,
     kOsAll,
-    SINGLE_VALUE_TYPE(switches::kEnableOverscrollHistoryNavigation)
+    SINGLE_VALUE_TYPE(switches::kDisableOverscrollHistoryNavigation)
   },
 #endif
   {

@@ -119,6 +119,10 @@
     "channel": "stable",
     "extension_types": ["extension", "packaged_app"]
   },
+  "declarativeContent": {
+    "channel": "trunk",
+    "extension_types": ["extension"]
+  },
   "declarativeWebRequest": {
     "channel": "beta",
     "extension_types": ["extension", "packaged_app"]
@@ -309,7 +313,7 @@
     "extension_types": ["platform_app"]
   },
   "syncFileSystem": {
-    "channel": "trunk",
+    "channel": "dev",
     "extension_types": ["platform_app"]
   },
   "systemIndicator": {
@@ -320,6 +324,10 @@
     "channel": "stable",
     "extension_types": ["extension", "packaged_app", "platform_app"],
     "min_manifest_version": 2
+  },
+  "systemInfo.display": {
+    "channel": "stable",
+    "extension_types": ["extension", "packaged_app", "platform_app"]
   },
   "systemPrivate": {
     "channel": "stable",

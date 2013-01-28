@@ -5,6 +5,7 @@
 #include "content/public/common/url_constants.h"
 
 #include "content/common/savable_url_schemes.h"
+#include "googleurl/src/gurl.h"
 
 namespace chrome {
 
@@ -15,6 +16,7 @@ const char kBlobScheme[] = "blob";
 // There are security implications associated with introducing new schemes.
 const char kChromeDevToolsScheme[] = "chrome-devtools";
 const char kChromeInternalScheme[] = "chrome-internal";
+const char kChromeSearchScheme[] = "chrome-search";
 const char kChromeUIScheme[] = "chrome";
 const char kDataScheme[] = "data";
 const char kFileScheme[] = "file";
@@ -69,6 +71,15 @@ const char kSwappedOutURL[] = "swappedout://";
 
 const char* const* GetSavableSchemes() {
   return GetSavableSchemesInternal();
+}
+
+bool HasWebUIScheme(const GURL& url) {
+  return
+#if !defined(OS_IOS)
+         url.SchemeIs(chrome::kChromeDevToolsScheme) ||
+         url.SchemeIs(chrome::kChromeInternalScheme) ||
+#endif
+         url.SchemeIs(chrome::kChromeUIScheme);
 }
 
 }  // namespace content

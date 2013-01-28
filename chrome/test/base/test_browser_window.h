@@ -101,6 +101,7 @@ class TestBrowserWindow : public BrowserWindow {
   virtual void ShowChromeToMobileBubble() OVERRIDE {}
 #if defined(ENABLE_ONE_CLICK_SIGNIN)
   virtual void ShowOneClickSigninBubble(
+      OneClickSigninBubbleType type,
       const StartSyncCallback& start_sync_callback) OVERRIDE {}
 #endif
   virtual bool IsDownloadShelfVisible() const OVERRIDE;
@@ -109,10 +110,6 @@ class TestBrowserWindow : public BrowserWindow {
   virtual void UserChangedTheme() OVERRIDE {}
   virtual int GetExtraRenderViewHeight() const OVERRIDE;
   virtual void WebContentsFocused(content::WebContents* contents) OVERRIDE {}
-  virtual void ShowPageInfo(content::WebContents* web_contents,
-                            const GURL& url,
-                            const content::SSLStatus& ssl,
-                            bool show_history) OVERRIDE {}
   virtual void ShowWebsiteSettings(Profile* profile,
                                    content::WebContents* web_contents,
                                    const GURL& url,

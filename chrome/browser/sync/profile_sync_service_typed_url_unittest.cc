@@ -15,9 +15,9 @@
 #include "base/threading/thread.h"
 #include "base/time.h"
 #include "base/utf_string_conversions.h"
-#include "chrome/browser/history/history.h"
 #include "chrome/browser/history/history_backend.h"
 #include "chrome/browser/history/history_notifications.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/history_types.h"
 #include "chrome/browser/profiles/refcounted_profile_keyed_service.h"
@@ -218,7 +218,7 @@ class ProfileSyncServiceTypedUrlTest : public AbstractProfileSyncServiceTest {
                                               data_type_controller,
                                               &error_handler_,
                                               &model_associator));
-      EXPECT_CALL(*components, CreateDataTypeManager(_, _, _, _)).
+      EXPECT_CALL(*components, CreateDataTypeManager(_, _, _, _, _)).
           WillOnce(ReturnNewDataTypeManager());
 
       token_service_->IssueAuthTokenForTest(

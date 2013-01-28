@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -656,7 +656,8 @@ void UserImageManagerImpl::OnProfileDownloadSuccess(
     return;
 
   downloaded_profile_image_data_url_ = new_image_data_url;
-  downloaded_profile_image_ = gfx::ImageSkia(downloader->GetProfilePicture());
+  downloaded_profile_image_ = gfx::ImageSkia::CreateFrom1xBitmap(
+      downloader->GetProfilePicture());
   profile_image_url_ = GURL(downloader->GetProfilePictureURL());
 
   if (user->image_index() == User::kProfileImageIndex) {

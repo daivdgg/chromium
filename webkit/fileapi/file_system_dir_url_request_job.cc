@@ -8,7 +8,7 @@
 
 #include "base/bind.h"
 #include "base/compiler_specific.h"
-#include "base/file_util_proxy.h"
+#include "base/files/file_util_proxy.h"
 #include "base/message_loop.h"
 #include "base/platform_file.h"
 #include "base/sys_string_conversions.h"
@@ -79,7 +79,7 @@ bool FileSystemDirURLRequestJob::GetCharset(std::string* charset) {
 void FileSystemDirURLRequestJob::StartAsync() {
   if (!request_)
     return;
-  url_ = FileSystemURL(request_->url());
+  url_ = file_system_context_->CrackURL(request_->url());
   base::PlatformFileError error_code;
   FileSystemOperation* operation = GetNewOperation(&error_code);
   if (error_code != base::PLATFORM_FILE_OK) {

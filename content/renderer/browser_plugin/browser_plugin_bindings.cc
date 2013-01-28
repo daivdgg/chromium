@@ -14,6 +14,7 @@
 #include "base/string_split.h"
 #include "base/utf_string_conversions.h"
 #include "content/renderer/browser_plugin/browser_plugin.h"
+#include "content/renderer/browser_plugin/browser_plugin_constants.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebBindings.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebDocument.h"
@@ -35,28 +36,6 @@ using WebKit::WebString;
 namespace content {
 
 namespace {
-
-// Method bindings.
-const char kMethodBack[] = "back";
-const char kMethodCanGoBack[] = "canGoBack";
-const char kMethodCanGoForward[] = "canGoForward";
-const char kMethodForward[] = "forward";
-const char kMethodGetProcessId[] = "getProcessId";
-const char kMethodGo[] = "go";
-const char kMethodReload[] = "reload";
-const char kMethodStop[] = "stop";
-const char kMethodTerminate[] = "terminate";
-
-// Attributes.
-const char kAttributeAutoSize[] = "autoSize";
-const char kAttributeContentWindow[] = "contentWindow";
-const char kAttributeMaxHeight[] = "maxHeight";
-const char kAttributeMaxWidth[] = "maxWidth";
-const char kAttributeMinHeight[] = "minHeight";
-const char kAttributeMinWidth[] = "minWidth";
-const char kAttributeName[] = "name";
-const char kAttributePartition[] = "partition";
-const char kAttributeSrc[] = "src";
 
 BrowserPluginBindings* GetBindings(NPObject* object) {
   return static_cast<BrowserPluginBindings::BrowserPluginNPObject*>(object)->
@@ -236,7 +215,7 @@ class BrowserPluginMethodBinding {
 class BrowserPluginBindingBack : public BrowserPluginMethodBinding {
  public:
   BrowserPluginBindingBack()
-      : BrowserPluginMethodBinding(kMethodBack, 0) {
+      : BrowserPluginMethodBinding(browser_plugin::kMethodBack, 0) {
   }
 
   virtual bool Invoke(BrowserPluginBindings* bindings,
@@ -253,7 +232,7 @@ class BrowserPluginBindingBack : public BrowserPluginMethodBinding {
 class BrowserPluginBindingCanGoBack : public BrowserPluginMethodBinding {
  public:
   BrowserPluginBindingCanGoBack()
-      : BrowserPluginMethodBinding(kMethodCanGoBack, 0) {
+      : BrowserPluginMethodBinding(browser_plugin::kMethodCanGoBack, 0) {
   }
 
   virtual bool Invoke(BrowserPluginBindings* bindings,
@@ -270,7 +249,7 @@ class BrowserPluginBindingCanGoBack : public BrowserPluginMethodBinding {
 class BrowserPluginBindingCanGoForward : public BrowserPluginMethodBinding {
  public:
   BrowserPluginBindingCanGoForward()
-      : BrowserPluginMethodBinding(kMethodCanGoForward, 0) {
+      : BrowserPluginMethodBinding(browser_plugin::kMethodCanGoForward, 0) {
   }
 
   virtual bool Invoke(BrowserPluginBindings* bindings,
@@ -287,7 +266,7 @@ class BrowserPluginBindingCanGoForward : public BrowserPluginMethodBinding {
 class BrowserPluginBindingForward : public BrowserPluginMethodBinding {
  public:
   BrowserPluginBindingForward()
-      : BrowserPluginMethodBinding(kMethodForward, 0) {
+      : BrowserPluginMethodBinding(browser_plugin::kMethodForward, 0) {
   }
 
   virtual bool Invoke(BrowserPluginBindings* bindings,
@@ -301,16 +280,36 @@ class BrowserPluginBindingForward : public BrowserPluginMethodBinding {
   DISALLOW_COPY_AND_ASSIGN(BrowserPluginBindingForward);
 };
 
-class BrowserPluginBindingGetProcessID : public BrowserPluginMethodBinding {
+// Note: This is a method that is used internally by the <webview> shim only.
+// This should not be exposed to developers.
+class BrowserPluginBindingGetRouteID : public BrowserPluginMethodBinding {
  public:
-  BrowserPluginBindingGetProcessID()
-      : BrowserPluginMethodBinding(kMethodGetProcessId, 0) {
+  BrowserPluginBindingGetRouteID()
+      : BrowserPluginMethodBinding(browser_plugin::kMethodGetRouteId, 0) {
   }
 
   virtual bool Invoke(BrowserPluginBindings* bindings,
                       const NPVariant* args,
                       NPVariant* result) OVERRIDE {
-    int process_id = bindings->instance()->process_id();
+    int route_id = bindings->instance()->guest_route_id();
+    INT32_TO_NPVARIANT(route_id, *result);
+    return true;
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BrowserPluginBindingGetRouteID);
+};
+
+class BrowserPluginBindingGetProcessID : public BrowserPluginMethodBinding {
+ public:
+  BrowserPluginBindingGetProcessID()
+      : BrowserPluginMethodBinding(browser_plugin::kMethodGetProcessId, 0) {
+  }
+
+  virtual bool Invoke(BrowserPluginBindings* bindings,
+                      const NPVariant* args,
+                      NPVariant* result) OVERRIDE {
+    int process_id = bindings->instance()->guest_process_id();
     INT32_TO_NPVARIANT(process_id, *result);
     return true;
   }
@@ -322,7 +321,7 @@ class BrowserPluginBindingGetProcessID : public BrowserPluginMethodBinding {
 class BrowserPluginBindingGo : public BrowserPluginMethodBinding {
  public:
   BrowserPluginBindingGo()
-      : BrowserPluginMethodBinding(kMethodGo, 1) {
+      : BrowserPluginMethodBinding(browser_plugin::kMethodGo, 1) {
   }
 
   virtual bool Invoke(BrowserPluginBindings* bindings,
@@ -339,7 +338,7 @@ class BrowserPluginBindingGo : public BrowserPluginMethodBinding {
 class BrowserPluginBindingReload : public BrowserPluginMethodBinding {
  public:
   BrowserPluginBindingReload()
-      : BrowserPluginMethodBinding(kMethodReload, 0) {
+      : BrowserPluginMethodBinding(browser_plugin::kMethodReload, 0) {
   }
 
   virtual bool Invoke(BrowserPluginBindings* bindings,
@@ -356,7 +355,7 @@ class BrowserPluginBindingReload : public BrowserPluginMethodBinding {
 class BrowserPluginBindingStop : public BrowserPluginMethodBinding {
  public:
   BrowserPluginBindingStop()
-      : BrowserPluginMethodBinding(kMethodStop, 0) {
+      : BrowserPluginMethodBinding(browser_plugin::kMethodStop, 0) {
   }
 
   virtual bool Invoke(BrowserPluginBindings* bindings,
@@ -373,7 +372,7 @@ class BrowserPluginBindingStop : public BrowserPluginMethodBinding {
 class BrowserPluginBindingTerminate : public BrowserPluginMethodBinding {
  public:
   BrowserPluginBindingTerminate()
-      : BrowserPluginMethodBinding(kMethodTerminate, 0) {
+      : BrowserPluginMethodBinding(browser_plugin::kMethodTerminate, 0) {
   }
 
   virtual bool Invoke(BrowserPluginBindings* bindings,
@@ -418,8 +417,8 @@ class BrowserPluginPropertyBinding {
 class BrowserPluginPropertyBindingAutoSize
     : public BrowserPluginPropertyBinding {
  public:
-  BrowserPluginPropertyBindingAutoSize() :
-      BrowserPluginPropertyBinding(kAttributeAutoSize) {
+  BrowserPluginPropertyBindingAutoSize()
+      : BrowserPluginPropertyBinding(browser_plugin::kAttributeAutoSize) {
   }
   virtual bool GetProperty(BrowserPluginBindings* bindings,
                            NPVariant* result) OVERRIDE {
@@ -445,8 +444,8 @@ class BrowserPluginPropertyBindingAutoSize
 class BrowserPluginPropertyBindingContentWindow
     : public BrowserPluginPropertyBinding {
  public:
-  BrowserPluginPropertyBindingContentWindow() :
-      BrowserPluginPropertyBinding(kAttributeContentWindow) {
+  BrowserPluginPropertyBindingContentWindow()
+      : BrowserPluginPropertyBinding(browser_plugin::kAttributeContentWindow) {
   }
   virtual bool GetProperty(BrowserPluginBindings* bindings,
                            NPVariant* result) OVERRIDE {
@@ -472,8 +471,8 @@ class BrowserPluginPropertyBindingContentWindow
 class BrowserPluginPropertyBindingMaxHeight
     : public BrowserPluginPropertyBinding {
  public:
-  BrowserPluginPropertyBindingMaxHeight() :
-      BrowserPluginPropertyBinding(kAttributeMaxHeight) {
+  BrowserPluginPropertyBindingMaxHeight()
+      : BrowserPluginPropertyBinding(browser_plugin::kAttributeMaxHeight) {
   }
   virtual bool GetProperty(BrowserPluginBindings* bindings,
                            NPVariant* result) OVERRIDE {
@@ -499,8 +498,8 @@ class BrowserPluginPropertyBindingMaxHeight
 class BrowserPluginPropertyBindingMaxWidth
     : public BrowserPluginPropertyBinding {
  public:
-  BrowserPluginPropertyBindingMaxWidth() :
-      BrowserPluginPropertyBinding(kAttributeMaxWidth) {
+  BrowserPluginPropertyBindingMaxWidth()
+      : BrowserPluginPropertyBinding(browser_plugin::kAttributeMaxWidth) {
   }
   virtual bool GetProperty(BrowserPluginBindings* bindings,
                            NPVariant* result) OVERRIDE {
@@ -526,8 +525,8 @@ class BrowserPluginPropertyBindingMaxWidth
 class BrowserPluginPropertyBindingMinHeight
     : public BrowserPluginPropertyBinding {
  public:
-  BrowserPluginPropertyBindingMinHeight() :
-      BrowserPluginPropertyBinding(kAttributeMinHeight) {
+  BrowserPluginPropertyBindingMinHeight()
+      : BrowserPluginPropertyBinding(browser_plugin::kAttributeMinHeight) {
   }
   virtual bool GetProperty(BrowserPluginBindings* bindings,
                            NPVariant* result) OVERRIDE {
@@ -553,8 +552,8 @@ class BrowserPluginPropertyBindingMinHeight
 class BrowserPluginPropertyBindingMinWidth
     : public BrowserPluginPropertyBinding {
  public:
-  BrowserPluginPropertyBindingMinWidth() :
-      BrowserPluginPropertyBinding(kAttributeMinWidth) {
+  BrowserPluginPropertyBindingMinWidth()
+      : BrowserPluginPropertyBinding(browser_plugin::kAttributeMinWidth) {
   }
   virtual bool GetProperty(BrowserPluginBindings* bindings,
                            NPVariant* result) OVERRIDE {
@@ -580,8 +579,8 @@ class BrowserPluginPropertyBindingMinWidth
 class BrowserPluginPropertyBindingName
     : public BrowserPluginPropertyBinding {
  public:
-  BrowserPluginPropertyBindingName() :
-      BrowserPluginPropertyBinding(kAttributeName) {
+  BrowserPluginPropertyBindingName()
+      : BrowserPluginPropertyBinding(browser_plugin::kAttributeName) {
   }
   virtual bool GetProperty(BrowserPluginBindings* bindings,
                            NPVariant* result) OVERRIDE {
@@ -607,8 +606,8 @@ class BrowserPluginPropertyBindingName
 class BrowserPluginPropertyBindingPartition
     : public BrowserPluginPropertyBinding {
  public:
-  BrowserPluginPropertyBindingPartition() :
-      BrowserPluginPropertyBinding(kAttributePartition) {
+  BrowserPluginPropertyBindingPartition()
+      : BrowserPluginPropertyBinding(browser_plugin::kAttributePartition) {
   }
   virtual bool GetProperty(BrowserPluginBindings* bindings,
                            NPVariant* result) OVERRIDE {
@@ -638,8 +637,8 @@ class BrowserPluginPropertyBindingPartition
 
 class BrowserPluginPropertyBindingSrc : public BrowserPluginPropertyBinding {
  public:
-  BrowserPluginPropertyBindingSrc() :
-      BrowserPluginPropertyBinding(kAttributeSrc) {
+  BrowserPluginPropertyBindingSrc()
+      : BrowserPluginPropertyBinding(browser_plugin::kAttributeSrc) {
   }
   virtual bool GetProperty(BrowserPluginBindings* bindings,
                            NPVariant* result) OVERRIDE {
@@ -689,6 +688,7 @@ BrowserPluginBindings::BrowserPluginBindings(BrowserPlugin* instance)
   method_bindings_.push_back(new BrowserPluginBindingCanGoForward);
   method_bindings_.push_back(new BrowserPluginBindingForward);
   method_bindings_.push_back(new BrowserPluginBindingGetProcessID);
+  method_bindings_.push_back(new BrowserPluginBindingGetRouteID);
   method_bindings_.push_back(new BrowserPluginBindingGo);
   method_bindings_.push_back(new BrowserPluginBindingReload);
   method_bindings_.push_back(new BrowserPluginBindingStop);

@@ -669,6 +669,7 @@ TEST(PermissionsTest, PermissionMessages) {
   skip.insert(APIPermission::kPointerLock);
   skip.insert(APIPermission::kPushMessaging);
   skip.insert(APIPermission::kStorage);
+  skip.insert(APIPermission::kSystemInfoDisplay);
   skip.insert(APIPermission::kTts);
   skip.insert(APIPermission::kUnlimitedStorage);
   skip.insert(APIPermission::kWebView);
@@ -683,6 +684,7 @@ TEST(PermissionsTest, PermissionMessages) {
   skip.insert(APIPermission::kCookie);
 
   // These are warned as part of host permission checks.
+  skip.insert(APIPermission::kDeclarativeContent);
   skip.insert(APIPermission::kPageCapture);
   skip.insert(APIPermission::kProxy);
   skip.insert(APIPermission::kWebRequest);

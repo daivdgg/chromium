@@ -324,8 +324,8 @@
         'base/x/x11_util.cc',
         'base/x/x11_util.h',
         'base/x/x11_util_internal.h',
-        'gfx/android/gfx_jni_registrar.cc',
-        'gfx/android/gfx_jni_registrar.h',
+        'gfx/android/device_display_info.cc',
+        'gfx/android/device_display_info.h',
         'gfx/android/java_bitmap.cc',
         'gfx/android/java_bitmap.h',
         'gfx/android/window_android.cc',
@@ -609,11 +609,6 @@
             'base/linux_ui.h',
           ]
         }],
-        ['use_ibus==1', {
-          'dependencies': [
-            '../build/linux/system.gyp:ibus',
-          ],
-        }],
         ['use_glib == 1', {
           'dependencies': [
             # font_gtk.cc uses fontconfig.
@@ -853,6 +848,7 @@
            'type': 'none',
            'sources': [
              'android/java/src/org/chromium/ui/gfx/BitmapHelper.java',
+             'android/java/src/org/chromium/ui/gfx/DeviceDisplayInfo.java',
              'android/java/src/org/chromium/ui/gfx/NativeWindow.java',
              'android/java/src/org/chromium/ui/SelectFileDialog.java',
            ],

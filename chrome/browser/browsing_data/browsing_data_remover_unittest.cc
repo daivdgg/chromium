@@ -22,7 +22,7 @@
 #include "chrome/browser/autofill/personal_data_manager_observer.h"
 #include "chrome/browser/browsing_data/browsing_data_helper.h"
 #include "chrome/browser/extensions/mock_extension_special_storage_policy.h"
-#include "chrome/browser/history/history.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/safe_browsing/safe_browsing_service.h"
 #include "chrome/common/chrome_notification_types.h"
@@ -297,6 +297,11 @@ class RemoveServerBoundCertTester : public net::SSLConfigService::Observer {
                                 now + base::TimeDelta::FromDays(1));
   }
 
+  void GetCertList(net::ServerBoundCertStore::ServerBoundCertList* certs) {
+    GetCertStore()->GetAllServerBoundCerts(
+        base::Bind(&RemoveServerBoundCertTester::GetAllCertsCallback, certs));
+  }
+
   net::ServerBoundCertStore* GetCertStore() {
     return server_bound_cert_service_->GetCertStore();
   }
@@ -311,6 +316,12 @@ class RemoveServerBoundCertTester : public net::SSLConfigService::Observer {
   }
 
  private:
+  static void GetAllCertsCallback(
+      net::ServerBoundCertStore::ServerBoundCertList* dest,
+      const net::ServerBoundCertStore::ServerBoundCertList& result) {
+    *dest = result;
+  }
+
   net::ServerBoundCertService* server_bound_cert_service_;
   scoped_refptr<net::SSLConfigService> ssl_config_service_;
   int ssl_config_changed_count_;
@@ -711,7 +722,8 @@ TEST_F(BrowsingDataRemoverTest, RemoveServerBoundCertLastHour) {
   EXPECT_EQ(1, tester.ssl_config_changed_count());
   ASSERT_EQ(1, tester.ServerBoundCertCount());
   net::ServerBoundCertStore::ServerBoundCertList certs;
-  tester.GetCertStore()->GetAllServerBoundCerts(&certs);
+  tester.GetCertList(&certs);
+  ASSERT_EQ(1U, certs.size());
   EXPECT_EQ(kTestOrigin2, certs.front().server_identifier());
 }
 

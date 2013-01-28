@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,6 +56,7 @@
 #include "chrome/browser/chromeos/power/resume_observer.h"
 #include "chrome/browser/chromeos/power/screen_dimming_observer.h"
 #include "chrome/browser/chromeos/power/screen_lock_observer.h"
+#include "chrome/browser/chromeos/power/suspend_observer.h"
 #include "chrome/browser/chromeos/power/user_activity_notifier.h"
 #include "chrome/browser/chromeos/power/video_activity_notifier.h"
 #include "chrome/browser/chromeos/settings/device_settings_service.h"
@@ -278,9 +279,6 @@ class DBusServices {
     DeviceSettingsService::Get()->Initialize(
         DBusThreadManager::Get()->GetSessionManagerClient(),
         OwnerKeyUtil::Create());
-
-    // Add observers for WallpaperManager. This depends on PowerManagerClient().
-    WallpaperManager::Get()->AddObservers();
   }
 
   // TODO(stevenjb): Move this into DBusServices() once the switch is no
@@ -538,6 +536,10 @@ void ChromeBrowserMainPartsChromeos::PreProfileInit() {
   // be placed after UserManager::SessionStarted();
   chromeos::MagnificationManager::Initialize();
 
+  // Add observers for WallpaperManager. This depends on PowerManagerClient,
+  // TimezoneSettings and CrosSettings.
+  WallpaperManager::Get()->AddObservers();
+
 #if defined(USE_LINUX_BREAKPAD)
   cros_version_loader_.GetVersion(VersionLoader::VERSION_FULL,
                                   base::Bind(&ChromeOSVersionCallback),
@@ -598,6 +600,7 @@ void ChromeBrowserMainPartsChromeos::PostProfileInit() {
   output_observer_.reset(new OutputObserver());
   resume_observer_.reset(new ResumeObserver());
   screen_lock_observer_.reset(new ScreenLockObserver());
+  suspend_observer_.reset(new SuspendObserver());
   if (KioskModeSettings::Get()->IsKioskModeEnabled()) {
     power_state_override_ = new PowerStateOverride(
         PowerStateOverride::BLOCK_DISPLAY_SLEEP);
@@ -693,6 +696,7 @@ void ChromeBrowserMainPartsChromeos::PostMainMessageLoopRun() {
   // We should remove observers attached to D-Bus clients before
   // DBusThreadManager is shut down.
   screen_lock_observer_.reset();
+  suspend_observer_.reset();
   resume_observer_.reset();
   brightness_observer_.reset();
   output_observer_.reset();
@@ -725,9 +729,10 @@ void ChromeBrowserMainPartsChromeos::PostMainMessageLoopRun() {
 
   chromeos::MagnificationManager::Shutdown();
 
-  // Let the UserManager unregister itself as an observer of the CrosSettings
-  // singleton before it is destroyed.
+  // Let the UserManager and WallpaperManager unregister itself as an observer
+  // of the CrosSettings singleton before it is destroyed.
   UserManager::Get()->Shutdown();
+  WallpaperManager::Get()->Shutdown();
 
   ChromeBrowserMainPartsLinux::PostMainMessageLoopRun();
 }
@@ -824,6 +829,8 @@ void ChromeBrowserMainPartsChromeos::SetupZramFieldTrial() {
   trial->AppendGroup("snow_no_swap", zram_group == '6' ? 1 : 0);
   trial->AppendGroup("snow_1GB_swap", zram_group == '7' ? 1 : 0);
   trial->AppendGroup("snow_2GB_swap", zram_group == '8' ? 1 : 0);
+  // This is necessary to start the experiment as a side effect.
+  trial->group();
 }
 
 }  //  namespace chromeos

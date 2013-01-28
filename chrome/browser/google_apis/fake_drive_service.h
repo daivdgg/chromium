@@ -58,6 +58,9 @@ class FakeDriveService : public DriveServiceInterface {
     return account_metadata_load_count_;
   }
 
+  // Returns the (fake) URL for the link.
+  static GURL GetFakeLinkUrl(const std::string& resource_id);
+
   // DriveServiceInterface Overrides
   virtual void Initialize(Profile* profile) OVERRIDE;
   virtual void AddObserver(DriveServiceObserver* observer) OVERRIDE;
@@ -69,6 +72,8 @@ class FakeDriveService : public DriveServiceInterface {
   virtual std::string GetRootResourceId() const OVERRIDE;
   virtual bool HasAccessToken() const OVERRIDE;
   virtual bool HasRefreshToken() const OVERRIDE;
+  // See the comment for EntryMatchWidthQuery() in .cc file for details about
+  // the supported search query types.
   virtual void GetResourceList(
       const GURL& feed_url,
       int64 start_changestamp,
@@ -106,15 +111,15 @@ class FakeDriveService : public DriveServiceInterface {
                               const std::string& new_name,
                               const EntryActionCallback& callback) OVERRIDE;
   virtual void AddResourceToDirectory(
-      const GURL& parent_content_url,
+      const std::string& parent_resource_id,
       const GURL& edit_url,
       const EntryActionCallback& callback) OVERRIDE;
   virtual void RemoveResourceFromDirectory(
-      const GURL& parent_content_url,
+      const std::string& parent_resource_id,
       const std::string& resource_id,
       const EntryActionCallback& callback) OVERRIDE;
   virtual void AddNewDirectory(
-      const GURL& parent_content_url,
+      const std::string& parent_resource_id,
       const std::string& directory_name,
       const GetResourceEntryCallback& callback) OVERRIDE;
   virtual void InitiateUpload(const InitiateUploadParams& params,

@@ -4,6 +4,7 @@
 
 #include "chrome/test/chromedriver/chrome_impl.h"
 
+#include "base/bind.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
@@ -14,7 +15,9 @@
 #include "base/values.h"
 #include "chrome/test/chromedriver/devtools_client_impl.h"
 #include "chrome/test/chromedriver/dom_tracker.h"
+#include "chrome/test/chromedriver/frame_tracker.h"
 #include "chrome/test/chromedriver/js.h"
+#include "chrome/test/chromedriver/navigation_tracker.h"
 #include "chrome/test/chromedriver/net/net_util.h"
 #include "chrome/test/chromedriver/net/sync_websocket_impl.h"
 #include "chrome/test/chromedriver/net/url_request_context_getter.h"
@@ -34,7 +37,7 @@ Status FetchPagesInfo(URLRequestContextGetter* context_getter,
   return internal::ParsePagesInfo(data, debugger_urls);
 }
 
-Status GetContextIdForFrame(DomTracker* tracker,
+Status GetContextIdForFrame(FrameTracker* tracker,
                             const std::string& frame,
                             int* context_id) {
   if (frame.empty()) {
@@ -45,6 +48,39 @@ Status GetContextIdForFrame(DomTracker* tracker,
   if (status.IsError())
     return status;
   return Status(kOk);
+}
+
+const char* GetAsString(MouseEventType type) {
+  switch (type) {
+    case kPressedMouseEventType:
+      return "mousePressed";
+    case kReleasedMouseEventType:
+      return "mouseReleased";
+    case kMovedMouseEventType:
+      return "mouseMoved";
+    default:
+      return "";
+  }
+}
+
+const char* GetAsString(MouseButton button) {
+  switch (button) {
+    case kLeftMouseButton:
+      return "left";
+    case kMiddleMouseButton:
+      return "middle";
+    case kRightMouseButton:
+      return "right";
+    case kNoneMouseButton:
+      return "none";
+    default:
+      return "";
+  }
+}
+
+bool IsNotPendingNavigation(NavigationTracker* tracker,
+                            const std::string& frame_id) {
+  return !tracker->IsPendingNavigation(frame_id);
 }
 
 }  // namespace
@@ -58,7 +94,9 @@ ChromeImpl::ChromeImpl(base::ProcessHandle process,
       context_getter_(context_getter),
       port_(port),
       socket_factory_(socket_factory),
-      dom_tracker_(new DomTracker()) {
+      dom_tracker_(new DomTracker()),
+      frame_tracker_(new FrameTracker()),
+      navigation_tracker_(new NavigationTracker()) {
   if (user_data_dir->IsValid()) {
     CHECK(user_data_dir_.Set(user_data_dir->Take()));
   }
@@ -83,12 +121,18 @@ Status ChromeImpl::Init() {
   client_.reset(new DevToolsClientImpl(
       socket_factory_, debugger_urls.front()));
   client_->AddListener(dom_tracker_.get());
+  client_->AddListener(frame_tracker_.get());
+  client_->AddListener(navigation_tracker_.get());
 
   // Perform necessary configuration of the DevTools client.
   // Fetch the root document node so that Inspector will push DOM node
   // information to the client.
   base::DictionaryValue params;
   Status status = client_->SendCommand("DOM.getDocument", params);
+  if (status.IsError())
+    return status;
+  // Enable page domain notifications to allow tracking navigation state.
+  status = client_->SendCommand("Page.enable", params);
   if (status.IsError())
     return status;
   // Enable runtime events to allow tracking execution context creation.
@@ -111,7 +155,8 @@ Status ChromeImpl::EvaluateScript(const std::string& frame,
                                   const std::string& expression,
                                   scoped_ptr<base::Value>* result) {
   int context_id;
-  Status status = GetContextIdForFrame(dom_tracker_.get(), frame, &context_id);
+  Status status = GetContextIdForFrame(frame_tracker_.get(), frame,
+                                       &context_id);
   if (status.IsError())
     return status;
   return internal::EvaluateScriptAndGetValue(
@@ -142,7 +187,8 @@ Status ChromeImpl::GetFrameByFunction(const std::string& frame,
                                       const base::ListValue& args,
                                       std::string* out_frame) {
   int context_id;
-  Status status = GetContextIdForFrame(dom_tracker_.get(), frame, &context_id);
+  Status status = GetContextIdForFrame(frame_tracker_.get(), frame,
+                                       &context_id);
   if (status.IsError())
     return status;
   int node_id;
@@ -153,9 +199,42 @@ Status ChromeImpl::GetFrameByFunction(const std::string& frame,
   return dom_tracker_->GetFrameIdForNode(node_id, out_frame);
 }
 
+Status ChromeImpl::DispatchMouseEvents(const std::list<MouseEvent>& events) {
+  for (std::list<MouseEvent>::const_iterator it = events.begin();
+       it != events.end(); ++it) {
+    base::DictionaryValue params;
+    params.SetString("type", GetAsString(it->type));
+    params.SetInteger("x", it->x);
+    params.SetInteger("y", it->y);
+    params.SetString("button", GetAsString(it->button));
+    params.SetInteger("clickCount", it->click_count);
+    Status status = client_->SendCommand("Input.dispatchMouseEvent", params);
+    if (status.IsError())
+      return status;
+  }
+  return Status(kOk);
+}
+
 Status ChromeImpl::Quit() {
   if (!base::KillProcess(process_, 0, true))
     return Status(kUnknownError, "cannot kill Chrome");
+  return Status(kOk);
+}
+
+Status ChromeImpl::WaitForPendingNavigations(const std::string& frame_id) {
+  return client_->HandleEventsUntil(
+      base::Bind(IsNotPendingNavigation, navigation_tracker_.get(), frame_id));
+}
+
+Status ChromeImpl::GetMainFrame(std::string* out_frame) {
+  DictionaryValue params;
+  scoped_ptr<DictionaryValue> result;
+  Status status = client_->SendCommandAndGetResult(
+      "Page.getResourceTree", params, &result);
+  if (status.IsError())
+    return status;
+  if (!result->GetString("frameTree.frame.id", out_frame))
+    return Status(kUnknownError, "missing 'frameTree.frame.id' in response");
   return Status(kOk);
 }
 

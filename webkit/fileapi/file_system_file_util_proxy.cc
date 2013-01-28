@@ -108,15 +108,28 @@ class ReadDirectoryHelper {
 }  // namespace
 
 // static
-bool FileSystemFileUtilProxy::Delete(
+bool FileSystemFileUtilProxy::DeleteFile(
     FileSystemOperationContext* context,
     FileSystemFileUtil* file_util,
     const FileSystemURL& url,
-    bool recursive,
     const StatusCallback& callback) {
   return base::PostTaskAndReplyWithResult(
       context->task_runner(), FROM_HERE,
-      Bind(&FileUtilHelper::Delete, context, file_util, url, recursive),
+      Bind(&FileSystemFileUtil::DeleteFile, Unretained(file_util),
+           context, url),
+      callback);
+}
+
+// static
+bool FileSystemFileUtilProxy::DeleteDirectory(
+    FileSystemOperationContext* context,
+    FileSystemFileUtil* file_util,
+    const FileSystemURL& url,
+    const StatusCallback& callback) {
+  return base::PostTaskAndReplyWithResult(
+      context->task_runner(), FROM_HERE,
+      Bind(&FileSystemFileUtil::DeleteDirectory, Unretained(file_util),
+           context, url),
       callback);
 }
 
@@ -137,46 +150,44 @@ bool FileSystemFileUtilProxy::CreateOrOpen(
 }
 
 // static
-bool FileSystemFileUtilProxy::Copy(
+bool FileSystemFileUtilProxy::CopyFileLocal(
     FileSystemOperationContext* context,
-    FileSystemFileUtil* src_util,
-    FileSystemFileUtil* dest_util,
+    FileSystemFileUtil* file_util,
     const FileSystemURL& src_url,
     const FileSystemURL& dest_url,
     const StatusCallback& callback) {
   return base::PostTaskAndReplyWithResult(
       context->task_runner(), FROM_HERE,
-      Bind(&FileUtilHelper::Copy,
-           context, src_util, dest_util, src_url, dest_url),
+      Bind(&FileSystemFileUtil::CopyOrMoveFile, Unretained(file_util),
+           context, src_url, dest_url, true /* copy */),
+      callback);
+}
+
+// static
+bool FileSystemFileUtilProxy::MoveFileLocal(
+    FileSystemOperationContext* context,
+    FileSystemFileUtil* file_util,
+    const FileSystemURL& src_url,
+    const FileSystemURL& dest_url,
+    const StatusCallback& callback) {
+  return base::PostTaskAndReplyWithResult(
+      context->task_runner(), FROM_HERE,
+      Bind(&FileSystemFileUtil::CopyOrMoveFile, Unretained(file_util),
+           context, src_url, dest_url, false /* copy */),
       callback);
 }
 
 // static
 bool FileSystemFileUtilProxy::CopyInForeignFile(
     FileSystemOperationContext* context,
-    FileSystemFileUtil* dest_util,
+    FileSystemFileUtil* file_util,
     const FilePath& src_local_disk_file_path,
     const FileSystemURL& dest_url,
     const StatusCallback& callback) {
   return base::PostTaskAndReplyWithResult(
       context->task_runner(), FROM_HERE,
-      Bind(&FileSystemFileUtil::CopyInForeignFile, Unretained(dest_util),
+      Bind(&FileSystemFileUtil::CopyInForeignFile, Unretained(file_util),
            context, src_local_disk_file_path, dest_url),
-      callback);
-}
-
-// static
-bool FileSystemFileUtilProxy::Move(
-    FileSystemOperationContext* context,
-      FileSystemFileUtil* src_util,
-      FileSystemFileUtil* dest_util,
-      const FileSystemURL& src_url,
-      const FileSystemURL& dest_url,
-    const StatusCallback& callback) {
-  return base::PostTaskAndReplyWithResult(
-      context->task_runner(), FROM_HERE,
-      Bind(&FileUtilHelper::Move,
-           context, src_util, dest_util, src_url, dest_url),
       callback);
 }
 
