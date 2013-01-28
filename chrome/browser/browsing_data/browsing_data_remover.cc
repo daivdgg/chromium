@@ -23,7 +23,7 @@
 #include "chrome/browser/download/download_service_factory.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_special_storage_policy.h"
-#include "chrome/browser/history/history.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/io_thread.h"
 #include "chrome/browser/nacl_host/nacl_browser.h"
@@ -991,7 +991,13 @@ void BrowsingDataRemover::ClearServerBoundCertsOnIOThread(
   net::ServerBoundCertService* server_bound_cert_service =
       rq_context->GetURLRequestContext()->server_bound_cert_service();
   server_bound_cert_service->GetCertStore()->DeleteAllCreatedBetween(
-      delete_begin_, delete_end_);
+      delete_begin_, delete_end_,
+      base::Bind(&BrowsingDataRemover::OnClearedServerBoundCertsOnIOThread,
+                 base::Unretained(this), base::Unretained(rq_context)));
+}
+
+void BrowsingDataRemover::OnClearedServerBoundCertsOnIOThread(
+    net::URLRequestContextGetter* rq_context) {
   // Need to close open SSL connections which may be using the channel ids we
   // are deleting.
   // TODO(mattm): http://crbug.com/166069 Make the server bound cert

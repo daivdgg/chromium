@@ -14,6 +14,7 @@
 #include "base/message_loop_proxy.h"
 #include "base/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "webkit/fileapi/external_mount_points.h"
 #include "webkit/fileapi/file_system_context.h"
 #include "webkit/fileapi/file_system_operation_context.h"
 #include "webkit/fileapi/file_system_task_runners.h"
@@ -78,6 +79,7 @@ class IsolatedFileUtilTest : public testing::Test {
 
     file_system_context_ = new FileSystemContext(
         FileSystemTaskRunners::CreateMockTaskRunners(),
+        ExternalMountPoints::CreateRefCounted().get(),
         make_scoped_refptr(new quota::MockSpecialStoragePolicy()),
         NULL /* quota_manager */,
         partition_dir_.path(),
@@ -125,9 +127,10 @@ class IsolatedFileUtilTest : public testing::Test {
   FileSystemURL GetFileSystemURL(const FilePath& path) const {
     FilePath virtual_path = isolated_context()->CreateVirtualRootPath(
         filesystem_id()).Append(path);
-    return FileSystemURL(GURL("http://example.com"),
-                         kFileSystemTypeIsolated,
-                         virtual_path);
+    return file_system_context_->CreateCrackedFileSystemURL(
+        GURL("http://example.com"),
+        kFileSystemTypeIsolated,
+        virtual_path);
   }
 
   FileSystemURL GetOtherFileSystemURL(const FilePath& path) {

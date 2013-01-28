@@ -9,7 +9,7 @@
 #include "base/bind.h"
 #include "base/compiler_specific.h"
 #include "base/file_path.h"
-#include "base/file_util_proxy.h"
+#include "base/files/file_util_proxy.h"
 #include "base/message_loop.h"
 #include "base/message_loop_proxy.h"
 #include "base/platform_file.h"
@@ -156,7 +156,7 @@ void FileSystemURLRequestJob::StartAsync() {
   if (!request_)
     return;
   DCHECK(!reader_.get());
-  url_ = FileSystemURL(request_->url());
+  url_ = file_system_context_->CrackURL(request_->url());
   base::PlatformFileError error_code;
   FileSystemOperation* operation =
       file_system_context_->CreateFileSystemOperation(url_, &error_code);

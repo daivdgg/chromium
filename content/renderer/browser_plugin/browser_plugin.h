@@ -77,7 +77,10 @@ class CONTENT_EXPORT BrowserPlugin :
   NPObject* GetContentWindow() const;
 
   // Returns Chrome's process ID for the current guest.
-  int process_id() const { return process_id_; }
+  int guest_process_id() const { return guest_process_id_; }
+  // Returns Chrome's route ID for the current guest.
+  int guest_route_id() const { return guest_route_id_; }
+
   // The partition identifier string is stored as UTF-8.
   std::string GetPartitionAttribute() const;
   // Query whether the guest can navigate back to the previous entry.
@@ -297,11 +300,13 @@ class CONTENT_EXPORT BrowserPlugin :
   bool navigate_src_sent_;
   std::string src_;
   bool auto_size_;
+  bool auto_size_ack_pending_;
   int max_height_;
   int max_width_;
   int min_height_;
   int min_width_;
-  int process_id_;
+  int guest_process_id_;
+  int guest_route_id_;
   std::string storage_partition_id_;
   bool persist_storage_;
   bool valid_partition_id_;

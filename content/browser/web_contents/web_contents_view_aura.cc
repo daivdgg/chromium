@@ -662,7 +662,8 @@ void WebContentsViewAura::ResetOverscrollTransform() {
     return;
   aura::Window* target = GetWindowToAnimateForOverscroll();
   ui::ScopedLayerAnimationSettings settings(target->layer()->GetAnimator());
-  settings.SetPreemptionStrategy(ui::LayerAnimator::REPLACE_QUEUED_ANIMATIONS);
+  settings.SetPreemptionStrategy(
+      ui::LayerAnimator::IMMEDIATELY_ANIMATE_TO_NEW_TARGET);
   settings.SetTweenType(ui::Tween::EASE_OUT);
   settings.AddObserver(this);
   if (overscroll_change_brightness_) {
@@ -684,7 +685,8 @@ void WebContentsViewAura::CompleteOverscrollNavigation(OverscrollMode mode) {
   completed_overscroll_gesture_ = mode;
   aura::Window* target = GetWindowToAnimateForOverscroll();
   ui::ScopedLayerAnimationSettings settings(target->layer()->GetAnimator());
-  settings.SetPreemptionStrategy(ui::LayerAnimator::REPLACE_QUEUED_ANIMATIONS);
+  settings.SetPreemptionStrategy(
+      ui::LayerAnimator::IMMEDIATELY_ANIMATE_TO_NEW_TARGET);
   settings.SetTweenType(ui::Tween::EASE_OUT);
   settings.AddObserver(this);
   gfx::Transform transform;
@@ -714,23 +716,20 @@ gfx::Vector2d WebContentsViewAura::GetTranslationForOverscroll(int delta_x,
                                                                int delta_y) {
   if (current_overscroll_gesture_ == OVERSCROLL_NORTH ||
       current_overscroll_gesture_ == OVERSCROLL_SOUTH) {
-    // For vertical overscroll, always do a resisted drag.
-    const float threshold = GetOverscrollConfig(
-        OVERSCROLL_CONFIG_VERT_RESIST_AFTER);
-    int scroll = GetResistedScrollAmount(abs(delta_y),
-                                         static_cast<int>(threshold));
-    return gfx::Vector2d(0, delta_y < 0 ? -scroll : scroll);
+    // Ignore vertical overscroll.
+    return gfx::Vector2d();
   }
 
   // For horizontal overscroll, scroll freely if a navigation is possible. Do a
   // resistive scroll otherwise.
   const NavigationControllerImpl& controller = web_contents_->GetController();
+  const gfx::Rect& bounds = GetViewBounds();
   if (current_overscroll_gesture_ == OVERSCROLL_WEST) {
     if (controller.CanGoForward())
-      return gfx::Vector2d(delta_x, 0);
+      return gfx::Vector2d(std::max(-bounds.width(), delta_x), 0);
   } else if (current_overscroll_gesture_ == OVERSCROLL_EAST) {
     if (controller.CanGoBack())
-      return gfx::Vector2d(delta_x, 0);
+      return gfx::Vector2d(std::min(bounds.width(), delta_x), 0);
   }
 
   const float threshold = GetOverscrollConfig(
@@ -827,8 +826,9 @@ RenderWidgetHostView* WebContentsViewAura::CreateViewForWidget(
 
   RenderWidgetHostImpl* host_impl =
       RenderWidgetHostImpl::From(render_widget_host);
-  if (host_impl->overscroll_controller() && web_contents_->GetDelegate() &&
-      web_contents_->GetDelegate()->CanOverscrollContent()) {
+  if (host_impl->overscroll_controller() &&
+      (!web_contents_->GetDelegate() ||
+       web_contents_->GetDelegate()->CanOverscrollContent())) {
     host_impl->overscroll_controller()->set_delegate(this);
     if (!navigation_overlay_.get())
       navigation_overlay_.reset(new OverscrollNavigationOverlay());
@@ -1036,6 +1036,8 @@ void WebContentsViewAura::OnOverscrollUpdate(float delta_x, float delta_y) {
     float ratio = fabs(delta_x) / GetViewBounds().width();
     float brightness = kBrightnessMin + ratio * (kBrightnessMax -
         kBrightnessMin);
+    brightness = std::max(kBrightnessMin, brightness);
+    brightness = std::min(kBrightnessMax, brightness);
     SetOverscrollWindowBrightness(brightness,
         target != overscroll_window_.get());
   }

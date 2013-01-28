@@ -21,6 +21,8 @@
 #include "chrome/browser/favicon/favicon_tab_helper.h"
 #include "chrome/browser/google/google_util.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
+#include "chrome/browser/managed_mode/managed_user_service.h"
+#include "chrome/browser/managed_mode/managed_user_service_factory.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/prefs/pref_service.h"
@@ -189,8 +191,8 @@ bool PrintPreviewShowing(const Browser* browser) {
   WebContents* contents = browser->tab_strip_model()->GetActiveWebContents();
   printing::PrintPreviewDialogController* controller =
       printing::PrintPreviewDialogController::GetInstance();
-  return controller && (controller->GetPrintPreviewForTab(contents) ||
-                        controller->is_creating_print_preview_tab());
+  return controller && (controller->GetPrintPreviewForContents(contents) ||
+                        controller->is_creating_print_preview_dialog());
 }
 
 bool IsNTPModeForInstantExtendedAPI(const Browser* browser) {
@@ -274,6 +276,13 @@ void NewEmptyWindow(Profile* profile, HostDesktopType desktop_type) {
             *CommandLine::ForCurrentProcess(), prefs)) {
       incognito = true;
     }
+  }
+
+  ManagedUserService* service =
+      ManagedUserServiceFactory::GetForProfile(profile);
+  if (service->ProfileIsManaged()) {
+    content::RecordAction(
+        UserMetricsAction("ManagedMode_NewManagedUserWindow"));
   }
 
   if (incognito) {
@@ -695,12 +704,11 @@ void ShowFindBar(Browser* browser) {
   browser->GetFindBarController()->Show();
 }
 
-// TODO(markusheintz): Rename the method to something more appropriate.
-void ShowPageInfo(Browser* browser,
-                  content::WebContents* web_contents,
-                  const GURL& url,
-                  const SSLStatus& ssl,
-                  bool show_history) {
+void ShowWebsiteSettings(Browser* browser,
+                         content::WebContents* web_contents,
+                         const GURL& url,
+                         const SSLStatus& ssl,
+                         bool show_history) {
   Profile* profile = Profile::FromBrowserContext(
       web_contents->GetBrowserContext());
 

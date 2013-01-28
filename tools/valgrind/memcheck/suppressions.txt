@@ -6333,6 +6333,17 @@
    fun:_ZN7history15TopSitesBackend16InitDBOnDBThreadERK8FilePath
 }
 {
+   bug_166819b
+   Memcheck:Leak
+   fun:_Znw*
+   fun:_ZNK3sql10Connection21GetUntrackedStatementEPKc
+   fun:_ZNK3sql10Connection21DoesTableOrIndexExistEPKcS2_
+   fun:_ZNK3sql10Connection14DoesTableExistEPKc
+   fun:_ZN7history17ShortcutsDatabase11EnsureTableEv
+   fun:_ZN7history17ShortcutsDatabase4InitEv
+   fun:_ZN7history16ShortcutsBackend12InitInternalEv
+}
+{
    bug_166976a
    Memcheck:Leak
    fun:_Znw*
@@ -6495,22 +6506,87 @@
    fun:_ZN53AutofillPopupControllerUnitTest_GrowPopupInSpace_Test8TestBodyEv
 }
 {
-   bug_171571
-   Memcheck:Leak
-   fun:_Znw*
-   fun:_ZN33GeolocationConfirmInfoBarDelegate6CreateEP14InfoBarServiceP33GeolocationInfoBarQueueControllerRK30GeolocationPermissionRequestIDRK4GURLRKSs
-   fun:_ZN33GeolocationInfoBarQueueController21PendingInfoBarRequest21CreateInfoBarDelegateEPS_RKSs
-   fun:_ZN33GeolocationInfoBarQueueController23ShowQueuedInfoBarForTabERK30GeolocationPermissionRequestID
-   fun:_ZN33GeolocationInfoBarQueueController20CreateInfoBarRequestERK30GeolocationPermissionRequestIDRK4GURLS5_N4base8CallbackIFvbEEE
-   fun:_ZN34ChromeGeolocationPermissionContext16DecidePermissionERK30GeolocationPermissionRequestIDRK4GURLS5_N4base8CallbackIFvbEEE
-   fun:_ZN34ChromeGeolocationPermissionContext28RequestGeolocationPermissionEiiiRK4GURLN4base8CallbackIFvbEEE
-   fun:_ZN33GeolocationPermissionContextTests28RequestGeolocationPermissionERK30GeolocationPermissionRequestIDRK4GURL
-   fun:_ZN62GeolocationPermissionContextTests_PermissionForFileScheme_Test8TestBodyEv
-}
-{
    bug_171722
    Memcheck:Leak
    fun:_Znw*
    fun:_ZN3net12_GLOBAL__N_120URLRequestFtpJobTest9AddSocketEPNS_13MockReadWriteILNS_17MockReadWriteTypeE0EEEmPNS2_ILS3_1EEEm
    ...
+}
+{
+   bug_171983
+   Memcheck:Leak
+   fun:_Znw*
+   fun:_ZN8chromeos51MagnificationManagerTest_MagnificationObserver_Test8TestBodyEv
+}
+{
+   bug_171567_c
+   Memcheck:Leak
+   fun:_Znw*
+   fun:_ZN31AutofillPopupControllerUnitTestC2Ev
+   fun:_ZN53AutofillPopupControllerUnitTest_GrowPopupInSpace_TestC1Ev
+   fun:_ZN7testing8internal15TestFactoryImplI53AutofillPopupControllerUnitTest_GrowPopupInSpace_TestE10CreateTestEv
+}
+{
+   bug_172005
+   Memcheck:Leak
+   fun:_Znw*
+   fun:_ZN7leveldb10VersionSet11LogAndApplyEPNS_11VersionEditEPNS_4port5MutexE
+   fun:_ZN7leveldb2DB4OpenERKNS_7OptionsERKSsPPS0_
+   fun:_ZN11dom_storage22SessionStorageDatabase9TryToOpenEPPN7leveldb2DBE
+   fun:_ZN11dom_storage22SessionStorageDatabase8LazyOpenEb
+   fun:_ZN11dom_storage22SessionStorageDatabase24ReadNamespacesAndOriginsEPSt3mapISsSt6vectorI4GURLSaIS3_EESt4lessISsESaISt4pairIKSsS5_EEE
+   fun:_ZN11dom_storage17DomStorageContext36FindUnusedNamespacesInCommitSequenceERKSt3setISsSt4lessISsESaISsEES7_
+}
+{
+   bug_172005b
+   Memcheck:Leak
+   fun:_Znw*
+   fun:_ZN7leveldb6DBImplC1ERKNS_7OptionsERKSs
+   fun:_ZN7leveldb2DB4OpenERKNS_7OptionsERKSsPPS0_
+   fun:_ZN11dom_storage22SessionStorageDatabase9TryToOpenEPPN7leveldb2DBE
+   fun:_ZN11dom_storage22SessionStorageDatabase8LazyOpenEb
+   fun:_ZN11dom_storage22SessionStorageDatabase24ReadNamespacesAndOriginsEPSt3mapISsSt6vectorI4GURLSaIS3_EESt4lessISsESaISt4pairIKSsS5_EEE
+   fun:_ZN11dom_storage17DomStorageContext36FindUnusedNamespacesInCommitSequenceERKSt3setISsSt4lessISsESaISsEES7_
+}
+{
+   bug_172025
+   Memcheck:Uninitialized
+   fun:_ZN11WebViewHost19didCreateDataSourceEPN6WebKit8WebFrameEPNS0_13WebDataSourceE
+   fun:_ZN6WebKit21FrameLoaderClientImpl20createDocumentLoaderERKN7WebCore15ResourceRequestERKNS1_14SubstituteDataE
+   fun:_ZN7WebCore11FrameLoader4initEv
+   fun:_ZN7WebCore5Frame4initEv
+   fun:_ZN6WebKit12WebFrameImpl21initializeAsMainFrameEPN7WebCore4PageE
+   fun:_ZN6WebKit11WebViewImpl19initializeMainFrameEPNS_14WebFrameClientE
+   fun:_ZN9TestShell15createNewWindowERKN6WebKit6WebURLEP16DRTDevToolsAgentPN13WebTestRunner17WebTestInterfacesE
+   fun:_ZN9TestShell16createMainWindowEv
+   fun:_ZN9TestShell10initializeEv
+}
+{
+   bug_172279
+   Memcheck:Unaddressable
+   fun:CERT_DestroyCertificate
+   fun:_ZN3net15X509Certificate16FreeOSCertHandleEP18CERTCertificateStr
+   fun:_ZN3net15X509CertificateD1Ev
+   fun:_ZN4base20RefCountedThreadSafeIN3net15X509CertificateENS_33DefaultRefCountedThreadSafeTraitsIS2_EEE14DeleteInternalEPKS2_
+   fun:_ZN4base33DefaultRefCountedThreadSafeTraitsIN3net15X509CertificateEE8DestructEPKS2_
+   fun:_ZNK4base20RefCountedThreadSafeIN3net15X509CertificateENS_33DefaultRefCountedThreadSafeTraitsIS2_EEE7ReleaseEv
+   fun:_ZN13scoped_refptrIN3net15X509CertificateEED1Ev
+   fun:_ZN3net46ClientCertStoreImplTest_AllIssuersAllowed_Test8TestBodyEv
+}
+{
+   bug_172282
+   Memcheck:Leak
+   fun:_Znw*
+   fun:_ZN4base8internal20PostTaskAndReplyImpl16PostTaskAndReplyERKN15tracked_objects8LocationERKNS_8CallbackIFvvEEESA_
+   fun:_ZN4base10TaskRunner16PostTaskAndReplyERKN15tracked_objects8LocationERKNS_8CallbackIFvvEEES9_
+   fun:_ZN4base26PostTaskAndReplyWithResultIbbEEbPNS_10TaskRunnerERKN15tracked_objects8LocationERKNS_8CallbackIFT_vEEERKNS7_IFvT0_EEE
+   fun:_ZN5drive10DriveCache17RequestInitializeERKN4base8CallbackIFvbEEE
+   fun:_ZN5drive18DriveSystemService10InitializeEv
+   fun:_ZNK5drive25DriveSystemServiceFactory23BuildServiceInstanceForEP7Profile
+   fun:_ZN26ProfileKeyedServiceFactory20GetServiceForProfileEP7Profileb
+   fun:_ZN5drive25DriveSystemServiceFactory31GetForProfileRegardlessOfStatesEP7Profile
+   fun:_ZN5drive25DriveSystemServiceFactory13GetForProfileEP7Profile
+   fun:_ZN5drive20DriveDownloadHandler13GetForProfileEP7Profile
+   fun:_ZN29ChromeDownloadManagerDelegate30CheckVisitedReferrerBeforeDoneEiRKN4base8CallbackIFvRK8FilePathN7content12DownloadItem17TargetDispositionENS5_18DownloadDangerTypeES4_EEES8_b
+   fun:_ZN29ChromeDownloadManagerDelegate20CheckDownloadUrlDoneEiRKN4base8CallbackIFvRK8FilePathN7content12DownloadItem17TargetDispositionENS5_18DownloadDangerTypeES4_EEEN13safe_browsing25DownloadProtectionService19DownloadCheckResultE
 }

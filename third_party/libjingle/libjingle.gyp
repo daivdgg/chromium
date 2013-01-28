@@ -190,6 +190,11 @@
           'OSX',
         ],
       }],
+      ['OS=="ios"', {
+        'defines': [
+          'IOS',
+        ],
+      }],
       ['os_posix == 1', {
         'defines': [
           'POSIX',
@@ -447,7 +452,7 @@
             '<(libjingle_source)/talk/base/linux.h',
           ],
         }],
-        ['OS=="mac"', {
+        ['OS=="mac" or OS=="ios"', {
           'sources': [
             '<(libjingle_source)/talk/base/macconversion.cc',
             '<(libjingle_source)/talk/base/macconversion.h',
@@ -596,6 +601,8 @@
             '<(libjingle_source)/talk/app/webrtc/audiotrack.h',
             '<(libjingle_source)/talk/app/webrtc/datachannel.cc',
             '<(libjingle_source)/talk/app/webrtc/datachannel.h',
+            '<(libjingle_source)/talk/app/webrtc/dtmfsender.cc',
+            '<(libjingle_source)/talk/app/webrtc/dtmfsender.h',
             '<(libjingle_source)/talk/app/webrtc/jsep.h',
             '<(libjingle_source)/talk/app/webrtc/jsepicecandidate.cc',
             '<(libjingle_source)/talk/app/webrtc/jsepicecandidate.h',

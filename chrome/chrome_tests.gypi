@@ -689,19 +689,9 @@
       ],
     },
     {
-      # Third-party support sources for chromedriver2_lib.
-      'target_name': 'chromedriver2_support',
-      'type': 'static_library',
-      'sources': [
-        '../third_party/webdriver/atoms.cc',
-        '../third_party/webdriver/atoms.h',
-      ],
-    },
-    {
       'target_name': 'chromedriver2_lib',
       'type': 'static_library',
       'dependencies': [
-        'chromedriver2_support',
         '../base/base.gyp:base',
         '../base/third_party/dynamic_annotations/dynamic_annotations.gyp:dynamic_annotations',
         '../build/temp_gyp/googleurl.gyp:googleurl',
@@ -714,6 +704,10 @@
       'sources': [
         '<(INTERMEDIATE_DIR)/chrome/test/chromedriver/js.cc',
         '<(INTERMEDIATE_DIR)/chrome/test/chromedriver/js.h',
+        '../third_party/webdriver/atoms.cc',
+        '../third_party/webdriver/atoms.h',
+        'test/chromedriver/basic_types.cc',
+        'test/chromedriver/basic_types.h',
         'test/chromedriver/chrome.h',
         'test/chromedriver/chrome_finder.cc',
         'test/chromedriver/chrome_finder.h',
@@ -729,14 +723,22 @@
         'test/chromedriver/command_executor.h',
         'test/chromedriver/command_executor_impl.cc',
         'test/chromedriver/command_executor_impl.h',
+        'test/chromedriver/command_names.cc',
+        'test/chromedriver/command_names.h',
         'test/chromedriver/commands.cc',
         'test/chromedriver/commands.h',
         'test/chromedriver/devtools_client.h',
         'test/chromedriver/devtools_client_impl.cc',
         'test/chromedriver/devtools_client_impl.h',
         'test/chromedriver/devtools_event_listener.h',
-        'test/chromedriver/dom_tracker.h',
         'test/chromedriver/dom_tracker.cc',
+        'test/chromedriver/dom_tracker.h',
+        'test/chromedriver/element_util.cc',
+        'test/chromedriver/element_util.h',
+        'test/chromedriver/frame_tracker.cc',
+        'test/chromedriver/frame_tracker.h',
+        'test/chromedriver/navigation_tracker.cc',
+        'test/chromedriver/navigation_tracker.h',
         'test/chromedriver/net/net_util.cc',
         'test/chromedriver/net/net_util.h',
         'test/chromedriver/net/sync_websocket.h',
@@ -756,6 +758,8 @@
         'test/chromedriver/status.cc',
         'test/chromedriver/status.h',
         'test/chromedriver/synchronized_map.h',
+        'test/chromedriver/util.cc',
+        'test/chromedriver/util.h',
         'test/chromedriver/version.cc',
         'test/chromedriver/version.h',
       ],
@@ -765,6 +769,8 @@
           'inputs': [
             'test/chromedriver/embed_js_in_cpp.py',
             'test/chromedriver/js/call_function.js',
+            'test/chromedriver/js/get_element_region.js',
+            'test/chromedriver/js/is_option_element_toggleable.js',
           ],
           'outputs': [
             '<(INTERMEDIATE_DIR)/chrome/test/chromedriver/js.cc',
@@ -775,9 +781,59 @@
                       '--directory',
                       '<(INTERMEDIATE_DIR)/chrome/test/chromedriver',
                       'test/chromedriver/js/call_function.js',
+                      'test/chromedriver/js/get_element_region.js',
+                      'test/chromedriver/js/is_option_element_toggleable.js',
           ],
           'message': 'Generating sources for embedding js in chromedriver',
         },
+      ],
+    },
+    # This is the new ChromeDriver based on DevTools.
+    {
+      'target_name': 'chromedriver2',
+      'type': 'loadable_module',
+      'dependencies': [
+        'chromedriver2_lib',
+        '../base/base.gyp:base',
+        'test/chromedriver/third_party/jni/jni.gyp:jni',
+      ],
+      'include_dirs': [
+        '..',
+      ],
+      'sources': [
+        'test/chromedriver/chromedriver_shared_library.cc',
+      ],
+    },
+    {
+      'target_name': 'chromedriver2_server_lib',
+      'type': 'static_library',
+      'dependencies': [
+        'chromedriver2_lib',
+        '../base/base.gyp:base',
+      ],
+      'include_dirs': [
+        '..',
+      ],
+      'sources': [
+        'test/chromedriver/server/http_handler.cc',
+        'test/chromedriver/server/http_handler.h',
+        'test/chromedriver/server/http_response.cc',
+        'test/chromedriver/server/http_response.h',
+      ],
+    },
+    {
+      'target_name': 'chromedriver2_server',
+      'type': 'executable',
+      'dependencies': [
+        'chromedriver2_server_lib',
+      ],
+      'include_dirs': [
+        '..',
+      ],
+      'sources': [
+        '../third_party/mongoose/mongoose.c',
+        '../third_party/mongoose/mongoose.h',
+        'test/chromedriver/server/chromedriver_server.cc',
       ],
     },
     {
@@ -785,12 +841,10 @@
       'type': 'executable',
       'dependencies': [
         'chromedriver2_lib',
+        'chromedriver2_server_lib',
         '../base/base.gyp:base',
         '../base/base.gyp:run_all_unittests',
         '../testing/gtest.gyp:gtest',
-      ],
-      'include_dirs': [
-        '..,'
       ],
       'sources': [
         'test/chromedriver/chrome_finder_unittest.cc',
@@ -802,6 +856,10 @@
         'test/chromedriver/dom_tracker_unittest.cc',
         'test/chromedriver/fake_session_accessor.cc',
         'test/chromedriver/fake_session_accessor.h',
+        'test/chromedriver/frame_tracker_unittest.cc',
+        'test/chromedriver/navigation_tracker_unittest.cc',
+        'test/chromedriver/server/http_handler_unittest.cc',
+        'test/chromedriver/server/http_response_unittest.cc',
         'test/chromedriver/session_command_unittest.cc',
         'test/chromedriver/session_unittest.cc',
         'test/chromedriver/status_unittest.cc',
@@ -830,22 +888,6 @@
         'test/chromedriver/net/net_util_unittest.cc',
         'test/chromedriver/net/sync_websocket_impl_unittest.cc',
         'test/chromedriver/net/websocket_unittest.cc',
-      ],
-    },
-    # This is the new ChromeDriver based on DevTools.
-    {
-      'target_name': 'chromedriver2',
-      'type': 'loadable_module',
-      'dependencies': [
-        'chromedriver2_lib',
-        '../base/base.gyp:base',
-        'test/chromedriver/third_party/jni/jni.gyp:jni',
-      ],
-      'include_dirs': [
-        '..',
-      ],
-      'sources': [
-        'test/chromedriver/chromedriver_shared_library.cc',
       ],
     },
     {
@@ -998,6 +1040,7 @@
         'browser/extensions/api/cookies/cookies_apitest.cc',
         'browser/extensions/api/debugger/debugger_apitest.cc',
         'browser/extensions/api/declarative/declarative_apitest.cc',
+        'browser/extensions/api/declarative_content/declarative_content_apitest.cc',
         'browser/extensions/api/developer_private/developer_private_apitest.cc',
         'browser/extensions/api/dial/dial_apitest.cc',
         'browser/extensions/api/dns/dns_apitest.cc',
@@ -1127,6 +1170,8 @@
         'browser/first_run/try_chrome_dialog_view_browsertest.cc',
         'browser/geolocation/access_token_store_browsertest.cc',
         'browser/geolocation/geolocation_browsertest.cc',
+        'browser/google_apis/fake_drive_service.cc',
+        'browser/google_apis/fake_drive_service.h',
         'browser/history/history_browsertest.cc',
         'browser/history/multipart_browsertest.cc',
         'browser/history/redirect_browsertest.cc',
@@ -1148,6 +1193,8 @@
         'browser/net/load_timing_observer_browsertest.cc',
         'browser/net/predictor_browsertest.cc',
         'browser/net/proxy_browsertest.cc',
+        'browser/net/websocket_browsertest.cc',
+        'browser/notifications/message_center_notifications_browsertest.cc',
         'browser/page_cycler/page_cycler_browsertest.cc',
         'browser/performance_monitor/performance_monitor_browsertest.cc',
         'browser/policy/cloud_policy_browsertest.cc',
@@ -1208,6 +1255,7 @@
         'browser/ui/ash/caps_lock_handler_browsertest.cc',
         'browser/ui/ash/chrome_shell_delegate_browsertest.cc',
         'browser/ui/ash/launcher/chrome_launcher_controller_browsertest.cc',
+        'browser/ui/ash/launcher/chrome_launcher_controller_per_app_browsertest.cc',
         'browser/ui/ash/launcher/launcher_favicon_loader_browsertest.cc',
         'browser/ui/ash/shelf_browsertest.cc',
         'browser/ui/ash/volume_controller_browsertest_chromeos.cc',
@@ -1287,6 +1335,7 @@
         'browser/ui/webui/options/edit_dictionary_browsertest.js',
         'browser/ui/webui/options/font_settings_browsertest.js',
         'browser/ui/webui/options/language_options_browsertest.js',
+        'browser/ui/webui/options/language_options_dictionary_download_browsertest.js',
         'browser/ui/webui/options/options_browsertest.js',
         'browser/ui/webui/options/options_ui_browsertest.cc',
         'browser/ui/webui/options/options_ui_browsertest.h',
@@ -1571,6 +1620,7 @@
             # TODO: enable these for win_ash browser tests.
             'browser/chromeos/system/tray_accessibility_browsertest.cc',
             'browser/ui/ash/chrome_shell_delegate_browsertest.cc',
+            'browser/ui/ash/launcher/chrome_launcher_controller_per_app_browsertest.cc',
             'browser/ui/ash/launcher/chrome_launcher_controller_browsertest.cc',
             'browser/ui/ash/launcher/launcher_favicon_loader_browsertest.cc',
             'browser/ui/ash/shelf_browsertest.cc',
@@ -1627,6 +1677,9 @@
             # TODO(rouslan): This test depends on the custom dictionary UI,
             # which is disabled on Mac.
             'browser/ui/webui/options/edit_dictionary_browsertest.js',
+            # TODO(rouslan): This test depends on hunspell and we cannot run it
+            # on Mac, which does use hunspell by default.
+            'browser/ui/webui/options/language_options_dictionary_download_browsertest.js',
             # ProcessSingletonMac doesn't do anything.
             'browser/process_singleton_browsertest.cc',
             # This test depends on GetCommandLineForRelaunch, which is not
@@ -1674,6 +1727,11 @@
         ['enable_app_list==0', {
           'sources/': [
             ['exclude', '^browser/ui/app_list/'],
+          ],
+        }],
+        ['enable_message_center==0 or use_ash==1', {
+          'sources!': [
+            'browser/notifications/message_center_notifications_browsertest.cc',
           ],
         }],
       ],  # conditions

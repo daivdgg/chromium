@@ -85,6 +85,7 @@
 #include "content/browser/speech/input_tag_speech_dispatcher_host.h"
 #include "content/browser/speech/speech_recognition_dispatcher_host.h"
 #include "content/browser/trace_message_filter.h"
+#include "content/browser/webui/web_ui_controller_factory_registry.h"
 #include "content/browser/worker_host/worker_storage_partition.h"
 #include "content/browser/worker_host/worker_message_filter.h"
 #include "content/common/child_process_host_impl.h"
@@ -99,7 +100,6 @@
 #include "content/public/browser/render_process_host_factory.h"
 #include "content/public/browser/resource_context.h"
 #include "content/public/browser/user_metrics.h"
-#include "content/public/browser/web_ui_controller_factory.h"
 #include "content/public/common/content_constants.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/process_type.h"
@@ -688,8 +688,6 @@ void RenderProcessHostImpl::AppendRendererCommandLine(
   // Pass the process type first, so it shows first in process listings.
   command_line->AppendSwitchASCII(switches::kProcessType,
                                   switches::kRendererProcess);
-  if (is_guest_)
-    command_line->AppendSwitch(switches::kGuestRenderer);
 
   // Now send any options from our own command line we want to propagate.
   const CommandLine& browser_command_line = *CommandLine::ForCurrentProcess();
@@ -782,11 +780,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kEnableLogging,
     switches::kDisableMediaSource,
     switches::kDisableWebMediaPlayerMS,
-#if defined(OS_WIN) || defined(OS_MACOSX)
     switches::kDisableRendererSideMixing,
-#else
-    switches::kEnableRendererSideMixing,
-#endif
     switches::kEnableStrictSiteIsolation,
     switches::kDisableFullScreen,
     switches::kEnableNewDialogStyle,
@@ -809,6 +803,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kDisableTouchAdjustment,
     switches::kEnableViewport,
     switches::kEnableOpusPlayback,
+    switches::kEnableVp9Playback,
     switches::kForceDeviceScaleFactor,
     switches::kFullMemoryCrashReport,
 #if !defined (GOOGLE_CHROME_BUILD)
@@ -864,6 +859,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     cc::switches::kShowOccludingRects,
     cc::switches::kTraceOverdraw,
     cc::switches::kTopControlsHeight,
+    cc::switches::kSlowDownRasterScaleFactor,
   };
   renderer_cmd->CopySwitchesFrom(browser_cmd, kSwitchNames,
                                  arraysize(kSwitchNames));
@@ -1165,6 +1161,9 @@ void RenderProcessHostImpl::Cleanup() {
         NOTIFICATION_RENDERER_PROCESS_TERMINATED,
         Source<RenderProcessHost>(this),
         NotificationService::NoDetails());
+
+    GetContentClient()->browser()->RenderProcessHostDeleted(this);
+
     MessageLoop::current()->DeleteSoon(FROM_HERE, this);
     deleting_soon_ = true;
     // It's important not to wait for the DeleteTask to delete the channel
@@ -1285,12 +1284,10 @@ bool RenderProcessHostImpl::IsSuitableHost(
   if (!host->IsGuest() && site_url.SchemeIs(chrome::kGuestScheme))
     return false;
 
-  WebUIControllerFactory* factory =
-      GetContentClient()->browser()->GetWebUIControllerFactory();
-  if (factory &&
-      ChildProcessSecurityPolicyImpl::GetInstance()->HasWebUIBindings(
+  if (ChildProcessSecurityPolicyImpl::GetInstance()->HasWebUIBindings(
           host->GetID()) !=
-      factory->UseWebUIBindingsForURL(browser_context, site_url)) {
+      WebUIControllerFactoryRegistry::GetInstance()->UseWebUIBindingsForURL(
+          browser_context, site_url)) {
     return false;
   }
 
@@ -1406,10 +1403,8 @@ bool RenderProcessHostImpl::ShouldUseProcessPerSite(
   }
 
   // DevTools pages have WebUI type but should not reuse the same host.
-  WebUIControllerFactory* factory =
-      GetContentClient()->browser()->GetWebUIControllerFactory();
-  if (factory &&
-      factory->UseWebUIForURL(browser_context, url) &&
+  if (WebUIControllerFactoryRegistry::GetInstance()->UseWebUIForURL(
+          browser_context, url) &&
       !url.SchemeIs(chrome::kChromeDevToolsScheme)) {
     return true;
   }

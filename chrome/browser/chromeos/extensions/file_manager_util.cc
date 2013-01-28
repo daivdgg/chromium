@@ -68,6 +68,7 @@ using content::PluginService;
 using content::UserMetricsAction;
 using extensions::Extension;
 using file_handler_util::FileTaskExecutor;
+using fileapi::FileSystemURL;
 
 #define FILEBROWSER_EXTENSON_ID "hhaomjibdihmijegdhdafkllkbggdgoj"
 const char kFileBrowserDomain[] = FILEBROWSER_EXTENSON_ID;
@@ -336,15 +337,8 @@ bool IsFileManagerPackaged() {
   return command_line->HasSwitch(switches::kFileManagerPackaged);
 }
 
-void ExecuteHandler(Profile* profile,
-                    std::string extension_id,
-                    std::string action_id,
-                    const GURL& url) {
-  // We are executing the task on behalf of File Browser extension.
-  const GURL source_url(kBaseFileBrowserUrl);
-
-  // If File Browser has not been open yet then it did not request access
-  // to the file system. Do it now.
+// Grants file system access to the file browser.
+bool GrantFileSystemAccessToFileBrowser(Profile* profile) {
   // File browser always runs in the site for its extension id, so that is the
   // site for which file access permissions should be granted.
   GURL site = extensions::ExtensionSystem::Get(profile)->extension_service()->
@@ -353,11 +347,32 @@ void ExecuteHandler(Profile* profile,
       BrowserContext::GetStoragePartitionForSite(profile, site)->
           GetFileSystemContext()->external_provider();
   if (!external_provider)
-    return;
-  external_provider->GrantFullAccessToExtension(source_url.host());
+    return false;
+  GURL url(kBaseFileBrowserUrl);
+  external_provider->GrantFullAccessToExtension(url.host());
+  return true;
+}
 
-  std::vector<GURL> urls;
-  urls.push_back(url);
+// Executes handler specifed with |extension_id| and |action_id| for |url|.
+void ExecuteHandler(Profile* profile,
+                    std::string extension_id,
+                    std::string action_id,
+                    const GURL& url) {
+  // If File Browser has not been open yet then it did not request access
+  // to the file system. Do it now.
+  if (!GrantFileSystemAccessToFileBrowser(profile))
+    return;
+
+  GURL site = extensions::ExtensionSystem::Get(profile)->extension_service()->
+      GetSiteForExtensionId(kFileBrowserDomain);
+  fileapi::FileSystemContext* file_system_context =
+      BrowserContext::GetStoragePartitionForSite(profile, site)->
+          GetFileSystemContext();
+
+  // We are executing the task on behalf of File Browser extension.
+  const GURL source_url(kBaseFileBrowserUrl);
+  std::vector<FileSystemURL> urls;
+  urls.push_back(file_system_context->CrackURL(url));
   scoped_refptr<FileTaskExecutor> executor = FileTaskExecutor::Create(profile,
       source_url, kFileBrowserDomain, 0 /* no tab id */, extension_id,
       file_handler_util::kTaskFile, action_id);
@@ -439,7 +454,7 @@ bool ExecuteDefaultHandler(Profile* profile, const FilePath& path) {
     return false;
 
   const FileBrowserHandler* handler;
-  if (!file_handler_util::GetTaskForURL(profile, url, &handler))
+  if (!file_handler_util::GetTaskForURLAndPath(profile, url, path, &handler))
     return false;
 
   std::string extension_id = handler->extension_id();
@@ -547,7 +562,7 @@ void CheckIfDirectoryExistsOnIOThread(
     const fileapi::FileSystemOperation::StatusCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::IO));
 
-  fileapi::FileSystemURL file_system_url(url);
+  fileapi::FileSystemURL file_system_url = file_system_context->CrackURL(url);
   base::PlatformFileError error = base::PLATFORM_FILE_OK;
   fileapi::FileSystemOperation* operation =
       file_system_context->CreateFileSystemOperation(file_system_url, &error);
@@ -771,7 +786,8 @@ void ViewItem(const FilePath& path) {
 
   Profile* profile = ProfileManager::GetDefaultProfileOrOffTheRecord();
   GURL url;
-  if (!ConvertFileToFileSystemUrl(profile, path, kFileBrowserDomain, &url)) {
+  if (!ConvertFileToFileSystemUrl(profile, path, kFileBrowserDomain, &url) ||
+      !GrantFileSystemAccessToFileBrowser(profile)) {
     ShowWarningMessageBox(profile, path);
     return;
   }

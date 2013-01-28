@@ -176,8 +176,7 @@ class TestSharder(BaseTestSharder):
       A SingleTestRunner object.
     """
     device_num = len(self.attached_devices)
-    shard_size = (len(self.tests) + device_num - 1) / device_num
-    shard_test_list = self.tests[index * shard_size : (index + 1) * shard_size]
+    shard_test_list = self.tests[index::device_num]
     test_filter = ':'.join(shard_test_list) + self.gtest_filter
     return SingleTestRunner(
         device,
@@ -196,7 +195,6 @@ class TestSharder(BaseTestSharder):
         test_type='Unit test',
         test_package=test_runners[0].test_package.test_suite_basename,
         build_type=self.build_type,
-        all_tests=self.all_tests,
         flakiness_server=self.flakiness_server)
     test_results.PrintAnnotation()
 
@@ -265,7 +263,7 @@ def _RunATestSuite(options):
   for buildbot_emulator in buildbot_emulators:
     buildbot_emulator.Shutdown()
 
-  return len(test_results.failed)
+  return len(test_results.GetAllBroken())
 
 
 def Dispatch(options):

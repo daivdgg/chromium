@@ -121,6 +121,40 @@ class ChromeDriverTest(unittest.TestCase):
     for item in result:
       self.assertTrue(isinstance(item, WebElement))
 
+  def testHoverOverElement(self):
+    div = self._driver.ExecuteScript(
+        'document.body.innerHTML = "<div>old</div>";'
+        'var div = document.getElementsByTagName("div")[0];'
+        'div.addEventListener("mouseover", function() {'
+        '  document.body.appendChild(document.createElement("br"));'
+        '});'
+        'return div;')
+    div.HoverOver();
+    self.assertEquals(1, len(self._driver.FindElements('tag name', 'br')))
+
+  def testClickElement(self):
+    div = self._driver.ExecuteScript(
+        'document.body.innerHTML = "<div>old</div>";'
+        'var div = document.getElementsByTagName("div")[0];'
+        'div.addEventListener("click", function() {'
+        '  var div = document.getElementsByTagName("div")[0];'
+        '  div.innerHTML="new<br>";'
+        '});'
+        'return div;')
+    div.Click()
+    self.assertEquals(1, len(self._driver.FindElements('tag name', 'br')))
+
+  def testClearElement(self):
+    text = self._driver.ExecuteScript(
+        'document.body.innerHTML = \'<input type="text" value="abc">\';'
+        'var input = document.getElementsByTagName("input")[0];'
+        'input.addEventListener("change", function() {'
+        '  document.body.appendChild(document.createElement("br"));'
+        '});'
+        'return input;')
+    text.Clear();
+    self.assertEquals(1, len(self._driver.FindElements('tag name', 'br')))
+
   def testGetCurrentUrl(self):
     self.assertEqual('about:blank', self._driver.GetCurrentUrl())
 
@@ -132,6 +166,70 @@ class ChromeDriverTest(unittest.TestCase):
   def testRefresh(self):
     self._driver.Load(self.GetHttpUrlForFile('/chromedriver/empty.html'))
     self._driver.Refresh()
+
+  def testMouseMoveTo(self):
+    div = self._driver.ExecuteScript(
+        'document.body.innerHTML = "<div>old</div>";'
+        'var div = document.getElementsByTagName("div")[0];'
+        'div.style["width"] = "100px";'
+        'div.style["height"] = "100px";'
+        'div.addEventListener("mouseover", function() {'
+        '  var div = document.getElementsByTagName("div")[0];'
+        '  div.innerHTML="new<br>";'
+        '});'
+        'return div;')
+    self._driver.MouseMoveTo(div, 10, 10)
+    self.assertEquals(1, len(self._driver.FindElements('tag name', 'br')))
+
+  def testMouseClick(self):
+    div = self._driver.ExecuteScript(
+        'document.body.innerHTML = "<div>old</div>";'
+        'var div = document.getElementsByTagName("div")[0];'
+        'div.style["width"] = "100px";'
+        'div.style["height"] = "100px";'
+        'div.addEventListener("click", function() {'
+        '  var div = document.getElementsByTagName("div")[0];'
+        '  div.innerHTML="new<br>";'
+        '});'
+        'return div;')
+    self._driver.MouseMoveTo(div)
+    self._driver.MouseClick()
+    self.assertEquals(1, len(self._driver.FindElements('tag name', 'br')))
+
+  def testMouseButtonDownAndUp(self):
+    self._driver.ExecuteScript(
+        'document.body.innerHTML = "<div>old</div>";'
+        'var div = document.getElementsByTagName("div")[0];'
+        'div.style["width"] = "100px";'
+        'div.style["height"] = "100px";'
+        'div.addEventListener("mousedown", function() {'
+        '  var div = document.getElementsByTagName("div")[0];'
+        '  div.innerHTML="new1<br>";'
+        '});'
+        'div.addEventListener("mouseup", function() {'
+        '  var div = document.getElementsByTagName("div")[0];'
+        '  div.innerHTML="new2<a></a>";'
+        '});')
+    self._driver.MouseMoveTo(None, 50, 50);
+    self._driver.MouseButtonDown();
+    self.assertEquals(1, len(self._driver.FindElements('tag name', 'br')))
+    self._driver.MouseButtonUp();
+    self.assertEquals(1, len(self._driver.FindElements('tag name', 'a')))
+
+  def testMouseDoubleClick(self):
+    div = self._driver.ExecuteScript(
+        'document.body.innerHTML = "<div>old</div>";'
+        'var div = document.getElementsByTagName("div")[0];'
+        'div.style["width"] = "100px";'
+        'div.style["height"] = "100px";'
+        'div.addEventListener("dblclick", function() {'
+        '  var div = document.getElementsByTagName("div")[0];'
+        '  div.innerHTML="new<br>";'
+        '});'
+        'return div;')
+    self._driver.MouseMoveTo(div, 1, 1);
+    self._driver.MouseDoubleClick();
+    self.assertEquals(1, len(self._driver.FindElements('tag name', 'br')))
 
 if __name__ == '__main__':
   parser = optparse.OptionParser()

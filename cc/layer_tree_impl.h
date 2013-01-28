@@ -64,7 +64,6 @@ class CC_EXPORT LayerTreeImpl {
   // Tree specific methods exposed to layer-impl tree.
   // ---------------------------------------------------------------------------
   void SetNeedsRedraw();
-  void SetNeedsUpdateDrawProperties();
 
   // TODO(nduca): These are implemented in cc files temporarily, but will become
   // trivial accessors in a followup patch.
@@ -113,8 +112,20 @@ class CC_EXPORT LayerTreeImpl {
     has_transparent_background_ = transparent;
   }
 
+  enum UpdateDrawPropertiesReason {
+    UPDATE_PENDING_TREE,
+    UPDATE_ACTIVE_TREE,
+    UPDATE_ACTIVE_TREE_FOR_DRAW
+  };
+
   // Updates draw properties and render surface layer list
-  void UpdateDrawProperties();
+  void UpdateDrawProperties(UpdateDrawPropertiesReason reason);
+  void set_needs_update_draw_properties() {
+    needs_update_draw_properties_ = true;
+  }
+  bool needs_update_draw_properties() const {
+    return needs_update_draw_properties_;
+  }
 
   void ClearRenderSurfaces();
 
@@ -166,6 +177,7 @@ protected:
   LayerList render_surface_layer_list_;
 
   bool contents_textures_purged_;
+  bool needs_update_draw_properties_;
 
   DISALLOW_COPY_AND_ASSIGN(LayerTreeImpl);
 };

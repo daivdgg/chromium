@@ -20,7 +20,6 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
 #include "chrome/browser/ui/webui/test_chrome_web_ui_controller_factory.h"
 #include "chrome/browser/ui/webui/web_ui_test_handler.h"
 #include "chrome/common/chrome_paths.h"
@@ -239,10 +238,10 @@ void WebUIBrowserTest::BrowsePrintPreload(const GURL& browse_to) {
   printing::PrintPreviewDialogController* tab_controller =
       printing::PrintPreviewDialogController::GetInstance();
   ASSERT_TRUE(tab_controller);
-  WebContents* preview_tab = tab_controller->GetPrintPreviewForTab(
+  WebContents* preview_dialog = tab_controller->GetPrintPreviewForContents(
       browser()->tab_strip_model()->GetActiveWebContents());
-  ASSERT_TRUE(preview_tab);
-  SetWebUIInstance(preview_tab->GetWebUI());
+  ASSERT_TRUE(preview_dialog);
+  SetWebUIInstance(preview_dialog->GetWebUI());
 }
 
 const char WebUIBrowserTest::kDummyURL[] = "chrome://DummyURL";
@@ -307,7 +306,7 @@ class MockWebUIProvider
   WebUIController* NewWebUI(content::WebUI* web_ui, const GURL& url) OVERRIDE {
     WebUIController* controller = new content::WebUIController(web_ui);
     Profile* profile = Profile::FromWebUI(web_ui);
-    ChromeURLDataManager::AddDataSource(profile, new MockWebUIDataSource());
+    content::URLDataSource::Add(profile, new MockWebUIDataSource());
     return controller;
   }
 

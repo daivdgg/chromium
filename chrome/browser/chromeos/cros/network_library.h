@@ -341,6 +341,10 @@ class Network {
     void SetDisconnected() {
       network_->set_disconnected();
     }
+    void SetUserConnectState(UserConnectState user_connect_state) {
+      network_->set_user_connect_state(user_connect_state);
+    }
+
    private:
     Network* network_;
   };
@@ -1565,6 +1569,10 @@ class NetworkLibrary {
   // once the transition is complete.
   virtual void SetCarrier(const std::string& carrier,
                           const NetworkOperationCallback& completed) = 0;
+
+  // Resets the cellular device, calls the closure once the transition is
+  // complete.
+  virtual void ResetModem() = 0;
 
   // Return true if GSM SIM card can work only with enabled roaming.
   virtual bool IsCellularAlwaysInRoaming() = 0;

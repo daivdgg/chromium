@@ -51,7 +51,6 @@ NotificationUIManagerImpl::NotificationUIManagerImpl()
   registrar_.Add(this, chrome::NOTIFICATION_APP_TERMINATING,
                  content::NotificationService::AllSources());
 #if defined(OS_MACOSX)
-  InitFullScreenMonitor();
   InitIdleMonitor();
 #endif
 }
@@ -60,7 +59,6 @@ NotificationUIManagerImpl::~NotificationUIManagerImpl() {
   STLDeleteElements(&show_queue_);
 #if defined(OS_MACOSX)
   StopIdleMonitor();
-  StopFullScreenMonitor();
 #endif
 }
 
@@ -75,6 +73,15 @@ void NotificationUIManagerImpl::Add(const Notification& notification,
   show_queue_.push_back(
       new QueuedNotification(notification, profile));
   CheckAndShowNotifications();
+}
+
+bool NotificationUIManagerImpl::DoesIdExist(const std::string& id) {
+  for (NotificationDeque::iterator iter = show_queue_.begin();
+       iter != show_queue_.end(); ++iter) {
+    if ((*iter)->notification().notification_id() == id)
+      return true;
+  }
+  return false;
 }
 
 bool NotificationUIManagerImpl::CancelById(const std::string& id) {

@@ -56,7 +56,6 @@
 #include "gpu/command_buffer/service/texture_manager.h"
 #include "gpu/command_buffer/service/vertex_attrib_manager.h"
 #include "gpu/command_buffer/service/vertex_array_manager.h"
-#include "gpu/GLES2/gl2chromium_constants.h"
 #include "ui/gl/async_pixel_transfer_delegate.h"
 #include "ui/gl/gl_image.h"
 #include "ui/gl/gl_implementation.h"
@@ -2498,11 +2497,12 @@ bool GLES2DecoderImpl::InitializeShaderTranslator() {
         features().oes_egl_image_external ? 1 : 0;
   }
 
-  if (features().enable_shader_name_hashing)
-    resources.HashFunction = &CityHashForAngle;
-
   ShShaderSpec shader_spec = force_webgl_glsl_validation_ ||
       force_webgl_glsl_validation_ ? SH_WEBGL_SPEC : SH_GLES2_SPEC;
+  if (shader_spec == SH_WEBGL_SPEC && features().enable_shader_name_hashing)
+    resources.HashFunction = &CityHashForAngle;
+  else
+    resources.HashFunction = NULL;
   ShaderTranslatorInterface::GlslImplementationType implementation_type =
       gfx::GetGLImplementation() == gfx::kGLImplementationEGLGLES2 ?
           ShaderTranslatorInterface::kGlslES : ShaderTranslatorInterface::kGlsl;
@@ -8627,9 +8627,6 @@ error::Error GLES2DecoderImpl::HandleShaderBinary(
 error::Error GLES2DecoderImpl::HandleSwapBuffers(
     uint32 immediate_data_size, const gles2::SwapBuffers& c) {
   bool is_offscreen = !!offscreen_target_frame_buffer_.get();
-  if (!is_offscreen && surface_->DeferSwapBuffers()) {
-    return error::kDeferCommandUntilLater;
-  }
 
   int this_frame_number = frame_number_++;
   // TRACE_EVENT for gpu tests:

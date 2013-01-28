@@ -479,8 +479,8 @@ int NavigationControllerImpl::GetIndexForOffset(int offset) const {
 }
 
 void NavigationControllerImpl::TakeScreenshot() {
-  static bool overscroll_enabled = CommandLine::ForCurrentProcess()->
-      HasSwitch(switches::kEnableOverscrollHistoryNavigation);
+  static bool overscroll_enabled = !CommandLine::ForCurrentProcess()->
+      HasSwitch(switches::kDisableOverscrollHistoryNavigation);
   if (!overscroll_enabled)
     return;
 
@@ -490,6 +490,10 @@ void NavigationControllerImpl::TakeScreenshot() {
     return;
 
   RenderViewHost* render_view_host = web_contents_->GetRenderViewHost();
+  if (!static_cast<RenderViewHostImpl*>
+      (render_view_host)->overscroll_controller()) {
+    return;
+  }
   content::RenderWidgetHostView* view = render_view_host->GetView();
   if (!view)
     return;
@@ -527,8 +531,6 @@ void NavigationControllerImpl::OnScreenshotTaken(
   }
 
   if (!success) {
-    LOG(ERROR) << "Taking snapshot was unsuccessful for "
-               << unique_id;
     ClearScreenshot(entry);
     return;
   }
@@ -1425,6 +1427,16 @@ void NavigationControllerImpl::PruneAllButActive() {
     static_cast<InterstitialPageImpl*>(web_contents_->GetInterstitialPage())->
         set_reload_on_dont_proceed(true);
   }
+}
+
+// Implemented here and not in NavigationEntry because this controller caches
+// the total number of screen shots across all entries.
+void NavigationControllerImpl::ClearAllScreenshots() {
+  for (NavigationEntries::iterator it = entries_.begin();
+       it != entries_.end();
+       ++it)
+    ClearScreenshot(it->get());
+  DCHECK_EQ(screenshot_count_, 0);
 }
 
 void NavigationControllerImpl::SetSessionStorageNamespace(

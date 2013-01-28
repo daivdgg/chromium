@@ -42,7 +42,6 @@
 #import "chrome/browser/ui/cocoa/toolbar/toolbar_controller.h"
 #import "chrome/browser/ui/cocoa/web_dialog_window_controller.h"
 #import "chrome/browser/ui/cocoa/website_settings_bubble_controller.h"
-#include "chrome/browser/ui/page_info_bubble.h"
 #include "chrome/browser/ui/search/search_model.h"
 #include "chrome/browser/ui/web_applications/web_app_ui.h"
 #include "chrome/browser/web_applications/web_app.h"
@@ -479,7 +478,8 @@ void BrowserWindowCocoa::ShowChromeToMobileBubble() {
 
 #if defined(ENABLE_ONE_CLICK_SIGNIN)
 void BrowserWindowCocoa::ShowOneClickSigninBubble(
-      const StartSyncCallback& start_sync_callback) {
+    OneClickSigninBubbleType type,
+    const StartSyncCallback& start_sync_callback) {
   OneClickSigninBubbleController* bubble_controller =
       [[OneClickSigninBubbleController alloc]
         initWithBrowserWindowController:cocoa_controller()
@@ -518,14 +518,6 @@ int BrowserWindowCocoa::GetExtraRenderViewHeight() const {
 
 void BrowserWindowCocoa::WebContentsFocused(WebContents* contents) {
   NOTIMPLEMENTED();
-}
-
-void BrowserWindowCocoa::ShowPageInfo(WebContents* web_contents,
-                                      const GURL& url,
-                                      const SSLStatus& ssl,
-                                      bool show_history) {
-  chrome::ShowPageInfoBubble(window(), web_contents, url, ssl, show_history,
-                             browser_);
 }
 
 void BrowserWindowCocoa::ShowWebsiteSettings(

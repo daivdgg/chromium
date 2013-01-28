@@ -660,6 +660,8 @@
         'browser/extensions/api/declarative/initializing_rules_registry_unittest.cc',
         'browser/extensions/api/declarative/rules_registry_service_unittest.cc',
         'browser/extensions/api/declarative/rules_registry_with_cache_unittest.cc',
+        'browser/extensions/api/declarative_content/content_action_unittest.cc',
+        'browser/extensions/api/declarative_content/content_condition_unittest.cc',
         'browser/extensions/api/declarative_webrequest/webrequest_action_unittest.cc',
         'browser/extensions/api/declarative_webrequest/webrequest_condition_attribute_unittest.cc',
         'browser/extensions/api/declarative_webrequest/webrequest_condition_unittest.cc',
@@ -1042,8 +1044,8 @@
         'browser/signin/token_service_unittest.h',
         'browser/signin/ubertoken_fetcher_unittest.cc',
         'browser/speech/extension_api/extension_manifests_tts_unittest.cc',
-        'browser/speech/extension_api/tts_extension_api_controller_unittest.cc',
         'browser/speech/speech_recognition_bubble_controller_unittest.cc',
+        'browser/speech/tts_controller_unittest.cc',
         'browser/spellchecker/spellcheck_custom_dictionary_unittest.cc',
         'browser/spellchecker/spellcheck_host_metrics_unittest.cc',
         'browser/spellchecker/spellcheck_platform_mac_unittest.cc',
@@ -1218,7 +1220,7 @@
         'browser/ui/cocoa/browser/avatar_button_controller_unittest.mm',
         'browser/ui/cocoa/browser/avatar_menu_bubble_controller_unittest.mm',
         'browser/ui/cocoa/browser/edit_search_engine_cocoa_controller_unittest.mm',
-	'browser/ui/cocoa/browser/password_generation_bubble_controller_unittest.mm',
+        'browser/ui/cocoa/browser/password_generation_bubble_controller_unittest.mm',
         'browser/ui/cocoa/browser_window_cocoa_unittest.mm',
         'browser/ui/cocoa/browser_window_controller_unittest.mm',
         'browser/ui/cocoa/bubble_view_unittest.mm',
@@ -1299,7 +1301,6 @@
         'browser/ui/cocoa/omnibox/omnibox_popup_view_mac_unittest.mm',
         'browser/ui/cocoa/omnibox/omnibox_view_mac_unittest.mm',
         'browser/ui/cocoa/one_click_signin_bubble_controller_unittest.mm',
-        'browser/ui/cocoa/page_info_bubble_controller_unittest.mm',
         'browser/ui/cocoa/panels/panel_cocoa_unittest.mm',
         'browser/ui/cocoa/profile_menu_controller_unittest.mm',
         'browser/ui/cocoa/ratings_view_unittest.mm',
@@ -1392,6 +1393,7 @@
         'browser/ui/views/accessibility/accessibility_event_router_views_unittest.cc',
         'browser/ui/views/bookmarks/bookmark_context_menu_test.cc',
         'browser/ui/views/bookmarks/bookmark_editor_view_unittest.cc',
+        'browser/ui/views/confirm_bubble_views_unittest.cc',
         'browser/ui/views/crypto_module_password_dialog_view_unittest.cc',
         'browser/ui/views/extensions/browser_action_drag_data_unittest.cc',
         'browser/ui/views/first_run_bubble_unittest.cc',
@@ -1405,7 +1407,6 @@
         'browser/ui/views/tabs/tab_strip_unittest.cc',
         'browser/ui/web_contents_modal_dialog_manager_unittest.cc',
         'browser/ui/website_settings/website_settings_unittest.cc',
-        'browser/ui/webui/chrome_web_ui_data_source_unittest.cc',
         'browser/ui/webui/fileicon_source_unittest.cc',
         'browser/ui/webui/ntp/android/partner_bookmarks_shim_unittest.cc',
         'browser/ui/webui/ntp/suggestions_combiner_unittest.cc',
@@ -1455,6 +1456,7 @@
         'common/content_settings_helper_unittest.cc',
         'common/content_settings_pattern_parser_unittest.cc',
         'common/content_settings_pattern_unittest.cc',
+        'common/extensions/api/commands/commands_manifest_unittest.cc',
         'common/extensions/api/extension_action/script_badge_manifest_unittest.cc',
         'common/extensions/command_unittest.cc',
         'common/extensions/csp_validator_unittest.cc',
@@ -1476,7 +1478,6 @@
         'common/extensions/manifest_tests/extension_manifests_background_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_browseraction_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_chromepermission_unittest.cc',
-        'common/extensions/manifest_tests/extension_manifests_command_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_contentscript_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_contentsecuritypolicy_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_default_unittest.cc',
@@ -1590,6 +1591,10 @@
         'test/logging/win/mof_data_parser_unittest.cc',
         'tools/convert_dict/convert_dict_unittest.cc',
 
+        # Duplicate these tests here because PathService has more items in
+        # unit_tests than in base_unittests.
+        '../base/path_service_unittest.cc',
+
         # TODO(joi): Move to 'base_prefs' target in base/base.gyp once
         # Prefs move is complete and dependencies have been broken.
         '../base/prefs/json_pref_store_unittest.cc',
@@ -1650,11 +1655,6 @@
         '../webkit/glue/web_intent_service_data_unittest.cc',
         '../webkit/quota/mock_storage_client.cc',
         '../webkit/quota/mock_storage_client.h',
-
-        # TODO(boliu): Move this to components_unittests target under
-        # components/.
-        '../components/auto_login_parser/auto_login_parser_unittest.cc',
-        '../components/visitedlink/test/visitedlink_unittest.cc',
       ],
       'conditions': [
         ['OS!="ios"', {
@@ -1753,6 +1753,7 @@
             'browser/extensions/extension_context_menu_model_unittest.cc',
             'browser/extensions/extension_ui_unittest.cc',
             'browser/extensions/permissions_updater_unittest.cc',
+            'common/extensions/extension_unittest.cc',
           ],
         }],
         ['use_ash==1', {
@@ -2043,6 +2044,7 @@
           'dependencies': [
             'chrome_version_resources',
             'installer_util_strings',
+            'unit_tests_exe_pdb_workaround',
             '../third_party/iaccessible2/iaccessible2.gyp:iaccessible2',
             '../third_party/isimpledom/isimpledom.gyp:isimpledom',
           ],
@@ -2301,6 +2303,8 @@
       ],
     },
   ],
+
+
   'conditions': [
     # Special target to wrap a gtest_target_type==shared_library
     # unit_tests into an android apk for execution.
@@ -2336,6 +2340,25 @@
           'sources': [
             'unit_tests.isolate',
           ],
+        },
+      ],
+    }],
+    ['OS=="win"', {
+      'targets' : [
+        {
+          # This target is only depended upon on Windows.
+          'target_name': 'unit_tests_exe_pdb_workaround',
+          'type': 'static_library',
+          'sources': [ 'empty_pdb_workaround.cc' ],
+          'msvs_settings': {
+            'VCCLCompilerTool': {
+              # This *in the compile phase* must match the pdb name that's
+              # output by the final link. See empty_pdb_workaround.cc for
+              # more details.
+              'DebugInformationFormat': '3',
+              'ProgramDataBaseFileName': '<(PRODUCT_DIR)/unit_tests.exe.pdb',
+            },
+          },
         },
       ],
     }],

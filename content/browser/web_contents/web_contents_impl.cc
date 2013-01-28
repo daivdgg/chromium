@@ -37,6 +37,7 @@
 #include "content/browser/web_contents/interstitial_page_impl.h"
 #include "content/browser/web_contents/navigation_entry_impl.h"
 #include "content/browser/web_contents/web_contents_view_guest.h"
+#include "content/browser/webui/web_ui_controller_factory_registry.h"
 #include "content/browser/webui/web_ui_impl.h"
 #include "content/common/browser_plugin_messages.h"
 #include "content/common/icon_messages.h"
@@ -65,7 +66,6 @@
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_view.h"
-#include "content/public/browser/web_ui_controller_factory.h"
 #include "content/public/common/bindings_policy.h"
 #include "content/public/common/content_constants.h"
 #include "content/public/common/content_restriction.h"
@@ -244,6 +244,7 @@ void MakeNavigateParams(const NavigationEntryImpl& entry,
   }
 
   params->can_load_local_resources = entry.GetCanLoadLocalResources();
+  params->frame_to_navigate = entry.GetFrameToNavigate();
 
   if (delegate)
     delegate->AddNavigationHeaders(params->url, &params->extra_headers);
@@ -318,7 +319,8 @@ WebContentsImpl::WebContentsImpl(
       maximum_zoom_percent_(static_cast<int>(kMaximumZoomFactor * 100)),
       temporary_zoom_settings_(false),
       content_restrictions_(0),
-      color_chooser_(NULL) {
+      color_chooser_(NULL),
+      fullscreen_widget_routing_id_(MSG_ROUTING_NONE) {
 }
 
 WebContentsImpl::~WebContentsImpl() {
@@ -405,6 +407,11 @@ WebContentsImpl* WebContentsImpl::CreateGuest(
   WebContents::CreateParams create_params(browser_context, site_instance);
   create_params.routing_id = routing_id;
   new_contents->Init(create_params);
+
+  // We are instantiating a WebContents for browser plugin. Set its subframe bit
+  // to true.
+  static_cast<RenderViewHostImpl*>(
+      new_contents->GetRenderViewHost())->set_is_subframe(true);
 
   return new_contents;
 }
@@ -671,7 +678,8 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
   prefs.viewport_enabled = command_line.HasSwitch(switches::kEnableViewport);
 
   prefs.deferred_image_decoding_enabled =
-      command_line.HasSwitch(switches::kEnableDeferredImageDecoding);
+      command_line.HasSwitch(switches::kEnableDeferredImageDecoding) ||
+      command_line.HasSwitch(cc::switches::kEnableImplSidePainting);
 
   GetContentClient()->browser()->OverrideWebkitPrefs(rvh, url, &prefs);
 
@@ -835,6 +843,10 @@ int WebContentsImpl::GetRoutingID() const {
   return GetRenderViewHost()->GetRoutingID();
 }
 
+int WebContentsImpl::GetFullscreenWidgetRoutingID() const {
+  return fullscreen_widget_routing_id_;
+}
+
 RenderWidgetHostView* WebContentsImpl::GetRenderWidgetHostView() const {
   return render_manager_.GetRenderWidgetHostView();
 }
@@ -844,13 +856,9 @@ WebContentsView* WebContentsImpl::GetView() const {
 }
 
 WebUI* WebContentsImpl::CreateWebUI(const GURL& url) {
-  WebUIControllerFactory* factory =
-      GetContentClient()->browser()->GetWebUIControllerFactory();
-  if (!factory)
-    return NULL;
   WebUIImpl* web_ui = new WebUIImpl(this);
-  WebUIController* controller =
-      factory->CreateWebUIControllerForURL(web_ui, url);
+  WebUIController* controller = WebUIControllerFactoryRegistry::GetInstance()->
+      CreateWebUIControllerForURL(web_ui, url);
   if (controller) {
     web_ui->SetController(controller);
     return web_ui;
@@ -1246,6 +1254,15 @@ void WebContentsImpl::RenderWidgetDeleted(
       created_widgets_.find(render_widget_host);
   if (iter != created_widgets_.end())
     created_widgets_.erase(iter);
+
+  if (render_widget_host &&
+      render_widget_host->GetRoutingID() == fullscreen_widget_routing_id_) {
+    FOR_EACH_OBSERVER(WebContentsObserver,
+                      observers_,
+                      DidDestroyFullscreenWidget(
+                          fullscreen_widget_routing_id_));
+    fullscreen_widget_routing_id_ = MSG_ROUTING_NONE;
+  }
 }
 
 bool WebContentsImpl::PreHandleKeyboardEvent(
@@ -1454,6 +1471,12 @@ void WebContentsImpl::ShowCreatedWidget(int route_id,
 
 void WebContentsImpl::ShowCreatedFullscreenWidget(int route_id) {
   ShowCreatedWidget(route_id, true, gfx::Rect());
+
+  DCHECK_EQ(MSG_ROUTING_NONE, fullscreen_widget_routing_id_);
+  fullscreen_widget_routing_id_ = route_id;
+  FOR_EACH_OBSERVER(WebContentsObserver,
+                    observers_,
+                    DidShowFullscreenWidget(route_id));
 }
 
 void WebContentsImpl::ShowCreatedWidget(int route_id,
@@ -1603,13 +1626,10 @@ bool WebContentsImpl::NavigateToEntry(
   // For security, we should never send non-Web-UI URLs to a Web UI renderer.
   // Double check that here.
   int enabled_bindings = dest_render_view_host->GetEnabledBindings();
-  WebUIControllerFactory* factory =
-      GetContentClient()->browser()->GetWebUIControllerFactory();
   bool data_urls_allowed = delegate_ && delegate_->CanLoadDataURLsInWebUI();
   bool is_allowed_in_web_ui_renderer =
-      factory &&
-      factory->IsURLAcceptableForWebUI(GetBrowserContext(), entry.GetURL(),
-                                       data_urls_allowed);
+      WebUIControllerFactoryRegistry::GetInstance()->IsURLAcceptableForWebUI(
+          GetBrowserContext(), entry.GetURL(), data_urls_allowed);
   if ((enabled_bindings & BINDINGS_POLICY_WEB_UI) &&
       !is_allowed_in_web_ui_renderer) {
     // Log the URL to help us diagnose any future failures of this CHECK.
@@ -1886,11 +1906,8 @@ int WebContentsImpl::GetContentRestrictions() const {
 }
 
 WebUI::TypeID WebContentsImpl::GetWebUITypeForCurrentState() {
-  WebUIControllerFactory* factory =
-      GetContentClient()->browser()->GetWebUIControllerFactory();
-  if (!factory)
-    return WebUI::kNoWebUI;
-  return factory->GetWebUIType(GetBrowserContext(), GetURL());
+  return WebUIControllerFactoryRegistry::GetInstance()->GetWebUIType(
+      GetBrowserContext(), GetURL());
 }
 
 WebUI* WebContentsImpl::GetWebUIForCurrentState() {

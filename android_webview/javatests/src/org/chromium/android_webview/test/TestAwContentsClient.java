@@ -5,6 +5,7 @@
 package org.chromium.android_webview.test;
 
 import android.webkit.ConsoleMessage;
+import android.webkit.ValueCallback;
 
 import org.chromium.content.browser.test.util.CallbackHelper;
 import org.chromium.content.browser.test.util.TestCallbackHelperContainer.OnPageStartedHelper;
@@ -125,6 +126,16 @@ class TestAwContentsClient extends NullContentsClient {
         }
     }
 
+    ValueCallback<String[]> mGetVisitedHistoryCallback;
+    boolean mSaveGetVisitedHistoryCallback = false;
+
+    @Override
+    public void getVisitedHistory(ValueCallback<String[]> callback) {
+        if (mSaveGetVisitedHistoryCallback) {
+            mGetVisitedHistoryCallback = callback;
+        }
+    }
+
     String mLastVisitedUrl;
     boolean mLastVisitIsReload;
 
@@ -151,5 +162,16 @@ class TestAwContentsClient extends NullContentsClient {
         mLastDownloadContentDisposition = contentDisposition;
         mLastDownloadMimeType = mimeType;
         mLastDownloadContentLength = contentLength;
+    }
+
+    String mLastAutoLoginRealm;
+    String mLastAutoLoginAccount;
+    String mLastAutoLoginArgs;
+
+    @Override
+    public void onReceivedLoginRequest(String realm, String account, String args) {
+        mLastAutoLoginRealm = realm;
+        mLastAutoLoginAccount = account;
+        mLastAutoLoginArgs = args;
     }
 }

@@ -7,7 +7,7 @@
 
 #include "base/callback.h"
 #include "base/file_path.h"
-#include "base/file_util_proxy.h"
+#include "base/files/file_util_proxy.h"
 #include "base/platform_file.h"
 #include "webkit/fileapi/file_system_file_util.h"
 #include "webkit/fileapi/file_system_operation.h"
@@ -41,13 +41,18 @@ class FileSystemFileUtilProxy {
            FileSystemFileUtil::SnapshotFilePolicy snapshot_policy)>
       SnapshotFileCallback;
 
-  // Deletes a file or a directory on the given context's task_runner.
-  // It is an error to delete a non-empty directory with recursive=false.
-  static bool Delete(
+  // Deletes a file on the given context's task_runner.
+  static bool DeleteFile(
       FileSystemOperationContext* context,
       FileSystemFileUtil* file_util,
       const FileSystemURL& url,
-      bool recursive,
+      const StatusCallback& callback);
+
+  // Deletes a directory on the given context's task_runner.
+  static bool DeleteDirectory(
+      FileSystemOperationContext* context,
+      FileSystemFileUtil* file_util,
+      const FileSystemURL& url,
       const StatusCallback& callback);
 
   // Creates or opens a file with the given flags by calling |file_util|'s
@@ -59,23 +64,18 @@ class FileSystemFileUtilProxy {
       int file_flags,
       const CreateOrOpenCallback& callback);
 
-  // Copies a file or a directory from |src_url| to |dest_url| by calling
-  // FileSystemFileUtil's following methods on the given context's
-  // task_runner.
-  // - CopyOrMoveFile() for same-filesystem operations
-  // - CopyInForeignFile() for (limited) cross-filesystem operations
-  //
-  // Error cases:
-  // If destination's parent doesn't exist.
-  // If source dir exists but destination url is an existing file.
-  // If source file exists but destination url is an existing directory.
-  // If source is a parent of destination.
-  // If source doesn't exist.
-  // If source and dest are the same url in the same filesystem.
-  static bool Copy(
+  // Copies a local file or a directory from |src_url| to |dest_url|.
+  static bool CopyFileLocal(
       FileSystemOperationContext* context,
-      FileSystemFileUtil* src_util,
-      FileSystemFileUtil* dest_util,
+      FileSystemFileUtil* file_util,
+      const FileSystemURL& src_url,
+      const FileSystemURL& dest_url,
+      const StatusCallback& callback);
+
+  // Moves a local file or a directory from |src_url| to |dest_url|.
+  static bool MoveFileLocal(
+      FileSystemOperationContext* context,
+      FileSystemFileUtil* file_util,
       const FileSystemURL& src_url,
       const FileSystemURL& dest_url,
       const StatusCallback& callback);
@@ -84,23 +84,8 @@ class FileSystemFileUtilProxy {
   // Primarily used for the Syncable filesystem type (e.g. GDrive).
   static bool CopyInForeignFile(
       FileSystemOperationContext* context,
-      FileSystemFileUtil* dest_util,
+      FileSystemFileUtil* file_util,
       const FilePath& src_local_disk_file_path,
-      const FileSystemURL& dest_url,
-      const StatusCallback& callback);
-
-  // Moves a file or a directory from |src_url| to |dest_url| by calling
-  // FileSystemFileUtil's following methods on the given context's
-  // task_runner.
-  // - CopyOrMoveFile() for same-filesystem operations
-  // - CopyInForeignFile() for (limited) cross-filesystem operations
-  //
-  // This method returns an error on the same error cases with Copy.
-  static bool Move(
-      FileSystemOperationContext* context,
-      FileSystemFileUtil* src_util,
-      FileSystemFileUtil* dest_util,
-      const FileSystemURL& src_url,
       const FileSystemURL& dest_url,
       const StatusCallback& callback);
 

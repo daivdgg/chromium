@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include "base/string_number_conversions.h"
 #include "sync/internal_api/public/base/node_ordinal.h"
 #include "sync/internal_api/public/util/unrecoverable_error_handler.h"
-#include "sync/syncable/delete_journal.h"
 #include "sync/syncable/entry.h"
 #include "sync/syncable/entry_kernel.h"
 #include "sync/syncable/in_memory_directory_backing_store.h"
@@ -562,12 +561,19 @@ bool Directory::VacuumAfterSaveChanges(const SaveChangesSnapshot& snapshot) {
   return true;
 }
 
-bool Directory::PurgeEntriesWithTypeIn(ModelTypeSet types) {
+bool Directory::PurgeEntriesWithTypeIn(ModelTypeSet types,
+                                       ModelTypeSet types_to_journal) {
+  DCHECK(types.HasAll(types_to_journal));
+
   if (types.Empty())
     return true;
 
   {
     WriteTransaction trans(FROM_HERE, PURGE_ENTRIES, this);
+
+    EntryKernelSet entries_to_journal;
+    STLElementDeleter<EntryKernelSet> journal_deleter(&entries_to_journal);
+
     {
       ScopedKernelLock lock(this);
       MetahandlesIndex::iterator it = kernel_->metahandles_index->begin();
@@ -601,11 +607,21 @@ bool Directory::PurgeEntriesWithTypeIn(ModelTypeSet types) {
           num_erased = kernel_->parent_id_child_index->erase(entry);
           DCHECK_EQ(entry->ref(IS_DEL), !num_erased);
           kernel_->metahandles_index->erase(it++);
-          delete entry;
+
+          if ((types_to_journal.Has(local_type) ||
+              types_to_journal.Has(server_type)) &&
+              (delete_journal_->IsDeleteJournalEnabled(local_type) ||
+                  delete_journal_->IsDeleteJournalEnabled(server_type))) {
+            entries_to_journal.insert(entry);
+          } else {
+            delete entry;
+          }
         } else {
           ++it;
         }
       }
+
+      delete_journal_->AddJournalBatch(&trans, entries_to_journal);
 
       // Ensure meta tracking for these data types reflects the deleted state.
       for (ModelTypeSet::Iterator it = types.First();

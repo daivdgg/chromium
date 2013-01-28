@@ -122,6 +122,24 @@ void TimerExpiredTask::KillProcess() {
 }  // namespace
 
 void RouteStdioToConsole() {
+  // Don't change anything if stdout or stderr already point to a
+  // valid stream.
+  //
+  // If we are running under Buildbot or under Cygwin's default
+  // terminal (mintty), stderr and stderr will be pipe handles.  In
+  // that case, we don't want to open CONOUT$, because its output
+  // likely does not go anywhere.
+  //
+  // We don't use GetStdHandle() to check stdout/stderr here because
+  // it can return dangling IDs of handles that were never inherited
+  // by this process.  These IDs could have been reused by the time
+  // this function is called.  The CRT checks the validity of
+  // stdout/stderr on startup (before the handle IDs can be reused).
+  // _fileno(stdout) will return -2 (_NO_CONSOLE_FILENO) if stdout was
+  // invalid.
+  if (_fileno(stdout) >= 0 || _fileno(stderr) >= 0)
+    return;
+
   if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
     unsigned int result = GetLastError();
     // Was probably already attached.
@@ -486,7 +504,7 @@ TerminationStatus GetTerminationStatus(ProcessHandle handle, int* exit_code) {
   DWORD tmp_exit_code = 0;
 
   if (!::GetExitCodeProcess(handle, &tmp_exit_code)) {
-    NOTREACHED();
+    DLOG_GETLASTERROR(FATAL) << "GetExitCodeProcess() failed";
     if (exit_code) {
       // This really is a random number.  We haven't received any
       // information about the exit code, presumably because this
@@ -511,10 +529,14 @@ TerminationStatus GetTerminationStatus(ProcessHandle handle, int* exit_code) {
       return TERMINATION_STATUS_STILL_RUNNING;
     }
 
-    DCHECK_EQ(WAIT_OBJECT_0, wait_result);
+    if (wait_result == WAIT_FAILED) {
+      DLOG_GETLASTERROR(ERROR) << "WaitForSingleObject() failed";
+    } else {
+      DCHECK_EQ(WAIT_OBJECT_0, wait_result);
 
-    // Strange, the process used 0x103 (STILL_ACTIVE) as exit code.
-    NOTREACHED();
+      // Strange, the process used 0x103 (STILL_ACTIVE) as exit code.
+      NOTREACHED();
+    }
 
     return TERMINATION_STATUS_ABNORMAL_TERMINATION;
   }

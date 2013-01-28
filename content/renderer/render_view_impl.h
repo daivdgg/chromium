@@ -407,6 +407,8 @@ class CONTENT_EXPORT RenderViewImpl
   virtual void requestPointerUnlock();
   virtual bool isPointerLocked();
   virtual void didActivateCompositor(int input_handler_identifier);
+  virtual void didHandleGestureEvent(const WebKit::WebGestureEvent& event,
+                                     bool event_cancelled) OVERRIDE;
 
   // WebKit::WebViewClient implementation --------------------------------------
 
@@ -442,8 +444,6 @@ class CONTENT_EXPORT RenderViewImpl
   virtual void didChangeSelection(bool is_selection_empty);
   virtual void didExecuteCommand(const WebKit::WebString& command_name);
   virtual bool handleCurrentKeyboardEvent();
-  virtual void didHandleGestureEvent(const WebKit::WebGestureEvent& event,
-                                     bool event_swallowed) OVERRIDE;
   virtual WebKit::WebColorChooser* createColorChooser(
       WebKit::WebColorChooserClient*, const WebKit::WebColor& initial_color);
   virtual bool runFileChooser(
@@ -806,7 +806,6 @@ class CONTENT_EXPORT RenderViewImpl
   virtual void GetCompositionCharacterBounds(
       std::vector<gfx::Rect>* character_bounds) OVERRIDE;
   virtual bool CanComposeInline() OVERRIDE;
-  virtual bool WebWidgetHandlesCompositorScheduling() const OVERRIDE;
 
  protected:
   RenderViewImpl(RenderViewImplParams* params);
@@ -852,6 +851,7 @@ class CONTENT_EXPORT RenderViewImpl
 #endif
   FRIEND_TEST_ALL_PREFIXES(RenderViewImplTest, SetHistoryLengthAndPrune);
   FRIEND_TEST_ALL_PREFIXES(RenderViewImplTest, ZoomLimit);
+  FRIEND_TEST_ALL_PREFIXES(RenderViewImplTest, NavigateFrame);
 
   typedef std::map<GURL, double> HostZoomLevels;
 

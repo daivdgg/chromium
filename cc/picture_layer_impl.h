@@ -34,7 +34,7 @@ public:
   virtual void pushPropertiesTo(LayerImpl* layer) OVERRIDE;
   virtual void appendQuads(QuadSink&, AppendQuadsData&) OVERRIDE;
   virtual void dumpLayerProperties(std::string*, int indent) const OVERRIDE;
-  virtual void didUpdateTransforms() OVERRIDE;
+  virtual void updateTilePriorities() OVERRIDE;
   virtual void didBecomeActive() OVERRIDE;
   virtual void didLoseOutputSurface() OVERRIDE;
   virtual void calculateContentsScale(
@@ -45,13 +45,15 @@ public:
   virtual skia::RefPtr<SkPicture> getPicture() OVERRIDE;
 
   // PictureLayerTilingClient overrides.
-  virtual scoped_refptr<Tile> CreateTile(PictureLayerTiling*,
-                                         gfx::Rect) OVERRIDE;
+  virtual scoped_refptr<Tile> CreateTile(PictureLayerTiling* tiling,
+                                         gfx::Rect content_rect) OVERRIDE;
   virtual void UpdatePile(Tile* tile) OVERRIDE;
 
   // PushPropertiesTo active tree => pending tree
   void SyncFromActiveLayer();
-  void SyncTiling(const PictureLayerTiling* tiling);
+  void SyncTiling(
+      const PictureLayerTiling* tiling,
+      const Region& pending_layer_invalidation);
 
   void CreateTilingSet();
   void TransferTilingSet(scoped_ptr<PictureLayerTilingSet> tilings);
@@ -74,8 +76,9 @@ protected:
   scoped_refptr<PicturePileImpl> pile_;
   Region invalidation_;
 
+  int last_source_frame_number_;
   gfx::Transform last_screen_space_transform_;
-  double last_update_time_;
+  double last_impl_frame_time_;
   gfx::Size last_bounds_;
   gfx::Size last_content_bounds_;
   float last_content_scale_;

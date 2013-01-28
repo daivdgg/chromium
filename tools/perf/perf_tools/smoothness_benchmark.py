@@ -163,9 +163,16 @@ class SmoothnessBenchmark(multi_page_benchmark.MultiPageBenchmark):
   def CanRunForPage(self, page):
     return hasattr(page, 'smoothness')
 
-  def WillRunInteraction(self, page, tab):
+  def WillRunAction(self, page, tab, action):
     self._measurement = smoothness_measurement.SmoothnessMeasurement(tab)
-    self._measurement.bindToScrollInteraction()
+    if action.CanBeBound():
+      self._measurement.BindToAction(action)
+    else:
+      self._measurement.Start()
+
+  def DidRunAction(self, page, tab, action):
+    if not action.CanBeBound():
+      self._measurement.Stop()
 
   def MeasurePage(self, page, tab, results):
     rendering_stats_deltas = self._measurement.deltas
@@ -183,7 +190,6 @@ class SmoothnessBenchmark(multi_page_benchmark.MultiPageBenchmark):
     results.Add('load_time', 'seconds', load_time_seconds)
     results.Add('dom_content_loaded_time', 'seconds',
                 dom_content_loaded_time_seconds)
-
 
     CalcFirstPaintTimeResults(results, tab)
     CalcScrollResults(rendering_stats_deltas, results)

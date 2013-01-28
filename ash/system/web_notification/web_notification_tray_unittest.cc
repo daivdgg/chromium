@@ -60,6 +60,9 @@ class TestDelegate : public message_center::MessageCenter::Delegate {
   virtual void ShowSettings(const std::string& notifcation_id) {
   }
 
+  virtual void ShowSettingsDialog(gfx::NativeView context) {
+  }
+
   virtual void OnClicked(const std::string& notifcation_id) {
   }
 
@@ -173,14 +176,6 @@ using message_center::NotificationList;
 
 
 TEST_F(WebNotificationTrayTest, ManyMessageCenterNotifications) {
-#if defined(OS_WIN)
-  // This test seems to tickle a race condition on Metro/Ash causing the test
-  // suite to crash.
-  // TODO(robertshield): Fix this. http://crbug.com/170418
-  if (base::win::GetVersion() >= base::win::VERSION_WIN8)
-    return;
-#endif
-
   WebNotificationTray* tray = GetWebNotificationTray();
   scoped_ptr<TestDelegate> delegate(new TestDelegate(tray->message_center()));
 
@@ -201,14 +196,6 @@ TEST_F(WebNotificationTrayTest, ManyMessageCenterNotifications) {
 }
 
 TEST_F(WebNotificationTrayTest, ManyPopupNotifications) {
-#if defined(OS_WIN)
-  // This test seems to tickle a race condition on Metro/Ash causing the test
-  // suite to crash.
-  // TODO(robertshield): Fix this. http://crbug.com/170418
-  if (base::win::GetVersion() >= base::win::VERSION_WIN8)
-    return;
-#endif
-
   WebNotificationTray* tray = GetWebNotificationTray();
   scoped_ptr<TestDelegate> delegate(new TestDelegate(tray->message_center()));
 

@@ -9,7 +9,8 @@
 
 var watchForTag = require("tagWatcher").watchForTag;
 
-var WEB_VIEW_ATTRIBUTES = ['name', 'src', 'partition'];
+var WEB_VIEW_ATTRIBUTES = ['name', 'src', 'partition', 'autoSize', 'minHeight',
+    'minWidth', 'maxHeight', 'maxWidth'];
 
 // All exposed api methods for <webview>, these are forwarded to the browser
 // plugin.
@@ -70,6 +71,13 @@ function WebView(node) {
       return self.objectNode_[apiMethod].apply(self.objectNode_, arguments);
     };
   }, this);
+
+  node['executeScript'] = function(var_args) {
+    var args = [self.objectNode_.getProcessId(),
+                self.objectNode_.getRouteId()].concat(
+                    Array.prototype.slice.call(arguments));
+    chrome.webview.executeScript.apply(null, args);
+  }
 
   // Map attribute modifications on the <webview> tag to property changes in
   // the underlying <object> node.

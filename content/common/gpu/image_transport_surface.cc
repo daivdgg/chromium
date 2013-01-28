@@ -23,43 +23,6 @@ ImageTransportSurface::ImageTransportSurface() {}
 
 ImageTransportSurface::~ImageTransportSurface() {}
 
-void ImageTransportSurface::GetRegionsToCopy(
-    const gfx::Rect& previous_damage_rect,
-    const gfx::Rect& new_damage_rect,
-    std::vector<gfx::Rect>* regions) {
-  gfx::Rect intersection =
-      gfx::IntersectRects(previous_damage_rect, new_damage_rect);
-
-  if (intersection.IsEmpty()) {
-    regions->push_back(previous_damage_rect);
-    return;
-  }
-
-  // Top (above the intersection).
-  regions->push_back(gfx::Rect(previous_damage_rect.x(),
-      previous_damage_rect.y(),
-      previous_damage_rect.width(),
-      intersection.y() - previous_damage_rect.y()));
-
-  // Left (of the intersection).
-  regions->push_back(gfx::Rect(previous_damage_rect.x(),
-      intersection.y(),
-      intersection.x() - previous_damage_rect.x(),
-      intersection.height()));
-
-  // Right (of the intersection).
-  regions->push_back(gfx::Rect(intersection.right(),
-      intersection.y(),
-      previous_damage_rect.right() - intersection.right(),
-      intersection.height()));
-
-  // Bottom (below the intersection).
-  regions->push_back(gfx::Rect(previous_damage_rect.x(),
-      intersection.bottom(),
-      previous_damage_rect.width(),
-      previous_damage_rect.bottom() - intersection.bottom()));
-}
-
 ImageTransportHelper::ImageTransportHelper(ImageTransportSurface* surface,
                                            GpuChannelManager* manager,
                                            GpuCommandBufferStub* stub,
@@ -160,9 +123,9 @@ void ImageTransportHelper::DeferToFence(base::Closure task) {
   scheduler->DeferToFence(task);
 }
 
-void ImageTransportHelper::SetPreemptByCounter(
-    scoped_refptr<gpu::RefCountedCounter> preempt_by_counter) {
-  stub_->channel()->SetPreemptByCounter(preempt_by_counter);
+void ImageTransportHelper::SetPreemptByFlag(
+    scoped_refptr<gpu::PreemptionFlag> preemption_flag) {
+  stub_->channel()->SetPreemptByFlag(preemption_flag);
 }
 
 bool ImageTransportHelper::MakeCurrent() {
@@ -205,27 +168,11 @@ void ImageTransportHelper::OnResizeViewACK() {
 }
 
 void ImageTransportHelper::Resize(gfx::Size size) {
-  // On windows, the surface is recreated and, in case the newly allocated
-  // surface happens to have the same address, it should be invalidated on the
-  // decoder so that future calls to MakeCurrent do not early out on the
-  // assumption that neither the context or surface have actually changed.
-#if defined(OS_WIN)
-  if (handle_ != NULL)
-    Decoder()->ReleaseCurrent();
-#endif
-
   surface_->OnResize(size);
 
 #if defined(OS_ANDROID)
   manager_->gpu_memory_manager()->ScheduleManage(
       GpuMemoryManager::kScheduleManageNow);
-#endif
-
-#if defined(OS_WIN)
-  if (handle_ != NULL) {
-    Decoder()->MakeCurrent();
-    SetSwapInterval(Decoder()->GetGLContext());
-  }
 #endif
 }
 

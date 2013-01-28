@@ -11,6 +11,7 @@
 #include "base/platform_file.h"
 #include "googleurl/src/gurl.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "webkit/fileapi/external_mount_points.h"
 #include "webkit/fileapi/file_system_context.h"
 #include "webkit/fileapi/file_system_operation_context.h"
 #include "webkit/fileapi/file_system_quota_client.h"
@@ -49,6 +50,7 @@ class FileSystemQuotaClientTest : public testing::Test {
     file_system_context_ =
         new FileSystemContext(
             FileSystemTaskRunners::CreateMockTaskRunners(),
+            ExternalMountPoints::CreateRefCounted().get(),
             NULL, NULL,
             data_dir_.path(),
             CreateDisallowFileAccessOptions());
@@ -133,7 +135,8 @@ class FileSystemQuotaClientTest : public testing::Test {
     FileSystemType type = QuotaStorageTypeToFileSystemType(storage_type);
     FileSystemFileUtil* file_util = file_system_context_->GetFileUtil(type);
 
-    FileSystemURL url(GURL(origin_url), type, file_path);
+    FileSystemURL url = file_system_context_->CreateCrackedFileSystemURL(
+        GURL(origin_url), type, file_path);
     scoped_ptr<FileSystemOperationContext> context(
         CreateFileSystemOperationContext(type));
 
@@ -155,7 +158,8 @@ class FileSystemQuotaClientTest : public testing::Test {
     FileSystemFileUtil* file_util = file_system_context_->
         sandbox_provider()->GetFileUtil(type);
 
-    FileSystemURL url(GURL(origin_url), type, file_path);
+    FileSystemURL url = file_system_context_->CreateCrackedFileSystemURL(
+        GURL(origin_url), type, file_path);
     scoped_ptr<FileSystemOperationContext> context(
         CreateFileSystemOperationContext(type));
 

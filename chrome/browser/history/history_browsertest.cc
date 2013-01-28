@@ -9,7 +9,7 @@
 #include "base/message_loop.h"
 #include "base/utf_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/history/history.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/profiles/profile.h"
@@ -263,8 +263,13 @@ IN_PROC_BROWSER_TEST_F(HistoryBrowserTest,
   LoadAndWaitForFile("history_length_test_page_21.html");
 }
 
-// If this test flakes, use bug 22111.
-IN_PROC_BROWSER_TEST_F(HistoryBrowserTest, HistorySearchXSS) {
+// http://crbug.com/22111
+#if defined(OS_LINUX)
+#define MAYBE_HistorySearchXSS DISABLED_HistorySearchXSS
+#else
+#define MAYBE_HistorySearchXSS HistorySearchXSS
+#endif
+IN_PROC_BROWSER_TEST_F(HistoryBrowserTest, MAYBE_HistorySearchXSS) {
   GURL url(std::string(chrome::kChromeUIHistoryURL) +
       "#q=%3Cimg%20src%3Dx%3Ax%20onerror%3D%22document.title%3D'XSS'%22%3E");
   ui_test_utils::NavigateToURL(browser(), url);

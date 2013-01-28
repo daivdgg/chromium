@@ -121,6 +121,9 @@ void NativeAppWindowViews::InitializePanelWindow(
     preferred_size_.set_height(kMinPanelHeight);
 
   params.bounds = gfx::Rect(preferred_size_.width(), preferred_size_.height());
+  // TODO(erg): Conceptually, these are toplevel windows, but we theoretically
+  // could plumb context through to here in some cases.
+  params.top_level = true;
   window_->Init(params);
 
   gfx::Rect window_bounds =
@@ -421,8 +424,9 @@ void NativeAppWindowViews::Layout() {
   OnViewWasResized();
 }
 
-void NativeAppWindowViews::ViewHierarchyChanged(
-    bool is_add, views::View *parent, views::View *child) {
+void NativeAppWindowViews::ViewHierarchyChanged(bool is_add,
+                                                views::View* parent,
+                                                views::View* child) {
   if (is_add && child == this) {
     web_view_ = new views::WebView(NULL);
     AddChildView(web_view_);

@@ -8,6 +8,7 @@
 #include "base/message_loop.h"
 #include "base/message_loop_proxy.h"
 #include "googleurl/src/gurl.h"
+#include "webkit/fileapi/external_mount_points.h"
 #include "webkit/fileapi/file_system_context.h"
 #include "webkit/fileapi/file_system_operation_context.h"
 #include "webkit/fileapi/file_system_task_runners.h"
@@ -49,8 +50,8 @@ void LocalFileSystemTestOriginHelper::SetUp(
 
   // Prepare the origin's root directory.
   file_system_context_->GetMountPointProvider(type_)->
-      GetFileSystemRootPathOnFileThread(
-          FileSystemURL(origin_, type_, FilePath()), true /* create */);
+      GetFileSystemRootPathOnFileThread(CreateURL(FilePath()),
+                                        true /* create */);
 
   // Initialize the usage cache file.
   FilePath usage_cache_path = GetUsageCachePath();
@@ -67,6 +68,7 @@ void LocalFileSystemTestOriginHelper::SetUp(
   special_storage_policy->SetAllUnlimited(unlimited_quota);
   file_system_context_ = new FileSystemContext(
       FileSystemTaskRunners::CreateMockTaskRunners(),
+      ExternalMountPoints::CreateRefCounted().get(),
       special_storage_policy,
       quota_manager_proxy,
       base_dir,
@@ -77,8 +79,8 @@ void LocalFileSystemTestOriginHelper::SetUp(
   // Prepare the origin's root directory.
   FileSystemMountPointProvider* mount_point_provider =
       file_system_context_->GetMountPointProvider(type_);
-  mount_point_provider->GetFileSystemRootPathOnFileThread(
-     FileSystemURL(origin_, type_, FilePath()), true /* create */);
+  mount_point_provider->GetFileSystemRootPathOnFileThread(CreateURL(FilePath()),
+                                                          true /* create */);
 
   // Initialize the usage cache file.
   FilePath usage_cache_path = GetUsageCachePath();
@@ -93,8 +95,7 @@ void LocalFileSystemTestOriginHelper::TearDown() {
 
 FilePath LocalFileSystemTestOriginHelper::GetOriginRootPath() const {
   return file_system_context_->GetMountPointProvider(type_)->
-      GetFileSystemRootPathOnFileThread(
-          FileSystemURL(origin_, type_, FilePath()), false);
+      GetFileSystemRootPathOnFileThread(CreateURL(FilePath()), false);
 }
 
 FilePath LocalFileSystemTestOriginHelper::GetLocalPath(const FilePath& path) {
@@ -120,7 +121,7 @@ FilePath LocalFileSystemTestOriginHelper::GetUsageCachePath() const {
 
 FileSystemURL LocalFileSystemTestOriginHelper::CreateURL(const FilePath& path)
     const {
-  return FileSystemURL(origin_, type_, path);
+  return file_system_context_->CreateCrackedFileSystemURL(origin_, type_, path);
 }
 
 base::PlatformFileError LocalFileSystemTestOriginHelper::SameFileUtilCopy(

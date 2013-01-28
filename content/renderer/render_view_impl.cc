@@ -214,7 +214,7 @@
 #include "webkit/plugins/npapi/webplugin_impl.h"
 
 #if defined(OS_ANDROID)
-#include "content/common/android/device_info.h"
+#include "content/common/android/device_telephony_info.h"
 #include "content/renderer/android/address_detector.h"
 #include "content/renderer/android/content_detector.h"
 #include "content/renderer/android/email_detector.h"
@@ -665,12 +665,12 @@ RenderViewImpl::RenderViewImpl(RenderViewImplParams* params)
   const CommandLine& command_line = *CommandLine::ForCurrentProcess();
 
 #if defined(OS_ANDROID)
-  scoped_ptr<DeviceInfo> device_info(new DeviceInfo());
+  content::DeviceTelephonyInfo device_info;
 
   const std::string region_code =
       command_line.HasSwitch(switches::kNetworkCountryIso)
           ? command_line.GetSwitchValueASCII(switches::kNetworkCountryIso)
-          : device_info->GetNetworkCountryIso();
+          : device_info.GetNetworkCountryIso();
   content_detectors_.push_back(linked_ptr<ContentDetector>(
       new AddressDetector()));
   content_detectors_.push_back(linked_ptr<ContentDetector>(
@@ -1132,8 +1132,14 @@ void RenderViewImpl::OnNavigate(const ViewMsg_Navigate_Params& params) {
 
   GetContentClient()->SetActiveURL(params.url);
 
-  WebFrame* main_frame = webview()->mainFrame();
-  if (is_reload && main_frame->currentHistoryItem().isNull()) {
+  WebFrame* frame = webview()->mainFrame();
+  if (!params.frame_to_navigate.empty()) {
+    frame = webview()->findFrameByName(
+        WebString::fromUTF8(params.frame_to_navigate));
+    CHECK(frame) << "Invalid frame name passed: " << params.frame_to_navigate;
+  }
+
+  if (is_reload && frame->currentHistoryItem().isNull()) {
     // We cannot reload if we do not have any history state.  This happens, for
     // example, when recovering from a crash.  Our workaround here is a bit of
     // a hack since it means that reload after a crashed tab does not cause an
@@ -1155,9 +1161,9 @@ void RenderViewImpl::OnNavigate(const ViewMsg_Navigate_Params& params) {
                              ViewMsg_Navigate_Type::RELOAD_IGNORING_CACHE);
 
     if (reload_original_url)
-      main_frame->reloadWithOverrideURL(params.url, true);
+      frame->reloadWithOverrideURL(params.url, true);
     else
-      main_frame->reload(ignore_cache);
+      frame->reload(ignore_cache);
   } else if (!params.state.empty()) {
     // We must know the page ID of the page we are navigating back to.
     DCHECK_NE(params.page_id, -1);
@@ -1166,13 +1172,13 @@ void RenderViewImpl::OnNavigate(const ViewMsg_Navigate_Params& params) {
       // Ensure we didn't save the swapped out URL in UpdateState, since the
       // browser should never be telling us to navigate to swappedout://.
       CHECK(item.urlString() != WebString::fromUTF8(kSwappedOutURL));
-      main_frame->loadHistoryItem(item);
+      frame->loadHistoryItem(item);
     }
   } else if (!params.base_url_for_data_url.is_empty()) {
     // A loadData request with a specified base URL.
     std::string mime_type, charset, data;
     if (net::DataURL::Parse(params.url, &mime_type, &charset, &data)) {
-      main_frame->loadData(
+      frame->loadData(
           WebData(data.c_str(), data.length()),
           WebString::fromUTF8(mime_type),
           WebString::fromUTF8(charset),
@@ -1190,7 +1196,7 @@ void RenderViewImpl::OnNavigate(const ViewMsg_Navigate_Params& params) {
     // A session history navigation should have been accompanied by state.
     CHECK_EQ(params.page_id, -1);
 
-    if (main_frame->isViewSourceModeEnabled())
+    if (frame->isViewSourceModeEnabled())
       request.setCachePolicy(WebURLRequest::ReturnCacheDataElseLoad);
 
     if (params.referrer.url.is_valid()) {
@@ -1224,7 +1230,7 @@ void RenderViewImpl::OnNavigate(const ViewMsg_Navigate_Params& params) {
       request.setHTTPBody(http_body);
     }
 
-    main_frame->loadRequest(request);
+    frame->loadRequest(request);
   }
 
   // In case LoadRequest failed before DidCreateDataSource was called.
@@ -1843,8 +1849,10 @@ WebView* RenderViewImpl::createView(
   params.frame_name = frame_name;
   params.opener_frame_id = creator->identifier();
   params.opener_url = creator->document().url();
-  params.opener_security_origin =
-      creator->document().securityOrigin().toString().utf8();
+  GURL security_url(creator->document().securityOrigin().toString().utf8());
+  if (!security_url.is_valid())
+    security_url = GURL();
+  params.opener_security_origin = security_url;
   params.opener_suppressed = creator->willSuppressOpenerInNewFrame();
   params.disposition = NavigationPolicyToDisposition(policy);
   if (!request.isNull())
@@ -2123,18 +2131,6 @@ bool RenderViewImpl::handleCurrentKeyboardEvent() {
   }
 
   return did_execute_command;
-}
-
-void RenderViewImpl::didHandleGestureEvent(const WebGestureEvent& event,
-                                           bool event_swallowed) {
-#if defined(OS_ANDROID)
-  if (event.type == WebInputEvent::GestureTap ||
-      event.type == WebInputEvent::GestureLongPress) {
-    UpdateTextInputState(SHOW_IME_IF_NEEDED);
-  }
-#endif
-  FOR_EACH_OBSERVER(RenderViewObserver, observers_,
-                    DidHandleGestureEvent(event));
 }
 
 WebKit::WebColorChooser* RenderViewImpl::createColorChooser(
@@ -2552,6 +2548,14 @@ void RenderViewImpl::didActivateCompositor(int input_handler_identifier) {
   ProcessAcceleratedPinchZoomFlags(*CommandLine::ForCurrentProcess());
 }
 
+void RenderViewImpl::didHandleGestureEvent(
+    const WebGestureEvent& event,
+    bool event_cancelled) {
+  RenderWidget::didHandleGestureEvent(event, event_cancelled);
+  FOR_EACH_OBSERVER(RenderViewObserver, observers_,
+                    DidHandleGestureEvent(event));
+}
+
 // WebKit::WebFrameClient -----------------------------------------------------
 
 WebPlugin* RenderViewImpl::createPlugin(WebFrame* frame,
@@ -2668,14 +2672,7 @@ WebMediaPlayer* RenderViewImpl::createMediaPlayer(
 
   scoped_refptr<media::AudioRendererSink> sink;
   if (!cmd_line->HasSwitch(switches::kDisableAudio)) {
-#if defined(OS_WIN) || defined(OS_MACOSX)
-    const bool use_mixing =
-        !cmd_line->HasSwitch(switches::kDisableRendererSideMixing);
-#else
-    const bool use_mixing =
-        cmd_line->HasSwitch(switches::kEnableRendererSideMixing);
-#endif
-    if (use_mixing) {
+    if (!cmd_line->HasSwitch(switches::kDisableRendererSideMixing)) {
       sink = RenderThreadImpl::current()->GetAudioRendererMixerManager()->
           CreateInput(routing_id_);
       DVLOG(1) << "Using AudioRendererMixerManager-provided sink: " << sink;
@@ -2960,8 +2957,7 @@ WebNavigationPolicy RenderViewImpl::decidePolicyForNavigation(
     // blessed with file permissions.
     int cumulative_bindings = RenderProcess::current()->GetEnabledBindings();
     bool is_initial_navigation = page_id_ == -1;
-    bool should_fork =
-        GetContentClient()->HasWebUIScheme(url) ||
+    bool should_fork = HasWebUIScheme(url) ||
         (cumulative_bindings & BINDINGS_POLICY_WEB_UI) ||
         url.SchemeIs(chrome::kViewSourceScheme) ||
         (frame->isViewSourceModeEnabled() &&
@@ -2979,14 +2975,9 @@ WebNavigationPolicy RenderViewImpl::decidePolicyForNavigation(
 
     if (!should_fork) {
       // Give the embedder a chance.
-      // For now, we skip this for POST submissions.  This is because
-      // http://crbug.com/101395 is more likely to cause compatibility issues
-      // with hosted apps and extensions than WebUI pages.  We will remove this
-      // check when cross-process POST submissions are supported.
-      if (request.httpMethod() == "GET") {
-        should_fork = GetContentClient()->renderer()->ShouldFork(
-            frame, url, is_initial_navigation, &send_referrer);
-      }
+      should_fork = GetContentClient()->renderer()->ShouldFork(
+          frame, url, request.httpMethod().utf8(), is_initial_navigation,
+          &send_referrer);
     }
 
     if (should_fork) {
@@ -4746,7 +4737,7 @@ void RenderViewImpl::SyncSelectionIfRequired() {
     selection_text_offset_ = offset;
     selection_range_ = range;
     Send(new ViewHostMsg_SelectionChanged(routing_id_, text, offset, range));
-    UpdateTextInputState(SHOW_IME_IF_NEEDED);
+    UpdateTextInputState(DO_NOT_SHOW_IME);
   }
 }
 
@@ -5945,7 +5936,7 @@ void RenderViewImpl::OnWasShown(bool needs_repainting) {
 bool RenderViewImpl::SupportsAsynchronousSwapBuffers() {
   // Contexts using the command buffer support asynchronous swapbuffers.
   // See RenderViewImpl::createOutputSurface().
-  if (WebWidgetHandlesCompositorScheduling() ||
+  if (RenderThreadImpl::current()->compositor_thread() ||
       CommandLine::ForCurrentProcess()->HasSwitch(switches::kInProcessWebGL))
     return false;
 
@@ -6511,10 +6502,6 @@ void RenderViewImpl::OnEnableViewSourceMode() {
   if (!main_frame)
     return;
   main_frame->enableViewSourceMode(true);
-}
-
-bool RenderViewImpl::WebWidgetHandlesCompositorScheduling() const {
-  return !!RenderThreadImpl::current()->compositor_thread();
 }
 
 void RenderViewImpl::OnJavaBridgeInit() {

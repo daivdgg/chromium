@@ -295,12 +295,17 @@ void CheckMenuCreation(ChromeLauncherControllerPerApp* controller,
   }
 
   scoped_ptr<ui::MenuModel> menu(controller->CreateApplicationMenu(item));
-  // There should be one item in there.
-  int expected_menu_items = expected_items ? (expected_items + 2) : 1;
+  // The first element in the menu is a spacing separator. On some systems
+  // (e.g. Windows) such things do not exist. As such we check the existence
+  // and adjust dynamically.
+  int first_item = menu->GetTypeAt(0) == ui::MenuModel::TYPE_SEPARATOR ? 1 : 0;
+  int expected_menu_items = first_item +
+                            (expected_items ? (expected_items + 2) : 1);
   EXPECT_EQ(expected_menu_items, menu->GetItemCount());
-  EXPECT_FALSE(menu->IsEnabledAt(0));
+  EXPECT_FALSE(menu->IsEnabledAt(first_item));
   if (expected_items) {
-    EXPECT_EQ(ui::MenuModel::TYPE_SEPARATOR , menu->GetTypeAt(1));
+    EXPECT_EQ(ui::MenuModel::TYPE_SEPARATOR,
+              menu->GetTypeAt(first_item + 1));
   }
 }
 
@@ -343,7 +348,10 @@ TEST_F(ChromeLauncherControllerPerAppTest, BrowserMenuGeneration) {
   chrome::CloseTab(browser2.get());
 }
 
-// Check that V1 apps are correctly reflected in the launcher menu.
+// Check that V1 apps are correctly reflected in the launcher menu using the
+// refocus logic.
+// Note that the extension matching logic is tested by the extension system
+// and does not need a separate test here.
 TEST_F(ChromeLauncherControllerPerAppTest, V1AppMenuGeneration) {
   EXPECT_EQ(1U, BrowserList::size());
   EXPECT_EQ(0, browser()->tab_strip_model()->count());
@@ -442,7 +450,12 @@ TEST_F(ChromeLauncherControllerPerAppTest, V1AppMenuExecution) {
   {
     scoped_ptr<ui::MenuModel> menu(
         launcher_controller.CreateApplicationMenu(item_gmail));
-    menu->ActivatedAt(2);
+    // The first element in the menu is a spacing separator. On some systems
+    // (e.g. Windows) such things do not exist. As such we check the existence
+    // and adjust dynamically.
+    int first_item =
+        (menu->GetTypeAt(0) == ui::MenuModel::TYPE_SEPARATOR) ? 1 : 0;
+    menu->ActivatedAt(first_item + 2);
   }
   EXPECT_EQ(1, browser()->tab_strip_model()->active_index());
 
@@ -450,7 +463,9 @@ TEST_F(ChromeLauncherControllerPerAppTest, V1AppMenuExecution) {
   {
     scoped_ptr<ui::MenuModel> menu(
         launcher_controller.CreateApplicationMenu(item_gmail));
-    menu->ActivatedAt(3);
+    int first_item =
+        (menu->GetTypeAt(0) == ui::MenuModel::TYPE_SEPARATOR) ? 1 : 0;
+    menu->ActivatedAt(first_item + 3);
   }
   // Now the active tab should be the second item.
   EXPECT_EQ(0, browser()->tab_strip_model()->active_index());
@@ -458,7 +473,3 @@ TEST_F(ChromeLauncherControllerPerAppTest, V1AppMenuExecution) {
 
 // TODO(skuhne) Add tests for:
 //   - V2 apps: create through item in launcher or directly
-//   - Tracking correct activation state (seems not to work from unit_test)
-//     - Check that browser is always running or active when browser is active
-//     - Check that v1 app active shows browser active and app.
-//       ..

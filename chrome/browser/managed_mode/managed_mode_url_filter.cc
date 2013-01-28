@@ -303,10 +303,10 @@ void ManagedModeURLFilter::SetManualLists(const ListValue* whitelist,
     DVLOG(1) << item;
   }
 
-  UMA_HISTOGRAM_COUNTS_100("ManagedMode.ManualWhitelistEntries",
-      url_manual_list_allow_->Size());
-  UMA_HISTOGRAM_COUNTS_100("ManagedMode.ManualBlacklistEntries",
-      url_manual_list_block_->Size());
+  UMA_HISTOGRAM_CUSTOM_COUNTS("ManagedMode.ManualWhitelistEntries",
+      url_manual_list_allow_->Size(), 1, 1000, 50);
+  UMA_HISTOGRAM_CUSTOM_COUNTS("ManagedMode.ManualBlacklistEntries",
+      url_manual_list_block_->Size(), 1, 1000, 50);
 }
 
 void ManagedModeURLFilter::AddURLPatternToManualList(

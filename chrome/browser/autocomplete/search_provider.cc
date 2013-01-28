@@ -26,7 +26,7 @@
 #include "chrome/browser/autocomplete/history_url_provider.h"
 #include "chrome/browser/autocomplete/keyword_provider.h"
 #include "chrome/browser/autocomplete/url_prefix.h"
-#include "chrome/browser/history/history.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/in_memory_database.h"
 #include "chrome/browser/metrics/variations/variations_http_header_provider.h"
@@ -399,8 +399,12 @@ void SearchProvider::OnURLFetchComplete(const net::URLFetcher* source) {
   }
 
   const bool is_keyword = (source == keyword_fetcher_.get());
+  // Ensure the request succeeded and that the provider used is still available.
+  // A verbatim match cannot be generated without this provider, causing errors.
   const bool request_succeeded =
-      source->GetStatus().is_success() && source->GetResponseCode() == 200;
+      source->GetStatus().is_success() && source->GetResponseCode() == 200 &&
+      ((is_keyword && providers_.GetKeywordProviderURL()) ||
+       (!is_keyword && providers_.GetDefaultProviderURL()));
 
   // Record response time for suggest requests sent to Google.  We care
   // only about the common case: the Google default provider used in
