@@ -532,7 +532,6 @@ void FullscreenController::EnterFullscreenModeInternal(
 
 #if defined(OS_MACOSX)
   if (option == BROWSER_WITH_CHROME) {
-    CHECK(!for_tab);  // EnterFullscreenWithChrome invalid for tab fullscreen.
     CHECK(base::mac::IsOSLionOrLater());
     window_->EnterFullscreenWithChrome();
   } else {
