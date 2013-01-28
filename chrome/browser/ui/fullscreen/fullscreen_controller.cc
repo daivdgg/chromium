@@ -57,7 +57,7 @@ bool FullscreenController::IsFullscreenForBrowser() const {
 
 void FullscreenController::ToggleFullscreenMode() {
   extension_caused_fullscreen_ = GURL();
-  ToggleFullscreenModeInternal(false, false);
+  ToggleFullscreenModeInternal(BROWSER);
 }
 
 bool FullscreenController::IsFullscreenForTabOrPending() const {
@@ -92,7 +92,7 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
     SetFullscreenedTab(web_contents);
     if (!in_browser_or_tab_fullscreen_mode) {
       tab_caused_fullscreen_ = true;
-      ToggleFullscreenModeInternal(true, false);
+      ToggleFullscreenModeInternal(TAB);
     } else {
       // We need to update the fullscreen exit bubble, e.g., going from browser
       // fullscreen to tab fullscreen will need to show different content.
@@ -110,7 +110,7 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
   } else {
     if (in_browser_or_tab_fullscreen_mode) {
       if (tab_caused_fullscreen_) {
-        ToggleFullscreenModeInternal(true, false);
+        ToggleFullscreenModeInternal(TAB);
       } else {
         // If currently there is a tab in "tab fullscreen" mode and fullscreen
         // was not caused by it (i.e., previously it was in "browser fullscreen"
@@ -132,7 +132,7 @@ void FullscreenController::ToggleFullscreenModeWithExtension(
   // |extension_caused_fullscreen_| will be reset if this causes fullscreen to
   // exit.
   extension_caused_fullscreen_ = extension_url;
-  ToggleFullscreenModeInternal(false, false);
+  ToggleFullscreenModeInternal(BROWSER);
 }
 
 bool FullscreenController::IsInMetroSnapMode() {
@@ -159,7 +159,7 @@ void FullscreenController::SetMetroSnapMode(bool enable) {
 
 #if defined(OS_MACOSX)
 void FullscreenController::ToggleFullscreenWithChrome() {
-  ToggleFullscreenModeInternal(false, true);
+  ToggleFullscreenModeInternal(BROWSER_WITH_CHROME);
 }
 #endif
 
@@ -484,8 +484,8 @@ void FullscreenController::NotifyMouseLockChange() {
 }
 
 // TODO(koz): Change |for_tab| to an enum.
-void FullscreenController::ToggleFullscreenModeInternal(bool for_tab,
-                                                        bool with_chrome) {
+void FullscreenController::ToggleFullscreenModeInternal(
+    FullscreenInternalOption option) {
 #if defined(OS_WIN)
   // When in Metro snap mode, toggling in and out of fullscreen is prevented.
   if (IsInMetroSnapMode())
@@ -509,16 +509,16 @@ void FullscreenController::ToggleFullscreenModeInternal(bool for_tab,
     return;
 
   if (enter_fullscreen)
-    EnterFullscreenModeInternal(for_tab, with_chrome);
+    EnterFullscreenModeInternal(option);
   else
     ExitFullscreenModeInternal();
 }
 
-void FullscreenController::EnterFullscreenModeInternal(bool for_tab,
-                                                       bool with_chrome) {
+void FullscreenController::EnterFullscreenModeInternal(
+    FullscreenInternalOption option) {
   toggled_into_fullscreen_ = true;
   GURL url;
-  if (for_tab) {
+  if (option == TAB) {
     url = chrome::GetActiveWebContents(browser_)->GetURL();
     tab_fullscreen_accepted_ =
         GetFullscreenSetting(url) == CONTENT_SETTING_ALLOW;
@@ -527,15 +527,16 @@ void FullscreenController::EnterFullscreenModeInternal(bool for_tab,
       url = extension_caused_fullscreen_;
     content::RecordAction(UserMetricsAction("ToggleFullscreen"));
   }
-  if (with_chrome) {
+
 #if defined(OS_MACOSX)
+  if (option == BROWSER_WITH_CHROME) {
     CHECK(!for_tab);  // EnterFullscreenWithChrome invalid for tab fullscreen.
     CHECK(base::mac::IsOSLionOrLater());
     window_->EnterFullscreenWithChrome();
-#else
-    NOTREACHED();
-#endif
   } else {
+#else
+  {
+#endif
     window_->EnterFullscreen(url, GetFullscreenExitBubbleType());
   }
 
@@ -573,7 +574,7 @@ void FullscreenController::SetMouseLockTab(WebContents* tab) {
 
 void FullscreenController::ExitTabFullscreenOrMouseLockIfNecessary() {
   if (tab_caused_fullscreen_)
-    ToggleFullscreenModeInternal(true, false);
+    ToggleFullscreenModeInternal(TAB);
   else
     NotifyTabOfExitIfNecessary();
 }
