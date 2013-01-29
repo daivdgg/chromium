@@ -24,11 +24,9 @@ class FullscreenControllerStateTest {
     STATE_BROWSER_FULLSCREEN_NO_CHROME,
     // Mac User-initiated 'Lion Fullscreen' with browser chrome. OSX 10.7+ only.
     STATE_BROWSER_FULLSCREEN_WITH_CHROME,
-#if defined(OS_WIN)
     // Windows 8 Metro Snap mode, which puts the window at 20% screen-width.
     // No TO_ state for Metro, as the windows implementation is only reentrant.
     STATE_METRO_SNAP,
-#endif
     // HTML5 tab-initiated fullscreen.
     STATE_TAB_FULLSCREEN,
     // Both tab and browser fullscreen.
@@ -52,12 +50,10 @@ class FullscreenControllerStateTest {
     TAB_FULLSCREEN_TRUE,
     // FullscreenController::ToggleFullscreenModeForTab(, false)
     TAB_FULLSCREEN_FALSE,
-#if defined(OS_WIN)
     // FullscreenController::SetMetroSnapMode(true)
     METRO_SNAP_TRUE,
     // FullscreenController::SetMetroSnapMode(flase)
     METRO_SNAP_FALSE,
-#endif
     // FullscreenController::ExitTabOrBrowserFullscreenToPreviousState
     BUBBLE_EXIT_LINK,
     // FullscreenController::OnAcceptFullscreenPermission
