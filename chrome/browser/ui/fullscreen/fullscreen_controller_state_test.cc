@@ -55,8 +55,8 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
       STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN_CHROME
       STATE_TAB_BROWSER_FULLSCREEN,           // Event TAB_FULLSCREEN_TRUE
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event TAB_FULLSCREEN_FALSE
-      STATE_METRO_SNAP,                       // Event METRO_SNAP_TRUE
-      STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event METRO_SNAP_FALSE
+      STATE_INVALID,                          // Event METRO_SNAP_TRUE
+      STATE_INVALID,                          // Event METRO_SNAP_FALSE
       STATE_TO_NORMAL,                        // Event BUBBLE_EXIT_LINK
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event BUBBLE_ALLOW
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event BUBBLE_DENY
@@ -64,7 +64,7 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
     },
     { // STATE_METRO_SNAP:
       STATE_METRO_SNAP,                       // Event TOGGLE_FULLSCREEN
-      STATE_METRO_SNAP,                       // Event TOGGLE_FULLSCREEN_CHROME
+      STATE_INVALID,                          // Event TOGGLE_FULLSCREEN_CHROME
       STATE_METRO_SNAP,                       // Event TAB_FULLSCREEN_TRUE
       STATE_METRO_SNAP,                       // Event TAB_FULLSCREEN_FALSE
       STATE_METRO_SNAP,                       // Event METRO_SNAP_TRUE
@@ -128,6 +128,19 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
       STATE_TO_BROWSER_FULLSCREEN_NO_CHROME,  // Event BUBBLE_ALLOW
       STATE_TO_BROWSER_FULLSCREEN_NO_CHROME,  // Event BUBBLE_DENY
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event WINDOW_CHANGE
+    },
+    { // STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME:
+      STATE_TO_BROWSER_FULLSCREEN_NO_CHROME,  // Event TOGGLE_FULLSCREEN
+      STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event TOGGLE_FULLSCREEN_CHROME
+      // TODO(scheib) Should be a route to TAB_BROWSER http://crbug.com/154196
+      STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event TAB_FULLSCREEN_TRUE
+      STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event TAB_FULLSCREEN_FALSE
+      STATE_INVALID,                          // Event METRO_SNAP_TRUE
+      STATE_INVALID,                          // Event METRO_SNAP_FALSE
+      STATE_TO_NORMAL,                        // Event BUBBLE_EXIT_LINK
+      STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event BUBBLE_ALLOW
+      STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event BUBBLE_DENY
+      STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event WINDOW_CHANGE
     },
     { // STATE_TO_TAB_FULLSCREEN:
       // TODO(scheib) Should be a route to TAB_BROWSER http://crbug.com/154196
