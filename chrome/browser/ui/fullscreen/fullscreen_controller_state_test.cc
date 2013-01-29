@@ -293,6 +293,16 @@ bool FullscreenControllerStateTest::InvokeEvent(Event event) {
     case TOGGLE_FULLSCREEN:
       GetFullscreenController()->ToggleFullscreenMode();
       break;
+    case TOGGLE_FULLSCREEN_CHROME:
+#if defined(OS_MACOSX)
+      if (base::mac::IsOSLionOrLater())
+        GetFullscreenController()->ToggleFullscreenWithChrome();
+      else
+        NOTREACHED();
+#else
+      NOTREACHED();
+#endif
+      break;
     case TAB_FULLSCREEN_TRUE:
       GetFullscreenController()->ToggleFullscreenModeForTab(
            chrome::GetActiveWebContents(GetBrowser()), true);
@@ -373,6 +383,20 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       EXPECT_FALSE(GetFullscreenController()->IsInMetroSnapMode())
           << GetAndClearDebugLog();
       break;
+    case STATE_BROWSER_FULLSCREEN_WITH_CHROME:
+#if defined(OS_MACOSX)
+      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithChrome())
+          << GetAndClearDebugLog();
+      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithoutChrome())
+          << GetAndClearDebugLog();
+#endif
+      EXPECT_TRUE(GetFullscreenController()->IsFullscreenForBrowser())
+          << GetAndClearDebugLog();
+      EXPECT_FALSE(GetFullscreenController()->IsFullscreenForTabOrPending())
+          << GetAndClearDebugLog();
+      EXPECT_FALSE(GetFullscreenController()->IsInMetroSnapMode())
+          << GetAndClearDebugLog();
+      break;
     case STATE_METRO_SNAP:
 #if defined(OS_WIN)
       // http://crbug.com/169138
@@ -437,6 +461,22 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithChrome())
           << GetAndClearDebugLog();
       EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithoutChrome())
+          << GetAndClearDebugLog();
+      EXPECT_TRUE(GetFullscreenController()->IsFullscreenForBrowser())
+          << GetAndClearDebugLog();
+#else
+      EXPECT_FALSE(GetFullscreenController()->IsFullscreenForBrowser())
+          << GetAndClearDebugLog();
+#endif
+      // No expectation for IsFullscreenForTabOrPending.
+      EXPECT_FALSE(GetFullscreenController()->IsInMetroSnapMode())
+          << GetAndClearDebugLog();
+      break;
+    case STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME:
+#if defined(OS_MACOSX)
+      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithChrome())
+          << GetAndClearDebugLog();
+      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithoutChrome())
           << GetAndClearDebugLog();
       EXPECT_TRUE(GetFullscreenController()->IsFullscreenForBrowser())
           << GetAndClearDebugLog();
@@ -569,6 +609,15 @@ bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
     return true;
 #endif
 
+  // Skip Mac Lion Fullscreen event when not on OSX 10.7+.
+  if (event == TOGGLE_FULLSCREEN_CHROME
+#if defined(OS_MACOSX)
+      && !base::mac::IsOSLionOrLater()
+#endif
+      ) {
+    return true;
+  }
+
   return false;
 }
 
@@ -598,6 +647,17 @@ bool FullscreenControllerStateTest::ShouldSkipTest(State state,
     return true;
   }
 #endif
+
+  // Quietly skip Mac Lion Fullscreen tests when not on OSX 10.7+.
+  if ((state == STATE_BROWSER_FULLSCREEN_WITH_CHROME ||
+      event == TOGGLE_FULLSCREEN_CHROME)
+#if defined(OS_MACOSX)
+      && !base::mac::IsOSLionOrLater()
+#endif
+      ) {
+    debugging_log_ << "\nSkipping Lion Fullscreen test on non-OSX 10.7+.\n";
+    return true;
+  }
 
   // When testing reentrancy there are states the fullscreen controller
   // will be unable to remain in, as they will progress due to the
