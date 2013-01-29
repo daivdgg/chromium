@@ -39,6 +39,10 @@
 #include "content/public/common/url_constants.h"
 #include "ui/base/keycodes/keyboard_codes.h"
 
+#if defined(OS_MACOSX)
+#include "chrome/browser/ui/browser_commands_mac.h"
+#endif
+
 #if defined(OS_WIN)
 #include "base/win/metro.h"
 #endif

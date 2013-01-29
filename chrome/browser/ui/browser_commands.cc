@@ -968,12 +968,6 @@ void ToggleFullscreenMode(Browser* browser) {
   browser->fullscreen_controller()->ToggleFullscreenMode();
 }
 
-#if defined(OS_MACOSX)
-void ToggleFullscreenWithChrome(Browser* browser) {
-  browser->fullscreen_controller()->ToggleFullscreenWithChrome();
-}
-#endif
-
 void ClearCache(Browser* browser) {
   BrowsingDataRemover* remover =
       BrowsingDataRemover::CreateForUnboundedRange(browser->profile());
