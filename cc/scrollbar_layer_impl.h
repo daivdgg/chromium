@@ -17,18 +17,20 @@ class ScrollView;
 
 class CC_EXPORT ScrollbarLayerImpl : public ScrollbarLayerImplBase {
 public:
-    static scoped_ptr<ScrollbarLayerImpl> create(LayerTreeImpl* treeImpl, int id);
+    static scoped_ptr<ScrollbarLayerImpl> create(LayerTreeImpl* treeImpl, int id, scoped_ptr<ScrollbarGeometryFixedThumb> geometry);
     virtual ~ScrollbarLayerImpl();
 
-    ScrollbarGeometryFixedThumb* scrollbarGeometry() const { return m_geometry.get(); }
-    void setScrollbarGeometry(scoped_ptr<ScrollbarGeometryFixedThumb>);
+    virtual ScrollbarLayerImpl* toScrollbarLayer() OVERRIDE;
+    int scrollLayerId() const { return m_scrollLayerId; }
+    void setScrollLayerId(int id) { m_scrollLayerId = id; }
+
     void setScrollbarData(WebKit::WebScrollbar*);
+    void setThumbSize(gfx::Size size);
 
     void setBackTrackResourceId(ResourceProvider::ResourceId id) { m_backTrackResourceId = id; }
     void setForeTrackResourceId(ResourceProvider::ResourceId id) { m_foreTrackResourceId = id; }
     void setThumbResourceId(ResourceProvider::ResourceId id) { m_thumbResourceId = id; }
 
-    void setOwningLayer(LayerImpl* owningLayer);
 
     // ScrollbarLayerImplBase implementation.
     virtual float currentPos() const OVERRIDE;
@@ -41,12 +43,15 @@ public:
 
     virtual WebKit::WebScrollbar::Orientation orientation() const OVERRIDE;
 
+    virtual scoped_ptr<LayerImpl> createLayerImpl(LayerTreeImpl*) OVERRIDE;
+    virtual void pushPropertiesTo(LayerImpl*) OVERRIDE;
+
     virtual void appendQuads(QuadSink&, AppendQuadsData&) OVERRIDE;
 
     virtual void didLoseOutputSurface() OVERRIDE;
 
 protected:
-    ScrollbarLayerImpl(LayerTreeImpl* treeImpl, int id);
+    ScrollbarLayerImpl(LayerTreeImpl* treeImpl, int id, scoped_ptr<ScrollbarGeometryFixedThumb> geometry);
 
 private:
     // nested class only to avoid namespace problem
@@ -92,6 +97,9 @@ private:
     float m_currentPos;
     int m_totalSize;
     int m_maximum;
+    gfx::Size m_thumbSize;
+
+    int m_scrollLayerId;
 
     // Data to implement Scrollbar
     WebKit::WebScrollbar::ScrollbarOverlayStyle m_scrollbarOverlayStyle;

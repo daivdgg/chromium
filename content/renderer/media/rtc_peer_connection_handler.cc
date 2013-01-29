@@ -6,6 +6,7 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/command_line.h"
 #include "base/logging.h"
@@ -59,22 +60,26 @@ GetWebKitIceState(webrtc::PeerConnectionInterface::IceState ice_state) {
   }
 }
 
-static WebKit::WebRTCPeerConnectionHandlerClient::ReadyState
-GetWebKitReadyState(webrtc::PeerConnectionInterface::ReadyState ready_state) {
-  switch (ready_state) {
+static WebKit::WebRTCPeerConnectionHandlerClient::SignalingState
+GetWebKitSignalingState(webrtc::PeerConnectionInterface::SignalingState state) {
+  using WebKit::WebRTCPeerConnectionHandlerClient;
+  switch (state) {
     case webrtc::PeerConnectionInterface::kStable:
-      return WebKit::WebRTCPeerConnectionHandlerClient::ReadyStateActive;
-
+      return WebRTCPeerConnectionHandlerClient::SignalingStateStable;
     case webrtc::PeerConnectionInterface::kHaveLocalOffer:
+      return WebRTCPeerConnectionHandlerClient::SignalingStateHaveLocalOffer;
     case webrtc::PeerConnectionInterface::kHaveLocalPrAnswer:
+      return WebRTCPeerConnectionHandlerClient::SignalingStateHaveLocalPrAnswer;
     case webrtc::PeerConnectionInterface::kHaveRemoteOffer:
+      return WebRTCPeerConnectionHandlerClient::SignalingStateHaveRemoteOffer;
     case webrtc::PeerConnectionInterface::kHaveRemotePrAnswer:
-      return WebKit::WebRTCPeerConnectionHandlerClient::ReadyStateOpening;
+      return
+          WebRTCPeerConnectionHandlerClient::SignalingStateHaveRemotePrAnswer;
     case webrtc::PeerConnectionInterface::kClosed:
-      return WebKit::WebRTCPeerConnectionHandlerClient::ReadyStateClosed;
+      return WebRTCPeerConnectionHandlerClient::SignalingStateClosed;
     default:
       NOTREACHED();
-      return WebKit::WebRTCPeerConnectionHandlerClient::ReadyStateClosed;
+      return WebRTCPeerConnectionHandlerClient::SignalingStateClosed;
   }
 }
 
@@ -114,20 +119,59 @@ static void GetNativeIceServers(
   }
 }
 
+static PeerConnectionTracker* GetPeerConnectionTracker() {
+  RenderThreadImpl* render_thread = RenderThreadImpl::current();
+  if (render_thread)
+    return render_thread->peer_connection_tracker();
+  return NULL;
+}
+
+class SessionDescriptionRequestTracker {
+ public:
+  SessionDescriptionRequestTracker(RTCPeerConnectionHandler* handler,
+                                   PeerConnectionTracker::Action action)
+      : handler_(handler), action_(action) {}
+
+  void TrackOnSuccess(const webrtc::SessionDescriptionInterface* desc) {
+    std::string value;
+    if (desc) {
+      desc->ToString(&value);
+      value = "type: " + desc->type() + ", sdp: " + value;
+    }
+    if (GetPeerConnectionTracker())
+      GetPeerConnectionTracker()->TrackSessionDescriptionCallback(
+          handler_, action_, "OnSuccess", value);
+  }
+
+  void TrackOnFailure(const std::string& error) {
+    if (GetPeerConnectionTracker())
+      GetPeerConnectionTracker()->TrackSessionDescriptionCallback(
+          handler_, action_, "OnFailure", error);
+  }
+
+ private:
+  RTCPeerConnectionHandler* handler_;
+  PeerConnectionTracker::Action action_;
+};
+
 // Class mapping responses from calls to libjingle CreateOffer/Answer and
 // the WebKit::WebRTCSessionDescriptionRequest.
 class CreateSessionDescriptionRequest
     : public webrtc::CreateSessionDescriptionObserver {
  public:
   explicit CreateSessionDescriptionRequest(
-      const WebKit::WebRTCSessionDescriptionRequest& request)
-      : webkit_request_(request) {}
+      const WebKit::WebRTCSessionDescriptionRequest& request,
+      RTCPeerConnectionHandler* handler,
+      PeerConnectionTracker::Action action)
+      : webkit_request_(request), tracker_(handler, action) {}
 
   virtual void OnSuccess(webrtc::SessionDescriptionInterface* desc) OVERRIDE {
     webkit_request_.requestSucceeded(CreateWebKitSessionDescription(desc));
+    tracker_.TrackOnSuccess(desc);
   }
   virtual void OnFailure(const std::string& error) OVERRIDE {
     webkit_request_.requestFailed(UTF8ToUTF16(error));
+    tracker_.TrackOnFailure(error);
   }
 
  protected:
@@ -135,6 +179,7 @@ class CreateSessionDescriptionRequest
 
  private:
   WebKit::WebRTCSessionDescriptionRequest webkit_request_;
+  SessionDescriptionRequestTracker tracker_;
 };
 
 // Class mapping responses from calls to libjingle
@@ -143,14 +188,18 @@ class SetSessionDescriptionRequest
     : public webrtc::SetSessionDescriptionObserver {
  public:
   explicit SetSessionDescriptionRequest(
-      const WebKit::WebRTCVoidRequest& request)
-      : webkit_request_(request) {}
+      const WebKit::WebRTCVoidRequest& request,
+      RTCPeerConnectionHandler* handler,
+      PeerConnectionTracker::Action action)
+      : webkit_request_(request), tracker_(handler, action) {}
 
   virtual void OnSuccess() OVERRIDE {
     webkit_request_.requestSucceeded();
+    tracker_.TrackOnSuccess(NULL);
   }
   virtual void OnFailure(const std::string& error) OVERRIDE {
     webkit_request_.requestFailed(UTF8ToUTF16(error));
+    tracker_.TrackOnFailure(error);
   }
 
  protected:
@@ -158,6 +207,7 @@ class SetSessionDescriptionRequest
 
  private:
   WebKit::WebRTCVoidRequest webkit_request_;
+  SessionDescriptionRequestTracker tracker_;
 };
 
 // Class mapping responses from calls to libjingle
@@ -265,13 +315,6 @@ void LocalRTCStatsResponse::addStatistic(size_t report,
   impl_.addStatistic(report, is_local, name, value);
 }
 
-static PeerConnectionTracker* GetPeerConnectionTracker() {
-  RenderThreadImpl* render_thread = RenderThreadImpl::current();
-  if (render_thread)
-    return render_thread->peer_connection_tracker();
-  return NULL;
-}
-
 RTCPeerConnectionHandler::RTCPeerConnectionHandler(
     WebKit::WebRTCPeerConnectionHandlerClient* client,
     MediaStreamDependencyFactory* dependency_factory)
@@ -335,9 +378,12 @@ void RTCPeerConnectionHandler::createOffer(
     const WebKit::WebMediaConstraints& options) {
   scoped_refptr<CreateSessionDescriptionRequest> description_request(
       new talk_base::RefCountedObject<CreateSessionDescriptionRequest>(
-          request));
+          request, this, PeerConnectionTracker::ACTION_CREATE_OFFER));
   RTCMediaConstraints constraints(options);
   native_peer_connection_->CreateOffer(description_request, &constraints);
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackCreateOffer(this, constraints);
 }
 
 void RTCPeerConnectionHandler::createAnswer(
@@ -345,9 +391,12 @@ void RTCPeerConnectionHandler::createAnswer(
     const WebKit::WebMediaConstraints& options) {
   scoped_refptr<CreateSessionDescriptionRequest> description_request(
       new talk_base::RefCountedObject<CreateSessionDescriptionRequest>(
-          request));
+          request, this, PeerConnectionTracker::ACTION_CREATE_ANSWER));
   RTCMediaConstraints constraints(options);
   native_peer_connection_->CreateAnswer(description_request, &constraints);
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackCreateAnswer(this, constraints);
 }
 
 void RTCPeerConnectionHandler::setLocalDescription(
@@ -363,8 +412,13 @@ void RTCPeerConnectionHandler::setLocalDescription(
     return;
   }
   scoped_refptr<SetSessionDescriptionRequest> set_request(
-      new talk_base::RefCountedObject<SetSessionDescriptionRequest>(request));
+      new talk_base::RefCountedObject<SetSessionDescriptionRequest>(
+          request, this, PeerConnectionTracker::ACTION_SET_LOCAL_DESCRIPTION));
   native_peer_connection_->SetLocalDescription(set_request, native_desc);
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackSetSessionDescription(
+        this, native_desc, PeerConnectionTracker::SOURCE_LOCAL);
 }
 
 void RTCPeerConnectionHandler::setRemoteDescription(
@@ -380,8 +434,13 @@ void RTCPeerConnectionHandler::setRemoteDescription(
     return;
   }
   scoped_refptr<SetSessionDescriptionRequest> set_request(
-      new talk_base::RefCountedObject<SetSessionDescriptionRequest>(request));
+      new talk_base::RefCountedObject<SetSessionDescriptionRequest>(
+          request, this, PeerConnectionTracker::ACTION_SET_REMOTE_DESCRIPTION));
   native_peer_connection_->SetRemoteDescription(set_request, native_desc);
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackSetSessionDescription(
+        this, native_desc, PeerConnectionTracker::SOURCE_REMOTE);
 }
 
 WebKit::WebRTCSessionDescription
@@ -408,6 +467,10 @@ bool RTCPeerConnectionHandler::updateICE(
   webrtc::JsepInterface::IceServers servers;
   GetNativeIceServers(server_configuration, &servers);
   RTCMediaConstraints constraints(options);
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackUpdateIce(this, servers, constraints);
+
   return native_peer_connection_->UpdateIce(servers,
                                             &constraints);
 }
@@ -427,6 +490,11 @@ bool RTCPeerConnectionHandler::addICECandidate(
   bool return_value =
       native_peer_connection_->AddIceCandidate(native_candidate.get());
   LOG_IF(ERROR, !return_value) << "Error processing ICE candidate.";
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackAddIceCandidate(
+        this, candidate, PeerConnectionTracker::SOURCE_REMOTE);
+
   return return_value;
 }
 
@@ -434,12 +502,19 @@ bool RTCPeerConnectionHandler::addStream(
     const WebKit::WebMediaStreamDescriptor& stream,
     const WebKit::WebMediaConstraints& options) {
   RTCMediaConstraints constraints(options);
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackAddStream(
+        this, stream, PeerConnectionTracker::SOURCE_LOCAL);
   return AddStream(stream, &constraints);
 }
 
 void RTCPeerConnectionHandler::removeStream(
     const WebKit::WebMediaStreamDescriptor& stream) {
   RemoveStream(stream);
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackRemoveStream(
+        this, stream, PeerConnectionTracker::SOURCE_LOCAL);
 }
 
 void RTCPeerConnectionHandler::getStats(
@@ -500,12 +575,20 @@ WebKit::WebRTCDataChannelHandler* RTCPeerConnectionHandler::createDataChannel(
     DLOG(ERROR) << "Could not create native data channel.";
     return NULL;
   }
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackCreateDataChannel(
+        this, webrtc_channel.get(), PeerConnectionTracker::SOURCE_LOCAL);
+
   return new RtcDataChannelHandler(webrtc_channel);
 }
 
 void RTCPeerConnectionHandler::stop() {
   DVLOG(1) << "RTCPeerConnectionHandler::stop";
   native_peer_connection_ = NULL;
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackStop(this);
 }
 
 void RTCPeerConnectionHandler::OnError() {
@@ -516,15 +599,21 @@ void RTCPeerConnectionHandler::OnError() {
 void RTCPeerConnectionHandler::OnStateChange(StateType state_changed) {
   switch (state_changed) {
     case kSignalingState: {
-      WebKit::WebRTCPeerConnectionHandlerClient::ReadyState ready_state =
-          GetWebKitReadyState(native_peer_connection_->ready_state());
-      client_->didChangeReadyState(ready_state);
+      WebKit::WebRTCPeerConnectionHandlerClient::SignalingState state =
+          GetWebKitSignalingState(native_peer_connection_->signaling_state());
+      client_->didChangeSignalingState(state);
+
+      if (GetPeerConnectionTracker())
+        GetPeerConnectionTracker()->TrackSignalingStateChange(this, state);
       break;
     }
     case kIceState: {
-      WebKit::WebRTCPeerConnectionHandlerClient::ICEState ice_state =
+      WebKit::WebRTCPeerConnectionHandlerClient::ICEState state =
           GetWebKitIceState(native_peer_connection_->ice_state());
-      client_->didChangeICEState(ice_state);
+      client_->didChangeICEState(state);
+
+      if (GetPeerConnectionTracker())
+        GetPeerConnectionTracker()->TrackIceStateChange(this, state);
       break;
     }
     default:
@@ -543,6 +632,10 @@ void RTCPeerConnectionHandler::OnAddStream(
       std::pair<webrtc::MediaStreamInterface*,
                 WebKit::WebMediaStreamDescriptor>(stream, descriptor));
   client_->didAddRemoteStream(descriptor);
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackAddStream(
+        this, descriptor, PeerConnectionTracker::SOURCE_REMOTE);
 }
 
 void RTCPeerConnectionHandler::OnRemoveStream(
@@ -557,6 +650,10 @@ void RTCPeerConnectionHandler::OnRemoveStream(
   DCHECK(!descriptor.isNull());
   remote_streams_.erase(it);
   client_->didRemoveRemoteStream(descriptor);
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackRemoveStream(
+        this, descriptor, PeerConnectionTracker::SOURCE_REMOTE);
 }
 
 void RTCPeerConnectionHandler::OnIceCandidate(
@@ -572,12 +669,18 @@ void RTCPeerConnectionHandler::OnIceCandidate(
                            UTF8ToUTF16(candidate->sdp_mid()),
                            candidate->sdp_mline_index());
   client_->didGenerateICECandidate(web_candidate);
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackAddIceCandidate(
+        this, web_candidate, PeerConnectionTracker::SOURCE_LOCAL);
 }
 
 void RTCPeerConnectionHandler::OnIceComplete() {
   // Generates a NULL ice candidate object.
   WebKit::WebRTCICECandidate web_candidate;
   client_->didGenerateICECandidate(web_candidate);
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackOnIceComplete(this);
 }
 
 void RTCPeerConnectionHandler::OnDataChannel(
@@ -590,6 +693,10 @@ void RTCPeerConnectionHandler::OnDataChannel(
   DVLOG(1) << "RTCPeerConnectionHandler::OnDataChannel "
            << data_channel->label();
   client_->didAddRemoteDataChannel(new RtcDataChannelHandler(data_channel));
+
+  if (GetPeerConnectionTracker())
+    GetPeerConnectionTracker()->TrackCreateDataChannel(
+        this, data_channel, PeerConnectionTracker::SOURCE_REMOTE);
 }
 
 void RTCPeerConnectionHandler::OnRenegotiationNeeded() {

@@ -3203,6 +3203,21 @@ Psst! Incognito mode <ph name="SHORTCUT_KEY">$1<ex>(Ctrl+Shift+N)</ex></ph> may 
       <message name="IDS_BLOCKED_POPUPS_LINK" desc="Link to popups section of content blocking management dialog, displayed in bubble when a page tries to display popups.">
         Manage pop-up blocking...
       </message>
+      <message name="IDS_BLOCKED_MEDIASTREAM_ALLOW" desc="TODO">
+        Always allow <ph name="HOST">$1<ex>mail.google.com</ex></ph> to access your camera and microphone.
+      </message>
+      <message name="IDS_BLOCKED_MEDIASTREAM_ASK" desc="TODO">
+        Ask if <ph name="HOST">$1<ex>mail.google.com</ex></ph> wants to access your camera and microphone.
+      </message>
+      <message name="IDS_ALLOWED_MEDIASTREAM_BLOCK" desc="TODO">
+        Always block camera and microphone access.
+      </message>
+      <message name="IDS_BLOCKED_MEDIASTREAM_NO_ACTION" desc="TODO">
+        Continue blocking camera and microphone access.
+      </message>
+      <message name="IDS_ALLOWED_MEDIASTREAM_NO_ACTION" desc="TODO">
+        Continue allowing <ph name="HOST">$1<ex>mail.google.com</ex></ph> to access your camera and microphone.
+      </message>
       <message name="IDS_BLOCKED_POPUPS_EXPLANATORY_TEXT" desc="Explanatory animated text that appears (and then disappears) in the address line when popup is blocked">
         Pop-up blocked
       </message>
@@ -5288,6 +5303,9 @@ Public Exponent (<ph name="PUBLIC_EXPONENT_NUM_BITS">$3<ex>24</ex></ph> bits):
       <message name="IDS_EXTENSION_BUNDLE_ERROR_HEADING" desc="Text displayed in the extension bundle installed bubble when some extensions or apps failed to install. Instructs which extensions did not install.">
         We were unable to install:
       </message>
+      <message name="IDS_EXTENSION_INSTALLED_APP_INFO" desc="Text displayed inside a link when an app is installed. Clicking this link opens up the New Tab Page to show the app's icon.">
+        Show me
+      </message>
       <message name="IDS_EXTENSION_INSTALLED_PAGE_ACTION_INFO" desc="Text displayed in the InfoBubble which explains that the UI of this extension is a Page Action icon which may appear for some pages.">
         This icon will be visible when the extension can act on the current page.
       </message>
@@ -5316,8 +5334,8 @@ Public Exponent (<ph name="PUBLIC_EXPONENT_NUM_BITS">$3<ex>24</ex></ph> bits):
       <message name="IDS_EXTENSION_INSTALLED_SIGNIN_PROMO_LINK" desc="The first part of the sign-in promo paragraph. This part will be converted to a link and will get more text appended to it (see IDS_EXTENSION_INSTALLED_SIGNIN_PROMO). Keep this text short.">
         Sign in to <ph name="SHORT_PRODUCT_NAME">$1<ex>Chrome</ex></ph>
       </message>
-      <message name="IDS_EXTENSION_INSTALLED_SIGNIN_PROMO" desc="The remaining text of the sign-in promo paragraph. Will be appended as a label to the string above.">
-        to get this extension, your history, and other Chrome settings on all your devices.
+      <message name="IDS_EXTENSION_INSTALLED_SIGNIN_PROMO" desc="The remaining text of the sign-in promo paragraph. Will be appended as a label to the string above. The triple single quotes are needed to preserve the space before the word 'to' (which is handy when the language (Chrome is being translated to) uses space as word separator).">
+        ''' to get this extension, your history, and other Chrome settings on all your devices.'''
       </message>
       <message name="IDS_ACCNAME_INFOBAR_CONTAINER" desc="The accessible name for the infobar container.">
         Infobar Container
@@ -6274,6 +6292,18 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_FORCE_COMPOSITING_MODE_DESCRIPTION" desc="Description of the 'Force compositing mode' lab.">
         Uses GPU accelerated compositing on all pages, not just those that include GPU-accelerated layers.
       </message>
+      <message name="IDS_FLAGS_PRESENT_WITH_GDI_NAME" desc="Name of the 'First Present With GDI' experiment.">
+        Do SHOW Presents with GDI.
+      </message>
+      <message name="IDS_FLAGS_PRESENT_WITH_GDI_DESCRIPTION" desc="Description of the 'First Present With GDI' experiment.">
+        Speculative fix for http://crbug.com/169848
+      </message>
+      <message name="IDS_FLAGS_PRESENT_WITH_GDI_FIRST_SHOW" desc="Description of the 'First Show Present With GDI' experiment.">
+        First
+      </message>
+      <message name="IDS_FLAGS_PRESENT_WITH_GDI_ALL_SHOW" desc="Description of the 'All Show Present With GDI' experiment.">
+        All
+      </message>
       <message name="IDS_FLAGS_FORCE_HIGH_DPI_NAME" desc="Name of the 'Force high DPI mode' lab.">
         Force high DPI mode
       </message>
@@ -6469,11 +6499,11 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_ENABLE_EXPERIMENTAL_FORM_FILLING_DESCRIPTION" desc="Description for the flag to enable experimantal form filling feature">
         Enable experimental form filling. Enables a collection of experimental features that make form filling easier.
       </message>
-      <message name="IDS_FLAGS_ENABLE_OVERSCROLL_HISTORY_NAVIGATION_NAME" desc="Title for the flag to enable history navigation from horizontal overscroll.">
-        Enable overscroll history navigation
+      <message name="IDS_FLAGS_DISABLE_OVERSCROLL_HISTORY_NAVIGATION_NAME" desc="Title for the flag to disable history navigation from horizontal overscroll.">
+        Disable overscroll history navigation
       </message>
-      <message name="IDS_FLAGS_ENABLE_OVERSCROLL_HISTORY_NAVIGATION_DESCRIPTION" desc="Description for the flag to enable history navigation from horizontal overscroll.">
-        Enables experimental history navigation in response to horizontal overscroll.
+      <message name="IDS_FLAGS_DISABLE_OVERSCROLL_HISTORY_NAVIGATION_DESCRIPTION" desc="Description for the flag to disable history navigation from horizontal overscroll.">
+        Disables experimental history navigation in response to horizontal overscroll.
       </message>
       <message name="IDS_FLAGS_SYNC_SEARCH_ENGINES_NAME" desc="Title for the flag to enable syncing the Search Engines datatype">
         Enable syncing search engines
@@ -6650,6 +6680,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_ENABLE_OPUS_PLAYBACK_DESCRIPTION" desc="Description for the flag to enable Opus playback in &lt;video&gt; elements.">
         Enable experimental Opus playback in the video element.
       </message>
+      <message name="IDS_FLAGS_ENABLE_VP9_PLAYBACK_NAME" desc="Title for the flag to enable VP9 playback in &lt;video&gt; elements.">
+        Enable VP9 playback in &lt;video&gt; elements.
+      </message>
+      <message name="IDS_FLAGS_ENABLE_VP9_PLAYBACK_DESCRIPTION" desc="Description for the flag to enable VP9 playback in &lt;video&gt; elements.">
+        Enable experimental VP9 playback in the video element.
+      </message>
       <message name="IDS_FLAGS_AURA_TRANSLUCENT_FRAMES_NAME" desc="Title for the flag to enable fancy translucent windows.">
         Translucent windows
       </message>
@@ -6725,6 +6761,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </message>
       <message name="IDS_FLAGS_ENABLE_NETWORK_STATE_HANDLER_DESCRIPTION" desc="Title for the flag to enable using the new Network State Handler.">
         Enables the new Network State Handler which handles Shill communication in the Status Area without using NetworkLibrary.
+      </message>
+      <message name="IDS_FLAGS_ENABLE_LOCALLY_MANAGED_USERS_NAME" desc="Title for the flag to enable locally managed users.">
+        Enable locally managed users
+      </message>
+      <message name="IDS_FLAGS_ENABLE_LOCALLY_MANAGED_USERS_DESCRIPTION" desc="Description for the flag to enable locally managed users.">
+        Enables support for user profiles that are managed by another user and can have restrictions applied.
       </message>
 
       <message name="IDS_GENERIC_EXPERIMENT_CHOICE_AUTOMATIC" desc="Generic 'Automatic' experiment choice option name.">
@@ -6834,12 +6876,6 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </message>
       <message name="IDS_FLAGS_NO_DISCARD_TABS_DESCRIPTION" desc="Description for the flag to disable the tab discarding feature.">
         Turns off tab discarding, a feature that discards infrequently used tabs under low memory conditions.
-      </message>
-      <message name="IDS_FLAGS_SHOW_LAUNCHER_ALIGNMENT_MENU_NAME" desc="Name for the flag to show a menu that lets you change the alignment of the launcher.">
-        Show launcher alignment menu.
-      </message>
-      <message name="IDS_FLAGS_SHOW_LAUNCHER_ALIGNMENT_MENU_DESCRIPTION" desc="Description for the flag to show a menu that lets you change the alignment of the launcher.">
-        Enables a menu that allows changing the side the launcher is aligned to.
       </message>
 
       <message name="IDS_FLAGS_SHOW_TOUCH_HUD_NAME" desc="Name for the flag to show a heads-up display for tracking touch-points.">
@@ -11157,25 +11193,23 @@ experiment id: "<ph name="EXPERIMENT_ID">$5<ex>ar1</ex></ph>"
       <message name="IDS_ONE_CLICK_SIGNIN_INFOBAR_CANCEL_BUTTON" desc="The string used in the infobar button that the user presses to never see this infobar again.">
         No thanks
       </message>
-      <message name="IDS_ONE_CLICK_SIGNIN_DIALOG_TITLE" desc="The title of the modal dialog window that opens when the user chooses to use one click sign in.">
-        Sign in
+      
+      <!-- One click sign in bubble and dialog -->
+      <message name="IDS_ONE_CLICK_SIGNIN_DIALOG_MESSAGE" desc="The message of the one click sign in dialog.">
+        Now you can access your bookmarks, history, and other settings on all of your signed in devices.
       </message>
       <message name="IDS_ONE_CLICK_BUBBLE_UNDO" desc="The text for the undo button in the one click signin bubble.">
         Undo
       </message>
-      <message name="IDS_ONE_CLICK_SIGNIN_DIALOG_MESSAGE" desc="The message of the one click sign in dialog.">
-        Signing in will sync your data with your Google Account so you can access your bookmarks, history, and other settings on any device.
+      <message name="IDS_ONE_CLICK_SIGNIN_DIALOG_OK_BUTTON" desc="The text of the OK button of the one click sign in dialog.">
+        OK, got it!
       </message>
-      <if expr="pp_ifdef('use_titlecase')">
-        <message name="IDS_ONE_CLICK_SIGNIN_DIALOG_OK_BUTTON" desc="In Title Case: The text of the OK button of the one click sign in dialog.">
-          Start Syncing
-        </message>
-      </if>
-      <if expr="not pp_ifdef('use_titlecase')">
-        <message name="IDS_ONE_CLICK_SIGNIN_DIALOG_OK_BUTTON" desc="The text of the OK button of the one click sign in dialog.">
-          Start syncing
-        </message>
-      </if>
+      <message name="IDS_ONE_CLICK_SIGNIN_DIALOG_UNDO_BUTTON" desc="The text of the undo button of the one click sign in dialog.">
+        Undo
+      </message>
+      <message name="IDS_ONE_CLICK_SIGNIN_DIALOG_ADVANCED" desc="The advanced link in the one click sign in dialog. Clicking the link will take the user to advanced settings.">
+        Advanced
+      </message>
       <message name="IDS_ONE_CLICK_SIGNIN_DIALOG_CHECKBOX" desc="The text of checkbox in the one click sign in dialog indicating that default sync settings will be used.">
         Use default settings
       </message>
@@ -12368,6 +12402,18 @@ The following application will be launched if you accept this request:
         <message name="IDS_OPTIONS_ENABLE_AUTO_SPELL_CORRECTION" desc="The documentation string of the 'Enable auto spell correction' option">
           Enable automatic spell correction
         </message>
+        <message name="IDS_OPTIONS_DICTIONARY_DOWNLOADING" desc="The informational message to notify that download of dictionary for spellchecking is in progress.">
+          Downloading spell check dictionary...
+        </message>
+        <message name="IDS_OPTIONS_DICTIONARY_DOWNLOAD_FAILED" desc="The error message to notify that download of dictionary for spellchecking failed.">
+          Spell check dictionary download failed.
+        </message>
+        <message name="IDS_OPTIONS_DICTIONARY_DOWNLOAD_RETRY" desc="The button label to retry downloading the dictionary for spellchecking.">
+          Retry
+        </message>
+        <message name="IDS_OPTIONS_DICTIONARY_DOWNLOAD_FAIL_HELP" desc="The help message to guide the user if download of dictionary for spellchecking failed multiple times.">
+          Please check with your network administrator to make sure that the firewall is not blocking downloads from Google servers.
+        </message>
       </if>
 
       <!-- General app failure messages -->
@@ -12506,20 +12552,24 @@ Some features may be unavailable.  Please check that the profile exists and you 
       <message name="IDS_FILE_BROWSER_SIZE_COLUMN_LABEL" desc="Size column label.">
         Size
       </message>
-      <message name="IDS_FILE_BROWSER_SIZE_KB" desc="Kilo bytes.">
-        KB
+
+      <message name="IDS_FILE_BROWSER_SIZE_BYTES" desc="Size in bytes.">
+        $1 bytes
       </message>
-      <message name="IDS_FILE_BROWSER_SIZE_MB" desc="Mega bytes.">
-        MB
+      <message name="IDS_FILE_BROWSER_SIZE_KB" desc="Size in kilo bytes.">
+        $1 KB
       </message>
-      <message name="IDS_FILE_BROWSER_SIZE_GB" desc="Giga bytes.">
-        GB
+      <message name="IDS_FILE_BROWSER_SIZE_MB" desc="Size in mega bytes.">
+        $1 MB
       </message>
-      <message name="IDS_FILE_BROWSER_SIZE_TB" desc="Tera bytes.">
-        TB
+      <message name="IDS_FILE_BROWSER_SIZE_GB" desc="Size in giga bytes.">
+        $1 GB
       </message>
-      <message name="IDS_FILE_BROWSER_SIZE_PB" desc="Peta bytes.">
-        PB
+      <message name="IDS_FILE_BROWSER_SIZE_TB" desc="Size in tera bytes.">
+        $1 TB
+      </message>
+      <message name="IDS_FILE_BROWSER_SIZE_PB" desc="Size in peta bytes.">
+        $1 PB
       </message>
 
       <message name="IDS_FILE_BROWSER_SHORTCUT_CTRL" desc="[Ctrl] key name to use in shortcuts descriptions. Shouldn't be translated in many languages actually.">
@@ -14674,9 +14724,29 @@ Some features may be unavailable.  Please check that the profile exists and you 
     <message name="IDS_GEOLOCATION_BLOCKED_TOOLTIP" desc="Location bar icon tooltip text when a page is blocked from using geolocation.">
       This page has been blocked from tracking your location.
     </message>
+    
     <message name="IDS_REGISTER_PROTOCOL_HANDLER_TOOLTIP" desc="Location bar icon tooltip text when a page wants to use registerProtocolHandler.">
       This page wants to install a service handler.
     </message>
+    <message name="IDS_MEDIASTREAM_BUBBLE_CLEAR_LINK" desc="Link on the mediastream bubble that resets the media content setting for the current site.">
+      Clear these settings for future visits
+    </message>
+    <message name="IDS_MEDIASTREAM_BUBBLE_SECTION_ALLOWED" desc="Heading for a section in the geolocation bubble listing all sites which are currently tracking the user's location.">
+      This site is accessing your camera and microphone.
+    </message>
+    <message name="IDS_MEDIASTREAM_BUBBLE_SECTION_BLOCKED" desc="Heading for a section in the geolocation bubble listing all sites which are currently blocked from accessing the user's location.">
+      This site was blocked from accessing your camera and microphone.
+    </message>
+    <message name="IDS_MEDIASTREAM_BUBBLE_MANAGE_LINK" desc="Link on the media (camera and microphone) bubble that opens up the Content Settings management dialog for media settings.">
+      Manage media settings...
+    </message>
+    <message name="IDS_MEDIASTREAM_ALLOWED_TOOLTIP" desc="Location bar icon tooltip text when a page is allowed to use media streams (camera, microphone).">
+      This page is accessing your camera and microphone.
+    </message>
+    <message name="IDS_MEDIASTREAM_BLOCKED_TOOLTIP" desc="Location bar icon tooltip text when a page is blocked from using media streams (camera, microphone).">
+      This page has been blocked from accessing your camera and microphone.
+    </message>
+
 
     <!-- ProcessSingleton -->
     <message name="IDS_PROFILE_IN_USE_LINUX" desc="Message shown when the browser cannot start because the profile is in use on a different host.">
@@ -14852,9 +14922,6 @@ Some features may be unavailable.  Please check that the profile exists and you 
     </message>
     <message name="IDS_SPEECH_INPUT_TRAY_TOOLTIP" desc="Tool tip for the audio capture notification icon shown by the speech recognition API">
       "<ph name="EXTENSION_NAME">$1<ex>Speech Recognizer</ex></ph>" is currently capturing audio for speech recognition.
-    </message>
-    <message name="IDS_SPEECH_INPUT_TRAY_BALLOON_TITLE" desc="Title of the balloon shown by the tray notification icon the first time an extension or a website starts recognition">
-      Audio recording started.
     </message>
     <message name="IDS_SPEECH_INPUT_TRAY_BALLOON_BODY" desc="Contents of the balloon shown by the tray notification icon the first time an extension or a website starts recognition">
       "<ph name="EXTENSION_NAME">$1<ex>Speech Recognizer</ex></ph>" has started capturing audio for speech recognition. Look for the microphone notification icon to know when this happens again.
@@ -15437,11 +15504,11 @@ Some features may be unavailable.  Please check that the profile exists and you 
       Dark Theme
     </message>
 
-    <message name="IDS_FLAGS_USE_WEB_BASED_SIGNIN_FLOW_NAME" desc="Name of about:flag option to turn on web-based sign in">
-      Enable GAIA web-based signin
+    <message name="IDS_FLAGS_USE_CLIENT_LOGIN_SIGNIN_FLOW_NAME" desc="Name of about:flag option to turn on ClientLogin sign in">
+      Enable ClientLogin signin
     </message>
-    <message name="IDS_FLAGS_USE_WEB_BASED_SIGNIN_FLOW_DESCRIPTION" desc="Description of about:flag option to turn on web-based sign in">
-      When enabled, will use a web-based sign in flow to connect a profile to a Google account.  Otherwise use a ClientLogin-based flow.
+    <message name="IDS_FLAGS_USE_CLIENT_LOGIN_SIGNIN_FLOW_DESCRIPTION" desc="Description of about:flag option to turn on ClientLogin sign in">
+      When enabled, will use a ClientLogin sign in flow to connect a profile to a Google account.  Otherwise use a web-based flow.
       The web-based flow permits using verification codes instead of ASPs during authentication.
     </message>
 

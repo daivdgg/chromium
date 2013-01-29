@@ -178,8 +178,8 @@ using content::InterstitialPage;
 using content::NativeWebKeyboardEvent;
 using content::NavigationController;
 using content::NavigationEntry;
-using content::PluginService;
 using content::OpenURLParams;
+using content::PluginService;
 using content::Referrer;
 using content::RenderViewHost;
 using content::SSLStatus;
@@ -1797,13 +1797,6 @@ void TestingAutomationProvider::BuildJSONHandlerMaps() {
       &TestingAutomationProvider::ConnectToPrivateNetwork;
   handler_map_["DisconnectFromPrivateNetwork"] =
       &TestingAutomationProvider::DisconnectFromPrivateNetwork;
-
-  handler_map_["IsEnterpriseDevice"] =
-      &TestingAutomationProvider::IsEnterpriseDevice;
-  handler_map_["GetEnterprisePolicyInfo"] =
-      &TestingAutomationProvider::GetEnterprisePolicyInfo;
-  handler_map_["EnrollEnterpriseDevice"] =
-      &TestingAutomationProvider::EnrollEnterpriseDevice;
 
   handler_map_["EnableSpokenFeedback"] =
       &TestingAutomationProvider::EnableSpokenFeedback;
@@ -5650,17 +5643,17 @@ void TestingAutomationProvider::GetViews(
   for (; browser_iter != BrowserList::end(); ++browser_iter) {
     Browser* browser = *browser_iter;
     for (int i = 0; i < browser->tab_strip_model()->count(); ++i) {
-      WebContents* tab = browser->tab_strip_model()->GetWebContentsAt(i);
+      WebContents* contents = browser->tab_strip_model()->GetWebContentsAt(i);
       DictionaryValue* dict = new DictionaryValue();
-      AutomationId id = automation_util::GetIdForTab(tab);
+      AutomationId id = automation_util::GetIdForTab(contents);
       dict->Set("auto_id", id.ToValue());
       view_list->Append(dict);
       if (preview_controller) {
-        WebContents* preview_tab =
-            preview_controller->GetPrintPreviewForTab(tab);
-        if (preview_tab) {
+        WebContents* preview_dialog =
+            preview_controller->GetPrintPreviewForContents(contents);
+        if (preview_dialog) {
           DictionaryValue* dict = new DictionaryValue();
-          AutomationId id = automation_util::GetIdForTab(preview_tab);
+          AutomationId id = automation_util::GetIdForTab(preview_dialog);
           dict->Set("auto_id", id.ToValue());
           view_list->Append(dict);
         }

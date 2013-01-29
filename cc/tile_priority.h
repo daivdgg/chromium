@@ -8,9 +8,14 @@
 #include <limits>
 
 #include "base/memory/ref_counted.h"
+#include "base/memory/scoped_ptr.h"
 #include "cc/picture_pile.h"
 #include "ui/gfx/rect.h"
 #include "ui/gfx/size.h"
+
+namespace base {
+class Value;
+}
 
 namespace cc {
 
@@ -20,7 +25,10 @@ enum WhichTree {
   ACTIVE_TREE = 0,
   PENDING_TREE = 1,
   NUM_TREES = 2
+  // Be sure to update WhichTreeAsValue when adding new fields.
 };
+scoped_ptr<base::Value> WhichTreeAsValue(
+    WhichTree tree);
 
 enum TileResolution {
   LOW_RESOLUTION = 0 ,
@@ -32,7 +40,6 @@ struct CC_EXPORT TilePriority {
   TilePriority()
      : resolution(NON_IDEAL_RESOLUTION),
        time_to_visible_in_seconds(std::numeric_limits<float>::max()),
-       time_to_ideal_resolution_in_seconds(std::numeric_limits<float>::max()),
        distance_to_visible_in_pixels(std::numeric_limits<float>::max()) {}
 
   TilePriority(const TilePriority& active, const TilePriority& pending) {
@@ -48,17 +55,9 @@ struct CC_EXPORT TilePriority {
     time_to_visible_in_seconds =
       std::min(active.time_to_visible_in_seconds,
                pending.time_to_visible_in_seconds);
-    time_to_ideal_resolution_in_seconds =
-      std::min(active.time_to_ideal_resolution_in_seconds,
-               pending.time_to_ideal_resolution_in_seconds);
     distance_to_visible_in_pixels =
       std::min(active.distance_to_visible_in_pixels,
                pending.distance_to_visible_in_pixels);
-  }
-
-  float time_to_needed_in_seconds() const {
-    return std::min(time_to_visible_in_seconds,
-                    time_to_ideal_resolution_in_seconds);
   }
 
   static const double kMaxTimeToVisibleInSeconds;
@@ -75,7 +74,6 @@ struct CC_EXPORT TilePriority {
 
   TileResolution resolution;
   float time_to_visible_in_seconds;
-  float time_to_ideal_resolution_in_seconds;
   float distance_to_visible_in_pixels;
 };
 
@@ -91,13 +89,20 @@ enum TileMemoryLimitPolicy {
 
   // You're the only thing in town. Go crazy.
   ALLOW_ANYTHING, // Venti.
+
+  // Be sure to update TreePriorityAsValue when adding new fields.
 };
+scoped_ptr<base::Value> TileMemoryLimitPolicyAsValue(
+    TileMemoryLimitPolicy policy);
 
 enum TreePriority {
   SAME_PRIORITY_FOR_BOTH_TREES,
   SMOOTHNESS_TAKES_PRIORITY,
   NEW_CONTENT_TAKES_PRIORITY
+
+  // Be sure to update TreePriorityAsValue when adding new fields.
 };
+scoped_ptr<base::Value> TreePriorityAsValue(TreePriority prio);
 
 class GlobalStateThatImpactsTilePriority {
  public:
@@ -112,6 +117,8 @@ class GlobalStateThatImpactsTilePriority {
   size_t memory_limit_in_bytes;
 
   TreePriority tree_priority;
+
+  scoped_ptr<base::Value> AsValue() const;
 };
 
 }  // namespace cc

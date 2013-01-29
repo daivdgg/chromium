@@ -101,7 +101,15 @@ class CHROMEOS_EXPORT OutputConfigurator : public MessageLoop::Dispatcher {
   // Tells if the output specified by |name| is for internal display.
   static bool IsInternalOutputName(const std::string& name);
 
+  // Set all the displays into pre-suspend mode; usually this means configure
+  // them for their resume state. This allows faster resume on machines where
+  // display configuration is slow.
+  void SuspendDisplays();
+
  private:
+  // Configure outputs.
+  void ConfigureOutputs();
+
   // Fires OnDisplayModeChanged() event to the observers.
   void NotifyOnDisplayChanged();
 
@@ -188,9 +196,9 @@ class CHROMEOS_EXPORT OutputConfigurator : public MessageLoop::Dispatcher {
 
   ObserverList<Observer> observers_;
 
-  // The timer to delay sending the notification of OnDisplayChanged(). See also
-  // the comments in Dispatch().
-  scoped_ptr<base::OneShotTimer<OutputConfigurator> > notification_timer_;
+  // The timer to delay configuring outputs. See also the comments in
+  // |Dispatch()|.
+  scoped_ptr<base::OneShotTimer<OutputConfigurator> > configure_timer_;
 
   // Next 3 members are used for UMA of time spent in various states.
   // Indicates that current OutputSnapshot has aspect preserving mirror mode.

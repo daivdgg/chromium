@@ -165,20 +165,15 @@ void DriveFileSyncClient::DidGetDirectory(
   google_apis::ResourceEntry* entry = GetDocumentByTitleAndParent(
       feed->entries(), parent_link, ASCIIToUTF16(directory_name));
   if (!entry) {
-    if (parent_resource_id.empty()) {
-      // Use empty content URL for root directory.
-      drive_service_->AddNewDirectory(
-          GURL(),  // parent_content_url
-          directory_name,
-          base::Bind(&DriveFileSyncClient::DidCreateDirectory,
-                     AsWeakPtr(), callback));
-      return;
-    }
-    drive_service_->GetResourceEntry(
-        parent_resource_id,
-        base::Bind(
-            &DriveFileSyncClient::DidGetParentDirectoryForCreateDirectory,
-            AsWeakPtr(), directory_name, callback));
+    // If the |parent_resource_id| is empty, create a directory under the root
+    // directory. So here we use the result of GetRootResourceId() for such a
+    // case.
+    drive_service_->AddNewDirectory(
+        parent_resource_id.empty() ?
+            drive_service_->GetRootResourceId() : parent_resource_id,
+        directory_name,
+        base::Bind(&DriveFileSyncClient::DidCreateDirectory,
+                   AsWeakPtr(), callback));
     return;
   }
 
@@ -187,26 +182,6 @@ void DriveFileSyncClient::DidGetDirectory(
   DCHECK_EQ(ASCIIToUTF16(directory_name), entry->title());
 
   callback.Run(error, entry->resource_id());
-}
-
-void DriveFileSyncClient::DidGetParentDirectoryForCreateDirectory(
-    const std::string& directory_name,
-    const ResourceIdCallback& callback,
-    google_apis::GDataErrorCode error,
-    scoped_ptr<google_apis::ResourceEntry> entry) {
-  DCHECK(CalledOnValidThread());
-
-  if (error != google_apis::HTTP_SUCCESS) {
-    callback.Run(error, std::string());
-    return;
-  }
-  DCHECK(entry);
-
-  drive_service_->AddNewDirectory(
-      entry->content_url(),
-      directory_name,
-      base::Bind(&DriveFileSyncClient::DidCreateDirectory,
-                 AsWeakPtr(), callback));
 }
 
 void DriveFileSyncClient::DidCreateDirectory(
@@ -224,6 +199,7 @@ void DriveFileSyncClient::DidCreateDirectory(
 
   // TODO(tzik): Confirm if there's no confliction. If another client tried
   // to create the directory, we might make duplicated directories.
+  // http://crbug.com/172820
   DCHECK(entry);
   callback.Run(error, entry->resource_id());
 }
@@ -475,8 +451,6 @@ void DriveFileSyncClient::DownloadFileInternal(
     return;
   }
 
-  // TODO(nhiroki): support ETag. Currently we assume there is no change between
-  // GetResourceEntry and DownloadFile call.
   drive_service_->DownloadFile(
       FilePath(kDummyDrivePath),
       local_file_path,
@@ -514,6 +488,12 @@ void DriveFileSyncClient::UploadNewFileInternal(
           local_file_path.Extension(), &mime_type))
     mime_type = kMimeTypeOctetStream;
 
+  // TODO(tzik): This may be creating duplicated files we there's conflicting
+  // upload. There's no ETag support for this operation so we need to check
+  // if we have duplicated files after the upload. (The API will always try
+  // to use newer files so it won't cause inconsistent behavior in the
+  // client side but it may leave stale files on the server)
+  // http://crbug.com/172820
   drive_uploader_->UploadNewFile(
       parent_directory_entry->GetLinkByType(
           google_apis::Link::LINK_RESUMABLE_CREATE_MEDIA)->href(),
@@ -550,8 +530,6 @@ void DriveFileSyncClient::UploadExistingFileInternal(
           local_file_path.Extension(), &mime_type))
     mime_type = kMimeTypeOctetStream;
 
-  // TODO(nhiroki): support ETag. Currently we assume there is no change between
-  // GetResourceEntry and UploadExistingFile call.
   drive_uploader_->UploadExistingFile(
       entry->GetLinkByType(
           google_apis::Link::LINK_RESUMABLE_EDIT_MEDIA)->href(),
@@ -622,6 +600,7 @@ void DriveFileSyncClient::DeleteFileInternal(
   // Move the file to trash (don't delete it completely).
   // TODO(nhiroki): support ETag. Currently we assume there is no change between
   // GetResourceEntry and DeleteFile call.
+  // http://crbug.com/156037
   drive_service_->DeleteResource(
       GURL(entry->GetLinkByType(google_apis::Link::LINK_SELF)->href()),
       base::Bind(&DriveFileSyncClient::DidDeleteFile,

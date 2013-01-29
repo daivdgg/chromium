@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/basictypes.h"
+#include "base/callback_forward.h"
 #include "base/compiler_specific.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/ref_counted.h"
@@ -22,8 +23,10 @@
 #include "base/time.h"
 #include "chrome/browser/api/sync/profile_sync_service_observer.h"
 #include "chrome/browser/autofill/autocheckout_manager.h"
+#include "chrome/browser/autofill/autocheckout_page_meta_data.h"
 #include "chrome/browser/autofill/autocomplete_history_manager.h"
 #include "chrome/browser/autofill/autofill_download.h"
+#include "chrome/browser/autofill/autofill_manager_delegate.h"
 #include "chrome/browser/autofill/field_types.h"
 #include "chrome/browser/autofill/form_structure.h"
 #include "chrome/browser/autofill/personal_data_manager.h"
@@ -109,8 +112,15 @@ class AutofillManager : public content::WebContentsObserver,
   // Remove the specified Autocomplete entry.
   void RemoveAutocompleteEntry(const string16& name, const string16& value);
 
-  // Returns the present web_contents state.
-  content::WebContents* GetWebContents();
+  // Causes the dialog for request autocomplete feature to be shown.
+  void ShowRequestAutocompleteDialog(
+      const FormData& form,
+      const GURL& source_url,
+      const content::SSLStatus& ssl_status,
+      const base::Callback<void(const FormStructure*)>& callback);
+
+  // Happens when the autocomplete dialog runs its callback when being closed.
+  void RequestAutocompleteDialogClosed();
 
  protected:
   // Only test code should subclass AutofillManager.
@@ -376,6 +386,10 @@ class AutofillManager : public content::WebContentsObserver,
 
   // Our copy of the form data.
   ScopedVector<FormStructure> form_structures_;
+
+  // To be passed to FormStructure::ParseQueryResponse to gather the page meta
+  // data.
+  autofill::AutocheckoutPageMetaData page_meta_data_;
 
   // GUID to ID mapping.  We keep two maps to convert back and forth.
   mutable std::map<PersonalDataManager::GUIDPair, int> guid_id_map_;

@@ -280,9 +280,6 @@ const char kDisableBookmarkAutocompleteProvider[] =
 const char kDisableClientSidePhishingDetection[] =
     "disable-client-side-phishing-detection";
 
-// Disables the new cloud policy stack.
-const char kDisableCloudPolicyService[]     = "disable-cloud-policy-service";
-
 const char kDisableComponentUpdate[]        = "disable-component-update";
 
 // Disables establishing certificate revocation information by downloading a
@@ -546,6 +543,9 @@ const char kEnableMemoryInfo[]              = "enable-memory-info";
 const char kEnableMetricsReportingForTesting[] =
     "enable-metrics-reporting-for-testing";
 
+// Enables the chrome://memory-internals/ page.
+const char kEnableMemoryInternalsUI[] = "enable-memory-internals-ui";
+
 // Runs the Native Client inside the renderer process and enables GPU plugin
 // (internally adds lEnableGpuPlugin to the command line).
 const char kEnableNaCl[]                    = "enable-nacl";
@@ -610,9 +610,6 @@ const char kEnableQueryExtraction[]         = "enable-query-extraction";
 // preferences.
 const char kEnableResourceContentSettings[] =
     "enable-resource-content-settings";
-
-// Enables rich templated notifications and NotificationCenter.
-const char kEnableRichNotifications[]       = "enable-rich-notifications";
 
 // Controls the support for SDCH filtering (dictionary based expansion of
 // content). By default SDCH filtering is enabled. To disable SDCH filtering,
@@ -775,6 +772,9 @@ const char kIncognito[]                     = "incognito";
 // Causes Chrome to attempt to get metadata from the webstore for the
 // app/extension ID given, and then prompt the user to download and install it.
 const char kInstallFromWebstore[]    = "install-from-webstore";
+
+// Marks a renderer as an Instant process.
+const char kInstantProcess[]                = "instant-process";
 
 // URL to use for instant. If specified this overrides the url from the
 // TemplateURL.
@@ -1179,9 +1179,6 @@ const char kShowComponentExtensionOptions[] =
 // See kHideIcons.
 const char kShowIcons[]                     = "show-icons";
 
-// If true the alignment of the launcher can be changed.
-const char kShowLauncherAlignmentMenu[]     = "show-launcher-alignment-menu";
-
 // Enables or disables sideload wipeout extension effort.
 const char kSideloadWipeout[]               = "sideload-wipeout";
 
@@ -1313,6 +1310,10 @@ const char kUninstall[]                     = "uninstall";
 // testing flag.
 const char kUseSpdy[]                       = "use-spdy";
 
+// Uses Spdy for encoding QUIC requests instead of HTTP. This is a temporary
+// testing flag.
+const char kUseSpdyOverQuic[]               = "use-spdy-over-quic";
+
 // Disables use of the spelling web service and only provides suggestions.
 // This will only work if asynchronous spell checking is not disabled.
 const char kUseSpellingSuggestions[]            = "use-spelling-suggestions";
@@ -1327,13 +1328,13 @@ const char kMaxSpdyConcurrentStreams[]      = "max-spdy-concurrent-streams";
 // all of its state.
 const char kUserDataDir[]                   = "user-data-dir";
 
-// Uses the GAIA web-based signin flow instead of the native UI signin flow.
-const char kUseWebBasedSigninFlow[]         = "use-web-based-signin-flow";
+// Uses the ClientLogin signin flow instead of the web-based signin flow.
+const char kUseClientLoginSigninFlow[]      = "use-client-login-signin-flow";
 
 // Specifies a custom URL for the server which reports variation data to the
 // client. Specifying this switch enables the Variations service on
 // unofficial builds. See variations_service.cc.
-const char kVariationsServerURL[]            = "variations-server-url";
+const char kVariationsServerURL[]           = "variations-server-url";
 
 // Prints version information and quits.
 const char kVersion[]                       = "version";
@@ -1404,8 +1405,8 @@ const char kDisableChromeCaptivePortalDetector[] =
 // Disables Google Drive integration.
 const char kDisableDrive[]                  = "disable-drive";
 
-// Disables file prefetching in Google Drive Client for Chrome OS.
-const char kDisableDrivePrefetch[]          = "disable-drive-prefetch";
+// Enables file prefetching in Google Drive Client for Chrome OS.
+const char kEnableDrivePrefetch[]           = "enable-drive-prefetch";
 
 // Avoid doing expensive animations upon login.
 const char kDisableLoginAnimations[]        = "disable-login-animations";

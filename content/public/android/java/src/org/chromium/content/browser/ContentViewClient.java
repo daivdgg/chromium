@@ -35,6 +35,13 @@ public class ContentViewClient {
     }
 
     /**
+     * Called whenever the background color of the page changes as notified by WebKit.
+     * @param color The new ARGB color of the page background.
+     */
+    public void onBackgroundColorChanged(int color) {
+    }
+
+    /**
       * Lets client listen on the scaling changes on delayed, throttled
       * and best-effort basis. Used for WebView.onScaleChanged.
       */
@@ -90,6 +97,15 @@ public class ContentViewClient {
     // Called when an ImeEvent is sent to the page. Can be used to know when some text is entered
     // in a page.
     public void onImeEvent() {
+    }
+
+    /**
+     * Notified when a change to the IME was requested.
+     *
+     * @param requestShow Whether the IME was requested to be shown (may already be showing
+     *                    though).
+     */
+    public void onImeStateChangeRequested(boolean requestShow) {
     }
 
     // TODO (dtrainor): Should expose getScrollX/Y from ContentView or make

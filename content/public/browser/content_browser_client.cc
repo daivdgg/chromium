@@ -26,10 +26,6 @@ WebContentsViewDelegate* ContentBrowserClient::GetWebContentsViewDelegate(
   return NULL;
 }
 
-WebUIControllerFactory* ContentBrowserClient::GetWebUIControllerFactory() {
-  return NULL;
-}
-
 GURL ContentBrowserClient::GetEffectiveURL(BrowserContext* browser_context,
                                            const GURL& url) {
   return url;
@@ -174,6 +170,10 @@ void ContentBrowserClient::GetStoragePartitionConfigForSite(
 }
 
 MediaObserver* ContentBrowserClient::GetMediaObserver() {
+  return NULL;
+}
+
+WebRTCInternals* ContentBrowserClient::GetWebRTCInternals() {
   return NULL;
 }
 

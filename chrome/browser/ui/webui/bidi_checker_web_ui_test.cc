@@ -17,12 +17,13 @@
 #include "chrome/browser/autofill/autofill_profile.h"
 #include "chrome/browser/autofill/personal_data_manager.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
-#include "chrome/browser/history/history.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/browser_thread.h"
@@ -78,6 +79,23 @@ void ReloadLocaleResources(const std::string& new_locale) {
 
 static const FilePath::CharType* kBidiCheckerTestsJS =
     FILE_PATH_LITERAL("bidichecker_tests.js");
+
+void WebUIBidiCheckerBrowserTest::SetUp() {
+  argv_ = CommandLine::ForCurrentProcess()->GetArgs();
+
+  // Sync only uses webui when client login is enabled.  Client login is going
+  // away, but to keep it tested for now, force client login to be used.
+  if (!CommandLine::ForCurrentProcess()->HasSwitch(
+      switches::kUseClientLoginSigninFlow)) {
+    CommandLine::ForCurrentProcess()->AppendSwitch(
+        switches::kUseClientLoginSigninFlow);
+  }
+}
+
+void WebUIBidiCheckerBrowserTest::TearDown() {
+  // Reset command line to the way it was before the test was run.
+  CommandLine::ForCurrentProcess()->InitFromArgv(argv_);
+}
 
 WebUIBidiCheckerBrowserTest::~WebUIBidiCheckerBrowserTest() {}
 
@@ -390,8 +408,15 @@ IN_PROC_BROWSER_TEST_F(WebUIBidiCheckerBrowserTestLTR,
   RunBidiCheckerOnPage(url);
 }
 
+#if defined(OS_WIN)
+// Times out on Windows. http://crbug.com/171938
+#define MAYBE_TestSettingsLanguageOptionsPage \
+    DISABLED_TestSettingsLanguageOptionsPage
+#else
+#define MAYBE_TestSettingsLanguageOptionsPage TestSettingsLanguageOptionsPage
+#endif
 IN_PROC_BROWSER_TEST_F(WebUIBidiCheckerBrowserTestRTL,
-                       TestSettingsLanguageOptionsPage) {
+                       MAYBE_TestSettingsLanguageOptionsPage) {
   std::string url(chrome::kChromeUISettingsFrameURL);
   url += std::string(chrome::kLanguageOptionsSubPage);
   RunBidiCheckerOnPage(url);

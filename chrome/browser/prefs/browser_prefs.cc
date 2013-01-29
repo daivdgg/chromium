@@ -18,6 +18,7 @@
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/extensions/api/commands/command_service.h"
 #include "chrome/browser/extensions/api/tabs/tabs_api.h"
+#include "chrome/browser/extensions/app_launcher.h"
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/extensions/extension_prefs.h"
 #include "chrome/browser/extensions/extension_web_ui.h"
@@ -41,7 +42,6 @@
 #include "chrome/browser/net/ssl_config_service_manager.h"
 #include "chrome/browser/notifications/desktop_notification_service.h"
 #include "chrome/browser/notifications/notification_prefs_manager.h"
-#include "chrome/browser/page_info_model.h"
 #include "chrome/browser/password_manager/password_manager.h"
 #include "chrome/browser/pepper_flash_settings_manager.h"
 #include "chrome/browser/plugins/plugin_finder.h"
@@ -80,7 +80,7 @@
 #include "content/public/browser/render_process_host.h"
 
 #if defined(ENABLE_CONFIGURATION_POLICY)
-#include "chrome/browser/policy/cloud_policy_subsystem.h"
+#include "chrome/browser/policy/browser_policy_connector.h"
 #include "chrome/browser/policy/policy_statistics_collector.h"
 #include "chrome/browser/policy/url_blacklist_manager.h"
 #endif
@@ -111,6 +111,7 @@
 #include "chrome/browser/chromeos/settings/device_settings_cache.h"
 #include "chrome/browser/chromeos/status/data_promo_notification.h"
 #include "chrome/browser/policy/auto_enrollment_client.h"
+#include "chrome/browser/policy/device_cloud_policy_manager_chromeos.h"
 #include "chrome/browser/policy/device_status_collector.h"
 #else
 #include "chrome/browser/extensions/default_apps.h"
@@ -152,6 +153,7 @@ void RegisterLocalState(PrefServiceSimple* local_state) {
   // Please keep this list alphabetized.
   browser_shutdown::RegisterPrefs(local_state);
   chrome::RegisterScreenshotPrefs(local_state);
+  extensions::app_launcher::RegisterPrefs(local_state);
   ExternalProtocolHandler::RegisterPrefs(local_state);
   FlagsUI::RegisterPrefs(local_state);
   geolocation::RegisterPrefs(local_state);
@@ -177,7 +179,7 @@ void RegisterLocalState(PrefServiceSimple* local_state) {
 #endif
 
 #if defined(ENABLE_CONFIGURATION_POLICY)
-  policy::CloudPolicySubsystem::RegisterPrefs(local_state);
+  policy::BrowserPolicyConnector::RegisterPrefs(local_state);
   policy::PolicyStatisticsCollector::RegisterPrefs(local_state);
 #endif
 

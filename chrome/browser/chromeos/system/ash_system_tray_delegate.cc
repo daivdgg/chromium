@@ -40,6 +40,7 @@
 #include "chrome/browser/chromeos/accessibility/accessibility_util.h"
 #include "chrome/browser/chromeos/accessibility/magnification_manager.h"
 #include "chrome/browser/chromeos/audio/audio_handler.h"
+#include "chrome/browser/chromeos/bluetooth/bluetooth_pairing_dialog.h"
 #include "chrome/browser/chromeos/cros/cros_library.h"
 #include "chrome/browser/chromeos/cros/network_library.h"
 #include "chrome/browser/chromeos/drive/drive_system_service.h"
@@ -208,6 +209,8 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
                       new NetworkMenuIcon(this, NetworkMenuIcon::MENU_MODE))),
         network_icon_dark_(ALLOW_THIS_IN_INITIALIZER_LIST(
                       new NetworkMenuIcon(this, NetworkMenuIcon::MENU_MODE))),
+        network_icon_vpn_(ALLOW_THIS_IN_INITIALIZER_LIST(
+                      new NetworkMenuIcon(this, NetworkMenuIcon::MENU_MODE))),
         network_menu_(ALLOW_THIS_IN_INITIALIZER_LIST(new NetworkMenu(this))),
         clock_type_(base::k24HourClock),
         search_key_mapped_to_(input_method::kSearchKey),
@@ -267,8 +270,9 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
 
     network_icon_->SetResourceColorTheme(NetworkMenuIcon::COLOR_LIGHT);
     network_icon_dark_->SetResourceColorTheme(NetworkMenuIcon::COLOR_DARK);
+    network_icon_vpn_->SetResourceColorTheme(NetworkMenuIcon::COLOR_DARK);
 
-    device::BluetoothAdapterFactory::RunCallbackOnAdapterReady(
+    device::BluetoothAdapterFactory::GetAdapter(
         base::Bind(&SystemTrayDelegate::InitializeOnAdapterReady,
                    ui_weak_ptr_factory_->GetWeakPtr()));
   }
@@ -515,6 +519,11 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
           NULL,
           base::Bind(&base::DoNothing),
           base::Bind(&BluetoothDeviceConnectError));
+    } else {  // Show paring dialog for the unpaired device.
+      BluetoothPairingDialog* dialog =
+          new BluetoothPairingDialog(GetNativeWindow(), device);
+      // The dialog deletes itself on close.
+      dialog->Show();
     }
   }
 
@@ -602,7 +611,7 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
   virtual void GetVirtualNetworkIcon(ash::NetworkIconInfo* info) OVERRIDE{
     NetworkLibrary* crosnet = CrosLibrary::Get()->GetNetworkLibrary();
     if (crosnet->virtual_network_connected()) {
-      NetworkMenuIcon* icon = network_icon_dark_.get();
+      NetworkMenuIcon* icon = network_icon_vpn_.get();
       info->image = icon->GetVpnIconAndText(&info->description);
       info->tray_icon_visible = false;
     } else {
@@ -1379,6 +1388,7 @@ class SystemTrayDelegate : public ash::SystemTrayDelegate,
   scoped_ptr<base::WeakPtrFactory<SystemTrayDelegate> > ui_weak_ptr_factory_;
   scoped_ptr<NetworkMenuIcon> network_icon_;
   scoped_ptr<NetworkMenuIcon> network_icon_dark_;
+  scoped_ptr<NetworkMenuIcon> network_icon_vpn_;
   scoped_ptr<NetworkMenu> network_menu_;
   content::NotificationRegistrar registrar_;
   PrefChangeRegistrar local_state_registrar_;

@@ -22,6 +22,7 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebSecurityOrigin.h"
 #include "webkit/base/file_path_string_conversions.h"
 #include "webkit/blob/blob_storage_controller.h"
+#include "webkit/fileapi/external_mount_points.h"
 #include "webkit/fileapi/file_system_task_runners.h"
 #include "webkit/fileapi/file_system_url.h"
 #include "webkit/fileapi/file_system_util.h"
@@ -77,6 +78,7 @@ SimpleFileSystem::SimpleFileSystem() {
   if (file_system_dir_.CreateUniqueTempDir()) {
     file_system_context_ = new FileSystemContext(
         FileSystemTaskRunners::CreateMockTaskRunners(),
+        fileapi::ExternalMountPoints::CreateRefCounted().get(),
         NULL /* special storage policy */,
         NULL /* quota manager */,
         file_system_dir_.path(),
@@ -123,8 +125,8 @@ void SimpleFileSystem::DeleteFileSystem(
 void SimpleFileSystem::move(
     const WebURL& src_path,
     const WebURL& dest_path, WebFileSystemCallbacks* callbacks) {
-  FileSystemURL src_url(src_path);
-  FileSystemURL dest_url(dest_path);
+  FileSystemURL src_url(file_system_context()->CrackURL(src_path));
+  FileSystemURL dest_url(file_system_context()->CrackURL(dest_path));
   if (!HasFilePermission(src_url, FILE_PERMISSION_WRITE) ||
       !HasFilePermission(dest_url, FILE_PERMISSION_CREATE)) {
     callbacks->didFail(WebKit::WebFileErrorSecurity);
@@ -137,8 +139,8 @@ void SimpleFileSystem::move(
 void SimpleFileSystem::copy(
     const WebURL& src_path, const WebURL& dest_path,
     WebFileSystemCallbacks* callbacks) {
-  FileSystemURL src_url(src_path);
-  FileSystemURL dest_url(dest_path);
+  FileSystemURL src_url(file_system_context()->CrackURL(src_path));
+  FileSystemURL dest_url(file_system_context()->CrackURL(dest_path));
   if (!HasFilePermission(src_url, FILE_PERMISSION_READ) ||
       !HasFilePermission(dest_url, FILE_PERMISSION_CREATE)) {
     callbacks->didFail(WebKit::WebFileErrorSecurity);
@@ -150,7 +152,7 @@ void SimpleFileSystem::copy(
 
 void SimpleFileSystem::remove(
     const WebURL& path, WebFileSystemCallbacks* callbacks) {
-  FileSystemURL url(path);
+  FileSystemURL url(file_system_context()->CrackURL(path));
   if (!HasFilePermission(url, FILE_PERMISSION_WRITE)) {
     callbacks->didFail(WebKit::WebFileErrorSecurity);
     return;
@@ -161,7 +163,7 @@ void SimpleFileSystem::remove(
 
 void SimpleFileSystem::removeRecursively(
     const WebURL& path, WebFileSystemCallbacks* callbacks) {
-  FileSystemURL url(path);
+  FileSystemURL url(file_system_context()->CrackURL(path));
   if (!HasFilePermission(url, FILE_PERMISSION_WRITE)) {
     callbacks->didFail(WebKit::WebFileErrorSecurity);
     return;
@@ -172,7 +174,7 @@ void SimpleFileSystem::removeRecursively(
 
 void SimpleFileSystem::readMetadata(
     const WebURL& path, WebFileSystemCallbacks* callbacks) {
-  FileSystemURL url(path);
+  FileSystemURL url(file_system_context()->CrackURL(path));
   if (!HasFilePermission(url, FILE_PERMISSION_READ)) {
     callbacks->didFail(WebKit::WebFileErrorSecurity);
     return;
@@ -182,7 +184,7 @@ void SimpleFileSystem::readMetadata(
 
 void SimpleFileSystem::createFile(
     const WebURL& path, bool exclusive, WebFileSystemCallbacks* callbacks) {
-  FileSystemURL url(path);
+  FileSystemURL url(file_system_context()->CrackURL(path));
   if (!HasFilePermission(url, FILE_PERMISSION_CREATE)) {
     callbacks->didFail(WebKit::WebFileErrorSecurity);
     return;
@@ -192,7 +194,7 @@ void SimpleFileSystem::createFile(
 
 void SimpleFileSystem::createDirectory(
     const WebURL& path, bool exclusive, WebFileSystemCallbacks* callbacks) {
-  FileSystemURL url(path);
+  FileSystemURL url(file_system_context()->CrackURL(path));
   if (!HasFilePermission(url, FILE_PERMISSION_CREATE)) {
     callbacks->didFail(WebKit::WebFileErrorSecurity);
     return;
@@ -203,7 +205,7 @@ void SimpleFileSystem::createDirectory(
 
 void SimpleFileSystem::fileExists(
     const WebURL& path, WebFileSystemCallbacks* callbacks) {
-  FileSystemURL url(path);
+  FileSystemURL url(file_system_context()->CrackURL(path));
   if (!HasFilePermission(url, FILE_PERMISSION_READ)) {
     callbacks->didFail(WebKit::WebFileErrorSecurity);
     return;
@@ -213,7 +215,7 @@ void SimpleFileSystem::fileExists(
 
 void SimpleFileSystem::directoryExists(
     const WebURL& path, WebFileSystemCallbacks* callbacks) {
-  FileSystemURL url(path);
+  FileSystemURL url(file_system_context()->CrackURL(path));
   if (!HasFilePermission(url, FILE_PERMISSION_READ)) {
     callbacks->didFail(WebKit::WebFileErrorSecurity);
     return;
@@ -223,7 +225,7 @@ void SimpleFileSystem::directoryExists(
 
 void SimpleFileSystem::readDirectory(
     const WebURL& path, WebFileSystemCallbacks* callbacks) {
-  FileSystemURL url(path);
+  FileSystemURL url(file_system_context()->CrackURL(path));
   if (!HasFilePermission(url, FILE_PERMISSION_READ)) {
     callbacks->didFail(WebKit::WebFileErrorSecurity);
     return;
@@ -240,7 +242,7 @@ void SimpleFileSystem::createSnapshotFileAndReadMetadata(
     const WebURL& blobURL,
     const WebURL& path,
     WebFileSystemCallbacks* callbacks) {
-  FileSystemURL url(path);
+  FileSystemURL url(file_system_context()->CrackURL(path));
   if (!HasFilePermission(url, FILE_PERMISSION_READ)) {
     callbacks->didFail(WebKit::WebFileErrorSecurity);
     return;

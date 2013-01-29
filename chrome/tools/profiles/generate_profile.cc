@@ -19,7 +19,7 @@
 #include "base/string_number_conversions.h"
 #include "base/time.h"
 #include "base/utf_string_conversions.h"
-#include "chrome/browser/history/history.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/top_sites.h"
 #include "chrome/common/chrome_paths.h"
@@ -205,7 +205,7 @@ void InsertURLBatch(Profile* profile,
     if (types & TOP_SITES && top_sites) {
       const SkBitmap& bitmap = (RandomInt(0, 2) == 0) ? *google_bitmap :
                                                         *weewar_bitmap;
-      gfx::Image image(bitmap);
+      gfx::Image image = gfx::Image::CreateFrom1xBitmap(bitmap);
       top_sites->SetPageThumbnail(url, image, score);
     }
 

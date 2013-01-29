@@ -10,7 +10,6 @@
 struct PeerConnectionInfo;
 
 namespace content {
-class WebRTCInternals;
 
 // This class is the host for PeerConnectionTracker in the browser process
 // managed by RenderProcessHostImpl. It passes IPC messages between
@@ -22,6 +21,8 @@ class PeerConnectionTrackerHost : public BrowserMessageFilter {
   // content::BrowserMessageFilter override.
   virtual bool OnMessageReceived(const IPC::Message& message,
                                  bool* message_was_ok) OVERRIDE;
+  virtual void OverrideThreadForMessage(const IPC::Message& message,
+                                        BrowserThread::ID* thread) OVERRIDE;
 
  protected:
   virtual ~PeerConnectionTrackerHost();
@@ -30,6 +31,8 @@ class PeerConnectionTrackerHost : public BrowserMessageFilter {
   // Handlers for peer connection messages coming from the renderer.
   void OnAddPeerConnection(const PeerConnectionInfo& info);
   void OnRemovePeerConnection(int lid);
+  void OnUpdatePeerConnection(
+      int lid, const std::string& type, const std::string& value);
 
   DISALLOW_COPY_AND_ASSIGN(PeerConnectionTrackerHost);
 };

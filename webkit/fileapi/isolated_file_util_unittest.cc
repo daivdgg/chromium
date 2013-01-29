@@ -14,6 +14,7 @@
 #include "base/message_loop_proxy.h"
 #include "base/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "webkit/fileapi/external_mount_points.h"
 #include "webkit/fileapi/file_system_context.h"
 #include "webkit/fileapi/file_system_operation_context.h"
 #include "webkit/fileapi/file_system_task_runners.h"
@@ -50,16 +51,26 @@ FilePath GetTopLevelPath(const FilePath& path) {
   return FilePath(components[0]);
 }
 
+bool IsDirectoryEmpty(FileSystemOperationContext* context,
+                      FileSystemFileUtil* file_util,
+                      const FileSystemURL& url) {
+  scoped_ptr<FileSystemFileUtil::AbstractFileEnumerator> file_enum =
+      file_util->CreateFileEnumerator(context, url, false /* recursive */);
+  return file_enum->Next().empty();
+}
+
 }  // namespace
 
 // TODO(kinuko): we should have separate tests for DraggedFileUtil and
 // IsolatedFileUtil.
 class IsolatedFileUtilTest : public testing::Test {
  public:
-  IsolatedFileUtilTest() {}
+  IsolatedFileUtilTest()
+      : other_file_util_helper_(GURL("http://foo/"), kFileSystemTypeTest) {}
 
   void SetUp() {
     ASSERT_TRUE(data_dir_.CreateUniqueTempDir());
+    ASSERT_TRUE(partition_dir_.CreateUniqueTempDir());
     file_util_.reset(new DraggedFileUtil());
 
     // Register the files/directories of RegularTestCases (with random
@@ -68,14 +79,14 @@ class IsolatedFileUtilTest : public testing::Test {
 
     file_system_context_ = new FileSystemContext(
         FileSystemTaskRunners::CreateMockTaskRunners(),
+        ExternalMountPoints::CreateRefCounted().get(),
         make_scoped_refptr(new quota::MockSpecialStoragePolicy()),
         NULL /* quota_manager */,
-        data_dir_.path(),
+        partition_dir_.path(),
         CreateAllowFileAccessOptions());
 
     // For cross-FileUtil copy/move tests.
-    other_file_util_.reset(new LocalFileUtil());
-    other_file_util_helper_.SetUp(file_system_context_, other_file_util_.get());
+    other_file_util_helper_.SetUp(file_system_context_);
 
     isolated_context()->AddReference(filesystem_id_);
   }
@@ -96,7 +107,9 @@ class IsolatedFileUtilTest : public testing::Test {
     return file_system_context_.get();
   }
   FileSystemFileUtil* file_util() const { return file_util_.get(); }
-  FileSystemFileUtil* other_file_util() const { return other_file_util_.get(); }
+  FileSystemFileUtil* other_file_util() const {
+    return other_file_util_helper_.file_util();
+  }
   std::string filesystem_id() const { return filesystem_id_; }
 
   FilePath GetTestCasePlatformPath(const FilePath::StringType& path) {
@@ -114,9 +127,10 @@ class IsolatedFileUtilTest : public testing::Test {
   FileSystemURL GetFileSystemURL(const FilePath& path) const {
     FilePath virtual_path = isolated_context()->CreateVirtualRootPath(
         filesystem_id()).Append(path);
-    return FileSystemURL(GURL("http://example.com"),
-                         kFileSystemTypeIsolated,
-                         virtual_path);
+    return file_system_context_->CreateCrackedFileSystemURL(
+        GURL("http://example.com"),
+        kFileSystemTypeIsolated,
+        virtual_path);
   }
 
   FileSystemURL GetOtherFileSystemURL(const FilePath& path) {
@@ -193,8 +207,8 @@ class IsolatedFileUtilTest : public testing::Test {
       if (file_enum2->IsDirectory()) {
         FileSystemOperationContext context1(file_system_context());
         FileSystemOperationContext context2(file_system_context());
-        EXPECT_EQ(file_util1->IsDirectoryEmpty(&context1, url1),
-                  file_util2->IsDirectoryEmpty(&context2, url2));
+        EXPECT_EQ(IsDirectoryEmpty(&context1, file_util1, url1),
+                  IsDirectoryEmpty(&context2, file_util2, url2));
         continue;
       }
       EXPECT_TRUE(file_set1.find(relative) != file_set1.end());
@@ -235,12 +249,12 @@ class IsolatedFileUtilTest : public testing::Test {
   }
 
   base::ScopedTempDir data_dir_;
+  base::ScopedTempDir partition_dir_;
   MessageLoop message_loop_;
   std::string filesystem_id_;
   scoped_refptr<FileSystemContext> file_system_context_;
   std::map<FilePath, FilePath> toplevel_root_map_;
   scoped_ptr<IsolatedFileUtil> file_util_;
-  scoped_ptr<LocalFileUtil> other_file_util_;
   LocalFileSystemTestOriginHelper other_file_util_helper_;
   DISALLOW_COPY_AND_ASSIGN(IsolatedFileUtilTest);
 };

@@ -22,24 +22,24 @@
 #include "chrome/browser/sync/profile_sync_service.h"
 #include "chrome/browser/sync/profile_sync_service_factory.h"
 #include "chrome/browser/ui/host_desktop.h"
-
-#if !defined(OS_ANDROID)
-#include "chrome/browser/ui/search/other_device_menu_controller.h"
-#endif
-
 #include "chrome/browser/ui/webui/ntp/new_tab_ui.h"
 #include "chrome/browser/ui/webui/session_favicon_source.h"
-#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/time_format.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/notification_source.h"
+#include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/webui/web_ui_util.h"
+
+#if !defined(OS_ANDROID)
+#include "chrome/browser/ui/search/other_device_menu_controller.h"
+#endif
 
 namespace browser_sync {
 
@@ -192,8 +192,7 @@ void ForeignSessionHandler::Init() {
                  content::Source<Profile>(profile));
 
   // Add the data source for synced favicons.
-  ChromeURLDataManager::AddDataSource(profile,
-      new SessionFaviconSource(profile));
+  content::URLDataSource::Add(profile, new SessionFaviconSource(profile));
 }
 
 void ForeignSessionHandler::Observe(
@@ -325,8 +324,7 @@ void ForeignSessionHandler::HandleOpenForeignSession(const ListValue* args) {
   }
 
   if (tab_id != kInvalidId) {
-    WindowOpenDisposition disposition =
-        web_ui_util::GetDispositionFromClick(args, 3);
+    WindowOpenDisposition disposition = webui::GetDispositionFromClick(args, 3);
     OpenForeignSessionTab(
         web_ui(), session_string_value, window_num, tab_id, disposition);
   } else {

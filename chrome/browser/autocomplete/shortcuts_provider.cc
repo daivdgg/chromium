@@ -20,8 +20,8 @@
 #include "chrome/browser/autocomplete/autocomplete_input.h"
 #include "chrome/browser/autocomplete/autocomplete_provider_listener.h"
 #include "chrome/browser/autocomplete/autocomplete_result.h"
-#include "chrome/browser/history/history.h"
 #include "chrome/browser/history/history_notifications.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/shortcuts_backend_factory.h"
 #include "chrome/browser/prefs/pref_service.h"
@@ -87,7 +87,7 @@ void ShortcutsProvider::Start(const AutocompleteInput& input,
     base::TimeTicks end_time = base::TimeTicks::Now();
     std::string name = "ShortcutsProvider.QueryIndexTime." +
         base::IntToString(input.text().size());
-    base::Histogram* counter = base::Histogram::FactoryGet(
+    base::HistogramBase* counter = base::Histogram::FactoryGet(
         name, 1, 1000, 50, base::Histogram::kUmaTargetedHistogramFlag);
     counter->Add(static_cast<int>((end_time - start_time).InMilliseconds()));
   }

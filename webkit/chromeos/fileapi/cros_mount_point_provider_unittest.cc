@@ -16,13 +16,18 @@
 
 #define FPL(x) FILE_PATH_LITERAL(x)
 
+using fileapi::ExternalMountPoints;
+using fileapi::FileSystemURL;
+
 namespace {
 
-fileapi::FileSystemURL CreateFileSystemURL(const std::string& extension,
-                                           const char* path) {
-  return fileapi::FileSystemURL(GURL("chrome-extension://" + extension + "/"),
-                                fileapi::kFileSystemTypeNativeLocal,
-                                FilePath::FromUTF8Unsafe(path));
+FileSystemURL CreateFileSystemURL(const std::string& extension,
+                                  const char* path,
+                                  ExternalMountPoints* mount_points) {
+  return mount_points->CreateCrackedFileSystemURL(
+      GURL("chrome-extension://" + extension + "/"),
+      fileapi::kFileSystemTypeExternal,
+      FilePath::FromUTF8Unsafe(path));
 }
 
 TEST(CrosMountPointProviderTest, DefaultMountPoints) {
@@ -34,14 +39,14 @@ TEST(CrosMountPointProviderTest, DefaultMountPoints) {
       storage_policy,
       mount_points.get(),
       fileapi::ExternalMountPoints::GetSystemInstance());
-  // By default there should be 4 mount points.
   std::vector<FilePath> root_dirs = provider.GetRootDirectories();
   std::set<FilePath> root_dirs_set(root_dirs.begin(), root_dirs.end());
-  EXPECT_EQ(4u, root_dirs.size());
+
+  // By default there should be 3 mount points (in system mount points):
+  EXPECT_EQ(3u, root_dirs.size());
   EXPECT_TRUE(root_dirs_set.count(FilePath(FPL("/media/removable"))));
   EXPECT_TRUE(root_dirs_set.count(FilePath(FPL("/media/archive"))));
   EXPECT_TRUE(root_dirs_set.count(FilePath(FPL("/usr/share/oem"))));
-  // Fourth mount point is Downloads, but its local path is device specific.
 }
 
 TEST(CrosMountPointProviderTest, GetRootDirectories) {
@@ -200,56 +205,58 @@ TEST(CrosMountPointProviderTest, AccessPermissions) {
 
   // Provider specific mount point access.
   EXPECT_FALSE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "removable/foo")));
+      CreateFileSystemURL(extension, "removable/foo", mount_points.get())));
 
   provider.GrantFileAccessToExtension(extension,
                                       FilePath(FPL("removable/foo")));
   EXPECT_TRUE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "removable/foo")));
+      CreateFileSystemURL(extension, "removable/foo", mount_points.get())));
   EXPECT_FALSE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "removable/foo1")));
+      CreateFileSystemURL(extension, "removable/foo1", mount_points.get())));
 
   // System mount point access.
   EXPECT_FALSE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "system/foo")));
+      CreateFileSystemURL(extension, "system/foo", system_mount_points.get())));
 
   provider.GrantFileAccessToExtension(extension, FilePath(FPL("system/foo")));
   EXPECT_TRUE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "system/foo")));
-  EXPECT_FALSE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "system/foo1")));
+      CreateFileSystemURL(extension, "system/foo", system_mount_points.get())));
+  EXPECT_FALSE(provider.IsAccessAllowed(CreateFileSystemURL(
+      extension, "system/foo1", system_mount_points.get())));
 
   // oem is restricted file system.
   provider.GrantFileAccessToExtension(extension, FilePath(FPL("oem/foo")));
   // The extension should not be able to access the file even if
   // GrantFileAccessToExtension was called.
   EXPECT_FALSE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "oem/foo")));
+      CreateFileSystemURL(extension, "oem/foo", mount_points.get())));
 
   provider.GrantFullAccessToExtension(extension);
   // The extension should be able to access restricted file system after it was
   // granted full access.
   EXPECT_TRUE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "oem/foo")));
+      CreateFileSystemURL(extension, "oem/foo", mount_points.get())));
   // The extension which was granted full access  should be able to access any
-  // path on current file systems.
+  // path on curent file systems.
   EXPECT_TRUE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "removable/foo1")));
-  EXPECT_TRUE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "system/foo1")));
+      CreateFileSystemURL(extension, "removable/foo1", mount_points.get())));
+  EXPECT_TRUE(provider.IsAccessAllowed(CreateFileSystemURL(
+      extension, "system/foo1", system_mount_points.get())));
 
-  // The extension still cannot access new mount points.
+  // The extension cannot access new mount points.
+  // TODO(tbarzic): This should probably be changed.
   ASSERT_TRUE(provider.AddLocalMountPoint(FilePath(FPL("/foo/test"))));
   EXPECT_FALSE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "test_/foo")));
+      CreateFileSystemURL(extension, "test_/foo", mount_points.get())));
 
   provider.RevokeAccessForExtension(extension);
   EXPECT_FALSE(provider.IsAccessAllowed(
-      CreateFileSystemURL(extension, "removable/foo")));
+      CreateFileSystemURL(extension, "removable/foo", mount_points.get())));
 
-  fileapi::FileSystemURL internal_url(GURL("chrome://foo"),
-                                      fileapi::kFileSystemTypeExternal,
-                                      FilePath(FPL("removable/")));
+  fileapi::FileSystemURL internal_url = FileSystemURL::CreateForTest(
+      GURL("chrome://foo"),
+      fileapi::kFileSystemTypeExternal,
+      FilePath(FPL("removable/")));
   // Internal WebUI should have full access.
   EXPECT_TRUE(provider.IsAccessAllowed(internal_url));
 }

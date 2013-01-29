@@ -17,6 +17,7 @@
 #include "chrome/browser/extensions/extension_prefs.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
+#include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/shell_integration.h"
@@ -84,6 +85,34 @@ string16 GetAppModelId() {
             chrome::kInitialProfile);
   }
   return ShellIntegration::GetAppListAppModelIdForProfile(initial_profile_path);
+}
+
+void LaunchHostedAppInChromeOnUIThread(const std::string app_id,
+                                       Profile* profile) {
+  ExtensionService* service = profile->GetExtensionService();
+  DCHECK(service);
+  const extensions::Extension* extension = service->GetInstalledExtension(
+      app_id);
+  // There is a non-zero chance the extension was uninstalled while we were
+  // checking the default browser.
+  if (!extension)
+    return;
+
+  application_launch::OpenApplication(application_launch::LaunchParams(
+      profile, extension, NEW_FOREGROUND_TAB));
+}
+
+void LaunchHostedAppOnFileThread(const GURL launch_url,
+                                 const std::string app_id,
+                                 Profile* profile) {
+  if (ShellIntegration::GetDefaultBrowser() != ShellIntegration::IS_DEFAULT) {
+    platform_util::OpenExternal(launch_url);
+    return;
+  }
+
+  content::BrowserThread::PostTask(
+      content::BrowserThread::UI, FROM_HERE,
+      base::Bind(&LaunchHostedAppInChromeOnUIThread, app_id, profile));
 }
 
 class AppListControllerDelegateWin : public AppListControllerDelegate {
@@ -237,6 +266,33 @@ void AppListControllerDelegateWin::ActivateApp(
 
 void AppListControllerDelegateWin::LaunchApp(
     Profile* profile, const extensions::Extension* extension, int event_flags) {
+  // Having the app launcher installed does not mean the user has Chrome
+  // installed, or set as the default browser. The behavior for app launch needs
+  // to be consistent but also respect the users default browser choice for apps
+  // which appear as web sites, and never show chrome the browser if it is not
+  // installed.
+  // The launch behavior is:
+  //   - v1 hosted apps: if chrome is not default browser, launch in default
+  //                     browser; otherwise launch in chrome
+  //   - v1 packaged apps : open in an app window
+  //   - v2 packaged apps : launch normally
+  if (extension->is_hosted_app()) {
+    content::BrowserThread::PostTask(
+        content::BrowserThread::FILE,
+        FROM_HERE,
+        base::Bind(&LaunchHostedAppOnFileThread,
+                   extension->GetFullLaunchURL(),
+                   extension->id(),
+                   profile));
+    return;
+  }
+
+  if (extension->is_legacy_packaged_app()) {
+    application_launch::OpenApplication(application_launch::LaunchParams(
+        profile, extension, extension_misc::LAUNCH_WINDOW, NEW_FOREGROUND_TAB));
+    return;
+  }
+
   application_launch::OpenApplication(application_launch::LaunchParams(
       profile, extension, NEW_FOREGROUND_TAB));
 }
@@ -334,15 +390,34 @@ bool GetTaskbarRect(gfx::Rect* rect) {
 #endif
 }
 
+// Used to position the view in a corner, which requires |anchor| to be in
+// the center of the desired view location. This helper function updates
+// |anchor| thus, using the location of the corner in |corner|, the distance
+// to move the view from |corner| in |offset|, and the direction to move
+// represented in |direction|. |arrow| is also updated to FLOAT.
+void FloatFromCorner(const gfx::Point& corner,
+                     const gfx::Size& offset,
+                     const gfx::Point& direction,
+                     views::BubbleBorder::ArrowLocation* arrow,
+                     gfx::Point* anchor) {
+  anchor->set_x(corner.x() + direction.x() * offset.width());
+  anchor->set_y(corner.y() + direction.y() * offset.height());
+  *arrow = views::BubbleBorder::FLOAT;
+}
+
 void AppListController::SnapArrowLocationToTaskbarEdge(
     const gfx::Display& display,
     views::BubbleBorder::ArrowLocation* arrow,
     gfx::Point* anchor) {
   const int kSnapDistance = 50;
   const int kSnapOffset = 5;
-  const int kEdgeOffset = 60;
+  const int kEdgeOffset = 5;
 
   gfx::Rect taskbar_rect;
+  gfx::Size float_offset = current_view_->GetPreferredSize();
+  float_offset.set_width(float_offset.width() / 2);
+  float_offset.set_height(float_offset.height() / 2);
+  float_offset.Enlarge(kEdgeOffset, kEdgeOffset);
 
   // If we can't find the taskbar, snap to the bottom left.
   // If the display size is the same as the work area, and does not contain the
@@ -351,9 +426,11 @@ void AppListController::SnapArrowLocationToTaskbarEdge(
   if (!GetTaskbarRect(&taskbar_rect) ||
       (display.work_area() == display.bounds() &&
           !display.work_area().Contains(taskbar_rect))) {
-    anchor->set_x(display.work_area().x() + kEdgeOffset);
-    anchor->set_y(display.work_area().bottom());
-    *arrow = views::BubbleBorder::BOTTOM_CENTER;
+    FloatFromCorner(display.work_area().bottom_left(),
+                    float_offset,
+                    gfx::Point(1, -1),
+                    arrow,
+                    anchor);
     return;
   }
 
@@ -365,8 +442,14 @@ void AppListController::SnapArrowLocationToTaskbarEdge(
   // First handle taskbar on bottom.
   if (taskbar_rect.width() == screen_rect.width()) {
     if (taskbar_rect.bottom() == screen_rect.bottom()) {
-      if (taskbar_rect.y() - anchor->y() > kSnapDistance)
-        anchor->set_x(display.work_area().x() + kEdgeOffset);
+      if (taskbar_rect.y() - anchor->y() > kSnapDistance) {
+        FloatFromCorner(gfx::Point(screen_rect.x(), taskbar_rect.y()),
+                        float_offset,
+                        gfx::Point(1, -1),
+                        arrow,
+                        anchor);
+        return;
+      }
 
       anchor->set_y(taskbar_rect.y() + kSnapOffset);
       *arrow = views::BubbleBorder::BOTTOM_CENTER;
@@ -374,8 +457,14 @@ void AppListController::SnapArrowLocationToTaskbarEdge(
     }
 
     // Now try on the top.
-    if (anchor->y() - taskbar_rect.bottom() > kSnapDistance)
-      anchor->set_x(display.work_area().x()+ kEdgeOffset);
+    if (anchor->y() - taskbar_rect.bottom() > kSnapDistance) {
+      FloatFromCorner(gfx::Point(screen_rect.x(), taskbar_rect.bottom()),
+                      float_offset,
+                      gfx::Point(1, 1),
+                      arrow,
+                      anchor);
+      return;
+    }
 
     anchor->set_y(taskbar_rect.bottom() - kSnapOffset);
     *arrow = views::BubbleBorder::TOP_CENTER;
@@ -384,8 +473,14 @@ void AppListController::SnapArrowLocationToTaskbarEdge(
 
   // Now try the left.
   if (taskbar_rect.x() == screen_rect.x()) {
-    if (anchor->x() - taskbar_rect.right() > kSnapDistance)
-      anchor->set_y(display.work_area().y()+ kEdgeOffset);
+    if (anchor->x() - taskbar_rect.right() > kSnapDistance) {
+      FloatFromCorner(gfx::Point(taskbar_rect.right(), screen_rect.y()),
+                      float_offset,
+                      gfx::Point(1, 1),
+                      arrow,
+                      anchor);
+      return;
+    }
 
     anchor->set_x(taskbar_rect.right() - kSnapOffset);
     *arrow = views::BubbleBorder::LEFT_CENTER;
@@ -393,8 +488,14 @@ void AppListController::SnapArrowLocationToTaskbarEdge(
   }
 
   // Finally, try the right.
-  if (taskbar_rect.x() - anchor->x() > kSnapDistance)
-    anchor->set_y(display.work_area().y() + kEdgeOffset);
+  if (taskbar_rect.x() - anchor->x() > kSnapDistance) {
+    FloatFromCorner(gfx::Point(taskbar_rect.x(), screen_rect.y()),
+                    float_offset,
+                    gfx::Point(-1, 1),
+                    arrow,
+                    anchor);
+    return;
+  }
 
   anchor->set_x(taskbar_rect.x() + kSnapOffset);
   *arrow = views::BubbleBorder::RIGHT_CENTER;

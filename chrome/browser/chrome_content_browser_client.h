@@ -59,9 +59,13 @@ class ChromeContentBrowserClient : public content::ContentBrowserClient {
       content::WebContents* web_contents) OVERRIDE;
   virtual void RenderViewHostCreated(
       content::RenderViewHost* render_view_host) OVERRIDE;
+  virtual void GuestWebContentsCreated(
+      content::WebContents* guest_web_contents,
+      content::WebContents* embedder_web_contents) OVERRIDE;
   virtual void RenderProcessHostCreated(
       content::RenderProcessHost* host) OVERRIDE;
-  virtual content::WebUIControllerFactory* GetWebUIControllerFactory() OVERRIDE;
+  virtual void RenderProcessHostDeleted(
+      content::RenderProcessHost* host) OVERRIDE;
   virtual bool ShouldUseProcessPerSite(content::BrowserContext* browser_context,
                                        const GURL& effective_url) OVERRIDE;
   virtual GURL GetEffectiveURL(content::BrowserContext* browser_context,
@@ -150,6 +154,7 @@ class ChromeContentBrowserClient : public content::ContentBrowserClient {
       int render_process_id,
       int render_view_id) OVERRIDE;
   virtual content::MediaObserver* GetMediaObserver() OVERRIDE;
+  virtual content::WebRTCInternals* GetWebRTCInternals() OVERRIDE;
   virtual void RequestDesktopNotificationPermission(
       const GURL& source_origin,
       int callback_context,

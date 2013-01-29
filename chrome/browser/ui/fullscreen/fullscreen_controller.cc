@@ -6,7 +6,6 @@
 
 #include "base/bind.h"
 #include "base/command_line.h"
-#include "base/mac/mac_util.h"
 #include "base/message_loop.h"
 #include "chrome/browser/content_settings/host_content_settings_map.h"
 #include "chrome/browser/download/download_shelf.h"
@@ -24,6 +23,10 @@
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/user_metrics.h"
 #include "content/public/browser/web_contents.h"
+
+#if defined(OS_MACOSX)
+#include "base/mac/mac_util.h"
+#endif
 
 using content::RenderViewHost;
 using content::UserMetricsAction;
@@ -271,14 +274,15 @@ bool FullscreenController::HandleUserPressedEscape() {
 }
 
 void FullscreenController::ExitTabOrBrowserFullscreenToPreviousState() {
-  if (IsFullscreenForTabOrPending())
+  if (IsFullscreenForTabOrPending()) {
     ExitTabFullscreenOrMouseLockIfNecessary();
-  else if (IsFullscreenForBrowser())
+  } else if (IsFullscreenForBrowser()) {
 #if defined(OS_MACOSX)
     TogglePresentationMode();
 #else
     ToggleFullscreenMode();
 #endif
+  }
 }
 
 void FullscreenController::OnAcceptFullscreenPermission() {

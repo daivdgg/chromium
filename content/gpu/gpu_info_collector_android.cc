@@ -11,6 +11,7 @@
 #include "base/string_split.h"
 #include "base/string_util.h"
 #include "content/public/common/content_switches.h"
+#include "ui/gfx/android/device_display_info.h"
 
 namespace {
 
@@ -63,15 +64,40 @@ bool CollectBasicGraphicsInfo(content::GPUInfo* gpu_info) {
   bool is_img = vendor.find("imagination") != std::string::npos;
   bool is_arm = vendor.find("arm") != std::string::npos;
   bool is_qualcomm = vendor.find("qualcomm") != std::string::npos;
+  bool is_nvidia = vendor.find("nvidia") != std::string::npos;
   bool is_mali_t604 = is_arm && renderer.find("mali-t604") != std::string::npos;
 
   // IMG: avoid context switching perf problems, crashes with share groups
   // Mali-T604: http://crbug.com/154715
-  // QualComm: Crashes with share groups
-  if (is_img || is_mali_t604 || is_qualcomm) {
+  // QualComm, NVIDIA: Crashes with share groups
+  if (is_img || is_mali_t604 || is_qualcomm || is_nvidia) {
     CommandLine::ForCurrentProcess()->AppendSwitch(
         switches::kEnableVirtualGLContexts);
   }
+
+  int default_tile_size = 256;
+
+  // IMG: Fast async texture uploads only work with non-power-of-two,
+  // but still multiple-of-eight sizes.
+  // http://crbug.com/168099
+  if (is_img)
+    default_tile_size -= 8;
+
+  // Set the command line if it isn't already set and we changed
+  // the default tile size.
+  if (default_tile_size != 256 &&
+      !CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kDefaultTileWidth) &&
+      !CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kDefaultTileHeight)) {
+    std::stringstream size;
+    size << default_tile_size;
+    CommandLine::ForCurrentProcess()->AppendSwitchASCII(
+        switches::kDefaultTileWidth, size.str());
+    CommandLine::ForCurrentProcess()->AppendSwitchASCII(
+        switches::kDefaultTileHeight, size.str());
+  }
+
   return true;
 }
 

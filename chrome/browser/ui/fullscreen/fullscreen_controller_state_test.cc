@@ -17,6 +17,10 @@
 #include "content/public/common/url_constants.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
+#if defined(OS_MACOSX)
+#include "base/mac/mac_util.h"
+#endif
+
 FullscreenControllerStateTest::FullscreenControllerStateTest()
     : state_(STATE_NORMAL),
       reentrant_(false) {

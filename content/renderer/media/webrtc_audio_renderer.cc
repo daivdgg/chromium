@@ -85,7 +85,8 @@ void AddHistogramFramesPerBuffer(int param) {
 WebRtcAudioRenderer::WebRtcAudioRenderer(int source_render_view_id)
     : state_(UNINITIALIZED),
       source_render_view_id_(source_render_view_id),
-      source_(NULL) {
+      source_(NULL),
+      play_ref_count_(0) {
 }
 
 WebRtcAudioRenderer::~WebRtcAudioRenderer() {
@@ -176,6 +177,15 @@ bool WebRtcAudioRenderer::Initialize(WebRtcAudioRendererSource* source) {
   // Based on tests using the current ALSA implementation in Chrome, we have
   // found that 10ms buffer size on the output side works fine.
   buffer_size = 480;
+#elif defined(OS_ANDROID)
+  channel_layout = media::CHANNEL_LAYOUT_MONO;
+
+  // The buffer size lower than GetAudioHardwareBufferSize() will lead to
+  // choppy sound because AudioOutputResampler will read the buffer multiple
+  // times in a row without allowing the client to re-fill the buffer.
+  // TODO(dwkang): check if 2048 - GetAudioHardwareBufferSize() is the right
+  //               value for Android and do further tuning.
+  buffer_size = 2048;
 #else
   DLOG(ERROR) << "Unsupported platform";
   return false;
@@ -221,6 +231,8 @@ void WebRtcAudioRenderer::Play() {
   if (state_ == UNINITIALIZED)
     return;
 
+  DCHECK(play_ref_count_ == 0 || state_ == PLAYING);
+  ++play_ref_count_;
   state_ = PLAYING;
 }
 
@@ -229,7 +241,10 @@ void WebRtcAudioRenderer::Pause() {
   if (state_ == UNINITIALIZED)
     return;
 
-  state_ = PAUSED;
+  DCHECK_EQ(state_, PLAYING);
+  DCHECK_GT(play_ref_count_, 0);
+  if (!--play_ref_count_)
+    state_ = PAUSED;
 }
 
 void WebRtcAudioRenderer::Stop() {

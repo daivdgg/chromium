@@ -561,7 +561,7 @@ TEST_F(SyncableDirectoryTest, TakeSnapshotGetsMetahandlesToPurge) {
   }
 
   ModelTypeSet to_purge(BOOKMARKS);
-  dir_->PurgeEntriesWithTypeIn(to_purge);
+  dir_->PurgeEntriesWithTypeIn(to_purge, ModelTypeSet());
 
   Directory::SaveChangesSnapshot snapshot1;
   base::AutoLock scoped_lock(dir_->kernel_->save_changes_mutex);
@@ -570,7 +570,7 @@ TEST_F(SyncableDirectoryTest, TakeSnapshotGetsMetahandlesToPurge) {
 
   to_purge.Clear();
   to_purge.Put(PREFERENCES);
-  dir_->PurgeEntriesWithTypeIn(to_purge);
+  dir_->PurgeEntriesWithTypeIn(to_purge, ModelTypeSet());
 
   dir_->HandleSaveChangesFailure(snapshot1);
 
@@ -1738,7 +1738,7 @@ TEST_F(OnDiskSyncableDirectoryTest, TestPurgeEntriesWithTypeIn) {
     ASSERT_EQ(10U, all_set.size());
   }
 
-  dir_->PurgeEntriesWithTypeIn(types_to_purge);
+  dir_->PurgeEntriesWithTypeIn(types_to_purge, ModelTypeSet());
 
   // We first query the in-memory data, and then reload the directory (without
   // saving) to verify that disk does not still have the data.
@@ -1749,7 +1749,6 @@ TEST_F(OnDiskSyncableDirectoryTest, TestPurgeEntriesWithTypeIn) {
 
 TEST_F(OnDiskSyncableDirectoryTest, TestShareInfo) {
   dir_->set_store_birthday("Jan 31st");
-  dir_->SetNotificationState("notification_state");
   const char* const bag_of_chips_array = "\0bag of chips";
   const std::string bag_of_chips_string =
       std::string(bag_of_chips_array, sizeof(bag_of_chips_array));
@@ -1757,11 +1756,9 @@ TEST_F(OnDiskSyncableDirectoryTest, TestShareInfo) {
   {
     ReadTransaction trans(FROM_HERE, dir_.get());
     EXPECT_EQ("Jan 31st", dir_->store_birthday());
-    EXPECT_EQ("notification_state", dir_->GetNotificationState());
     EXPECT_EQ(bag_of_chips_string, dir_->bag_of_chips());
   }
   dir_->set_store_birthday("April 10th");
-  dir_->SetNotificationState("notification_state2");
   const char* const bag_of_chips2_array = "\0bag of chips2";
   const std::string bag_of_chips2_string =
       std::string(bag_of_chips2_array, sizeof(bag_of_chips2_array));
@@ -1770,17 +1767,18 @@ TEST_F(OnDiskSyncableDirectoryTest, TestShareInfo) {
   {
     ReadTransaction trans(FROM_HERE, dir_.get());
     EXPECT_EQ("April 10th", dir_->store_birthday());
-    EXPECT_EQ("notification_state2", dir_->GetNotificationState());
     EXPECT_EQ(bag_of_chips2_string, dir_->bag_of_chips());
   }
-  dir_->SetNotificationState("notification_state2");
+  const char* const bag_of_chips3_array = "\0bag of chips3";
+  const std::string bag_of_chips3_string =
+      std::string(bag_of_chips3_array, sizeof(bag_of_chips3_array));
+  dir_->set_bag_of_chips(bag_of_chips3_string);
   // Restore the directory from disk.  Make sure that nothing's changed.
   SaveAndReloadDir();
   {
     ReadTransaction trans(FROM_HERE, dir_.get());
     EXPECT_EQ("April 10th", dir_->store_birthday());
-    EXPECT_EQ("notification_state2", dir_->GetNotificationState());
-    EXPECT_EQ(bag_of_chips2_string, dir_->bag_of_chips());
+    EXPECT_EQ(bag_of_chips3_string, dir_->bag_of_chips());
   }
 }
 
@@ -1999,7 +1997,7 @@ TEST_F(OnDiskSyncableDirectoryTest, TestSaveChangesFailureWithPurge) {
   ASSERT_TRUE(dir_->good());
 
   ModelTypeSet set(BOOKMARKS);
-  dir_->PurgeEntriesWithTypeIn(set);
+  dir_->PurgeEntriesWithTypeIn(set, ModelTypeSet());
   EXPECT_TRUE(IsInMetahandlesToPurge(handle1));
   ASSERT_FALSE(dir_->SaveChanges());
   EXPECT_TRUE(IsInMetahandlesToPurge(handle1));

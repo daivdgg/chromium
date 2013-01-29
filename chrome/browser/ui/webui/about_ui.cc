@@ -37,13 +37,13 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser_dialogs.h"
-#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/render_messages.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
+#include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/process_type.h"
@@ -58,6 +58,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/webui/jstemplate_builder.h"
+#include "ui/webui/web_ui_util.h"
 
 #if defined(ENABLE_THEMES)
 #include "chrome/browser/ui/webui/theme_source.h"
@@ -937,7 +938,7 @@ void AboutMemoryHandler::OnDetailsAvailable() {
   load_time_data.SetString(
       "summary_desc",
       l10n_util::GetStringUTF16(IDS_MEMORY_USAGE_SUMMARY_DESC));
-  web_ui_util::SetFontAndTextDirection(&load_time_data);
+  webui::SetFontAndTextDirection(&load_time_data);
   load_time_data.Set("jstemplateData", root.release());
 
   webui::UseVersion2 version2;
@@ -1060,9 +1061,8 @@ AboutUI::AboutUI(content::WebUI* web_ui, const std::string& name)
 #if defined(ENABLE_THEMES)
   // Set up the chrome://theme/ source.
   ThemeSource* theme = new ThemeSource(profile);
-  ChromeURLDataManager::AddDataSource(profile, theme);
+  content::URLDataSource::Add(profile, theme);
 #endif
 
-  ChromeURLDataManager::AddDataSource(
-      profile, new AboutUIHTMLSource(name, profile));
+  content::URLDataSource::Add(profile, new AboutUIHTMLSource(name, profile));
 }

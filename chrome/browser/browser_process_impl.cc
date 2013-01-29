@@ -30,7 +30,7 @@
 #include "chrome/browser/download/download_request_limiter.h"
 #include "chrome/browser/download/download_status_updater.h"
 #include "chrome/browser/extensions/event_router_forwarder.h"
-#include "chrome/browser/extensions/extension_tab_id_map.h"
+#include "chrome/browser/extensions/extension_renderer_state.h"
 #include "chrome/browser/first_run/upgrade_util.h"
 #include "chrome/browser/gpu/gl_string_manager.h"
 #include "chrome/browser/icon_manager.h"
@@ -91,6 +91,14 @@
 #include "chrome/browser/policy/policy_service_stub.h"
 #endif  // defined(ENABLE_CONFIGURATION_POLICY)
 
+#if defined(ENABLE_MESSAGE_CENTER) && defined(USE_ASH)
+#include "ash/shell.h"
+#endif
+
+#if defined(ENABLE_MESSAGE_CENTER)
+#include "ui/message_center/message_center.h"
+#endif
+
 #if defined(OS_WIN)
 #include "base/win/windows_version.h"
 #include "ui/views/focus/view_storage.h"
@@ -149,6 +157,9 @@ BrowserProcessImpl::BrowserProcessImpl(
       created_local_state_(false),
       created_icon_manager_(false),
       created_notification_ui_manager_(false),
+#if defined(ENABLE_MESSAGE_CENTER) && !defined(USE_ASH)
+      created_message_center_(false),
+#endif
       created_safe_browsing_service_(false),
       module_ref_count_(0),
       did_start_(false),
@@ -173,7 +184,7 @@ BrowserProcessImpl::BrowserProcessImpl(
 
   extension_event_router_forwarder_ = new extensions::EventRouterForwarder;
 
-  ExtensionTabIdMap::GetInstance()->Init();
+  ExtensionRendererState::GetInstance()->Init();
 }
 
 BrowserProcessImpl::~BrowserProcessImpl() {
@@ -228,7 +239,7 @@ void BrowserProcessImpl::StartTearDown() {
   remote_debugging_server_.reset();
 #endif
 
-  ExtensionTabIdMap::GetInstance()->Shutdown();
+  ExtensionRendererState::GetInstance()->Shutdown();
 
 #if defined(ENABLE_CONFIGURATION_POLICY)
   // The policy providers managed by |browser_policy_connector_| need to shut
@@ -441,6 +452,19 @@ NotificationUIManager* BrowserProcessImpl::notification_ui_manager() {
     CreateNotificationUIManager();
   return notification_ui_manager_.get();
 }
+
+#if defined(ENABLE_MESSAGE_CENTER)
+message_center::MessageCenter* BrowserProcessImpl::message_center() {
+  DCHECK(CalledOnValidThread());
+#if defined(USE_ASH)
+  return ash::Shell::GetInstance()->message_center();
+#else
+  if (!created_message_center_)
+    CreateMessageCenter();
+  return message_center_.get();
+#endif
+}
+#endif
 
 policy::BrowserPolicyConnector* BrowserProcessImpl::browser_policy_connector() {
   DCHECK(CalledOnValidThread());
@@ -847,6 +871,14 @@ void BrowserProcessImpl::CreateNotificationUIManager() {
   created_notification_ui_manager_ = true;
 #endif
 }
+
+#if defined(ENABLE_MESSAGE_CENTER) && !defined(USE_ASH)
+void BrowserProcessImpl::CreateMessageCenter() {
+  DCHECK(message_center_.get() == NULL);
+  message_center_.reset(new message_center::MessageCenter());
+  created_message_center_ = true;
+}
+#endif
 
 void BrowserProcessImpl::CreateBackgroundModeManager() {
   DCHECK(background_mode_manager_.get() == NULL);

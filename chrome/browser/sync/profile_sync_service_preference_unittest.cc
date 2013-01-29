@@ -65,7 +65,8 @@ ACTION_P(ReturnNewDataTypeManagerWithDebugListener, debug_listener) {
       debug_listener,
       arg1,
       arg2,
-      arg3);
+      arg3,
+      arg4);
 }
 
 // TODO(zea): Refactor to remove the ProfileSyncService usage.
@@ -161,7 +162,7 @@ class ProfileSyncServicePreferenceTest
     EXPECT_CALL(*components, GetSyncableServiceForType(syncer::PREFERENCES)).
         WillOnce(Return(pref_sync_service_->AsWeakPtr()));
 
-    EXPECT_CALL(*components, CreateDataTypeManager(_, _, _, _)).
+    EXPECT_CALL(*components, CreateDataTypeManager(_, _, _, _, _)).
         WillOnce(ReturnNewDataTypeManagerWithDebugListener(
                      syncer::MakeWeakHandle(debug_ptr_factory_.GetWeakPtr())));
     dtc_ = new UIDataTypeController(syncer::PREFERENCES,
@@ -368,8 +369,7 @@ TEST_F(ProfileSyncServicePreferenceTest, ModelAssociationCloudHasData) {
   scoped_ptr<const Value> value(GetSyncedValue(prefs::kHomePage));
   ASSERT_TRUE(value.get());
   std::string string_value;
-  EXPECT_TRUE(static_cast<const StringValue*>(value.get())->
-              GetAsString(&string_value));
+  EXPECT_TRUE(value->GetAsString(&string_value));
   EXPECT_EQ(example_url1_, string_value);
   EXPECT_EQ(example_url1_, prefs_->GetString(prefs::kHomePage));
 
@@ -385,8 +385,7 @@ TEST_F(ProfileSyncServicePreferenceTest, ModelAssociationCloudHasData) {
 
   value.reset(GetSyncedValue(prefs::kDefaultCharset));
   ASSERT_TRUE(value.get());
-  EXPECT_TRUE(static_cast<const StringValue*>(value.get())->
-              GetAsString(&string_value));
+  EXPECT_TRUE(value->GetAsString(&string_value));
   EXPECT_EQ(non_default_charset_value_, string_value);
   EXPECT_EQ(non_default_charset_value_,
             prefs_->GetString(prefs::kDefaultCharset));

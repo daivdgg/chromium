@@ -109,10 +109,7 @@ IN_PROC_BROWSER_TEST_F(FileSystemLayoutTest, AsyncOperations) {
 }
 
 #if defined(OS_WIN)
-// Sending sync IPC to UI thread for RegisterIsolatedFileSystem
-// without pumping is not supported on windows. (See comments in
-// BrowserMessageFilter::CheckCanDispatchOnUI())
-// http://crbug/169240
+// Flaky timeouts on windows.  http://crbug.com/172787
 # define MAYBE_CrossFilesystemOp DISABLED_CrossFilesystemOp
 #else
 # define MAYBE_CrossFilesystemOp CrossFilesystemOp

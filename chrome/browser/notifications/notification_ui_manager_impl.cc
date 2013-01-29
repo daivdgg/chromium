@@ -51,7 +51,6 @@ NotificationUIManagerImpl::NotificationUIManagerImpl()
   registrar_.Add(this, chrome::NOTIFICATION_APP_TERMINATING,
                  content::NotificationService::AllSources());
 #if defined(OS_MACOSX)
-  InitFullScreenMonitor();
   InitIdleMonitor();
 #endif
 }
@@ -60,13 +59,12 @@ NotificationUIManagerImpl::~NotificationUIManagerImpl() {
   STLDeleteElements(&show_queue_);
 #if defined(OS_MACOSX)
   StopIdleMonitor();
-  StopFullScreenMonitor();
 #endif
 }
 
 void NotificationUIManagerImpl::Add(const Notification& notification,
                                     Profile* profile) {
-  if (TryReplacement(notification)) {
+  if (TryReplacement(notification, profile)) {
     return;
   }
 
@@ -75,6 +73,15 @@ void NotificationUIManagerImpl::Add(const Notification& notification,
   show_queue_.push_back(
       new QueuedNotification(notification, profile));
   CheckAndShowNotifications();
+}
+
+bool NotificationUIManagerImpl::DoesIdExist(const std::string& id) {
+  for (NotificationDeque::iterator iter = show_queue_.begin();
+       iter != show_queue_.end(); ++iter) {
+    if ((*iter)->notification().notification_id() == id)
+      return true;
+  }
+  return false;
 }
 
 bool NotificationUIManagerImpl::CancelById(const std::string& id) {
@@ -161,7 +168,7 @@ void NotificationUIManagerImpl::ShowNotifications() {
 }
 
 bool NotificationUIManagerImpl::TryReplacement(
-    const Notification& notification) {
+    const Notification& notification, Profile* profile) {
   const GURL& origin = notification.origin_url();
   const string16& replace_id = notification.replace_id();
 
@@ -172,7 +179,8 @@ bool NotificationUIManagerImpl::TryReplacement(
   // Then check the list of notifications already being shown.
   for (NotificationDeque::const_iterator iter = show_queue_.begin();
        iter != show_queue_.end(); ++iter) {
-    if (origin == (*iter)->notification().origin_url() &&
+    if (profile == (*iter)->profile() &&
+        origin == (*iter)->notification().origin_url() &&
         replace_id == (*iter)->notification().replace_id()) {
       (*iter)->Replace(notification);
       return true;
@@ -180,7 +188,7 @@ bool NotificationUIManagerImpl::TryReplacement(
   }
 
   // Give the subclass the opportunity to update existing notification.
-  return UpdateNotification(notification);
+  return UpdateNotification(notification, profile);
 }
 
 void NotificationUIManagerImpl::GetQueuedNotificationsForTesting(

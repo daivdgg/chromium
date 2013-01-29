@@ -147,7 +147,8 @@ bool HandleRotateWindows() {
     target->layer()->GetAnimator()->
         set_preemption_strategy(ui::LayerAnimator::REPLACE_QUEUED_ANIMATIONS);
     scoped_ptr<ui::LayerAnimationSequence> screen_rotation(
-        new ui::LayerAnimationSequence(new ash::ScreenRotation(360)));
+        new ui::LayerAnimationSequence(
+            new ash::ScreenRotation(360, target->layer())));
     target->layer()->GetAnimator()->StartAnimation(
         screen_rotation.release());
   }
@@ -181,7 +182,8 @@ bool HandleRotateScreen() {
     root_window->layer()->GetAnimator()->
         set_preemption_strategy(ui::LayerAnimator::REPLACE_QUEUED_ANIMATIONS);
     scoped_ptr<ui::LayerAnimationSequence> screen_rotation(
-        new ui::LayerAnimationSequence(new ash::ScreenRotation(delta)));
+        new ui::LayerAnimationSequence(
+            new ash::ScreenRotation(delta, root_window->layer())));
     screen_rotation->AddObserver(root_window);
     root_window->layer()->GetAnimator()->
         StartAnimation(screen_rotation.release());
@@ -793,18 +795,18 @@ void AcceleratorController::SetBrightnessControlDelegate(
   if (Shell::GetInstance()->display_manager()->HasInternalDisplay() ||
       CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kAshEnableBrightnessControl)) {
-    brightness_control_delegate_.swap(brightness_control_delegate);
+    brightness_control_delegate_ = brightness_control_delegate.Pass();
   }
 }
 
 void AcceleratorController::SetImeControlDelegate(
     scoped_ptr<ImeControlDelegate> ime_control_delegate) {
-  ime_control_delegate_.swap(ime_control_delegate);
+  ime_control_delegate_ = ime_control_delegate.Pass();
 }
 
 void AcceleratorController::SetScreenshotDelegate(
     scoped_ptr<ScreenshotDelegate> screenshot_delegate) {
-  screenshot_delegate_.swap(screenshot_delegate);
+  screenshot_delegate_ = screenshot_delegate.Pass();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -441,6 +441,7 @@ TEST_EVENT(STATE_TO_TAB_FULLSCREEN, BUBBLE_ALLOW);
 TEST_EVENT(STATE_TO_TAB_FULLSCREEN, BUBBLE_DENY);
 TEST_EVENT(STATE_TO_TAB_FULLSCREEN, WINDOW_CHANGE);
 
+
 // Specific one-off tests for known issues:
 
 // TODO(scheib) Toggling Tab fullscreen while pending Tab or

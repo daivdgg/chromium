@@ -296,10 +296,7 @@ div.root-eject:hover {
   -webkit-box-orient: horizontal;
   -webkit-transition: all 180ms ease;
   display: -webkit-box;
-  margin-bottom: 7px;
-  margin-left: 0;
-  margin-right: 10px;
-  margin-top: 5px;
+  margin: 7px 7px 7px 0;
 }
 
 [maximized] .dialog-header {
@@ -875,14 +872,6 @@ input.rename:focus {
   outline-color: rgb(77, 144, 254);
 }
 
-/* Elements that need to be LTR even in an RTL context, but should align
- * left. Display size in Hebrew is such a case.
- */
-html[dir='rtl'] .align-end-weakrtl {
-  direction: ltr;
-  text-align: left;
-}
-
 input.rename {
   font: inherit;
   line-height: 1;
@@ -921,7 +910,7 @@ input.rename {
   display: -webkit-box;
   height: 61px;
   opacity: 1;
-  padding: 0 14px;
+  padding: 0 16px 0 7px;
   position: relative;
   z-index: 3;
 }
@@ -1158,8 +1147,8 @@ input.rename {
 .preview-summary {
   color: #666;
   overflow: hidden;
-  padding-left: 5px;
-  padding-right: 5px;
+  padding-left: 10px;
+  padding-right: 10px;
   text-overflow: ellipsis;
   vertical-align: middle;
   white-space: nowrap;
@@ -1235,8 +1224,8 @@ body:not([type='saveas-file']) #filename-input-box {
 /* Dimmed items */
 
 body[type='folder'] .file,
-[gdata][connection='offline'] .dim-offline,
-[gdata][connection='metered'] .dim-metered {
+[drive][connection='offline'] .dim-offline,
+[drive][connection='metered'] .dim-metered {
   opacity: 0.4;
 }
 
@@ -1355,7 +1344,7 @@ div.shade[fadein] {
   opacity: 1;
 }
 
-/* Message panel for unmounted GData */
+/* Message panel for unmounted Drive */
 #unmounted-panel,
 #format-panel {
   bottom: 0;
@@ -1369,17 +1358,17 @@ div.shade[fadein] {
   top: 0;
 }
 
-.dialog-container[gdata='mounting'] #unmounted-panel,
-.dialog-container[gdata='error'] #unmounted-panel,
+.dialog-container[drive='mounting'] #unmounted-panel,
+.dialog-container[drive='error'] #unmounted-panel,
 .dialog-container[unformatted] #format-panel {
   display: block;
 }
 
-.dialog-container[gdata='unmounted'] .filelist-panel,
-.dialog-container[gdata='mounting'] .filelist-panel,
-.dialog-container[gdata='error'] .filelist-panel,
+.dialog-container[drive='unmounted'] .filelist-panel,
+.dialog-container[drive='mounting'] .filelist-panel,
+.dialog-container[drive='error'] .filelist-panel,
 .dialog-container[unformatted] .filelist-panel {
-  /* Hide file list when GData is not mounted.
+  /* Hide file list when Drive is not mounted.
      Use opacity to avoid manual resizing.*/
   opacity: 0;
 }
@@ -1407,9 +1396,9 @@ div.shade[fadein] {
 }
 
 [unformatted] #format-panel > .error,
-[gdata='mounting'] #unmounted-panel > .loading,
-[gdata='mounting'] #unmounted-panel > .progress,
-[gdata='error'] #unmounted-panel > .error,
+[drive='mounting'] #unmounted-panel > .loading,
+[drive='mounting'] #unmounted-panel > .progress,
+[drive='error'] #unmounted-panel > .error,
 #format-panel > #format-button,
 #unmounted-panel.retry-enabled > .retry,
 #unmounted-panel.retry-enabled > .learn-more {
@@ -1447,7 +1436,7 @@ body:not([ctrl-pressing]) [required_attr='ctrl-pressing'] {
   display: none;
 }
 
-#gdata-settings::before {
+#drive-settings::before {
   background-image: url('../images/files/ui/settings.svg');
   background-position: 20px center;
   background-repeat: no-repeat;
@@ -1460,25 +1449,25 @@ body:not([ctrl-pressing]) [required_attr='ctrl-pressing'] {
   top: 0;
 }
 
-#gdata-settings:hover::before {
+#drive-settings:hover::before {
   opacity: 1;
 }
 
 
-#gdata-settings {
+#drive-settings {
   overflow: hidden;
   text-align: left;
   width: 54px;
 }
 
-#gdata-settings span.disclosureindicator {
+#drive-settings span.disclosureindicator {
   float: none;
   margin-left: 42px;
 }
 
-/* To animate the #gdata-settings element to invisibility we set every property
+/* To animate the #drive-settings element to invisibility we set every property
   that affects its horizontal size to 0. */
-.dialog-container:not([gdata]) #gdata-settings {
+.dialog-container:not([drive]) #drive-settings {
   border-color: transparent;  /* Changing only the color to preserve layout. */
   border-left-width: 0;
   border-right-width: 0;
@@ -1488,7 +1477,7 @@ body:not([ctrl-pressing]) [required_attr='ctrl-pressing'] {
   width: 0;
 }
 
-.dialog-container:not([gdata]) #gdata-settings > * {
+.dialog-container:not([drive]) #drive-settings > * {
   display: none;
 }
 
@@ -1581,18 +1570,18 @@ body:not([ctrl-pressing]) [required_attr='ctrl-pressing'] {
   min-width: 250px;
 }
 
-#gdata-space-info,
+#drive-space-info,
 #downloads-space-info {
   -webkit-box-pack: justify;
   display: -webkit-box;
 }
 
-#gdata-space-info-label,
+#drive-space-info-label,
 #downloads-space-info-label {
   display: block;
 }
 
-#gdata-space-info > div,
+#drive-space-info > div,
 #downloads-space-info > div {
   -webkit-box-flex: 1;
   border: 1px solid rgb(192, 192, 192);
@@ -1602,7 +1591,7 @@ body:not([ctrl-pressing]) [required_attr='ctrl-pressing'] {
   min-width: 30px;
 }
 
-#gdata-space-info-bar[pending],
+#drive-space-info-bar[pending],
 #downloads-space-info-bar[pending] {
   -webkit-animation-duration: 800ms;
   -webkit-animation-iteration-count: infinite;
@@ -1617,7 +1606,7 @@ body:not([ctrl-pressing]) [required_attr='ctrl-pressing'] {
   background-size: 16px 8px;
 }
 
-#gdata-space-info-bar,
+#drive-space-info-bar,
 #downloads-space-info-bar {
   background-color: rgb(192, 192, 192);
   border: 1px solid rgb(255, 255, 255);

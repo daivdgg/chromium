@@ -1,9 +1,10 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/chromeos/login/user_image_manager_impl.h"
 
+#include "base/debug/trace_event.h"
 #include "base/bind.h"
 #include "base/file_path.h"
 #include "base/file_util.h"
@@ -23,15 +24,13 @@
 #include "chrome/browser/prefs/scoped_user_pref_update.h"
 #include "chrome/browser/profiles/profile_downloader.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/chrome_paths.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/common/url_constants.h"
 #include "ui/gfx/image/image_skia.h"
-
-#include "base/debug/trace_event.h"
+#include "ui/webui/web_ui_util.h"
 
 using content::BrowserThread;
 
@@ -129,9 +128,9 @@ void AddProfileImageTimeHistogram(ProfileDownloadResult result,
   static const base::TimeDelta max_time = base::TimeDelta::FromSeconds(50);
   const size_t bucket_count(50);
 
-  base::Histogram* counter = base::Histogram::FactoryTimeGet(
+  base::HistogramBase* counter = base::Histogram::FactoryTimeGet(
       histogram_name, min_time, max_time, bucket_count,
-      base::Histogram::kUmaTargetedHistogramFlag);
+      base::HistogramBase::kUmaTargetedHistogramFlag);
   counter->AddTime(time_delta);
 
   DVLOG(1) << "Profile image download time: " << time_delta.InSecondsF();
@@ -539,7 +538,7 @@ void UserImageManagerImpl::InitDownloadedProfileImage() {
     VLOG(1) << "Profile image initialized";
     downloaded_profile_image_ = logged_in_user->image();
     downloaded_profile_image_data_url_ =
-        web_ui_util::GetBitmapDataUrl(*downloaded_profile_image_.bitmap());
+        webui::GetBitmapDataUrl(*downloaded_profile_image_.bitmap());
     profile_image_url_ = logged_in_user->image_url();
   }
 }
@@ -651,13 +650,14 @@ void UserImageManagerImpl::OnProfileDownloadSuccess(
 
   // Check if this image is not the same as already downloaded.
   SkBitmap new_bitmap(downloader->GetProfilePicture());
-  std::string new_image_data_url = web_ui_util::GetBitmapDataUrl(new_bitmap);
+  std::string new_image_data_url = webui::GetBitmapDataUrl(new_bitmap);
   if (!downloaded_profile_image_data_url_.empty() &&
       new_image_data_url == downloaded_profile_image_data_url_)
     return;
 
   downloaded_profile_image_data_url_ = new_image_data_url;
-  downloaded_profile_image_ = gfx::ImageSkia(downloader->GetProfilePicture());
+  downloaded_profile_image_ = gfx::ImageSkia::CreateFrom1xBitmap(
+      downloader->GetProfilePicture());
   profile_image_url_ = GURL(downloader->GetProfilePictureURL());
 
   if (user->image_index() == User::kProfileImageIndex) {

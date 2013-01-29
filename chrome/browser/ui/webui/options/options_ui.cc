@@ -43,7 +43,6 @@
 #include "chrome/browser/ui/webui/options/search_engine_manager_handler.h"
 #include "chrome/browser/ui/webui/options/startup_pages_handler.h"
 #include "chrome/browser/ui/webui/theme_source.h"
-#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/time_format.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/notification_types.h"
@@ -60,6 +59,7 @@
 #include "net/base/escape.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/webui/jstemplate_builder.h"
+#include "ui/webui/web_ui_util.h"
 
 #if defined(OS_CHROMEOS)
 #include "chrome/browser/chromeos/system/pointer_device_observer.h"
@@ -139,7 +139,7 @@ void OptionsUIHTMLSource::StartDataRequest(
     bool is_incognito,
     const content::URLDataSource::GotDataCallback& callback) {
   scoped_refptr<base::RefCountedMemory> response_bytes;
-  web_ui_util::SetFontAndTextDirection(localized_strings_.get());
+  webui::SetFontAndTextDirection(localized_strings_.get());
 
   if (path == kLocalizedStringsFile) {
     // Return dynamically-generated strings from memory.
@@ -313,17 +313,17 @@ OptionsUI::OptionsUI(content::WebUI* web_ui)
 
   // Set up the chrome://settings-frame/ source.
   Profile* profile = Profile::FromWebUI(web_ui);
-  ChromeURLDataManager::AddDataSource(profile, html_source);
+  content::URLDataSource::Add(profile, html_source);
 
   // Set up the chrome://theme/ source.
   ThemeSource* theme = new ThemeSource(profile);
-  ChromeURLDataManager::AddDataSource(profile, theme);
+  content::URLDataSource::Add(profile, theme);
 
 #if defined(OS_CHROMEOS)
   // Set up the chrome://userimage/ source.
   chromeos::options::UserImageSource* user_image_source =
       new chromeos::options::UserImageSource();
-  ChromeURLDataManager::AddDataSource(profile, user_image_source);
+  content::URLDataSource::Add(profile, user_image_source);
 
   pointer_device_observer_.reset(
       new chromeos::system::PointerDeviceObserver());

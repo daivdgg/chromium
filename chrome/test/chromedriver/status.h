@@ -13,6 +13,7 @@ enum StatusCode {
   kNoSuchElement = 7,
   kUnknownCommand = 9,
   kStaleElementReference = 10,
+  kElementNotVisible = 11,
   kUnknownError = 13,
   kXPathLookupError = 19,
   kInvalidSelector = 32,
@@ -20,6 +21,7 @@ enum StatusCode {
   // Chrome-specific status codes.
   kNoSuchSession = 100,
   kChromeNotReachable,
+  kDisconnected,
 };
 
 // Represents a WebDriver status, which may be an error or ok.

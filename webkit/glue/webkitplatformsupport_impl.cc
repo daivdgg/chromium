@@ -11,6 +11,7 @@
 #include "base/allocator/allocator_extension.h"
 #include "base/bind.h"
 #include "base/debug/trace_event.h"
+#include "base/memory/discardable_memory.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/memory/singleton.h"
 #include "base/message_loop.h"
@@ -30,6 +31,7 @@
 #include "grit/webkit_strings.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebCookie.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebData.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebDiscardableMemory.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebGestureCurve.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebString.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebURL.h"
@@ -42,6 +44,7 @@
 #include "webkit/base/file_path_string_conversions.h"
 #include "webkit/compositor_bindings/web_compositor_support_impl.h"
 #include "webkit/glue/touch_fling_gesture_curve.h"
+#include "webkit/glue/web_discardable_memory_impl.h"
 #include "webkit/glue/webkit_glue.h"
 #include "webkit/glue/websocketstreamhandle_impl.h"
 #include "webkit/glue/webthread_impl.h"
@@ -418,9 +421,9 @@ void WebKitPlatformSupportImpl::histogramCustomCounts(
     const char* name, int sample, int min, int max, int bucket_count) {
   // Copied from histogram macro, but without the static variable caching
   // the histogram because name is dynamic.
-  base::Histogram* counter =
+  base::HistogramBase* counter =
       base::Histogram::FactoryGet(name, min, max, bucket_count,
-          base::Histogram::kUmaTargetedHistogramFlag);
+          base::HistogramBase::kUmaTargetedHistogramFlag);
   DCHECK_EQ(name, counter->histogram_name());
   counter->Add(sample);
 }
@@ -429,9 +432,9 @@ void WebKitPlatformSupportImpl::histogramEnumeration(
     const char* name, int sample, int boundary_value) {
   // Copied from histogram macro, but without the static variable caching
   // the histogram because name is dynamic.
-  base::Histogram* counter =
+  base::HistogramBase* counter =
       base::LinearHistogram::FactoryGet(name, 1, boundary_value,
-          boundary_value + 1, base::Histogram::kUmaTargetedHistogramFlag);
+          boundary_value + 1, base::HistogramBase::kUmaTargetedHistogramFlag);
   DCHECK_EQ(name, counter->histogram_name());
   counter->Add(sample);
 }
@@ -926,6 +929,17 @@ WebKit::WebGestureCurve* WebKitPlatformSupportImpl::createFlingAnimationCurve(
                                                         cumulative_scroll);
 
   return TouchFlingGestureCurve::CreateForTouchPad(velocity, cumulative_scroll);
+}
+
+WebKit::WebDiscardableMemory*
+    WebKitPlatformSupportImpl::allocateAndLockDiscardableMemory(size_t bytes) {
+  if (!base::DiscardableMemory::Supported())
+    return NULL;
+  scoped_ptr<WebDiscardableMemoryImpl> discardable(
+      new WebDiscardableMemoryImpl());
+  if (discardable->InitializeAndLock(bytes))
+    return discardable.release();
+  return NULL;
 }
 
 }  // namespace webkit_glue

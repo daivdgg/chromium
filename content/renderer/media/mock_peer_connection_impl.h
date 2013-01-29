@@ -31,11 +31,10 @@ class MockPeerConnectionImpl : public webrtc::PeerConnectionInterface {
       const webrtc::MediaConstraintsInterface* constraints) OVERRIDE;
   virtual void RemoveStream(
       webrtc::MediaStreamInterface* local_stream) OVERRIDE;
-  virtual bool CanSendDtmf(const webrtc::AudioTrackInterface* track) OVERRIDE;
-  virtual bool SendDtmf(const webrtc::AudioTrackInterface* send_track,
-                        const std::string& tones, int duration,
-                        const webrtc::AudioTrackInterface* play_track) OVERRIDE;
-  virtual talk_base::scoped_refptr<webrtc::DataChannelInterface>
+  virtual webrtc::DtmfSender* CreateDtmfSender(
+      webrtc::AudioTrackInterface* track,
+      webrtc::DtmfSenderObserverInterface* observer) OVERRIDE;
+   virtual talk_base::scoped_refptr<webrtc::DataChannelInterface>
       CreateDataChannel(const std::string& label,
                         const webrtc::DataChannelInit* config) OVERRIDE;
 
@@ -70,7 +69,7 @@ class MockPeerConnectionImpl : public webrtc::PeerConnectionInterface {
   virtual IceState ice_state() OVERRIDE;
 
   void AddRemoteStream(webrtc::MediaStreamInterface* stream);
-  void SetReadyState(ReadyState state) { signaling_state_ = state; }
+  void SetSignalingState(SignalingState state) { signaling_state_ = state; }
   void SetIceState(IceState state) { ice_state_ = state; }
 
   const std::string& stream_label() const { return stream_label_; }

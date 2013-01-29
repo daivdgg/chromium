@@ -528,6 +528,7 @@
           'product_name': 'app_mode_app_support',
           'dependencies': [
             '../base/base.gyp:base',
+            'common_constants.gyp:common_constants',
           ],
           'sources': [
             'common/mac/app_mode_chrome_locator.h',
@@ -1074,9 +1075,9 @@
           'type': 'none',
           'dependencies': [
             '../base/base.gyp:base',
+            '../components/components.gyp:navigation_interception_java',
             '../components/components.gyp:web_contents_delegate_android_java',
             '../content/content.gyp:content_java',
-            '../content/content.gyp:navigation_interception_java',
             '../sync/sync.gyp:sync_java',
             '../third_party/guava/guava.gyp:guava_javalib',
             '../ui/ui.gyp:ui_java',

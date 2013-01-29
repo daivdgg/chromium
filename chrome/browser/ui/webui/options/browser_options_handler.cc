@@ -50,9 +50,7 @@
 #include "chrome/browser/ui/host_desktop.h"
 #include "chrome/browser/ui/options/options_util.h"
 #include "chrome/browser/ui/search/search.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
 #include "chrome/browser/ui/webui/favicon_source.h"
-#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/chrome_paths.h"
@@ -66,6 +64,7 @@
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/notification_source.h"
 #include "content/public/browser/notification_types.h"
+#include "content/public/browser/url_data_source.h"
 #include "content/public/browser/user_metrics.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_view.h"
@@ -78,6 +77,7 @@
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebView.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/webui/web_ui_util.h"
 
 #if !defined(OS_CHROMEOS)
 #include "chrome/browser/printing/cloud_print/cloud_print_setup_handler.h"
@@ -587,8 +587,8 @@ void BrowserOptionsHandler::InitializeHandler() {
     sync_service->AddObserver(this);
 
   // Create our favicon data source.
-  ChromeURLDataManager::AddDataSource(profile,
-      new FaviconSource(profile, FaviconSource::FAVICON));
+  content::URLDataSource::Add(
+      profile, new FaviconSource(profile, FaviconSource::FAVICON));
 
   default_browser_policy_.Init(
       prefs::kDefaultBrowserSettingEnabled,
@@ -956,7 +956,7 @@ scoped_ptr<ListValue> BrowserOptionsHandler::GetProfilesInfoList() {
       gfx::Image icon = profiles::GetAvatarIconForWebUI(
           cache.GetAvatarIconOfProfileAtIndex(i), true);
       profile_value->SetString("iconURL",
-          web_ui_util::GetBitmapDataUrl(icon.AsBitmap()));
+          webui::GetBitmapDataUrl(icon.AsBitmap()));
     } else {
       size_t icon_index = cache.GetAvatarIconIndexOfProfileAtIndex(i);
       profile_value->SetString("iconURL",

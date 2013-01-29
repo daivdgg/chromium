@@ -119,6 +119,7 @@ void ReparentAllWindows(aura::RootWindow* src, aura::RootWindow* dst) {
     internal::kShellWindowId_SystemModalContainer,
     internal::kShellWindowId_LockSystemModalContainer,
     internal::kShellWindowId_InputMethodContainer,
+    internal::kShellWindowId_UnparentedControlContainer,
   };
   // For workspace windows we need to manually reparent the windows. This way
   // workspace can move the windows to the appropriate workspace.
@@ -410,6 +411,12 @@ void RootWindowController::CloseChildWindows() {
   if (status_area_widget_) {
     status_area_widget_->Shutdown();
     status_area_widget_ = NULL;
+  }
+
+  // panel_layout_manager_ needs to be shut down before windows are destroyed.
+  if (panel_layout_manager_) {
+    panel_layout_manager_->Shutdown();
+    panel_layout_manager_ = NULL;
   }
 
   // Closing the windows frees the workspace controller.

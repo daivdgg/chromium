@@ -81,6 +81,7 @@ const char kChromeUIWelcomeURL[] = "chrome://welcome/";
 
 #if defined(OS_CHROMEOS)
 const char kChromeUIActivationMessage[] = "chrome://activationmessage/";
+const char kChromeUIBluetoothPairingURL[] = "chrome://bluetooth-pairing/";
 const char kChromeUIChooseMobileNetworkURL[] =
     "chrome://choose-mobile-network/";
 const char kChromeUIDiagnosticsURL[] = "chrome://diagnostics/";
@@ -137,7 +138,6 @@ const char kChromeUICrashesHost[] = "crashes";
 const char kChromeUICrashHost[] = "crash";
 const char kChromeUICreditsHost[] = "credits";
 const char kChromeUIDefaultHost[] = "version";
-const char kChromeUIDevToolsHost[] = "devtools";
 const char kChromeUIDNSHost[] = "dns";
 const char kChromeUIDownloadsHost[] = "downloads";
 const char kChromeUIDriveInternalsHost[] = "drive-internals";
@@ -166,6 +166,7 @@ const char kChromeUIKillHost[] = "kill";
 const char kChromeUILocalOmniboxPopupHost[] = "local-omnibox-popup";
 const char kChromeUIMediaInternalsHost[] = "media-internals";
 const char kChromeUIMemoryHost[] = "memory";
+const char kChromeUIMemoryInternalsHost[] = "memory-internals";
 const char kChromeUIMemoryRedirectHost[] = "memory-redirect";
 const char kChromeUIMetroFlowHost[] = "make-metro";
 const char kChromeUINaClHost[] = "nacl";
@@ -179,7 +180,6 @@ const char kChromeUIPredictorsHost[] = "predictors";
 const char kChromeUIPrintHost[] = "print";
 const char kChromeUIProfilerHost[] = "profiler";
 const char kChromeUIQuotaInternalsHost[] = "quota-internals";
-const char kChromeUIResourcesHost[] = "resources";
 const char kChromeUISessionFaviconHost[] = "session-favicon";
 const char kChromeUISettingsHost[] = "settings";
 const char kChromeUISettingsFrameHost[] = "settings-frame";
@@ -219,6 +219,7 @@ const char kChromeUISandboxHost[] = "sandbox";
 
 #if defined(OS_CHROMEOS)
 const char kChromeUIActivationMessageHost[] = "activationmessage";
+const char kChromeUIBluetoothPairingHost[] = "bluetooth-pairing";
 const char kChromeUIChooseMobileNetworkHost[] = "choose-mobile-network";
 const char kChromeUICryptohomeHost[] = "cryptohome";
 const char kChromeUIDiagnosticsHost[] = "diagnostics";

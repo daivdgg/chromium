@@ -47,6 +47,9 @@ class CONTENT_EXPORT DownloadManagerImpl : public DownloadManager,
       const std::string& mime_type,
       DownloadItem::Observer* observer);
 
+  // Notifies DownloadManager about a successful completion of |download_item|.
+  void OnSavePackageSuccessfullyFinished(DownloadItem* download_item);
+
   // DownloadManager functions.
   virtual void SetDelegate(DownloadManagerDelegate* delegate) OVERRIDE;
   virtual DownloadManagerDelegate* GetDelegate() const OVERRIDE;
@@ -109,13 +112,10 @@ class CONTENT_EXPORT DownloadManagerImpl : public DownloadManager,
   // Get next download id.
   DownloadId GetNextId();
 
-  // Called on the FILE thread to check the existence of a downloaded file.
-  void CheckForFileRemovalOnFileThread(int32 download_id, const FilePath& path);
-
-  // Called on the UI thread if the FILE thread detects the removal of
-  // the downloaded file. The UI thread updates the state of the file
-  // and then notifies this update to the file's observer.
-  void OnFileRemovalDetected(int32 download_id);
+  // Called with the result of DownloadManagerDelegate::CheckForFileExistence.
+  // Updates the state of the file and then notifies this update to the file's
+  // observer.
+  void OnFileExistenceChecked(int32 download_id, bool result);
 
   // Remove from internal maps.
   int RemoveDownloadItems(const DownloadItemImplVector& pending_deletes);

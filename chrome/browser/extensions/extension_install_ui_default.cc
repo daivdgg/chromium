@@ -182,13 +182,13 @@ void ExtensionInstallUIDefault::OnInstallSuccess(const Extension* extension,
   if (extension->is_app()) {
     bool use_bubble = false;
 
-#if defined(TOOLKIT_VIEWS)
+#if defined(TOOLKIT_VIEWS)  || defined(OS_MACOSX)
     CommandLine* cmdline = CommandLine::ForCurrentProcess();
     use_bubble = (use_app_installed_bubble_ ||
                   cmdline->HasSwitch(switches::kAppsNewInstallBubble));
 #endif
 
-    extensions::GetIsAppLauncherEnabled(
+    extensions::UpdateIsAppLauncherEnabled(
         base::Bind(&OnAppLauncherEnabledCompleted, extension, browser, icon,
                    use_bubble));
     return;

@@ -1457,6 +1457,31 @@
    fun:testing::internal::TestFactoryImpl::CreateTest
 }
 {
+   bug_145703
+   Heapcheck:Leak
+   ...
+   fun:content::SiteInstanceImpl::GetProcess
+   fun:RenderViewHostImpl
+   fun:content::RenderViewHostFactory::Create
+   fun:content::RenderViewHostManager::Init
+   fun:content::WebContentsImpl::Init
+   fun:content::TestWebContents::Create
+   fun:content::WebContentsTester::CreateTestWebContents
+   fun:extensions::::TestExtensionEnvironment::MakeTab
+   fun:extensions::::DeclarativeContentActionTest_ShowPageAction_Test::TestBody
+}
+{
+   bug_145705
+   Heapcheck:Leak
+   ...
+   fun:extensions::SettingsFrontend::Create
+   fun:ExtensionService::ExtensionService
+   fun:extensions::TestExtensionSystem::CreateExtensionService
+   fun:extensions::::TestExtensionEnvironment::GetExtensionService
+   fun:extensions::::TestExtensionEnvironment::MakeExtension
+   fun:extensions::::DeclarativeContentActionTest_ShowPageAction_Test::TestBody
+}
+{
    bug_147755_a
    Heapcheck:Leak
    ...
@@ -1746,4 +1771,122 @@
    Heapcheck:Leak
    fun:MessageLoop::MessageLoop
    fun:ManagedUserServiceTest_ExtensionManagementPolicyProvider_Test::TestBody
+}
+{
+   bug_171722
+   Heapcheck:Leak
+   fun:net::::URLRequestFtpJobTest::AddSocket
+   ...
+}
+{
+   bug_171722_b
+   Heapcheck:Leak
+   fun:base::internal::WeakReferenceOwner::GetRef
+   fun:base::SupportsWeakPtr::AsWeakPtr
+   fun:net::DeterministicMockClientSocketFactory::CreateTransportClientSocket
+   fun:net::TransportConnectJob::DoTransportConnect
+   fun:net::TransportConnectJob::DoLoop
+   fun:net::TransportConnectJob::OnIOComplete
+}
+{
+   bug_171722_c
+   Heapcheck:Leak
+   ...
+   fun:net::::URLRequestFtpJobTest::AddSocket
+   fun:net::::URLRequestFtpJobTest_FtpProxyRequestDoNotSaveCookies_Test::TestBody
+}
+{
+   bug_171722_d
+   Heapcheck:Leak
+   ...
+   fun:net::::URLRequestFtpJobTest::AddSocket
+   fun:net::::URLRequestFtpJobTest_FtpProxyRequestDoNotFollowRedirects_Test::TestBody
+}
+{
+   bug_171722_e
+   Heapcheck:Leak
+   ...
+   fun:net::::URLRequestFtpJobTest::AddSocket
+   fun:net::::URLRequestFtpJobTest_FtpProxyRequestNeedAuth_Test::TestBody
+}
+{
+   bug_171722_f
+   Heapcheck:Leak
+   ...
+   fun:net::::URLRequestFtpJobTest::AddSocket
+   fun:net::::URLRequestFtpJobTest_FtpProxyRequest_Test::TestBody
+}
+{
+   bug_171722_g
+   Heapcheck:Leak
+   ...
+   fun:net::::URLRequestFtpJobTest::AddSocket
+   fun:net::::URLRequestFtpJobTest_FtpProxyRequestReuseSocket_Test::TestBody
+}
+{
+   bug_171722_h
+   Heapcheck:Leak
+   ...
+   fun:net::::URLRequestFtpJobTest::AddSocket
+   fun:net::::URLRequestFtpJobTest_FtpProxyRequestDoNotReuseSocket_Test::TestBody
+}
+{
+   bug_171571
+   Heapcheck:Leak
+   ...
+   fun:GeolocationPermissionContextTests_PermissionForFileScheme_Test::TestBody
+}
+{
+   bug_171571_a
+   Heapcheck:Leak
+   fun:std::basic_string::_Rep::_S_create
+   fun:base::PrepareForUTF8Output
+   fun:UTF16ToUTF8
+   fun:UTF16ToUTF8
+   fun:l10n_util::GetStringUTF8
+   fun:::CreateLocaleDefaultValue
+   fun:PrefServiceSyncable::RegisterLocalizedStringPref
+   fun:PrefsTabHelper::RegisterUserPrefs
+   fun:chrome::RegisterUserPrefs
+   fun:TestingProfile::CreateTestingPrefService
+   fun:TestingProfile::GetPrefs
+   fun:ProfileKeyedBaseFactory::RegisterUserPrefsOnProfile
+   fun:ProfileDependencyManager::CreateProfileServices
+   fun:TestingProfile::Init
+   fun:TestingProfile::TestingProfile
+   fun:ChromeRenderViewHostTestHarness::SetUp
+   fun:GeolocationPermissionContextTests::SetUp
+}
+{
+   bug_172077
+   Heapcheck:Leak
+   ...
+   fun:extensions::RegexSetMatcher::RebuildMatcher
+   fun:extensions::RegexSetMatcher::ClearPatterns
+   ...
+   fun:extensions::URLMatcher::UpdateRegexSetMatcher
+   fun:extensions::URLMatcher::UpdateInternalDatastructures
+   fun:extensions::URLMatcher::AddConditionSets
+   fun:::FilterBuilder::Build
+   fun:::LoadWhitelistsOnBlockingPoolThread
+}
+{
+   bug_171567_a
+   Heapcheck:Leak
+   ...
+   fun:AutofillPopupControllerUnitTest_GrowPopupInSpace_Test::TestBody
+}
+{
+   bug_171567_b
+   Heapcheck:Leak
+   ...
+   fun:AutofillPopupControllerUnitTest::AutofillPopupControllerUnitTest
+   fun:AutofillPopupControllerUnitTest_GrowPopupInSpace_Test::AutofillPopupControllerUnitTest_GrowPopupInSpace_Test
+   fun:testing::internal::TestFactoryImpl::CreateTest
+}
+{
+   bug_171983
+   Heapcheck:Leak
+   ...
+   fun:chromeos::MagnificationManagerTest_MagnificationObserver_Test::TestBody
 }

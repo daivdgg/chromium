@@ -25,15 +25,17 @@ class QuicStreamFactoryTest : public ::testing::Test {
   QuicStreamFactoryTest()
       : clock_(new MockClock()),
         factory_(&host_resolver_, &socket_factory_,
-                 &random_generator_, clock_),
+                 &random_generator_, clock_, false),
         host_port_proxy_pair_(HostPortPair("www.google.com", 443),
                               ProxyServer::Direct()) {
   }
 
   scoped_ptr<QuicEncryptedPacket> ConstructChlo() {
+    const std::string& host = host_port_proxy_pair_.first.host();
     scoped_ptr<QuicPacket> chlo(ConstructClientHelloPacket(0xDEADBEEF,
                                                            clock_,
-                                                           &random_generator_));
+                                                           &random_generator_,
+                                                           host));
     QuicFramer framer(QuicDecrypter::Create(kNULL),
                       QuicEncrypter::Create(kNULL));
     return scoped_ptr<QuicEncryptedPacket>(framer.EncryptPacket(*chlo));

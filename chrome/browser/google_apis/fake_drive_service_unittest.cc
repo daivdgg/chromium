@@ -42,14 +42,14 @@ class FakeDriveServiceTest : public testing::Test {
     return resource_entry;
   }
 
-  // Adds a new directory at |parent_content_url| (root if empty) with the
-  // given name. Returns true on success.
-  bool AddNewDirectory(const GURL& parent_content_url,
+  // Adds a new directory at |parent_resource_id| with the given name.
+  // Returns true on success.
+  bool AddNewDirectory(const std::string& parent_resource_id,
                        const std::string& directory_name) {
     GDataErrorCode error = GDATA_OTHER_ERROR;
     scoped_ptr<ResourceEntry> resource_entry;
     fake_service_.AddNewDirectory(
-        parent_content_url,
+        parent_resource_id,
         directory_name,
         base::Bind(&test_util::CopyResultsFromGetResourceEntryCallback,
                    &error,
@@ -84,6 +84,91 @@ TEST_F(FakeDriveServiceTest, GetResourceList_All) {
   // Do some sanity check.
   EXPECT_EQ(12U, resource_list->entries().size());
   EXPECT_EQ(1, fake_service_.resource_list_load_count());
+}
+
+TEST_F(FakeDriveServiceTest, GetResourceList_WithStartIndex) {
+  ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
+
+  GDataErrorCode error = GDATA_OTHER_ERROR;
+  scoped_ptr<ResourceList> resource_list;
+  fake_service_.GetResourceList(
+      GURL("http://dummyurl/?start-offset=2"),
+      0,  // start_changestamp
+      "",  // search_query
+      false, // shared_with_me
+      "",  // directory_resource_id
+      base::Bind(&test_util::CopyResultsFromGetResourceListCallback,
+                 &error,
+                 &resource_list));
+  message_loop_.RunUntilIdle();
+
+  EXPECT_EQ(HTTP_SUCCESS, error);
+  ASSERT_TRUE(resource_list);
+  // Because the start-offset was set to 2, the size should be 10 instead of
+  // 12 (the total number).
+  EXPECT_EQ(10U, resource_list->entries().size());
+  EXPECT_EQ(1, fake_service_.resource_list_load_count());
+}
+
+TEST_F(FakeDriveServiceTest, GetResourceList_WithStartIndexAndMaxResults) {
+  ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
+
+  GDataErrorCode error = GDATA_OTHER_ERROR;
+  scoped_ptr<ResourceList> resource_list;
+  fake_service_.GetResourceList(
+      GURL("http://localhost/?start-offset=2&max-results=5"),
+      0,  // start_changestamp
+      "",  // search_query
+      false, // shared_with_me
+      "",  // directory_resource_id
+      base::Bind(&test_util::CopyResultsFromGetResourceListCallback,
+                 &error,
+                 &resource_list));
+  message_loop_.RunUntilIdle();
+
+  EXPECT_EQ(HTTP_SUCCESS, error);
+  ASSERT_TRUE(resource_list);
+  // Because the max-results was set to 5, the size should be 5 instead of 10.
+  EXPECT_EQ(5U, resource_list->entries().size());
+  EXPECT_EQ(1, fake_service_.resource_list_load_count());
+  // The next link should be provided. The new start-offset should be
+  // 2 (original start index) + 5 (max results).
+  const google_apis::Link* next_link =
+      resource_list->GetLinkByType(Link::LINK_NEXT);
+  ASSERT_TRUE(next_link);
+  EXPECT_EQ(GURL("http://localhost/?start-offset=7&max-results=5"),
+            next_link->href());
+}
+
+TEST_F(FakeDriveServiceTest, GetResourceList_WithDefaultMaxResultsChanged) {
+  ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
+  fake_service_.set_default_max_results(3);
+
+  GDataErrorCode error = GDATA_OTHER_ERROR;
+  scoped_ptr<ResourceList> resource_list;
+  fake_service_.GetResourceList(
+      GURL(),
+      0,  // start_changestamp
+      "",  // search_query
+      false, // shared_with_me
+      "",  // directory_resource_id
+      base::Bind(&test_util::CopyResultsFromGetResourceListCallback,
+                 &error,
+                 &resource_list));
+  message_loop_.RunUntilIdle();
+
+  EXPECT_EQ(HTTP_SUCCESS, error);
+  ASSERT_TRUE(resource_list);
+  // Because the default max results was changed to 3, the size should be 3
+  // instead of 12 (the total number).
+  EXPECT_EQ(3U, resource_list->entries().size());
+  EXPECT_EQ(1, fake_service_.resource_list_load_count());
+  // The next link should be provided.
+  const google_apis::Link* next_link =
+      resource_list->GetLinkByType(Link::LINK_NEXT);
+  ASSERT_TRUE(next_link);
+  EXPECT_EQ(GURL("http://localhost/?start-offset=3&max-results=3"),
+            next_link->href());
 }
 
 TEST_F(FakeDriveServiceTest, GetResourceList_InRootDirectory) {
@@ -133,6 +218,69 @@ TEST_F(FakeDriveServiceTest, GetResourceList_Search) {
   EXPECT_EQ(1, fake_service_.resource_list_load_count());
 }
 
+TEST_F(FakeDriveServiceTest, GetResourceList_SearchWithAttribute) {
+  ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
+
+  GDataErrorCode error = GDATA_OTHER_ERROR;
+  scoped_ptr<ResourceList> resource_list;
+  fake_service_.GetResourceList(
+      GURL(),
+      0,  // start_changestamp
+      "title:1.txt",  // search_query
+      false, // shared_with_me
+      "",  // directory_resource_id
+      base::Bind(&test_util::CopyResultsFromGetResourceListCallback,
+                 &error,
+                 &resource_list));
+  message_loop_.RunUntilIdle();
+
+  EXPECT_EQ(HTTP_SUCCESS, error);
+  ASSERT_TRUE(resource_list);
+  // Do some sanity check. There are 3 entries that contain "1.txt" in their
+  // titles.
+  EXPECT_EQ(3U, resource_list->entries().size());
+  EXPECT_EQ(1, fake_service_.resource_list_load_count());
+}
+
+TEST_F(FakeDriveServiceTest, GetResourceList_SearchMultipleQueries) {
+  ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
+
+  GDataErrorCode error = GDATA_OTHER_ERROR;
+  scoped_ptr<ResourceList> resource_list;
+  fake_service_.GetResourceList(
+      GURL(),
+      0,  // start_changestamp
+      "Directory 1",  // search_query
+      false, // shared_with_me
+      "",  // directory_resource_id
+      base::Bind(&test_util::CopyResultsFromGetResourceListCallback,
+                 &error,
+                 &resource_list));
+  message_loop_.RunUntilIdle();
+
+  EXPECT_EQ(HTTP_SUCCESS, error);
+  ASSERT_TRUE(resource_list);
+  // There are 2 entries that contain both "Directory" and "1" in their titles.
+  EXPECT_EQ(2U, resource_list->entries().size());
+
+  fake_service_.GetResourceList(
+      GURL(),
+      0,  // start_changestamp
+      "\"Directory 1\"",  // search_query
+      false, // shared_with_me
+      "",  // directory_resource_id
+      base::Bind(&test_util::CopyResultsFromGetResourceListCallback,
+                 &error,
+                 &resource_list));
+  message_loop_.RunUntilIdle();
+
+  EXPECT_EQ(HTTP_SUCCESS, error);
+  ASSERT_TRUE(resource_list);
+  // There is 1 entry that contain "Directory 1" in its title.
+  EXPECT_EQ(1U, resource_list->entries().size());
+  EXPECT_EQ(2, fake_service_.resource_list_load_count());
+}
+
 TEST_F(FakeDriveServiceTest, GetResourceList_NoNewEntries) {
   ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
   // Load the account_metadata.json as well to add the largest changestamp
@@ -170,7 +318,8 @@ TEST_F(FakeDriveServiceTest, GetResourceList_WithNewEntry) {
       "gdata/account_metadata.json"));
   // Add a new directory in the root directory. The new directory will have
   // the changestamp of 654322.
-  ASSERT_TRUE(AddNewDirectory(GURL(), "new directory"));
+  ASSERT_TRUE(AddNewDirectory(
+      fake_service_.GetRootResourceId(), "new directory"));
 
   // Get the resource list newer than 654321.
   GDataErrorCode error = GDATA_OTHER_ERROR;
@@ -601,7 +750,7 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_FileInRootDirectory) {
 
   const std::string kResourceId = "file:2_file_resource_id";
   const GURL kEditUrl("https://file1_link_self/file:2_file_resource_id");
-  const GURL kNewParentContentUrl("https://new_url");
+  const std::string kNewParentResourceId = "folder:1_folder_resource_id";
 
   scoped_ptr<ResourceEntry> resource_entry = FindEntry(kResourceId);
   ASSERT_TRUE(resource_entry);
@@ -612,7 +761,7 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_FileInRootDirectory) {
 
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.AddResourceToDirectory(
-      kNewParentContentUrl,
+      kNewParentResourceId,
       kEditUrl,
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
@@ -625,7 +774,8 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_FileInRootDirectory) {
   // The parent link should now exist as the parent directory is changed.
   parent_link = resource_entry->GetLinkByType(Link::LINK_PARENT);
   ASSERT_TRUE(parent_link);
-  EXPECT_EQ(kNewParentContentUrl, parent_link->href());
+  EXPECT_EQ(FakeDriveService::GetFakeLinkUrl(kNewParentResourceId),
+            parent_link->href());
   // Should be incremented as a file was moved.
   EXPECT_EQ(1, fake_service_.largest_changestamp());
 }
@@ -636,7 +786,7 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_FileInNonRootDirectory) {
   const std::string kResourceId = "file:subdirectory_file_1_id";
   const GURL kEditUrl(
       "https://dir1_file_link_self/file:subdirectory_file_1_id");
-  const GURL kNewParentContentUrl("https://new_url");
+  const std::string kNewParentResourceId = "folder:2_folder_resource_id";
 
   scoped_ptr<ResourceEntry> resource_entry = FindEntry(kResourceId);
   ASSERT_TRUE(resource_entry);
@@ -644,12 +794,12 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_FileInNonRootDirectory) {
   const google_apis::Link* parent_link =
       resource_entry->GetLinkByType(Link::LINK_PARENT);
   ASSERT_TRUE(parent_link);
-  EXPECT_EQ("https://dir_1_self_link/folder:1_folder_resource_id",
-            parent_link->href().spec());
+  EXPECT_EQ(FakeDriveService::GetFakeLinkUrl("folder:1_folder_resource_id"),
+            parent_link->href());
 
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.AddResourceToDirectory(
-      kNewParentContentUrl,
+      kNewParentResourceId,
       kEditUrl,
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
@@ -662,7 +812,8 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_FileInNonRootDirectory) {
   // The parent link should now be changed.
   parent_link = resource_entry->GetLinkByType(Link::LINK_PARENT);
   ASSERT_TRUE(parent_link);
-  EXPECT_EQ(kNewParentContentUrl, parent_link->href());
+  EXPECT_EQ(FakeDriveService::GetFakeLinkUrl(kNewParentResourceId),
+            parent_link->href());
   // Should be incremented as a file was moved.
   EXPECT_EQ(1, fake_service_.largest_changestamp());
 }
@@ -671,11 +822,11 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_NonexistingFile) {
   ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
 
   const GURL kEditUrl("https://file1_link_self/file:nonexisting_file");
-  const GURL kNewParentContentUrl("https://new_url");
+  const std::string kNewParentResourceId = "folder:1_folder_resource_id";
 
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.AddResourceToDirectory(
-      kNewParentContentUrl,
+      kNewParentResourceId,
       kEditUrl,
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
@@ -690,11 +841,11 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_Offline) {
 
   const std::string kResourceId = "file:2_file_resource_id";
   const GURL kEditUrl("https://file1_link_self/file:2_file_resource_id");
-  const GURL kNewParentContentUrl("https://new_url");
+  const std::string kNewParentResourceId = "folder:1_folder_resource_id";
 
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.AddResourceToDirectory(
-      kNewParentContentUrl,
+      kNewParentResourceId,
       kEditUrl,
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
@@ -706,9 +857,8 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_Offline) {
 TEST_F(FakeDriveServiceTest, RemoveResourceFromDirectory_ExistingFile) {
   ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
 
-  const std::string kResourceId("file:subdirectory_file_1_id");
-  const GURL kParentContentUrl(
-      "https://dir_1_self_link/folder:1_folder_resource_id");
+  const std::string kResourceId = "file:subdirectory_file_1_id";
+  const std::string kParentResourceId = "folder:1_folder_resource_id";
 
   scoped_ptr<ResourceEntry> resource_entry = FindEntry(kResourceId);
   ASSERT_TRUE(resource_entry);
@@ -719,7 +869,7 @@ TEST_F(FakeDriveServiceTest, RemoveResourceFromDirectory_ExistingFile) {
 
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.RemoveResourceFromDirectory(
-      kParentContentUrl,
+      kParentResourceId,
       kResourceId,
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
@@ -739,13 +889,12 @@ TEST_F(FakeDriveServiceTest, RemoveResourceFromDirectory_ExistingFile) {
 TEST_F(FakeDriveServiceTest, RemoveResourceFromDirectory_NonexistingFile) {
   ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
 
-  const std::string kResourceId("file:nonexisting_file");
-  const GURL kParentContentUrl(
-      "https://dir_1_self_link/folder:1_folder_resource_id");
+  const std::string kResourceId = "file:nonexisting_file";
+  const std::string kParentResourceId = "folder:1_folder_resource_id";
 
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.RemoveResourceFromDirectory(
-      kParentContentUrl,
+      kParentResourceId,
       kResourceId,
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
@@ -758,13 +907,12 @@ TEST_F(FakeDriveServiceTest, RemoveResourceFromDirectory_Offline) {
   ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
   fake_service_.set_offline(true);
 
-  const std::string kResourceId("file:subdirectory_file_1_id");
-  const GURL kParentContentUrl(
-      "https://dir_1_self_link/folder:1_folder_resource_id");
+  const std::string kResourceId = "file:subdirectory_file_1_id";
+  const std::string kParentResourceId = "folder:1_folder_resource_id";
 
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.RemoveResourceFromDirectory(
-      kParentContentUrl,
+      kParentResourceId,
       kResourceId,
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
@@ -779,7 +927,7 @@ TEST_F(FakeDriveServiceTest, AddNewDirectory_ToRootDirectory) {
   GDataErrorCode error = GDATA_OTHER_ERROR;
   scoped_ptr<ResourceEntry> resource_entry;
   fake_service_.AddNewDirectory(
-      GURL(),  // Empty means add it to the root directory.
+      fake_service_.GetRootResourceId(),
       "new directory",
       base::Bind(&test_util::CopyResultsFromGetResourceEntryCallback,
                  &error,
@@ -802,13 +950,12 @@ TEST_F(FakeDriveServiceTest, AddNewDirectory_ToRootDirectory) {
 TEST_F(FakeDriveServiceTest, AddNewDirectory_ToNonRootDirectory) {
   ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
 
-  const GURL kParentContentUrl(
-      "https://dir_1_self_link/folder:1_folder_resource_id");
+  const std::string kParentResourceId = "folder:1_folder_resource_id";
 
   GDataErrorCode error = GDATA_OTHER_ERROR;
   scoped_ptr<ResourceEntry> resource_entry;
   fake_service_.AddNewDirectory(
-      kParentContentUrl,
+      kParentResourceId,
       "new directory",
       base::Bind(&test_util::CopyResultsFromGetResourceEntryCallback,
                  &error,
@@ -822,7 +969,8 @@ TEST_F(FakeDriveServiceTest, AddNewDirectory_ToNonRootDirectory) {
   const google_apis::Link* parent_link =
       resource_entry->GetLinkByType(Link::LINK_PARENT);
   ASSERT_TRUE(parent_link);
-  EXPECT_EQ(kParentContentUrl, parent_link->href());
+  EXPECT_EQ(FakeDriveService::GetFakeLinkUrl(kParentResourceId),
+            parent_link->href());
   // Should be incremented as a new directory was created.
   EXPECT_EQ(1, fake_service_.largest_changestamp());
 }
@@ -830,13 +978,12 @@ TEST_F(FakeDriveServiceTest, AddNewDirectory_ToNonRootDirectory) {
 TEST_F(FakeDriveServiceTest, AddNewDirectory_ToNonexistingDirectory) {
   ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
 
-  const GURL kParentContentUrl(
-      "https://dir_1_self_link/folder:nonexisting_resource_id");
+  const std::string kParentResourceId = "folder:nonexisting_resource_id";
 
   GDataErrorCode error = GDATA_OTHER_ERROR;
   scoped_ptr<ResourceEntry> resource_entry;
   fake_service_.AddNewDirectory(
-      kParentContentUrl,
+      kParentResourceId,
       "new directory",
       base::Bind(&test_util::CopyResultsFromGetResourceEntryCallback,
                  &error,
@@ -854,7 +1001,7 @@ TEST_F(FakeDriveServiceTest, AddNewDirectory_Offline) {
   GDataErrorCode error = GDATA_OTHER_ERROR;
   scoped_ptr<ResourceEntry> resource_entry;
   fake_service_.AddNewDirectory(
-      GURL(),  // Empty means add it to the root directory.
+      fake_service_.GetRootResourceId(),
       "new directory",
       base::Bind(&test_util::CopyResultsFromGetResourceEntryCallback,
                  &error,

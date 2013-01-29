@@ -24,6 +24,8 @@ class Value;
 
 class DevToolsClient;
 class DomTracker;
+class FrameTracker;
+class NavigationTracker;
 class Status;
 class URLRequestContextGetter;
 
@@ -52,7 +54,12 @@ class ChromeImpl : public Chrome {
                                     const std::string& function,
                                     const base::ListValue& args,
                                     std::string* out_frame) OVERRIDE;
+  virtual Status DispatchMouseEvents(
+      const std::list<MouseEvent>& events) OVERRIDE;
   virtual Status Quit() OVERRIDE;
+  virtual Status WaitForPendingNavigations(
+      const std::string& frame_id) OVERRIDE;
+  virtual Status GetMainFrame(std::string* out_frame) OVERRIDE;
 
  private:
   base::ProcessHandle process_;
@@ -61,6 +68,8 @@ class ChromeImpl : public Chrome {
   int port_;
   SyncWebSocketFactory socket_factory_;
   scoped_ptr<DomTracker> dom_tracker_;
+  scoped_ptr<FrameTracker> frame_tracker_;
+  scoped_ptr<NavigationTracker> navigation_tracker_;
   scoped_ptr<DevToolsClient> client_;
 };
 
@@ -85,6 +94,8 @@ Status EvaluateScriptAndGetValue(DevToolsClient* client,
                                  int context_id,
                                  const std::string& expression,
                                  scoped_ptr<base::Value>* result);
+Status ParseCallFunctionResult(const base::Value& temp_result,
+                               scoped_ptr<base::Value>* result);
 Status GetNodeIdFromFunction(DevToolsClient* client,
                              int context_id,
                              const std::string& function,

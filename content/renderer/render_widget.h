@@ -32,6 +32,7 @@
 #include "ui/gfx/rect.h"
 #include "ui/gfx/vector2d.h"
 #include "ui/surface/transport_dib.h"
+#include "webkit/compositor_bindings/web_layer_tree_view_impl.h"
 #include "webkit/glue/webcursor.h"
 
 struct ViewHostMsg_UpdateRect_Params;
@@ -121,6 +122,11 @@ class CONTENT_EXPORT RenderWidget
   virtual void didAutoResize(const WebKit::WebSize& new_size);
   virtual void didActivateCompositor(int input_handler_identifier);
   virtual void didDeactivateCompositor();
+  virtual void initializeLayerTreeView(
+      WebKit::WebLayerTreeViewClient* client,
+      const WebKit::WebLayer& root_layer,
+      const WebKit::WebLayerTreeView::Settings& settings);
+  virtual WebKit::WebLayerTreeView* layerTreeView();
   virtual void didBecomeReadyForAdditionalInput();
   virtual void didCommitAndDrawCompositorFrame();
   virtual void didCompleteSwapBuffers();
@@ -141,6 +147,8 @@ class CONTENT_EXPORT RenderWidget
   virtual WebKit::WebScreenInfo screenInfo();
   virtual float deviceScaleFactor();
   virtual void resetInputMethod();
+  virtual void didHandleGestureEvent(const WebKit::WebGestureEvent& event,
+                                     bool event_cancelled);
 
   // Called when a plugin is moved.  These events are queued up and sent with
   // the next paint or scroll message to the host.
@@ -239,6 +247,7 @@ class CONTENT_EXPORT RenderWidget
   void DoDeferredUpdate();
   void DoDeferredClose();
   void DoDeferredSetWindowRect(const WebKit::WebRect& pos);
+  virtual void Composite();
 
   // Set the background of the render widget to a bitmap. The bitmap will be
   // tiled in both directions if it isn't big enough to fill the area. This is
@@ -437,10 +446,6 @@ class CONTENT_EXPORT RenderWidget
   // at the given point.
   virtual bool HasTouchEventHandlersAt(const gfx::Point& point) const;
 
-  // Should return true if the underlying WebWidget is responsible for
-  // the scheduling of compositing requests.
-  virtual bool WebWidgetHandlesCompositorScheduling() const;
-
   // Routing ID that allows us to communicate to the parent browser process
   // RenderWidgetHost. When MSG_ROUTING_NONE, no messages may be sent.
   int32 routing_id_;
@@ -449,6 +454,9 @@ class CONTENT_EXPORT RenderWidget
 
   // We are responsible for destroying this object via its Close method.
   WebKit::WebWidget* webwidget_;
+
+  // This is lazily constructed and must not outlive webwidget_.
+  scoped_ptr<WebKit::WebLayerTreeViewImpl> web_layer_tree_view_;
 
   // Set to the ID of the view that initiated creating this view, if any. When
   // the view was initiated by the browser (the common case), this will be

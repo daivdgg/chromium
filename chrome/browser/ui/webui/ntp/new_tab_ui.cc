@@ -19,6 +19,7 @@
 #include "base/threading/thread.h"
 #include "base/utf_string_conversions.h"
 #include "chrome/browser/defaults.h"
+#include "chrome/browser/extensions/app_launcher.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_types.h"
@@ -42,6 +43,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/render_view_host.h"
+#include "content/public/browser/url_data_source.h"
 #include "content/public/browser/user_metrics.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
@@ -160,7 +162,7 @@ NewTabUI::NewTabUI(content::WebUI* web_ui)
   // tests immediately deletes it, so html_source should not be accessed after
   // this call.
   Profile* profile = GetProfile();
-  ChromeURLDataManager::AddDataSource(profile, html_source);
+  content::URLDataSource::Add(profile, html_source);
 
   pref_change_registrar_.Init(GetProfile()->GetPrefs());
   pref_change_registrar_.Add(prefs::kShowBookmarkBar,
@@ -275,7 +277,7 @@ void NewTabUI::InitializeCSSCaches() {
 #if defined(ENABLE_THEMES)
   Profile* profile = GetProfile();
   ThemeSource* theme = new ThemeSource(profile);
-  ChromeURLDataManager::AddDataSource(profile, theme);
+  content::URLDataSource::Add(profile, theme);
 #endif
 }
 
@@ -293,13 +295,12 @@ void NewTabUI::RegisterUserPrefs(PrefServiceSyncable* prefs) {
 
 // static
 bool NewTabUI::ShouldShowApps() {
-#if defined(USE_ASH) || defined(OS_ANDROID)
+#if defined(OS_ANDROID)
   // Ash shows apps in app list thus should not show apps page in NTP4.
   // Android does not have apps.
   return false;
 #else
-  return !CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kShowAppListShortcut);
+  return !extensions::IsAppLauncherEnabled();
 #endif
 }
 

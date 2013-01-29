@@ -9,7 +9,6 @@
 #include "chrome/browser/extensions/api/bookmark_manager_private/bookmark_manager_private_api.h"
 #include "chrome/browser/extensions/api/browsing_data/browsing_data_api.h"
 #include "chrome/browser/extensions/api/commands/commands.h"
-#include "chrome/browser/extensions/api/extension_action/extension_action_api.h"
 #include "chrome/browser/extensions/api/idle/idle_api.h"
 #include "chrome/browser/extensions/api/managed_mode/managed_mode_api.h"
 #include "chrome/browser/extensions/api/metrics/metrics.h"
@@ -27,14 +26,9 @@
 #include "chrome/browser/rlz/rlz_extension_api.h"
 #include "chrome/common/extensions/api/generated_api.h"
 
-#if defined(TOOLKIT_VIEWS)
-#include "chrome/browser/extensions/api/input/input.h"
-#endif  // defined(TOOLKIT_VIEWS)
-
 #if defined(OS_CHROMEOS)
 #include "chrome/browser/chromeos/extensions/echo_private_api.h"
 #include "chrome/browser/chromeos/extensions/info_private_api.h"
-#include "chrome/browser/chromeos/extensions/input_method_api.h"
 #include "chrome/browser/chromeos/extensions/media_player_api.h"
 #include "chrome/browser/chromeos/extensions/power/power_api.h"
 #include "chrome/browser/chromeos/extensions/wallpaper_private_api.h"
@@ -57,30 +51,6 @@ void ExtensionFunctionRegistry::ResetFunctions() {
 #if defined(ENABLE_EXTENSIONS)
 
   // Register all functions here.
-
-  // Page Actions.
-  RegisterFunction<EnablePageActionsFunction>();
-  RegisterFunction<DisablePageActionsFunction>();
-  RegisterFunction<PageActionShowFunction>();
-  RegisterFunction<PageActionHideFunction>();
-  RegisterFunction<PageActionSetIconFunction>();
-  RegisterFunction<PageActionSetTitleFunction>();
-  RegisterFunction<PageActionSetPopupFunction>();
-  RegisterFunction<PageActionGetTitleFunction>();
-  RegisterFunction<PageActionGetPopupFunction>();
-
-  // Browser Actions.
-  RegisterFunction<extensions::BrowserActionSetIconFunction>();
-  RegisterFunction<extensions::BrowserActionSetTitleFunction>();
-  RegisterFunction<extensions::BrowserActionSetBadgeTextFunction>();
-  RegisterFunction<extensions::BrowserActionSetBadgeBackgroundColorFunction>();
-  RegisterFunction<extensions::BrowserActionSetPopupFunction>();
-  RegisterFunction<extensions::BrowserActionGetTitleFunction>();
-  RegisterFunction<extensions::BrowserActionGetBadgeTextFunction>();
-  RegisterFunction<extensions::BrowserActionGetBadgeBackgroundColorFunction>();
-  RegisterFunction<extensions::BrowserActionGetPopupFunction>();
-  RegisterFunction<extensions::BrowserActionEnableFunction>();
-  RegisterFunction<extensions::BrowserActionDisableFunction>();
 
   // Browsing Data.
   RegisterFunction<RemoveBrowsingDataFunction>();
@@ -150,17 +120,9 @@ void ExtensionFunctionRegistry::ResetFunctions() {
   RegisterFunction<SetAccessibilityEnabledFunction>();
   RegisterFunction<GetAlertsForTabFunction>();
 
-  // Commands.
-  RegisterFunction<GetAllCommandsFunction>();
-
   // Omnibox.
   RegisterFunction<extensions::OmniboxSendSuggestionsFunction>();
   RegisterFunction<extensions::OmniboxSetDefaultSuggestionFunction>();
-
-#if defined(TOOLKIT_VIEWS)
-  // Input.
-  RegisterFunction<extensions::SendKeyboardEventInputFunction>();
-#endif
 
 #if defined(OS_CHROMEOS)
   // Power
@@ -218,9 +180,6 @@ void ExtensionFunctionRegistry::ResetFunctions() {
   RegisterFunction<WallpaperGetThumbnailFunction>();
   RegisterFunction<WallpaperSaveThumbnailFunction>();
   RegisterFunction<WallpaperGetOfflineWallpaperListFunction>();
-
-  // InputMethod
-  RegisterFunction<extensions::GetInputMethodFunction>();
 
   // Echo
   RegisterFunction<GetRegistrationCodeFunction>();

@@ -92,7 +92,7 @@ ShellWindow::CreateParams::CreateParams()
   : window_type(ShellWindow::WINDOW_TYPE_DEFAULT),
     frame(ShellWindow::FRAME_CHROME),
     transparent_background(false),
-    bounds(INT_MIN, INT_MIN, INT_MIN, INT_MIN),
+    bounds(INT_MIN, INT_MIN, 0, 0),
     creator_process_id(0), hidden(false) {
 }
 
@@ -141,9 +141,9 @@ void ShellWindow::Init(const GURL& url,
 
   gfx::Rect bounds = params.bounds;
 
-  if (bounds.width() == INT_MIN)
+  if (bounds.width() == 0)
     bounds.set_width(kDefaultWidth);
-  if (bounds.height() == INT_MIN)
+  if (bounds.height() == 0)
     bounds.set_height(kDefaultHeight);
 
   // If left and top are left undefined, the native shell window will center
@@ -392,7 +392,7 @@ gfx::Image* ShellWindow::GetAppListIcon() {
         *app_icon_.ToSkBitmap(), skia::ImageOperations::RESIZE_BEST,
         extension_misc::EXTENSION_ICON_SMALLISH,
         extension_misc::EXTENSION_ICON_SMALLISH);
-  return new gfx::Image(bmp);
+  return new gfx::Image(gfx::ImageSkia::CreateFrom1xBitmap(bmp));
 }
 
 NativeAppWindow* ShellWindow::GetBaseWindow() {
@@ -462,7 +462,7 @@ void ShellWindow::DidDownloadFavicon(int id,
     largest_index = i;
   }
   const SkBitmap& largest = bitmaps[largest_index];
-  UpdateAppIcon(gfx::Image(largest));
+  UpdateAppIcon(gfx::Image::CreateFrom1xBitmap(largest));
 }
 
 void ShellWindow::UpdateAppIcon(const gfx::Image& image) {

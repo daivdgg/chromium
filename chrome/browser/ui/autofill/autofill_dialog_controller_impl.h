@@ -52,6 +52,7 @@ class AutofillDialogControllerImpl : public AutofillDialogController,
   virtual ~AutofillDialogControllerImpl();
 
   void Show();
+  void Hide();
 
   // AutofillDialogController implementation.
   virtual string16 DialogTitle() const OVERRIDE;
@@ -70,6 +71,7 @@ class AutofillDialogControllerImpl : public AutofillDialogController,
   virtual ui::MenuModel* MenuModelForSection(DialogSection section) OVERRIDE;
   virtual string16 LabelForSection(DialogSection section) const OVERRIDE;
   virtual string16 SuggestionTextForSection(DialogSection section) OVERRIDE;
+  virtual gfx::Image SuggestionIconForSection(DialogSection section) OVERRIDE;
   virtual void EditClickedForSection(DialogSection section) OVERRIDE;
   virtual bool InputIsValid(const DetailInput* input, const string16& value)
       OVERRIDE;

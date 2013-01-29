@@ -35,7 +35,7 @@ class MockTopControlsManagerClient : public TopControlsManagerClient {
     redraw_needed_ = true;
   }
 
-  virtual void setNeedsUpdateDrawProperties() OVERRIDE {
+  virtual void setActiveTreeNeedsUpdateDrawProperties() OVERRIDE {
     update_draw_properties_needed_ = true;
   }
 
@@ -139,6 +139,56 @@ TEST(TopControlsManagerTest, overlayModeDetection) {
   EXPECT_FALSE(manager->is_overlay_mode());
   client.rootScrollLayer()->setScrollDelta(
       client.rootScrollLayer()->scrollDelta() + remaining_scroll);
+}
+
+TEST(TopControlsManagerTest, ensureScrollThresholdApplied) {
+  MockTopControlsManagerClient client;
+  TopControlsManager* manager = client.manager();
+  client.rootScrollLayer()->setScrollOffset(gfx::Vector2d(0, 200));
+
+  manager->ScrollBegin();
+
+  // Scroll down to hide the controls entirely.
+  manager->ScrollBy(gfx::Vector2dF(0.f, 30.f));
+  EXPECT_EQ(-30.f, manager->controls_top_offset());
+  EXPECT_EQ(70.f, manager->content_top_offset());
+  client.rootScrollLayer()->setScrollOffset(gfx::Vector2d(0, 230));
+
+  manager->ScrollBy(gfx::Vector2dF(0.f, 30.f));
+  EXPECT_EQ(-60.f, manager->controls_top_offset());
+  EXPECT_EQ(40.f, manager->content_top_offset());
+  client.rootScrollLayer()->setScrollOffset(gfx::Vector2d(0, 260));
+
+  manager->ScrollBy(gfx::Vector2dF(0.f, 100.f));
+  EXPECT_EQ(-100.f, manager->controls_top_offset());
+  EXPECT_EQ(0.f, manager->content_top_offset());
+  client.rootScrollLayer()->setScrollOffset(gfx::Vector2d(0, 360));
+
+  // Scroll back up a bit and ensure the controls don't move until we cross
+  // the threshold.
+  manager->ScrollBy(gfx::Vector2dF(0.f, -10.f));
+  EXPECT_EQ(-100.f, manager->controls_top_offset());
+  EXPECT_EQ(0.f, manager->content_top_offset());
+  client.rootScrollLayer()->setScrollOffset(gfx::Vector2d(0, 350));
+
+  manager->ScrollBy(gfx::Vector2dF(0.f, -50.f));
+  EXPECT_EQ(-100.f, manager->controls_top_offset());
+  EXPECT_EQ(0.f, manager->content_top_offset());
+  client.rootScrollLayer()->setScrollOffset(gfx::Vector2d(0, 300));
+
+  // After hitting the threshold, further scrolling up should result in the top
+  // controls showing.
+  manager->ScrollBy(gfx::Vector2dF(0.f, -10.f));
+  EXPECT_EQ(-90.f, manager->controls_top_offset());
+  EXPECT_EQ(0.f, manager->content_top_offset());
+  client.rootScrollLayer()->setScrollOffset(gfx::Vector2d(0, 290));
+
+  manager->ScrollBy(gfx::Vector2dF(0.f, -50.f));
+  EXPECT_EQ(-40.f, manager->controls_top_offset());
+  EXPECT_EQ(0.f, manager->content_top_offset());
+  client.rootScrollLayer()->setScrollOffset(gfx::Vector2d(0, 240));
+
+  manager->ScrollEnd();
 }
 
 TEST(TopControlsManagerTest, partialShownHideAnimation) {

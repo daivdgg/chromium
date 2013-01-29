@@ -44,6 +44,12 @@ void BalloonNotificationUIManager::SetBalloonCollection(
   balloon_collection_->set_space_change_listener(this);
 }
 
+bool BalloonNotificationUIManager::DoesIdExist(const std::string& id) {
+  if (NotificationUIManagerImpl::DoesIdExist(id))
+    return true;
+  return balloon_collection_->DoesIdExist(id);
+}
+
 bool BalloonNotificationUIManager::CancelById(const std::string& id) {
   // See if this ID hasn't been shown yet.
   if (NotificationUIManagerImpl::CancelById(id))
@@ -79,7 +85,8 @@ NotificationPrefsManager* BalloonNotificationUIManager::prefs_manager() {
 }
 
 bool BalloonNotificationUIManager::ShowNotification(
-    const Notification& notification, Profile* profile) {
+    const Notification& notification,
+    Profile* profile) {
   if (!balloon_collection_->HasSpace())
     return false;
   balloon_collection_->Add(notification, profile);
@@ -91,7 +98,8 @@ void BalloonNotificationUIManager::OnBalloonSpaceChanged() {
 }
 
 bool BalloonNotificationUIManager::UpdateNotification(
-    const Notification& notification) {
+    const Notification& notification,
+    Profile* profile) {
   const GURL& origin = notification.origin_url();
   const string16& replace_id = notification.replace_id();
 
@@ -101,7 +109,8 @@ bool BalloonNotificationUIManager::UpdateNotification(
       balloon_collection_->GetActiveBalloons();
   for (BalloonCollection::Balloons::const_iterator iter = balloons.begin();
        iter != balloons.end(); ++iter) {
-    if (origin == (*iter)->notification().origin_url() &&
+    if (profile == (*iter)->profile() &&
+        origin == (*iter)->notification().origin_url() &&
         replace_id == (*iter)->notification().replace_id()) {
       (*iter)->Update(notification);
       return true;
@@ -144,4 +153,3 @@ BalloonNotificationUIManager*
   return static_cast<BalloonNotificationUIManager*>(
       g_browser_process->notification_ui_manager());
 }
-

@@ -79,7 +79,6 @@ class ProfileIOData {
 
   // Called by Profile.
   content::ResourceContext* GetResourceContext() const;
-  ChromeURLDataManagerBackend* GetChromeURLDataManagerBackend() const;
 
   // These should only be called at most once each. Ownership is reversed when
   // they get called, from ProfileIOData owning ChromeURLRequestContext to vice
@@ -124,6 +123,14 @@ class ProfileIOData {
 
   BooleanPrefMember* reverse_autologin_enabled() const {
     return &reverse_autologin_enabled_;
+  }
+
+  const std::string& reverse_autologin_pending_email() const {
+    return reverse_autologin_pending_email_;
+  }
+
+  void set_reverse_autologin_pending_email(const std::string& email) {
+    reverse_autologin_pending_email_ = email;
   }
 
   StringListPrefMember* one_click_signin_rejected_email_list() const {
@@ -276,10 +283,6 @@ class ProfileIOData {
   // Called when the profile is destroyed.
   void ShutdownOnUIThread();
 
-  ChromeURLDataManagerBackend* chrome_url_data_manager_backend() const {
-    return chrome_url_data_manager_backend_.get();
-  }
-
   // A ServerBoundCertService object is created by a derived class of
   // ProfileIOData, and the derived class calls this method to set the
   // server_bound_cert_service_ member and transfers ownership to the base
@@ -423,6 +426,11 @@ class ProfileIOData {
   mutable StringPrefMember google_services_username_;
   mutable StringPrefMember google_services_username_pattern_;
   mutable BooleanPrefMember reverse_autologin_enabled_;
+
+  // During the reverse autologin request chain processing, this member saves
+  // the email of the google account that is being signed into.
+  std::string reverse_autologin_pending_email_;
+
   mutable StringListPrefMember one_click_signin_rejected_email_list_;
 
   // Member variables which are pointed to by the various context objects.
@@ -449,8 +457,6 @@ class ProfileIOData {
 
   // Pointed to by URLRequestContext.
   mutable scoped_refptr<ExtensionInfoMap> extension_info_map_;
-  mutable scoped_ptr<ChromeURLDataManagerBackend>
-      chrome_url_data_manager_backend_;
   mutable scoped_ptr<net::ServerBoundCertService> server_bound_cert_service_;
   mutable scoped_ptr<ChromeNetworkDelegate> network_delegate_;
   mutable scoped_ptr<net::FraudulentCertificateReporter>

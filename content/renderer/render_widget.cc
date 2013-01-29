@@ -14,9 +14,13 @@
 #include "base/stl_util.h"
 #include "base/utf_string_conversions.h"
 #include "build/build_config.h"
+#include "cc/layer_tree_host.h"
+#include "cc/thread.h"
+#include "cc/thread_impl.h"
 #include "content/common/swapped_out_messages.h"
 #include "content/common/view_messages.h"
 #include "content/public/common/content_switches.h"
+#include "content/renderer/gpu/compositor_thread.h"
 #include "content/renderer/render_process.h"
 #include "content/renderer/render_thread_impl.h"
 #include "content/renderer/renderer_webkitplatformsupport_impl.h"
@@ -246,10 +250,11 @@ void RenderWidget::CompleteInit() {
 
   init_complete_ = true;
 
-  if (webwidget_) {
-    webwidget_->setCompositorSurfaceReady();
-    if (is_threaded_compositing_enabled_)
-      webwidget_->enterForceCompositingMode(true);
+  if (webwidget_ && is_threaded_compositing_enabled_) {
+    webwidget_->enterForceCompositingMode(true);
+  }
+  if (web_layer_tree_view_) {
+    web_layer_tree_view_->setSurfaceReady();
   }
   DoDeferredUpdate();
 
@@ -610,13 +615,13 @@ void RenderWidget::OnHandleInputEvent(const WebKit::WebInputEvent* input_event,
   std::string name_for_event =
       base::StringPrintf("Event.Latency.Renderer.%s",
                          GetEventName(input_event->type));
-  base::Histogram* counter_for_type =
+  base::HistogramBase* counter_for_type =
       base::Histogram::FactoryTimeGet(
           name_for_event,
           base::TimeDelta::FromMilliseconds(0),
           base::TimeDelta::FromMilliseconds(1000000),
           100,
-          base::Histogram::kUmaTargetedHistogramFlag);
+          base::HistogramBase::kUmaTargetedHistogramFlag);
   counter_for_type->AddTime(base::TimeDelta::FromMicroseconds(delta));
 
   bool prevent_default = false;
@@ -668,10 +673,16 @@ void RenderWidget::OnHandleInputEvent(const WebKit::WebInputEvent* input_event,
       input_event->type == WebInputEvent::MouseMove ||
       input_event->type == WebInputEvent::MouseWheel ||
       WebInputEvent::isTouchEventType(input_event->type);
+
+  bool frame_pending = paint_aggregator_.HasPendingUpdate();
+  if (is_accelerated_compositing_active_) {
+    frame_pending = web_layer_tree_view_ &&
+                    web_layer_tree_view_->commitRequested();
+  }
+
   bool is_input_throttled =
       throttle_input_events_ &&
-      ((webwidget_ ? webwidget_->isInputThrottled() : false) ||
-      paint_aggregator_.HasPendingUpdate());
+      frame_pending;
 
   if (event_type_gets_rate_limited && is_input_throttled && !is_hidden_) {
     // We want to rate limit the input events in this case, so we'll wait for
@@ -902,7 +913,12 @@ void RenderWidget::AnimateIfNeeded() {
     animation_timer_.Start(FROM_HERE, animationInterval, this,
                            &RenderWidget::AnimationCallback);
     animation_update_pending_ = false;
-    webwidget_->animate(0.0);
+    if (is_accelerated_compositing_active_ && web_layer_tree_view_) {
+      web_layer_tree_view_->layer_tree_host()->updateAnimations(
+          base::TimeTicks::Now());
+    } else {
+      webwidget_->animate(0.0);
+    }
     return;
   }
   TRACE_EVENT0("renderer", "EarlyOut_AnimatedTooRecently");
@@ -1129,7 +1145,7 @@ void RenderWidget::DoDeferredUpdate() {
     // If it needs to (e.g. composited UI), the GPU process does its own ACK
     // with the browser for the GPU surface.
     pending_update_params_->needs_ack = false;
-    webwidget_->composite(false);
+    Composite();
   }
 
   // If we're holding a pending input event ACK, send the ACK before sending the
@@ -1139,7 +1155,7 @@ void RenderWidget::DoDeferredUpdate() {
   if (pending_input_event_ack_.get())
     Send(pending_input_event_ack_.release());
 
-  // If composite() called SwapBuffers, pending_update_params_ will be reset (in
+  // If Composite() called SwapBuffers, pending_update_params_ will be reset (in
   // OnSwapBuffersPosted), meaning a message has been added to the
   // updates_pending_swap_ queue, that will be sent later. Otherwise, we send
   // the message now.
@@ -1153,6 +1169,12 @@ void RenderWidget::DoDeferredUpdate() {
   // If we're software rendering then we're done initiating the paint.
   if (!is_accelerated_compositing_active_)
     DidInitiatePaint();
+}
+
+void RenderWidget::Composite() {
+  DCHECK(is_accelerated_compositing_active_);
+  DCHECK(web_layer_tree_view_);
+  web_layer_tree_view_->composite();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1289,6 +1311,33 @@ void RenderWidget::didDeactivateCompositor() {
     webwidget_->enterForceCompositingMode(false);
 }
 
+void RenderWidget::initializeLayerTreeView(
+    WebKit::WebLayerTreeViewClient* client,
+    const WebKit::WebLayer& root_layer,
+    const WebKit::WebLayerTreeView::Settings& settings) {
+  DCHECK(!web_layer_tree_view_);
+  web_layer_tree_view_.reset(new WebKit::WebLayerTreeViewImpl(client));
+
+  scoped_ptr<cc::Thread> impl_thread;
+  CompositorThread* compositor_thread =
+      RenderThreadImpl::current()->compositor_thread();
+  if (compositor_thread)
+    impl_thread = cc::ThreadImpl::createForDifferentThread(
+        compositor_thread->message_loop()->message_loop_proxy());
+  if (!web_layer_tree_view_->initialize(settings, impl_thread.Pass())) {
+    web_layer_tree_view_.reset();
+    return;
+  }
+  web_layer_tree_view_->setRootLayer(root_layer);
+  if (init_complete_) {
+    web_layer_tree_view_->setSurfaceReady();
+  }
+}
+
+WebKit::WebLayerTreeView* RenderWidget::layerTreeView() {
+  return web_layer_tree_view_.get();
+}
+
 void RenderWidget::willBeginCompositorFrame() {
   TRACE_EVENT0("gpu", "RenderWidget::willBeginCompositorFrame");
 
@@ -1350,8 +1399,9 @@ void RenderWidget::didCompleteSwapBuffers() {
 
 void RenderWidget::scheduleComposite() {
   TRACE_EVENT0("gpu", "RenderWidget::scheduleComposite");
-  if (WebWidgetHandlesCompositorScheduling()) {
-    webwidget_->composite(false);
+  if (RenderThreadImpl::current()->compositor_thread() &&
+      web_layer_tree_view_) {
+    web_layer_tree_view_->setNeedsRedraw();
   } else {
     // TODO(nduca): replace with something a little less hacky.  The reason this
     // hack is still used is because the Invalidate-DoDeferredUpdate loop
@@ -1442,6 +1492,8 @@ void RenderWidget::closeWidgetSoon() {
 
 void RenderWidget::Close() {
   if (webwidget_) {
+    webwidget_->willCloseLayerTreeView();
+    web_layer_tree_view_.reset();
     webwidget_->close();
     webwidget_ = NULL;
   }
@@ -1656,7 +1708,8 @@ void RenderWidget::OnRepaint(const gfx::Size& size_to_paint) {
 
   set_next_paint_is_repaint_ack();
   if (is_accelerated_compositing_active_) {
-    webwidget_->setNeedsRedraw();
+    if (web_layer_tree_view_)
+      web_layer_tree_view_->setNeedsRedraw();
     scheduleComposite();
   } else {
     gfx::Rect repaint_rect(size_to_paint.width(), size_to_paint.height());
@@ -1960,6 +2013,19 @@ void RenderWidget::resetInputMethod() {
   UpdateCompositionInfo(range, std::vector<gfx::Rect>());
 }
 
+void RenderWidget::didHandleGestureEvent(
+    const WebGestureEvent& event,
+    bool event_cancelled) {
+#if defined(OS_ANDROID)
+  if (event_cancelled)
+    return;
+  if (event.type == WebInputEvent::GestureTap ||
+      event.type == WebInputEvent::GestureLongPress) {
+    UpdateTextInputState(SHOW_IME_IF_NEEDED);
+  }
+#endif
+}
+
 void RenderWidget::SchedulePluginMove(
     const webkit::npapi::WebPluginGeometry& move) {
   size_t i = 0;
@@ -1990,7 +2056,8 @@ void RenderWidget::CleanupWindowInPluginMoves(gfx::PluginWindowHandle window) {
 
 void RenderWidget::GetRenderingStats(
     WebKit::WebRenderingStatsImpl& stats) const {
-  webwidget()->renderingStats(stats);
+  if (web_layer_tree_view_)
+    web_layer_tree_view_->renderingStats(stats);
 
   stats.rendering_stats.numAnimationFrames +=
       software_stats_.numAnimationFrames;
@@ -2039,10 +2106,6 @@ bool RenderWidget::WillHandleMouseEvent(const WebKit::WebMouseEvent& event) {
 
 bool RenderWidget::WillHandleGestureEvent(
     const WebKit::WebGestureEvent& event) {
-  return false;
-}
-
-bool RenderWidget::WebWidgetHandlesCompositorScheduling() const {
   return false;
 }
 

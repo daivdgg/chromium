@@ -15,6 +15,7 @@
 #include "content/public/renderer/content_renderer_client.h"
 #include "content/renderer/browser_plugin/browser_plugin_bindings.h"
 #include "content/renderer/browser_plugin/browser_plugin_compositing_helper.h"
+#include "content/renderer/browser_plugin/browser_plugin_constants.h"
 #include "content/renderer/browser_plugin/browser_plugin_manager.h"
 #include "content/renderer/render_process_impl.h"
 #include "content/renderer/render_thread_impl.h"
@@ -48,41 +49,6 @@ namespace content {
 
 namespace {
 
-const int INSTANCE_ID_NONE = 0;
-
-// Events.
-const char kEventExit[] = "exit";
-const char kEventLoadAbort[] = "loadabort";
-const char kEventLoadCommit[] = "loadcommit";
-const char kEventLoadRedirect[] = "loadredirect";
-const char kEventLoadStart[] = "loadstart";
-const char kEventLoadStop[] = "loadstop";
-const char kEventResponsive[] = "responsive";
-const char kEventSizeChanged[] = "sizechanged";
-const char kEventUnresponsive[] = "unresponsive";
-
-// Parameters/properties on events.
-const char kIsTopLevel[] = "isTopLevel";
-const char kName[] = "name";
-const char kNewURL[] = "newUrl";
-const char kNewHeight[] = "newHeight";
-const char kNewWidth[] = "newWidth";
-const char kOldURL[] = "oldUrl";
-const char kOldHeight[] = "oldHeight";
-const char kOldWidth[] = "oldWidth";
-const char kPartition[] = "partition";
-const char kPersistPrefix[] = "persist:";
-const char kProcessId[] = "processId";
-const char kReason[] = "reason";
-const char kSrc[] = "src";
-const char kURL[] = "url";
-
-// Error messages.
-const char kErrorAlreadyNavigated[] =
-    "The object has already navigated, so its partition cannot be changed.";
-const char kErrorInvalidPartition[] =
-    "Invalid partition attribute.";
-
 static std::string TerminationStatusToString(base::TerminationStatus status) {
   switch (status) {
     case base::TERMINATION_STATUS_NORMAL_TERMINATION:
@@ -104,13 +70,13 @@ static std::string TerminationStatusToString(base::TerminationStatus status) {
 static std::string GetInternalEventName(const char* event_name) {
   return base::StringPrintf("-internal-%s", event_name);
 }
-}
+}  // namespace
 
 BrowserPlugin::BrowserPlugin(
     RenderViewImpl* render_view,
     WebKit::WebFrame* frame,
     const WebPluginParams& params)
-    : instance_id_(INSTANCE_ID_NONE),
+    : instance_id_(browser_plugin::kInstanceIDNone),
       render_view_(render_view->AsWeakPtr()),
       render_view_routing_id_(render_view->GetRoutingID()),
       container_(NULL),
@@ -120,11 +86,13 @@ BrowserPlugin::BrowserPlugin(
       guest_crashed_(false),
       navigate_src_sent_(false),
       auto_size_(false),
+      auto_size_ack_pending_(false),
       max_height_(0),
       max_width_(0),
       min_height_(0),
       min_width_(0),
-      process_id_(-1),
+      guest_process_id_(-1),
+      guest_route_id_(-1),
       persist_storage_(false),
       valid_partition_id_(true),
       content_window_routing_id_(MSG_ROUTING_NONE),
@@ -218,7 +186,7 @@ void BrowserPlugin::SetNameAttribute(const std::string& name) {
 bool BrowserPlugin::SetSrcAttribute(const std::string& src,
                                     std::string* error_message) {
   if (!valid_partition_id_) {
-    *error_message = kErrorInvalidPartition;
+    *error_message = browser_plugin::kErrorInvalidPartition;
     return false;
   }
 
@@ -259,6 +227,7 @@ void BrowserPlugin::SetAutoSizeAttribute(bool auto_size) {
   if (auto_size_ == auto_size)
     return;
   auto_size_ = auto_size;
+  auto_size_ack_pending_ = true;
   last_view_size_ = plugin_rect_.size();
   UpdateGuestAutoSizeState();
 }
@@ -298,11 +267,15 @@ void BrowserPlugin::SizeChangedDueToAutoSize(const gfx::Size& old_view_size) {
   size_changed_in_flight_ = false;
 
   std::map<std::string, base::Value*> props;
-  props[kOldHeight] = base::Value::CreateIntegerValue(old_view_size.height());
-  props[kOldWidth] = base::Value::CreateIntegerValue(old_view_size.width());
-  props[kNewHeight] = base::Value::CreateIntegerValue(last_view_size_.height());
-  props[kNewWidth] = base::Value::CreateIntegerValue(last_view_size_.width());
-  TriggerEvent(kEventSizeChanged, &props);
+  props[browser_plugin::kOldHeight] =
+      base::Value::CreateIntegerValue(old_view_size.height());
+  props[browser_plugin::kOldWidth] =
+      base::Value::CreateIntegerValue(old_view_size.width());
+  props[browser_plugin::kNewHeight] =
+      base::Value::CreateIntegerValue(last_view_size_.height());
+  props[browser_plugin::kNewWidth] =
+      base::Value::CreateIntegerValue(last_view_size_.width());
+  TriggerEvent(browser_plugin::kEventSizeChanged, &props);
 }
 
 // static
@@ -319,7 +292,7 @@ bool BrowserPlugin::UsesPendingDamageBuffer(
 }
 
 void BrowserPlugin::SetInstanceID(int instance_id) {
-  CHECK(instance_id != INSTANCE_ID_NONE);
+  CHECK(instance_id != browser_plugin::kInstanceIDNone);
   instance_id_ = instance_id;
   browser_plugin_manager()->AddBrowserPlugin(instance_id, this);
 
@@ -375,14 +348,16 @@ void BrowserPlugin::OnGuestGone(int instance_id, int process_id, int status) {
   std::string termination_status = TerminationStatusToString(
       static_cast<base::TerminationStatus>(status));
   std::map<std::string, base::Value*> props;
-  props[kProcessId] = base::Value::CreateIntegerValue(process_id);
-  props[kReason] = base::Value::CreateStringValue(termination_status);
+  props[browser_plugin::kProcessId] =
+      base::Value::CreateIntegerValue(process_id);
+  props[browser_plugin::kReason] =
+      base::Value::CreateStringValue(termination_status);
 
   // Event listeners may remove the BrowserPlugin from the document. If that
   // happens, the BrowserPlugin will be scheduled for later deletion (see
   // BrowserPlugin::destroy()). That will clear the container_ reference,
   // but leave other member variables valid below.
-  TriggerEvent(kEventExit, &props);
+  TriggerEvent(browser_plugin::kEventExit, &props);
 
   guest_crashed_ = true;
   // We won't paint the contents of the current backing store again so we might
@@ -392,18 +367,22 @@ void BrowserPlugin::OnGuestGone(int instance_id, int process_id, int status) {
   // NULL so we shouldn't attempt to access it.
   if (container_)
     container_->invalidate();
+  // Turn off compositing so we can display the sad graphic.
+  EnableCompositing(false);
 }
 
 void BrowserPlugin::OnGuestResponsive(int instance_id, int process_id) {
   std::map<std::string, base::Value*> props;
-  props[kProcessId] = base::Value::CreateIntegerValue(process_id);
-  TriggerEvent(kEventResponsive, &props);
+  props[browser_plugin::kProcessId] =
+      base::Value::CreateIntegerValue(process_id);
+  TriggerEvent(browser_plugin::kEventResponsive, &props);
 }
 
 void BrowserPlugin::OnGuestUnresponsive(int instance_id, int process_id) {
   std::map<std::string, base::Value*> props;
-  props[kProcessId] = base::Value::CreateIntegerValue(process_id);
-  TriggerEvent(kEventUnresponsive, &props);
+  props[browser_plugin::kProcessId] =
+      base::Value::CreateIntegerValue(process_id);
+  TriggerEvent(browser_plugin::kEventUnresponsive, &props);
 }
 
 void BrowserPlugin::OnLoadAbort(int instance_id,
@@ -411,10 +390,11 @@ void BrowserPlugin::OnLoadAbort(int instance_id,
                                 bool is_top_level,
                                 const std::string& type) {
   std::map<std::string, base::Value*> props;
-  props[kURL] = base::Value::CreateStringValue(url.spec());
-  props[kIsTopLevel] = base::Value::CreateBooleanValue(is_top_level);
-  props[kReason] = base::Value::CreateStringValue(type);
-  TriggerEvent(kEventLoadAbort, &props);
+  props[browser_plugin::kURL] = base::Value::CreateStringValue(url.spec());
+  props[browser_plugin::kIsTopLevel] =
+      base::Value::CreateBooleanValue(is_top_level);
+  props[browser_plugin::kReason] = base::Value::CreateStringValue(type);
+  TriggerEvent(browser_plugin::kEventLoadAbort, &props);
 }
 
 void BrowserPlugin::OnLoadCommit(
@@ -425,16 +405,19 @@ void BrowserPlugin::OnLoadCommit(
   guest_crashed_ = false;
   if (params.is_top_level) {
     src_ = params.url.spec();
-    UpdateDOMAttribute(kSrc, src_.c_str());
+    UpdateDOMAttribute(browser_plugin::kAttributeSrc, src_.c_str());
   }
-  process_id_ = params.process_id;
+  guest_process_id_ = params.process_id;
+  guest_route_id_ = params.route_id;
   current_nav_entry_index_ = params.current_entry_index;
   nav_entry_count_ = params.entry_count;
 
   std::map<std::string, base::Value*> props;
-  props[kURL] = base::Value::CreateStringValue(params.url.spec());
-  props[kIsTopLevel] = base::Value::CreateBooleanValue(params.is_top_level);
-  TriggerEvent(kEventLoadCommit, &props);
+  props[browser_plugin::kURL] =
+      base::Value::CreateStringValue(params.url.spec());
+  props[browser_plugin::kIsTopLevel] =
+      base::Value::CreateBooleanValue(params.is_top_level);
+  TriggerEvent(browser_plugin::kEventLoadCommit, &props);
 }
 
 void BrowserPlugin::OnLoadRedirect(int instance_id,
@@ -442,24 +425,29 @@ void BrowserPlugin::OnLoadRedirect(int instance_id,
                                    const GURL& new_url,
                                    bool is_top_level) {
   std::map<std::string, base::Value*> props;
-  props[kOldURL] = base::Value::CreateStringValue(old_url.spec());
-  props[kNewURL] = base::Value::CreateStringValue(new_url.spec());
-  props[kIsTopLevel] = base::Value::CreateBooleanValue(is_top_level);
-  TriggerEvent(kEventLoadRedirect, &props);
+  props[browser_plugin::kOldURL] =
+      base::Value::CreateStringValue(old_url.spec());
+  props[browser_plugin::kNewURL] =
+      base::Value::CreateStringValue(new_url.spec());
+  props[browser_plugin::kIsTopLevel] =
+      base::Value::CreateBooleanValue(is_top_level);
+  TriggerEvent(browser_plugin::kEventLoadRedirect, &props);
 }
 
 void BrowserPlugin::OnLoadStart(int instance_id,
                                 const GURL& url,
                                 bool is_top_level) {
   std::map<std::string, base::Value*> props;
-  props[kURL] = base::Value::CreateStringValue(url.spec());
-  props[kIsTopLevel] = base::Value::CreateBooleanValue(is_top_level);
+  props[browser_plugin::kURL] =
+      base::Value::CreateStringValue(url.spec());
+  props[browser_plugin::kIsTopLevel] =
+      base::Value::CreateBooleanValue(is_top_level);
 
-  TriggerEvent(kEventLoadStart, &props);
+  TriggerEvent(browser_plugin::kEventLoadStart, &props);
 }
 
 void BrowserPlugin::OnLoadStop(int instance_id) {
-  TriggerEvent(kEventLoadStop, NULL);
+  TriggerEvent(browser_plugin::kEventLoadStop, NULL);
 }
 
 void BrowserPlugin::OnSetCursor(int instance_id, const WebCursor& cursor) {
@@ -476,7 +464,7 @@ void BrowserPlugin::OnShouldAcceptTouchEvents(int instance_id, bool accept) {
 
 void BrowserPlugin::OnUpdatedName(int instance_id, const std::string& name) {
   name_ = name;
-  UpdateDOMAttribute(kName, name);
+  UpdateDOMAttribute(browser_plugin::kAttributeName, name);
 }
 
 void BrowserPlugin::OnUpdateRect(
@@ -494,8 +482,15 @@ void BrowserPlugin::OnUpdateRect(
     use_new_damage_buffer = true;
   }
 
-  if (params.is_resize_ack || !UsesDamageBuffer(params))
+  // We receive a resize ACK in regular mode, but not in autosize.
+  // In SW, |resize_ack_received_| is reset in SwapDamageBuffers().
+  // in HW mode, we need to do it here so we can continue sending
+  // resize messages when needed.
+  if (params.is_resize_ack ||
+      (!params.needs_ack && (auto_size_ || auto_size_ack_pending_)))
     resize_ack_received_ = true;
+
+  auto_size_ack_pending_ = false;
 
   if ((!auto_size_ &&
        (width() != params.view_size.width() ||
@@ -647,7 +642,7 @@ NPObject* BrowserPlugin::GetContentWindow() const {
 std::string BrowserPlugin::GetPartitionAttribute() const {
   std::string value;
   if (persist_storage_)
-    value.append(kPersistPrefix);
+    value.append(browser_plugin::kPersistPrefix);
 
   value.append(storage_partition_id_);
   return value;
@@ -664,8 +659,8 @@ bool BrowserPlugin::CanGoForward() const {
 
 bool BrowserPlugin::SetPartitionAttribute(const std::string& partition_id,
                                           std::string* error_message) {
-  if (navigate_src_sent_) {
-    *error_message = kErrorAlreadyNavigated;
+  if (allocate_instance_id_sent_) {
+    *error_message = browser_plugin::kErrorAlreadyNavigated;
     return false;
   }
 
@@ -675,14 +670,14 @@ bool BrowserPlugin::SetPartitionAttribute(const std::string& partition_id,
   // UTF-8 encoded |partition_id|. If the prefix is a match, we can safely
   // remove the prefix without splicing in the middle of a multi-byte codepoint.
   // We can use the rest of the string as UTF-8 encoded one.
-  if (StartsWithASCII(input, kPersistPrefix, true)) {
+  if (StartsWithASCII(input, browser_plugin::kPersistPrefix, true)) {
     size_t index = input.find(":");
     CHECK(index != std::string::npos);
     // It is safe to do index + 1, since we tested for the full prefix above.
     input = input.substr(index + 1);
     if (input.empty()) {
       valid_partition_id_ = false;
-      *error_message = kErrorInvalidPartition;
+      *error_message = browser_plugin::kErrorInvalidPartition;
       return false;
     }
     persist_storage_ = true;
@@ -697,17 +692,44 @@ bool BrowserPlugin::SetPartitionAttribute(const std::string& partition_id,
 
 void BrowserPlugin::ParseAttributes(const WebKit::WebPluginParams& params) {
   std::string src;
-
   // Get the src attribute from the attributes vector
   for (unsigned i = 0; i < params.attributeNames.size(); ++i) {
+    // Note: attibuteName will always be lowercase, even if the html used caps.
     std::string attributeName = params.attributeNames[i].utf8();
-    if (LowerCaseEqualsASCII(attributeName, kSrc)) {
-      src = params.attributeValues[i].utf8();
-    } else if (LowerCaseEqualsASCII(attributeName, kPartition)) {
+    std::string attributeStringValue = params.attributeValues[i].utf8();
+    if (LowerCaseEqualsASCII(
+        browser_plugin::kAttributeSrc, attributeName.c_str())) {
+      src = attributeStringValue;
+    } else if (LowerCaseEqualsASCII(
+        browser_plugin::kAttributePartition, attributeName.c_str())) {
+      // TODO(mthiesse): Handle errors here?
       std::string error;
-      SetPartitionAttribute(params.attributeValues[i].utf8(), &error);
-    } else if (LowerCaseEqualsASCII(attributeName, kName)) {
-      SetNameAttribute(params.attributeValues[i].utf8());
+      SetPartitionAttribute(attributeStringValue, &error);
+    } else if (LowerCaseEqualsASCII(
+        browser_plugin::kAttributeName, attributeName.c_str())) {
+      SetNameAttribute(attributeStringValue);
+    } else if (LowerCaseEqualsASCII(
+        browser_plugin::kAttributeAutoSize, attributeName.c_str())) {
+      SetAutoSizeAttribute(
+          LowerCaseEqualsASCII(attributeStringValue, "true"));
+    } else {
+      // Remaining attributes are all integer values, so we may as well parse
+      // the integer up front.
+      int attributeIntValue;
+      base::StringToInt(attributeStringValue.data(), &attributeIntValue);
+      if (LowerCaseEqualsASCII(
+          browser_plugin::kAttributeMaxHeight, attributeName.c_str())) {
+        SetMaxHeightAttribute(attributeIntValue);
+      } else if (LowerCaseEqualsASCII(
+          browser_plugin::kAttributeMaxWidth, attributeName.c_str())) {
+        SetMaxWidthAttribute(attributeIntValue);
+      } else if (LowerCaseEqualsASCII(
+          browser_plugin::kAttributeMinHeight, attributeName.c_str())) {
+        SetMinHeightAttribute(attributeIntValue);
+      } else if (LowerCaseEqualsASCII(
+          browser_plugin::kAttributeMinWidth, attributeName.c_str())) {
+        SetMinWidthAttribute(attributeIntValue);
+      }
     }
   }
 
@@ -936,10 +958,6 @@ void BrowserPlugin::updateGeometry(
   int old_width = width();
   int old_height = height();
   plugin_rect_ = window_rect;
-  if (compositing_helper_) {
-    compositing_helper_->SetContainerSize(gfx::Size(window_rect.width,
-                                                    window_rect.height));
-  }
   // In AutoSize mode, guests don't care when the BrowserPlugin container is
   // resized. If |!resize_ack_received_|, then we are still waiting on a
   // previous resize to be ACK'ed and so we don't issue additional resizes

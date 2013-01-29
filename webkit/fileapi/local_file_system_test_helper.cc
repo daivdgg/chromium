@@ -8,6 +8,7 @@
 #include "base/message_loop.h"
 #include "base/message_loop_proxy.h"
 #include "googleurl/src/gurl.h"
+#include "webkit/fileapi/external_mount_points.h"
 #include "webkit/fileapi/file_system_context.h"
 #include "webkit/fileapi/file_system_operation_context.h"
 #include "webkit/fileapi/file_system_task_runners.h"
@@ -37,23 +38,20 @@ LocalFileSystemTestOriginHelper::LocalFileSystemTestOriginHelper()
 LocalFileSystemTestOriginHelper::~LocalFileSystemTestOriginHelper() {
 }
 
-void LocalFileSystemTestOriginHelper::SetUp(
-    const FilePath& base_dir, FileSystemFileUtil* file_util) {
-  SetUp(base_dir, false, NULL, file_util);
+void LocalFileSystemTestOriginHelper::SetUp(const FilePath& base_dir) {
+  SetUp(base_dir, false, NULL);
 }
 
 void LocalFileSystemTestOriginHelper::SetUp(
-    FileSystemContext* file_system_context, FileSystemFileUtil* file_util) {
-  file_util_ = file_util;
+    FileSystemContext* file_system_context) {
   file_system_context_ = file_system_context;
-  if (!file_util_)
-    file_util_ = file_system_context->GetFileUtil(type_);
-  DCHECK(file_util_);
+
+  SetUpFileUtil();
 
   // Prepare the origin's root directory.
   file_system_context_->GetMountPointProvider(type_)->
-      GetFileSystemRootPathOnFileThread(
-          FileSystemURL(origin_, type_, FilePath()), true /* create */);
+      GetFileSystemRootPathOnFileThread(CreateURL(FilePath()),
+                                        true /* create */);
 
   // Initialize the usage cache file.
   FilePath usage_cache_path = GetUsageCachePath();
@@ -64,38 +62,25 @@ void LocalFileSystemTestOriginHelper::SetUp(
 void LocalFileSystemTestOriginHelper::SetUp(
     const FilePath& base_dir,
     bool unlimited_quota,
-    quota::QuotaManagerProxy* quota_manager_proxy,
-    FileSystemFileUtil* file_util) {
+    quota::QuotaManagerProxy* quota_manager_proxy) {
   scoped_refptr<quota::MockSpecialStoragePolicy> special_storage_policy =
       new quota::MockSpecialStoragePolicy;
   special_storage_policy->SetAllUnlimited(unlimited_quota);
   file_system_context_ = new FileSystemContext(
       FileSystemTaskRunners::CreateMockTaskRunners(),
+      ExternalMountPoints::CreateRefCounted().get(),
       special_storage_policy,
       quota_manager_proxy,
       base_dir,
       CreateAllowFileAccessOptions());
 
-  if (type_ == kFileSystemTypeTest) {
-    file_system_context_->RegisterMountPointProvider(
-        type_,
-        new TestMountPointProvider(
-            file_system_context_->task_runners()->file_task_runner(),
-            base_dir));
-  }
+  SetUpFileUtil();
 
   // Prepare the origin's root directory.
   FileSystemMountPointProvider* mount_point_provider =
       file_system_context_->GetMountPointProvider(type_);
-  mount_point_provider->GetFileSystemRootPathOnFileThread(
-     FileSystemURL(origin_, type_, FilePath()), true /* create */);
-
-  if (file_util)
-    file_util_ = file_util;
-  else
-    file_util_ = mount_point_provider->GetFileUtil(type_);
-
-  DCHECK(file_util_);
+  mount_point_provider->GetFileSystemRootPathOnFileThread(CreateURL(FilePath()),
+                                                          true /* create */);
 
   // Initialize the usage cache file.
   FilePath usage_cache_path = GetUsageCachePath();
@@ -110,8 +95,7 @@ void LocalFileSystemTestOriginHelper::TearDown() {
 
 FilePath LocalFileSystemTestOriginHelper::GetOriginRootPath() const {
   return file_system_context_->GetMountPointProvider(type_)->
-      GetFileSystemRootPathOnFileThread(
-          FileSystemURL(origin_, type_, FilePath()), false);
+      GetFileSystemRootPathOnFileThread(CreateURL(FilePath()), false);
 }
 
 FilePath LocalFileSystemTestOriginHelper::GetLocalPath(const FilePath& path) {
@@ -137,7 +121,7 @@ FilePath LocalFileSystemTestOriginHelper::GetUsageCachePath() const {
 
 FileSystemURL LocalFileSystemTestOriginHelper::CreateURL(const FilePath& path)
     const {
-  return FileSystemURL(origin_, type_, path);
+  return file_system_context_->CreateCrackedFileSystemURL(origin_, type_, path);
 }
 
 base::PlatformFileError LocalFileSystemTestOriginHelper::SameFileUtilCopy(
@@ -180,7 +164,6 @@ LocalFileSystemOperation* LocalFileSystemTestOriginHelper::NewOperation() {
   LocalFileSystemOperation* operation = static_cast<LocalFileSystemOperation*>(
       file_system_context_->CreateFileSystemOperation(
           CreateURL(FilePath()), NULL));
-  operation->set_override_file_util(file_util_);
   return operation;
 }
 
@@ -192,6 +175,19 @@ LocalFileSystemTestOriginHelper::NewOperationContext() {
   context->set_update_observers(
       *file_system_context_->GetUpdateObservers(type_));
   return context;
+}
+
+void LocalFileSystemTestOriginHelper::SetUpFileUtil() {
+  DCHECK(file_system_context_);
+  if (type_ == kFileSystemTypeTest) {
+    file_system_context_->RegisterMountPointProvider(
+        type_,
+        new TestMountPointProvider(
+            file_system_context_->task_runners()->file_task_runner(),
+            file_system_context_->partition_path()));
+  }
+  file_util_ = file_system_context_->GetFileUtil(type_);
+  DCHECK(file_util_);
 }
 
 }  // namespace fileapi

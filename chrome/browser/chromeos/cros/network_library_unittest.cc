@@ -321,10 +321,10 @@ TEST_F(NetworkLibraryStubTest, NetworkConnectWifiWithCertPattern) {
   scoped_ptr<base::DictionaryValue> onc_root =
       onc::test_utils::ReadTestDictionary("toplevel_wifi_eap_clientcert.onc");
   base::ListValue* certificates;
-  onc_root->GetListWithoutPathExpansion(onc::kCertificates, &certificates);
+  onc_root->GetListWithoutPathExpansion(onc::toplevel_config::kCertificates,
+                                        &certificates);
 
-  onc::CertificateImporter importer(onc::ONC_SOURCE_USER_IMPORT,
-                                    false /* don't allow webtrust */);
+  onc::CertificateImporter importer(true /* allow webtrust */);
   ASSERT_EQ(onc::CertificateImporter::IMPORT_OK,
             importer.ParseAndStoreCertificates(*certificates));
 
@@ -350,10 +350,10 @@ TEST_F(NetworkLibraryStubTest, NetworkConnectVPNWithCertPattern) {
   scoped_ptr<base::DictionaryValue> onc_root =
       onc::test_utils::ReadTestDictionary("toplevel_openvpn_clientcert.onc");
   base::ListValue* certificates;
-  onc_root->GetListWithoutPathExpansion(onc::kCertificates, &certificates);
+  onc_root->GetListWithoutPathExpansion(onc::toplevel_config::kCertificates,
+                                        &certificates);
 
-  onc::CertificateImporter importer(onc::ONC_SOURCE_USER_IMPORT,
-                                    false /* don't allow webtrust */);
+  onc::CertificateImporter importer(true /* allow webtrust */);
   ASSERT_EQ(onc::CertificateImporter::IMPORT_OK,
             importer.ParseAndStoreCertificates(*certificates));
 
@@ -442,7 +442,8 @@ TEST_P(LoadOncNetworksTest, VerifyNetworksAndCertificates) {
   scoped_ptr<base::DictionaryValue> onc_dict =
       onc::test_utils::ReadTestDictionary(GetParam().onc_file);
   base::ListValue* onc_certs;
-  onc_dict->GetListWithoutPathExpansion(onc::kCertificates, &onc_certs);
+  onc_dict->GetListWithoutPathExpansion(onc::toplevel_config::kCertificates,
+                                        &onc_certs);
 
   EXPECT_EQ(onc_certs->GetSize(),
             ListCertsInSlot(slot_->os_module_handle()).size());

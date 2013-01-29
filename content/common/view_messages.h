@@ -314,7 +314,7 @@ IPC_STRUCT_BEGIN(ViewHostMsg_CreateWindow_Params)
   IPC_STRUCT_MEMBER(GURL, opener_url)
 
   // The security origin of the frame initiating the open.
-  IPC_STRUCT_MEMBER(std::string, opener_security_origin)
+  IPC_STRUCT_MEMBER(GURL, opener_security_origin)
 
   // Whether the opener will be suppressed in the new window, in which case
   // scripting the new window is not allowed.
@@ -644,6 +644,9 @@ IPC_STRUCT_BEGIN(ViewMsg_Navigate_Params)
   // Whether or not this url should be allowed to access local file://
   // resources.
   IPC_STRUCT_MEMBER(bool, can_load_local_resources)
+
+  // If not empty, which frame to navigate.
+  IPC_STRUCT_MEMBER(std::string, frame_to_navigate)
 IPC_STRUCT_END()
 
 // Parameters for an OpenURL request.

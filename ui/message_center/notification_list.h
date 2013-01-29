@@ -13,6 +13,7 @@
 #include "base/time.h"
 #include "base/timer.h"
 #include "ui/gfx/image/image_skia.h"
+#include "ui/gfx/native_widget_types.h"
 #include "ui/message_center/message_center_export.h"
 #include "ui/notifications/notification_types.h"
 
@@ -48,16 +49,15 @@ class MESSAGE_CENTER_EXPORT NotificationList {
     int priority;
     base::Time timestamp;
     int unread_count;
-    string16 button_one_title;
-    string16 button_two_title;
+    std::vector<string16> button_titles;
     string16 expanded_message;
     std::vector<NotificationItem> items;
     // End unpacked values
 
     // Images fetched asynchronously
     gfx::ImageSkia primary_icon;
-    gfx::ImageSkia secondary_icon;
     gfx::ImageSkia image;
+    std::vector<gfx::ImageSkia> button_icons;
 
     bool is_read;  // True if this has been seen in the message center
     bool shown_as_popup;  // True if this has been shown as a popup notification
@@ -78,8 +78,11 @@ class MESSAGE_CENTER_EXPORT NotificationList {
     virtual void DisableNotificationByExtension(const std::string& id) = 0;
     virtual void DisableNotificationByUrl(const std::string& id) = 0;
 
-    // Requests the Delegate to the settings dialog.
+    // Requests the Delegate to show the settings page.
     virtual void ShowNotificationSettings(const std::string& id) = 0;
+
+    // Requests the Delegate to show the settings dialog.
+    virtual void ShowNotificationSettingsDialog(gfx::NativeView context) = 0;
 
     // Called when a notification is clicked on.
     virtual void OnNotificationClicked(const std::string& id) = 0;
@@ -126,15 +129,17 @@ class MESSAGE_CENTER_EXPORT NotificationList {
   void SendRemoveNotificationsByExtension(const std::string& id);
 
   // Returns true if the notification exists and was updated.
-  bool SetNotificationPrimaryIcon(const std::string& id,
-                                  const gfx::ImageSkia& image);
+  bool SetNotificationIcon(const std::string& notification_id,
+                           const gfx::ImageSkia& image);
 
   // Returns true if the notification exists and was updated.
-  bool SetNotificationSecondaryIcon(const std::string& id,
-                                    const gfx::ImageSkia& image);
+  bool SetNotificationImage(const std::string& notification_id,
+                            const gfx::ImageSkia& image);
 
-  // Returns true if the notification exists and was updated.
-  bool SetNotificationImage(const std::string& id, const gfx::ImageSkia& image);
+  // Returns true if the notification and button exist and were updated.
+  bool SetNotificationButtonIcon(const std::string& notification_id,
+                                 int button_index,
+                                 const gfx::ImageSkia& image);
 
   bool HasNotification(const std::string& id);
 

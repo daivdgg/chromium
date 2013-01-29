@@ -5,6 +5,7 @@
 #include "chrome/browser/sync_file_system/drive_metadata_store.h"
 
 #include <utility>
+#include <vector>
 
 #include "base/bind.h"
 #include "base/callback.h"
@@ -122,6 +123,16 @@ std::string CreateKeyForBatchSyncOrigin(const GURL& origin) {
 std::string CreateKeyForIncrementalSyncOrigin(const GURL& origin) {
   DCHECK(origin.is_valid());
   return kDriveIncrementalSyncOriginKeyPrefix + origin.spec();
+}
+
+void AddOriginsToVector(std::vector<GURL>* all_origins,
+                        const DriveMetadataStore::ResourceIDMap& resource_map) {
+  typedef DriveMetadataStore::ResourceIDMap::const_iterator itr;
+  for (std::map<GURL, std::string>::const_iterator itr = resource_map.begin();
+       itr != resource_map.end();
+       ++itr) {
+    all_origins->push_back(itr->first);
+  }
 }
 
 }  // namespace
@@ -267,6 +278,7 @@ void DriveMetadataStore::UpdateEntry(
     const fileapi::SyncStatusCallback& callback) {
   DCHECK(CalledOnValidThread());
   DCHECK_EQ(fileapi::SYNC_STATUS_OK, db_status_);
+  DCHECK(!metadata.conflicted() || !metadata.to_be_fetched());
 
   std::pair<PathToMetadata::iterator, bool> result =
       metadata_map_[url.origin()].insert(std::make_pair(url.path(), metadata));
@@ -486,6 +498,13 @@ std::string DriveMetadataStore::GetResourceIdForOrigin(
 
   NOTREACHED();
   return std::string();
+}
+
+void DriveMetadataStore::GetAllOrigins(std::vector<GURL>* origins) {
+  origins->reserve(batch_sync_origins_.size() +
+                   incremental_sync_origins_.size());
+  AddOriginsToVector(origins, batch_sync_origins_);
+  AddOriginsToVector(origins, incremental_sync_origins_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

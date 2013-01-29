@@ -27,7 +27,7 @@ namespace {
 const double contextRecreationTickRate = 0.03;
 
 // Measured in seconds.
-const double smoothnessTakesPriorityExpirationDelay = 0.5;
+const double smoothnessTakesPriorityExpirationDelay = 0.25;
 
 }  // namespace
 
@@ -305,6 +305,15 @@ void ThreadProxy::didLoseOutputSurfaceOnImplThread()
 {
     DCHECK(isImplThread());
     TRACE_EVENT0("cc", "ThreadProxy::didLoseOutputSurfaceOnImplThread");
+    Proxy::implThread()->postTask(base::Bind(&ThreadProxy::checkOutputSurfaceStatusOnImplThread, m_implThreadWeakPtr));
+}
+
+void ThreadProxy::checkOutputSurfaceStatusOnImplThread()
+{
+    DCHECK(isImplThread());
+    TRACE_EVENT0("cc", "ThreadProxy::checkOutputSurfaceStatusOnImplThread");
+    if (!m_layerTreeHostImpl->isContextLost())
+        return;
     m_schedulerOnImplThread->didLoseOutputSurface();
 }
 
@@ -847,6 +856,11 @@ ScheduledActionDrawAndSwapResult ThreadProxy::scheduledActionDrawAndSwapInternal
         Proxy::mainThread()->postTask(base::Bind(&ThreadProxy::didCommitAndDrawFrame, m_mainThreadWeakPtr));
     }
 
+    if (drawFrame)
+        checkOutputSurfaceStatusOnImplThread();
+
+    m_layerTreeHostImpl->beginNextFrame();
+
     return result;
 }
 
@@ -1131,6 +1145,14 @@ void ThreadProxy::renewTreePriority()
         priority = NEW_CONTENT_TAKES_PRIORITY;
 
     m_layerTreeHostImpl->setTreePriority(priority);
+
+    // Notify the the client of this compositor via the output surface.
+    // TODO(epenner): Route this to compositor-thread instead of output-surface
+    // after GTFO refactor of compositor-thread (http://crbug/170828).
+    if (m_layerTreeHostImpl->outputSurface()) {
+        m_layerTreeHostImpl->outputSurface()->UpdateSmoothnessTakesPriority(
+            priority == SMOOTHNESS_TAKES_PRIORITY);
+    }
 
     // Need to make sure a delayed task is posted when we have smoothness
     // takes priority expiration time in the future.

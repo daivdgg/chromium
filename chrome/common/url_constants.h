@@ -79,6 +79,7 @@ extern const char kChromeUIWelcomeURL[];
 
 #if defined(OS_CHROMEOS)
 extern const char kChromeUIActivationMessage[];
+extern const char kChromeUIBluetoothPairingURL[];
 extern const char kChromeUIChooseMobileNetworkURL[];
 extern const char kChromeUIDiagnosticsURL[];
 extern const char kChromeUIDiscardsURL[];
@@ -132,7 +133,6 @@ extern const char kChromeUICrashesHost[];
 extern const char kChromeUICrashHost[];
 extern const char kChromeUICreditsHost[];
 extern const char kChromeUIDefaultHost[];
-extern const char kChromeUIDevToolsHost[];
 extern const char kChromeUIDNSHost[];
 extern const char kChromeUIDownloadsHost[];
 extern const char kChromeUIDriveInternalsHost[];
@@ -161,6 +161,7 @@ extern const char kChromeUIKillHost[];
 extern const char kChromeUILocalOmniboxPopupHost[];
 extern const char kChromeUIMediaInternalsHost[];
 extern const char kChromeUIMemoryHost[];
+extern const char kChromeUIMemoryInternalsHost[];
 extern const char kChromeUIMemoryRedirectHost[];
 extern const char kChromeUIMetroFlowHost[];
 extern const char kChromeUINaClHost[];
@@ -174,7 +175,6 @@ extern const char kChromeUIPredictorsHost[];
 extern const char kChromeUIPrintHost[];
 extern const char kChromeUIProfilerHost[];
 extern const char kChromeUIQuotaInternalsHost[];
-extern const char kChromeUIResourcesHost[];
 extern const char kChromeUISessionFaviconHost[];
 extern const char kChromeUISettingsHost[];
 extern const char kChromeUISettingsFrameHost[];
@@ -214,6 +214,7 @@ extern const char kChromeUISandboxHost[];
 
 #if defined(OS_CHROMEOS)
 extern const char kChromeUIActivationMessageHost[];
+extern const char kChromeUIBluetoothPairingHost[];
 extern const char kChromeUIChooseMobileNetworkHost[];
 extern const char kChromeUICryptohomeHost[];
 extern const char kChromeUIDiagnosticsHost[];

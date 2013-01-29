@@ -916,10 +916,11 @@ std::set<FilePath> Extension::GetBrowserImages() const {
     }
   }
 
-  if (browser_action_info() && !browser_action_info()->default_icon.empty()) {
+  const ActionInfo* browser_action = ActionInfo::GetBrowserActionInfo(this);
+  if (browser_action && !browser_action->default_icon.empty()) {
     for (ExtensionIconSet::IconMap::const_iterator iter =
-             browser_action_info()->default_icon.map().begin();
-         iter != browser_action_info()->default_icon.map().end();
+             browser_action->default_icon.map().begin();
+         iter != browser_action->default_icon.map().end();
          ++iter) {
        image_paths.insert(FilePath::FromWStringHack(UTF8ToWide(iter->second)));
     }
@@ -1287,8 +1288,12 @@ bool Extension::is_theme() const {
   return manifest()->is_theme();
 }
 
+bool Extension::is_content_pack() const {
+  return !content_pack_site_list_.empty();
+}
+
 ExtensionResource Extension::GetContentPackSiteList() const {
-  if (content_pack_site_list_.empty())
+  if (!is_content_pack())
     return ExtensionResource();
 
   return GetResource(content_pack_site_list_);
@@ -1917,7 +1922,6 @@ bool Extension::LoadSharedFeatures(
     string16* error) {
   if (!LoadDescription(error) ||
       !LoadIcons(error) ||
-      !LoadCommands(error) ||
       !LoadPlugins(error) ||
       !LoadNaClModules(error) ||
       !LoadSandboxedPages(error) ||
@@ -1985,65 +1989,6 @@ bool Extension::LoadIcons(string16* error) {
       extension_misc::kNumExtensionIconSizes,
       &icons_,
       error);
-}
-
-bool Extension::LoadCommands(string16* error) {
-  if (manifest_->HasKey(keys::kCommands)) {
-    DictionaryValue* commands = NULL;
-    if (!manifest_->GetDictionary(keys::kCommands, &commands)) {
-      *error = ASCIIToUTF16(errors::kInvalidCommandsKey);
-      return false;
-    }
-
-    if (commands->size() > kMaxCommandsPerExtension) {
-      *error = ErrorUtils::FormatErrorMessageUTF16(
-          errors::kInvalidKeyBindingTooMany,
-          base::IntToString(kMaxCommandsPerExtension));
-      return false;
-    }
-
-    int command_index = 0;
-    for (DictionaryValue::Iterator iter(*commands); !iter.IsAtEnd();
-         iter.Advance()) {
-      ++command_index;
-
-      const DictionaryValue* command = NULL;
-      if (!iter.value().GetAsDictionary(&command)) {
-        *error = ErrorUtils::FormatErrorMessageUTF16(
-            errors::kInvalidKeyBindingDictionary,
-            base::IntToString(command_index));
-        return false;
-      }
-
-      scoped_ptr<extensions::Command> binding(new extensions::Command());
-      if (!binding->Parse(command, iter.key(), command_index, error))
-        return false;  // |error| already set.
-
-      std::string command_name = binding->command_name();
-      if (command_name == values::kPageActionCommandEvent) {
-        page_action_command_.reset(binding.release());
-      } else if (command_name == values::kBrowserActionCommandEvent) {
-        browser_action_command_.reset(binding.release());
-      } else if (command_name == values::kScriptBadgeCommandEvent) {
-        script_badge_command_.reset(binding.release());
-      } else {
-        if (command_name[0] != '_')  // All commands w/underscore are reserved.
-          named_commands_[command_name] = *binding.get();
-      }
-    }
-  }
-
-  if (manifest_->HasKey(keys::kBrowserAction) &&
-      !browser_action_command_.get()) {
-    // If the extension defines a browser action, but no command for it, then
-    // we synthesize a generic one, so the user can configure a shortcut for it.
-    // No keyboard shortcut will be assigned to it, until the user selects one.
-    browser_action_command_.reset(
-        new extensions::Command(
-            values::kBrowserActionCommandEvent, string16(), ""));
-  }
-
-  return true;
 }
 
 bool Extension::LoadPlugins(string16* error) {
@@ -2437,7 +2382,6 @@ bool Extension::LoadExtensionFeatures(APIPermissionSet* api_permissions,
   if (!LoadManifestHandlerFeatures(error) ||
       !LoadContentScripts(error) ||
       !LoadPageAction(error) ||
-      !LoadBrowserAction(error) ||
       !LoadSystemIndicator(api_permissions, error) ||
       !LoadIncognitoMode(error) ||
       !LoadContentSecurityPolicy(error))
@@ -2529,22 +2473,6 @@ bool Extension::LoadPageAction(string16* error) {
       return false;  // Failed to parse page action definition.
   }
 
-  return true;
-}
-
-bool Extension::LoadBrowserAction(string16* error) {
-  if (!manifest_->HasKey(keys::kBrowserAction))
-    return true;
-  DictionaryValue* browser_action_value = NULL;
-  if (!manifest_->GetDictionary(keys::kBrowserAction, &browser_action_value)) {
-    *error = ASCIIToUTF16(errors::kInvalidBrowserAction);
-    return false;
-  }
-
-  browser_action_info_ = LoadExtensionActionInfoHelper(
-      this, browser_action_value, error);
-  if (!browser_action_info_.get())
-    return false;  // Failed to parse browser action definition.
   return true;
 }
 
@@ -3036,7 +2964,7 @@ bool Extension::HasMultipleUISurfaces() const {
   if (page_action_info())
     ++num_surfaces;
 
-  if (browser_action_info())
+  if (ActionInfo::GetBrowserActionInfo(this))
     ++num_surfaces;
 
   if (is_app())

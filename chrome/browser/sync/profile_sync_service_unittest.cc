@@ -123,7 +123,7 @@ class ProfileSyncServiceTestHarness {
         profile->GetPrefs()->SetBoolean(prefs::kSyncHasSetupCompleted, false);
 
       // Register the bookmark data type.
-      ON_CALL(*factory, CreateDataTypeManager(_, _, _, _)).
+      ON_CALL(*factory, CreateDataTypeManager(_, _, _, _, _)).
           WillByDefault(ReturnNewDataTypeManager());
 
       if (issue_auth_token) {
@@ -241,7 +241,7 @@ TEST_F(ProfileSyncServiceTest, AbortedByShutdown) {
       signin,
       ProfileSyncService::AUTO_START,
       true));
-  EXPECT_CALL(*factory, CreateDataTypeManager(_, _, _, _)).Times(0);
+  EXPECT_CALL(*factory, CreateDataTypeManager(_, _, _, _, _)).Times(0);
   EXPECT_CALL(*factory, CreateBookmarkSyncComponents(_, _)).
       Times(0);
   harness_.service->RegisterDataTypeController(
@@ -267,7 +267,7 @@ TEST_F(ProfileSyncServiceTest, DisableAndEnableSyncTemporarily) {
       ProfileSyncService::AUTO_START,
       true));
   // Register the bookmark data type.
-  EXPECT_CALL(*factory, CreateDataTypeManager(_, _, _, _)).
+  EXPECT_CALL(*factory, CreateDataTypeManager(_, _, _, _, _)).
       WillRepeatedly(ReturnNewDataTypeManager());
 
   harness_.IssueTestTokens();
@@ -528,10 +528,6 @@ class ProfileSyncServiceInvalidator : public syncer::Invalidator {
     // Do nothing.
   }
 
-  virtual void SetStateDeprecated(const std::string& state) OVERRIDE {
-    // Do nothing.
-  }
-
   virtual void UpdateCredentials(
       const std::string& email, const std::string& token) OVERRIDE {
     // Do nothing.
@@ -594,10 +590,6 @@ class ProfileSyncServiceInvalidatorTestDelegate {
       syncer::IncomingInvalidationSource source) {
     harness_.service->GetBackendForTest()->EmitOnIncomingInvalidation(
         invalidation_map, source);
-  }
-
-  static bool InvalidatorHandlesDeprecatedState() {
-    return false;
   }
 
  private:

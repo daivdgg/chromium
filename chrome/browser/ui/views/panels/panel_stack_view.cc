@@ -10,6 +10,7 @@
 #include "chrome/browser/ui/panels/panel.h"
 #include "chrome/browser/ui/panels/stacked_panel_collection.h"
 #include "chrome/common/extensions/extension.h"
+#include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/rect.h"
 #include "ui/views/widget/widget.h"
 
@@ -50,6 +51,7 @@ PanelStackView::PanelStackView(
   window_->Init(params);
   window_->set_frame_type(views::Widget::FRAME_TYPE_FORCE_CUSTOM);
   window_->set_focus_on_creation(false);
+  window_->SetOpacity(0x00);
   window_->AddObserver(this);
   window_->ShowInactive();
 }

@@ -17,6 +17,8 @@ const char* DefaultMessageForStatusCode(StatusCode code) {
       return "unknown command";
     case kStaleElementReference:
       return "stale element reference";
+    case kElementNotVisible:
+      return "element not visible";
     case kUnknownError:
       return "unknown error";
     case kXPathLookupError:
@@ -29,6 +31,8 @@ const char* DefaultMessageForStatusCode(StatusCode code) {
       return "no such session";
     case kChromeNotReachable:
       return "chrome not reachable";
+    case kDisconnected:
+      return "disconnected";
     default:
       return "<unknown>";
   }

@@ -5,13 +5,13 @@
 # FOR HOW TO ROLL DEPS
 vars = {
     'ffmpeg_hash':
-         '@fe7d5497f1490914d7c3bb0236a1c722afccf4e4',
+         '@46d8f0aa21d3157f1bad8754009c9ec2481492ce',
     'webkit_url':
          'https://chromium.googlesource.com/external/WebKit_trimmed.git',
     'git_url':
          'https://chromium.googlesource.com',
     'webkit_rev':
-         '@8b1d1cab7ddf8c8f492d579e32392fdafe612d2d'
+         '@b907358e20bc933241413117f302a42a57726dcc'
 }
 
 deps = {
@@ -26,9 +26,9 @@ deps = {
     'src/chrome/test/data/perf/third_party/octane':
         Var('git_url') + '/external/octane-benchmark.git@9ac27bfd9e0bc73663db0c0551440215d8b20d09',
     'src/googleurl':
-        Var('git_url') + '/external/google-url.git@51fbd9c2993136707b4b0cd5a0a59beb8f3b0e4a',
+        Var('git_url') + '/external/google-url.git@22b60f394da2bfe6654e1ffd1b8ec509a14645df',
     'src/native_client':
-        Var('git_url') + '/native_client/src/native_client.git@540c54d7b2abc9887d2a63b1383c2e64d708d53d',
+        Var('git_url') + '/native_client/src/native_client.git@83a28ca9fd89f883de4038a48c6d2ab855969009',
     'src/sandbox/linux/seccomp-legacy':
         Var('git_url') + '/external/seccompsandbox.git@91baa6234536b66149ba576d0e6c0506c3b3d2e3',
     'src/sdch/open-vcdiff':
@@ -42,11 +42,11 @@ deps = {
     'src/third_party/accessibility-developer-tools':
         Var('git_url') + '/external/accessibility-developer-tools.git@e2a7557c79da617d0c06d6e96ada803b8b4b3ece',
     'src/third_party/angle':
-        Var('git_url') + '/external/angleproject.git@b3b17d4e8a6f8f7c8df3f651c40fdd1bed93c169',
+        Var('git_url') + '/external/angleproject.git@e1561f115d8df583290dc18cb270bd1d0cfc4d39',
     'src/third_party/bidichecker':
         Var('git_url') + '/external/bidichecker/lib.git@97f2aa645b74c28c57eca56992235c79850fa9e0',
     'src/third_party/cacheinvalidation/src':
-        Var('git_url') + '/external/google-cache-invalidation-api/src.git@df9dc476832b1a8c6f6645ef15cadcbe60da4fff',
+        Var('git_url') + '/external/google-cache-invalidation-api/src.git@a5e80e2d616bba173351376906c8cda778285334',
     'src/third_party/ffmpeg':
         Var('git_url') + '/chromium/third_party/ffmpeg.git' + Var('ffmpeg_hash'),
     'src/third_party/flac':
@@ -66,7 +66,7 @@ deps = {
     'src/third_party/libexif/sources':
         Var('git_url') + '/chromium/deps/libexif/sources.git@d815c325bab0d1871d4c7e70600ecdfdab07db9e',
     'src/third_party/libjingle/source':
-        Var('git_url') + '/external/libjingle.git@0fda809c564447db3d86303cf33511e87c83e727',
+        Var('git_url') + '/external/libjingle.git@f00ac2acf805166ea0c86c67963e5f986efc0c40',
     'src/third_party/libjpeg_turbo':
         Var('git_url') + '/chromium/deps/libjpeg_turbo.git@82ce8a6d4ebe12a177c0c3597192f2b4f09e81c3',
     'src/third_party/libphonenumber/src/phonenumbers':
@@ -78,7 +78,7 @@ deps = {
     'src/third_party/libsrtp':
         Var('git_url') + '/chromium/deps/libsrtp.git@aaa7ffc69828e8202a549268f5ac7fe428232811',
     'src/third_party/libvpx':
-        Var('git_url') + '/chromium/deps/libvpx.git@cb10580dc19be9dfddf6b0616f101996c333c8c4',
+        Var('git_url') + '/chromium/deps/libvpx.git@807f6c5f8e55a88a6c13abd9f798101498d4ac44',
     'src/third_party/libyuv':
         Var('git_url') + '/external/libyuv.git@a9c9242a557c0202454733bab66521bff2e35fc9',
     'src/third_party/opus/src':
@@ -98,11 +98,11 @@ deps = {
     'src/third_party/sfntly/cpp/src':
         Var('git_url') + '/external/sfntly/cpp/src.git@cfb2f1743f0169ad8d01035458617bce97107539',
     'src/third_party/skia/gyp':
-        Var('git_url') + '/external/skia/gyp.git@4cb33b16ea91ac93a2e326690bd210545cf6e007',
+        Var('git_url') + '/external/skia/gyp.git@eb4368875655a74b57ac36de6d04ce250079a9f2',
     'src/third_party/skia/include':
-        Var('git_url') + '/external/skia/include.git@682f6577979671427b3f0b80e1c39741a7ec3e40',
+        Var('git_url') + '/external/skia/include.git@fee24412abd2e9ea7b78384235be590313ce7417',
     'src/third_party/skia/src':
-        Var('git_url') + '/external/skia/src.git@ae482246f4659e653ebb8e0d599b432a445a6cae',
+        Var('git_url') + '/external/skia/src.git@929e7ba58200cfee75f87275f137735bb5376e67',
     'src/third_party/smhasher/src':
         Var('git_url') + '/external/smhasher.git@e813f9b95be7adad5a2e441f4484278c453e5261',
     'src/third_party/snappy/src':
@@ -112,11 +112,11 @@ deps = {
     'src/third_party/swig/Lib':
         Var('git_url') + '/chromium/deps/swig/Lib.git@549f0b084ad9c40ef42d111303d831eb8d91252e',
     'src/third_party/trace-viewer':
-        Var('git_url') + '/external/trace-viewer.git@a364b4eda9ef6ff344ac7d9e7460fba863aada76',
+        Var('git_url') + '/external/trace-viewer.git@d4065c09aaeff03fce3ae94432745c07e199a9c9',
     'src/third_party/undoview':
         Var('git_url') + '/chromium/deps/undoview.git@3ba503e248f3cdbd81b78325a24ece0984637559',
     'src/third_party/v8-i18n':
-        Var('git_url') + '/external/v8-i18n.git@d41d6fc2b62962632f65dea9195a86b5bbfc4efa',
+        Var('git_url') + '/external/v8-i18n.git@e6e6181f289fa38441a9899130379f14c05512cd',
     'src/third_party/webdriver/pylib':
         Var('git_url') + '/external/selenium/py.git@304801aede8d4b52a30657201aefed7479c0c9dd',
     'src/third_party/webgl_conformance':
@@ -124,21 +124,21 @@ deps = {
     'src/third_party/webpagereplay':
         Var('git_url') + '/external/web-page-replay.git@5dffb5f7dc1557ff6abdb1b99bbbf98fedee3a14',
     'src/third_party/webrtc':
-        Var('git_url') + '/external/webrtc/stable/webrtc.git@5ec4dfea2da2da55a5d5562e89f8fdb24ebe201b',
+        Var('git_url') + '/external/webrtc/stable/webrtc.git@c73757b1e53a933e28506c8847ebbe40881b5cfa',
     'src/third_party/yasm/source/patched-yasm':
         Var('git_url') + '/chromium/deps/yasm/patched-yasm.git@c960eb11ccda80b10ed50be39df4f0663b371d1d',
     'src/tools/deps2git':
-        Var('git_url') + '/chromium/tools/deps2git.git@f8041c7e3dc3c6e295235c56c50d3bba0b618a28',
+        Var('git_url') + '/chromium/tools/deps2git.git@820cd92c9c2f28f60f4af8f4d73423d1d6ac2e9e',
     'src/tools/grit':
         Var('git_url') + '/external/grit-i18n.git@ca6c225d0059dd17b476c934e744a3c4f60e2df2',
     'src/tools/gyp':
-        Var('git_url') + '/external/gyp.git@a31f072f1af2ce491aa13b144b08259f2fa8728e',
+        Var('git_url') + '/external/gyp.git@aa153a1bb19a7aac8a10243246f8703a7164e4a1',
     'src/tools/page_cycler/acid3':
         Var('git_url') + '/chromium/deps/acid3.git@6be0a66a1ebd7ebc5abc1b2f405a945f6d871521',
     'src/tools/swarm_client':
-        Var('git_url') + '/chromium/tools/swarm_client.git@549669e5f9af353238be68723f67a28cf0da3212',
+        Var('git_url') + '/chromium/tools/swarm_client.git@f14633beee7e5f54267a84ef6745f16862338f82',
     'src/v8':
-        Var('git_url') + '/external/v8.git@28381b491d5ea9f256a3937000de7953639ef93f',
+        Var('git_url') + '/external/v8.git@c47dff5fc3b12ecc3a7a9fc61fbd02868548dde6',
     'src/webkit/media/crypto/ppapi/cdm':
         Var('git_url') + '/chromium/cdm.git@c5062e0e6fc7cf180edea8d74442b72a05427cd8',
 }
@@ -234,9 +234,9 @@ deps_os = {
         'src/third_party/WebKit/Source':
             None,
         'src/third_party/WebKit/Source/Platform/chromium/public':
-            Var('git_url') + '/external/WebKit/Source/Platform/chromium/public.git@cad4651a107923fda5bb6cad5e1f0375db981c79',
+            Var('git_url') + '/external/WebKit/Source/Platform/chromium/public.git@8afe0130b57befc6e0b41fa0a5e19b0431b3d0fc',
         'src/third_party/WebKit/Source/WebKit/chromium/public':
-            Var('git_url') + '/external/WebKit/Source/WebKit/chromium/public.git@3429faa2f08e7bb5e36390566c73c0f157f2f14f',
+            Var('git_url') + '/external/WebKit/Source/WebKit/chromium/public.git@825be99d3c0ee0e4cc310d53e638083cd4138ba7',
         'src/third_party/WebKit/Tools/DumpRenderTree':
             None,
         'src/third_party/WebKit/Tools/Scripts':
@@ -253,15 +253,9 @@ deps_os = {
             None,
         'src/third_party/hunspell_dictionaries':
             None,
-        'src/third_party/jsoncpp/source/include':
-            None,
-        'src/third_party/jsoncpp/source/src/lib_json':
-            None,
         'src/third_party/leveldatabase/src':
             None,
         'src/third_party/libexif/sources':
-            None,
-        'src/third_party/libjingle/source':
             None,
         'src/third_party/libjpeg_turbo':
             None,
@@ -340,11 +334,11 @@ deps_os = {
         'src/third_party/cros_dbus_cplusplus/source':
             Var('git_url') + '/chromiumos/third_party/dbus-cplusplus.git@5e8f6d9db5c2abfb91d91f751184f25bb5cd0900',
         'src/third_party/cros_system_api':
-            Var('git_url') + '/chromiumos/platform/system_api.git@97d8b9a0399099a14b92d7b53a423b4940102238',
+            Var('git_url') + '/chromiumos/platform/system_api.git@bbd9dbac2b17db57546ee234c0563e05b7763f4f',
         'src/third_party/gold':
             Var('git_url') + '/chromium/deps/gold.git@74c34c19eadc0135b189318e393e78ca1dd431aa',
         'src/third_party/libmtp':
-            Var('git_url') + '/chromium/deps/libmtp.git@090792ce3774bfdd515c4de7ae68957e5fa64e2c',
+            Var('git_url') + '/chromium/deps/libmtp.git@dcf1a7de727d7348e30c7fa5fed6b18b4c88612f',
         'src/third_party/lss':
             Var('git_url') + '/external/linux-syscall-support/lss.git@8dce3586424b5811ca0c8c1938bc7d0826558e77',
         'src/third_party/mtpd/source':

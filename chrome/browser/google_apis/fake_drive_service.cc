@@ -8,6 +8,9 @@
 #include "base/logging.h"
 #include "base/message_loop.h"
 #include "base/string_number_conversions.h"
+#include "base/string_split.h"
+#include "base/string_tokenizer.h"
+#include "base/string_util.h"
 #include "base/stringprintf.h"
 #include "base/utf_string_conversions.h"
 #include "chrome/browser/google_apis/drive_api_parser.h"
@@ -19,9 +22,48 @@
 using content::BrowserThread;
 
 namespace google_apis {
+namespace {
+
+// Returns true if a resource entry matches with the search query.
+// Supports queries consist of following format.
+// - Phrases quoted by double/single quotes
+// - AND search for multiple words/phrases segmented by space
+// - Limited attribute search.  Only "title:" is supported.
+bool EntryMatchWithQuery(const ResourceEntry& entry,
+                         const std::string& query) {
+  StringTokenizer tokenizer(query, " ");
+  tokenizer.set_quote_chars("\"'");
+  while (tokenizer.GetNext()) {
+    std::string key, value;
+    const std::string& token = tokenizer.token();
+    if (token.find(':') == std::string::npos) {
+      TrimString(token, "\"'", &value);
+    } else {
+      StringTokenizer key_value(token, ":");
+      key_value.set_quote_chars("\"'");
+      if (!key_value.GetNext())
+        return false;
+      key = key_value.token();
+      if (!key_value.GetNext())
+        return false;
+      TrimString(key_value.token(), "\"'", &value);
+    }
+
+    // TODO(peria): Deal with other attributes than title.
+    if (!key.empty() && key != "title")
+      return false;
+    // Search query in the title.
+    if (UTF16ToUTF8(entry.title()).find(value) == std::string::npos)
+      return false;
+  }
+  return true;
+}
+
+}  // namespace
 
 FakeDriveService::FakeDriveService()
     : largest_changestamp_(0),
+      default_max_results_(0),
       resource_id_count_(0),
       resource_list_load_count_(0),
       account_metadata_load_count_(0),
@@ -89,6 +131,10 @@ bool FakeDriveService::LoadAppListForDriveApi(
   return app_info_value_;
 }
 
+GURL FakeDriveService::GetFakeLinkUrl(const std::string& resource_id) {
+  return GURL("https://fake_server/" + resource_id);
+}
+
 void FakeDriveService::Initialize(Profile* profile) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
 }
@@ -154,12 +200,29 @@ void FakeDriveService::GetResourceList(
     return;
   }
 
+  // "start-offset" is a parameter only used in the FakeDriveService to
+  // implement pagenation.
+  int start_offset = 0;
+  int max_results = default_max_results_;
+  std::vector<std::pair<std::string, std::string> > parameters;
+  if (base::SplitStringIntoKeyValuePairs(
+          feed_url.query(), '=', '&', &parameters)) {
+    for (size_t i = 0; i < parameters.size(); ++i) {
+      if (parameters[i].first == "start-offset")
+        base::StringToInt(parameters[i].second, &start_offset);
+      if (parameters[i].first == "max-results")
+        base::StringToInt(parameters[i].second, &max_results);
+    }
+  }
+
   scoped_ptr<ResourceList> resource_list =
       ResourceList::CreateFrom(*resource_list_value_);
 
   // Filter out entries per parameters like |directory_resource_id| and
   // |search_query|.
   ScopedVector<ResourceEntry>* entries = resource_list->mutable_entries();
+
+  int num_entries_matched = 0;
   for (size_t i = 0; i < entries->size();) {
     ResourceEntry* entry = (*entries)[i];
     bool should_exclude = false;
@@ -183,25 +246,48 @@ void FakeDriveService::GetResourceList(
 
     // If |search_query| is set, exclude the entry if it does not contain the
     // search query in the title.
-    if (!search_query.empty()) {
-      if (UTF16ToUTF8(entry->title()).find(search_query) == std::string::npos)
-        should_exclude = true;
+    if (!should_exclude && !search_query.empty() &&
+        !EntryMatchWithQuery(*entry, search_query)) {
+      should_exclude = true;
     }
 
-    // If |start_changestamp| is non-zero, exclude the entry if the
+    // If |start_changestamp| is set, exclude the entry if the
     // changestamp is older than |largest_changestamp|.
     // See https://developers.google.com/google-apps/documents-list/
     // #retrieving_all_changes_since_a_given_changestamp
-    if (start_changestamp > 0) {
-      if (entry->changestamp() < start_changestamp) {
-        should_exclude = true;
-      }
-    }
+    if (start_changestamp > 0 && entry->changestamp() < start_changestamp)
+      should_exclude = true;
+
+    // The entry matched the criteria for inclusion.
+    if (!should_exclude)
+      ++num_entries_matched;
+
+    // If |start_offset| is set, exclude the entry if the entry is before the
+    // start index. <= instead of < as |num_entries_matched| was
+    // already incremented.
+    if (start_offset > 0 && num_entries_matched <= start_offset)
+      should_exclude = true;
 
     if (should_exclude)
       entries->erase(entries->begin() + i);
     else
       ++i;
+  }
+
+  // If |max_results| is set, trim the entries if the number exceeded the max
+  // results.
+  if (max_results > 0 && entries->size() > static_cast<size_t>(max_results)) {
+    entries->erase(entries->begin() + max_results, entries->end());
+    // Adds the next URL.
+    const GURL next_url(
+        base::StringPrintf(
+            "http://localhost/?start-offset=%d&max-results=%d",
+            start_offset + max_results,
+            max_results));
+    Link* link = new Link;
+    link->set_type(Link::LINK_NEXT);
+    link->set_href(next_url);
+    resource_list->mutable_links()->push_back(link);
   }
 
   ++resource_list_load_count_;
@@ -501,7 +587,7 @@ void FakeDriveService::RenameResource(
 }
 
 void FakeDriveService::AddResourceToDirectory(
-    const GURL& parent_content_url,
+    const std::string& parent_resource_id,
     const GURL& edit_url,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
@@ -524,7 +610,8 @@ void FakeDriveService::AddResourceToDirectory(
         if (links->GetDictionary(i, &link) &&
             link->GetString("rel", &rel) &&
             rel == "http://schemas.google.com/docs/2007#parent") {
-          link->SetString("href", parent_content_url.spec());
+          link->SetString(
+              "href", GetFakeLinkUrl(parent_resource_id).spec());
           parent_link_found = true;
         }
       }
@@ -533,7 +620,8 @@ void FakeDriveService::AddResourceToDirectory(
       if (!parent_link_found) {
         base::DictionaryValue* link = new base::DictionaryValue;
         link->SetString("rel", "http://schemas.google.com/docs/2007#parent");
-        link->SetString("href", parent_content_url.spec());
+        link->SetString(
+            "href", GetFakeLinkUrl(parent_resource_id).spec());
         links->Append(link);
       }
 
@@ -549,7 +637,7 @@ void FakeDriveService::AddResourceToDirectory(
 }
 
 void FakeDriveService::RemoveResourceFromDirectory(
-    const GURL& parent_content_url,
+    const std::string& parent_resource_id,
     const std::string& resource_id,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
@@ -565,6 +653,7 @@ void FakeDriveService::RemoveResourceFromDirectory(
   if (entry) {
     base::ListValue* links = NULL;
     if (entry->GetList("link", &links)) {
+      GURL parent_content_url = GetFakeLinkUrl(parent_resource_id);
       for (size_t i = 0; i < links->GetSize(); ++i) {
         base::DictionaryValue* link = NULL;
         std::string rel;
@@ -583,7 +672,7 @@ void FakeDriveService::RemoveResourceFromDirectory(
       }
 
       // We are dealing with a no-"parent"-link file as in the root directory.
-      if (parent_content_url.is_empty()) {
+      if (parent_resource_id == GetRootResourceId()) {
         AddNewChangestamp(entry);
         MessageLoop::current()->PostTask(
             FROM_HERE, base::Bind(callback, HTTP_SUCCESS));
@@ -597,7 +686,7 @@ void FakeDriveService::RemoveResourceFromDirectory(
 }
 
 void FakeDriveService::AddNewDirectory(
-    const GURL& parent_content_url,
+    const std::string& parent_resource_id,
     const std::string& directory_name,
     const GetResourceEntryCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
@@ -613,10 +702,11 @@ void FakeDriveService::AddNewDirectory(
     return;
   }
 
-  // If the parent content URL is not empty, the parent should exist.
-  if (!parent_content_url.is_empty()) {
+  // If the parent content URL is not matched to the root resource id,
+  // the parent should exist.
+  if (parent_resource_id != GetRootResourceId()) {
     base::DictionaryValue* parent_entry =
-        FindEntryByContentUrl(parent_content_url);
+        FindEntryByResourceId(parent_resource_id);
     if (!parent_entry) {
       scoped_ptr<ResourceEntry> null;
       MessageLoop::current()->PostTask(
@@ -649,9 +739,10 @@ void FakeDriveService::AddNewDirectory(
 
   // Add "link" which sets the parent URL and the edit URL.
   base::ListValue* links = new base::ListValue;
-  if (!parent_content_url.is_empty()) {
+  if (parent_resource_id != GetRootResourceId()) {
     base::DictionaryValue* parent_link = new base::DictionaryValue;
-    parent_link->SetString("href", parent_content_url.spec());
+    parent_link->SetString(
+        "href", GetFakeLinkUrl(parent_resource_id).spec());
     parent_link->SetString("rel",
                            "http://schemas.google.com/docs/2007#parent");
     links->Append(parent_link);

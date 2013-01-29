@@ -9,7 +9,7 @@
 #include <string>
 
 #include "base/file_path.h"
-#include "base/file_util_proxy.h"
+#include "base/files/file_util_proxy.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/platform_file.h"
 #include "base/timer.h"
@@ -98,9 +98,6 @@ class WEBKIT_STORAGE_EXPORT_PRIVATE ObfuscatedFileUtil
       FileSystemOperationContext* context,
       const FileSystemURL& url,
       int64 length) OVERRIDE;
-  virtual bool IsDirectoryEmpty(
-      FileSystemOperationContext* context,
-      const FileSystemURL& url) OVERRIDE;
   virtual base::PlatformFileError CopyOrMoveFile(
       FileSystemOperationContext* context,
       const FileSystemURL& src_url,
@@ -113,7 +110,7 @@ class WEBKIT_STORAGE_EXPORT_PRIVATE ObfuscatedFileUtil
   virtual base::PlatformFileError DeleteFile(
       FileSystemOperationContext* context,
       const FileSystemURL& url) OVERRIDE;
-  virtual base::PlatformFileError DeleteSingleDirectory(
+  virtual base::PlatformFileError DeleteDirectory(
       FileSystemOperationContext* context,
       const FileSystemURL& url) OVERRIDE;
   virtual base::PlatformFileError CreateSnapshotFile(
@@ -122,6 +119,11 @@ class WEBKIT_STORAGE_EXPORT_PRIVATE ObfuscatedFileUtil
       base::PlatformFileInfo* file_info,
       FilePath* platform_path,
       SnapshotFilePolicy* policy) OVERRIDE;
+
+  // Returns true if the directory |url| is empty.
+  bool IsDirectoryEmpty(
+      FileSystemOperationContext* context,
+      const FileSystemURL& url);
 
   // Gets the topmost directory specific to this origin and type.  This will
   // contain both the directory database's files and all the backing file

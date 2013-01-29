@@ -35,7 +35,8 @@ QuicPacket* ConstructHandshakePacket(QuicGuid guid, CryptoTag tag);
 // Constructs a ClientHello crypto handshake message
 QuicPacket* ConstructClientHelloPacket(QuicGuid guid,
                                        const QuicClock* clock,
-                                       QuicRandom* random_generator);
+                                       QuicRandom* random_generator,
+                                       const std::string& server_hostname);
 
 class MockFramerVisitor : public QuicFramerVisitorInterface {
  public:
@@ -45,6 +46,7 @@ class MockFramerVisitor : public QuicFramerVisitorInterface {
   MOCK_METHOD1(OnError, void(QuicFramer* framer));
   MOCK_METHOD2(OnPacket, void(const IPEndPoint& self_address,
                               const IPEndPoint& peer_address));
+  MOCK_METHOD1(OnPublicResetPacket, void(const QuicPublicResetPacket& header));
   MOCK_METHOD0(OnRevivedPacket, void());
   // The constructor set this up to return true by default.
   MOCK_METHOD1(OnPacketHeader, bool(const QuicPacketHeader& header));
@@ -70,6 +72,8 @@ class NoOpFramerVisitor : public QuicFramerVisitorInterface {
   virtual void OnError(QuicFramer* framer) OVERRIDE {}
   virtual void OnPacket(const IPEndPoint& self_address,
                         const IPEndPoint& peer_address) OVERRIDE {}
+  virtual void OnPublicResetPacket(
+      const QuicPublicResetPacket& packet) OVERRIDE {}
   virtual void OnRevivedPacket() OVERRIDE {}
   virtual bool OnPacketHeader(const QuicPacketHeader& header) OVERRIDE;
   virtual void OnFecProtectedPayload(base::StringPiece payload) OVERRIDE {}

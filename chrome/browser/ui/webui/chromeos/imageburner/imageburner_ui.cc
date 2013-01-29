@@ -12,11 +12,10 @@
 #include "base/values.h"
 #include "chrome/browser/chromeos/imageburner/burn_controller.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
-#include "chrome/browser/ui/webui/chrome_web_ui_data_source.h"
 #include "chrome/common/time_format.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/web_ui.h"
+#include "content/public/browser/web_ui_data_source.h"
 #include "content/public/browser/web_ui_message_handler.h"
 #include "grit/browser_resources.h"
 #include "grit/generated_resources.h"
@@ -41,7 +40,7 @@ const char kMoreInfoLink[] =
 
 content::WebUIDataSource* CreateImageburnerUIHTMLSource() {
   content::WebUIDataSource* source =
-      ChromeWebUIDataSource::Create(chrome::kChromeUIImageBurnerHost);
+      content::WebUIDataSource::Create(chrome::kChromeUIImageBurnerHost);
 
   source->AddLocalizedString("headerTitle", IDS_IMAGEBURN_HEADER_TITLE);
   source->AddLocalizedString("headerDescription",
@@ -294,12 +293,10 @@ class WebUIHandler
                                  int index,
                                  FilePath* device_path) {
     const Value* list_member;
+    std::string image_dest;
     if (list_value.Get(index, &list_member) &&
-        list_member->GetType() == Value::TYPE_STRING) {
-      const StringValue* string_value =
-          static_cast<const StringValue*>(list_member);
-      std::string image_dest;
-      string_value->GetAsString(&image_dest);
+        list_member->GetType() == Value::TYPE_STRING &&
+        list_member->GetAsString(&image_dest)) {
       *device_path = FilePath(image_dest);
     } else {
       LOG(ERROR) << "Unable to get path string";
@@ -329,6 +326,6 @@ ImageBurnUI::ImageBurnUI(content::WebUI* web_ui) : WebUIController(web_ui) {
   web_ui->AddMessageHandler(handler);
 
   Profile* profile = Profile::FromWebUI(web_ui);
-  ChromeURLDataManager::AddWebUIDataSource(
+  content::WebUIDataSource::Add(
       profile, chromeos::imageburner::CreateImageburnerUIHTMLSource());
 }

@@ -10,9 +10,8 @@
 #include "base/string16.h"
 #include "base/timer.h"
 #include "chrome/browser/common/cancelable_request.h"
-#include "chrome/browser/history/history.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/web_history_service.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
 #include "chrome/common/cancelable_task_tracker.h"
 #include "content/public/browser/notification_registrar.h"
 #include "content/public/browser/web_ui_controller.h"
@@ -77,6 +76,10 @@ class BrowsingHistoryHandler : public content::WebUIMessageHandler,
   // Callback from the history system when visits were deleted.
   void RemoveComplete();
 
+  // Callback from history server when visits were deleted.
+  void RemoveWebHistoryComplete(history::WebHistoryService::Request* request,
+                                bool success);
+
   bool ExtractIntegerValueAtIndex(
       const base::ListValue* value, int index, int* out_int);
 
@@ -94,6 +97,10 @@ class BrowsingHistoryHandler : public content::WebUIMessageHandler,
   // The currently-executing request for synced history results.
   // Deleting the request will cancel it.
   scoped_ptr<history::WebHistoryService::Request> web_history_request_;
+
+  // The currently-executing delete request for synced history.
+  // Deleting the request will cancel it.
+  scoped_ptr<history::WebHistoryService::Request> web_history_delete_request_;
 
   // Tracker for delete requests to the history service.
   CancelableTaskTracker delete_task_tracker_;

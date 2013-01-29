@@ -26,7 +26,7 @@ float GetForcedDeviceScaleFactorImpl() {
     std::string value = CommandLine::ForCurrentProcess()->
         GetSwitchValueASCII(switches::kForceDeviceScaleFactor);
     if (!base::StringToDouble(value, &scale_in_double))
-      LOG(ERROR) << "Failed to parse the deafult device scale factor:" << value;
+      LOG(ERROR) << "Failed to parse the default device scale factor:" << value;
   }
   return static_cast<float>(scale_in_double);
 }
@@ -43,8 +43,11 @@ float Display::GetForcedDeviceScaleFactor() {
 }
 
 // static
-int64 Display::GetID(uint16 manufacturer_id, uint32 serial_number) {
-  int64 new_id = ((static_cast<int64>(manufacturer_id) << 32) | serial_number);
+int64 Display::GetID(uint16 manufacturer_id,
+                     uint16 product_code,
+                     uint8 output_index) {
+  int64 new_id = ((static_cast<int64>(manufacturer_id) << 24) |
+                  (static_cast<int64>(product_code) << 8) | output_index);
   DCHECK_NE(kInvalidDisplayID, new_id);
   return new_id;
 }

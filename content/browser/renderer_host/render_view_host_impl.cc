@@ -166,6 +166,7 @@ RenderViewHostImpl::RenderViewHostImpl(
       navigations_suspended_(false),
       suspended_nav_message_(NULL),
       is_swapped_out_(swapped_out),
+      is_subframe_(false),
       run_modal_reply_msg_(NULL),
       run_modal_opener_id_(MSG_ROUTING_NONE),
       is_waiting_for_beforeunload_ack_(false),
@@ -283,6 +284,10 @@ bool RenderViewHostImpl::CreateRenderView(
 
 bool RenderViewHostImpl::IsRenderViewLive() const {
   return GetProcess()->HasConnection() && renderer_initialized_;
+}
+
+bool RenderViewHostImpl::IsSubframe() const {
+  return is_subframe_;
 }
 
 void RenderViewHostImpl::SyncRendererPrefs() {
@@ -710,58 +715,15 @@ void RenderViewHostImpl::ExecuteJavascriptInWebFrame(
                                      0, false));
 }
 
-int RenderViewHostImpl::ExecuteJavascriptInWebFrameNotifyResult(
-    const string16& frame_xpath,
-    const string16& jscript) {
-  static int next_id = 1;
-  Send(new ViewMsg_ScriptEvalRequest(GetRoutingID(), frame_xpath, jscript,
-                                     next_id, true));
-  return next_id++;
-}
-
 void RenderViewHostImpl::ExecuteJavascriptInWebFrameCallbackResult(
      const string16& frame_xpath,
      const string16& jscript,
      const JavascriptResultCallback& callback) {
-  int key = ExecuteJavascriptInWebFrameNotifyResult(frame_xpath, jscript);
+  static int next_id = 1;
+  int key = next_id++;
+  Send(new ViewMsg_ScriptEvalRequest(GetRoutingID(), frame_xpath, jscript,
+                                     key, true));
   javascript_callbacks_.insert(std::make_pair(key, callback));
-}
-
-typedef std::pair<int, base::Value*> ExecuteDetailType;
-
-ExecuteNotificationObserver::ExecuteNotificationObserver(int id)
-: id_(id) {
-}
-
-ExecuteNotificationObserver::~ExecuteNotificationObserver() {
-}
-
-void ExecuteNotificationObserver::Observe(int type,
-                     const NotificationSource& source,
-                     const NotificationDetails& details) {
-  Details<ExecuteDetailType> execute_details =
-      static_cast<Details<ExecuteDetailType> >(details);
-  int id = execute_details->first;
-  if (id != id_)
-    return;
-  base::Value* value = execute_details->second;
-  if (value)
-    value_.reset(value->DeepCopy());
-  MessageLoop::current()->Quit();
-}
-
-base::Value* RenderViewHostImpl::ExecuteJavascriptAndGetValue(
-    const string16& frame_xpath,
-    const string16& jscript) {
-  int id = ExecuteJavascriptInWebFrameNotifyResult(frame_xpath, jscript);
-  ExecuteNotificationObserver observer(id);
-  NotificationRegistrar notification_registrar;
-  notification_registrar.Add(
-      &observer, NOTIFICATION_EXECUTE_JAVASCRIPT_RESULT,
-      Source<RenderViewHost>(this));
-  MessageLoop* loop = MessageLoop::current();
-  loop->Run();
-  return observer.value()->DeepCopy();
 }
 
 void RenderViewHostImpl::JavaScriptDialogClosed(IPC::Message* reply_msg,
@@ -1094,8 +1056,10 @@ void RenderViewHostImpl::CreateNewWindow(
   ViewHostMsg_CreateWindow_Params validated_params(params);
   ChildProcessSecurityPolicyImpl* policy =
       ChildProcessSecurityPolicyImpl::GetInstance();
-  // TODO(cevans): also validate opener_url, opener_security_origin.
   FilterURL(policy, GetProcess(), false, &validated_params.target_url);
+  FilterURL(policy, GetProcess(), false, &validated_params.opener_url);
+  FilterURL(policy, GetProcess(), true,
+            &validated_params.opener_security_origin);
 
   delegate_->CreateNewWindow(route_id, validated_params,
                              session_storage_namespace);
@@ -1254,8 +1218,8 @@ void RenderViewHostImpl::OnNavigate(const IPC::Message& msg) {
                                      validated_params.url) ||
         static_cast<SiteInstanceImpl*>(GetSiteInstance())->
             HasWrongProcessForURL(validated_params.url)) {
-      base::KillProcess(process->GetHandle(), RESULT_CODE_KILLED, true);
-      UMA_HISTOGRAM_COUNTS("ChildProcess.ViolatedSitePerProcess", 1);
+      // TODO(nasko): Removed the actual kill process call until out-of-process
+      // iframes is ready to go.
     }
   }
 
@@ -1949,12 +1913,7 @@ void RenderViewHostImpl::OnScriptEvalResponse(int id,
     it->second.Run(result_value);
     javascript_callbacks_.erase(it);
   } else {
-    // ExecuteJavascriptInWebFrameNotifyResult was used; broadcast result.
-    std::pair<int, const base::Value*> details(id, result_value);
-    NotificationService::current()->Notify(
-        NOTIFICATION_EXECUTE_JAVASCRIPT_RESULT,
-        Source<RenderViewHost>(this),
-        Details<std::pair<int, const base::Value*> >(&details));
+    NOTREACHED() << "Received script response for unknown request";
   }
 }
 

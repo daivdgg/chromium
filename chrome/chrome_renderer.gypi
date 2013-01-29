@@ -71,6 +71,8 @@
         'renderer/extensions/chrome_v8_extension.h',
         'renderer/extensions/chrome_v8_extension_handler.cc',
         'renderer/extensions/chrome_v8_extension_handler.h',
+        'renderer/extensions/content_watcher.cc',
+        'renderer/extensions/content_watcher.h',
         'renderer/extensions/context_menus_custom_bindings.cc',
         'renderer/extensions/context_menus_custom_bindings.h',
         'renderer/extensions/dispatcher.cc',
@@ -145,7 +147,9 @@
         'renderer/resources/extensions/apitest.js',
         'renderer/resources/extensions/app_custom_bindings.js',
         'renderer/resources/extensions/browser_action_custom_bindings.js',
+        'renderer/resources/extensions/content_watcher.js',
         'renderer/resources/extensions/context_menus_custom_bindings.js',
+        'renderer/resources/extensions/declarative_content_custom_bindings.js',
         'renderer/resources/extensions/declarative_webrequest_custom_bindings.js',
         'renderer/resources/extensions/event.js',
         'renderer/resources/extensions/experimental.offscreenTabs_custom_bindings.js',
@@ -223,11 +227,11 @@
         'renderer/prerender/prerender_webmediaplayer.h',
         'renderer/prerender/prerenderer_client.cc',
         'renderer/prerender/prerenderer_client.h',
-        'renderer/print_web_view_helper.cc',
-        'renderer/print_web_view_helper.h',
-        'renderer/print_web_view_helper_linux.cc',
-        'renderer/print_web_view_helper_mac.mm',
-        'renderer/print_web_view_helper_win.cc',
+        'renderer/printing/print_web_view_helper.cc',
+        'renderer/printing/print_web_view_helper.h',
+        'renderer/printing/print_web_view_helper_linux.cc',
+        'renderer/printing/print_web_view_helper_mac.mm',
+        'renderer/printing/print_web_view_helper_win.cc',
         'renderer/safe_browsing/feature_extractor_clock.cc',
         'renderer/safe_browsing/feature_extractor_clock.h',
         'renderer/safe_browsing/features.cc',
@@ -264,6 +268,8 @@
         'renderer/spellchecker/spellcheck_provider.h',
         'renderer/spellchecker/spellcheck.cc',
         'renderer/spellchecker/spellcheck.h',
+        'renderer/spellchecker/spellcheck_language.cc',
+        'renderer/spellchecker/spellcheck_language.h',
         'renderer/spellchecker/spellcheck_worditerator.cc',
         'renderer/spellchecker/spellcheck_worditerator.h',
         'renderer/spellchecker/spelling_engine.h',
@@ -324,11 +330,16 @@
             '../sandbox/sandbox.gyp:sandbox',
           ],
         }],
+	['enable_automation==0', {
+	  'sources/': [
+            ['exclude', '^renderer/automation/']
+	  ]
+	}],
         ['OS=="android"', {
           'sources!': [
             'renderer/prerender/prerender_webmediaplayer.cc',
             'renderer/prerender/prerender_webmediaplayer.h',
-            'renderer/print_web_view_helper.cc',
+            'renderer/printing/print_web_view_helper.cc',
           ],
           'defines': [
             'ENABLE_MOBILE_YOUTUBE_PLUGIN',

@@ -132,8 +132,7 @@ class RenderWidgetHostViewMacEditCommandHelper;
   // Whether the previous mouse event was ignored due to hitTest check.
   BOOL mouseEventWasIgnored_;
 
-  // Event monitors for gesture-end and scroll wheel end events.
-  id endGestureMonitor_;
+  // Event monitor for scroll wheel end event.
   id endWheelMonitor_;
 
   // OpenGL Support:
@@ -316,6 +315,7 @@ class RenderWidgetHostViewMac : public RenderWidgetHostViewBase {
       int gpu_host_id) OVERRIDE;
   virtual void AcceleratedSurfaceSuspend() OVERRIDE;
   virtual bool HasAcceleratedSurface(const gfx::Size& desired_size) OVERRIDE;
+  virtual void AcceleratedSurfaceRelease() OVERRIDE;
   virtual void AboutToWaitForBackingStoreMsg() OVERRIDE;
   virtual void GetScreenInfo(WebKit::WebScreenInfo* results) OVERRIDE;
   virtual gfx::Rect GetBoundsInRootWindow() OVERRIDE;

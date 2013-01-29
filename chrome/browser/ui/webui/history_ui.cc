@@ -32,8 +32,6 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/chrome_pages.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager.h"
-#include "chrome/browser/ui/webui/chrome_web_ui_data_source.h"
 #include "chrome/browser/ui/webui/favicon_source.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/chrome_switches.h"
@@ -41,10 +39,12 @@
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/notification_details.h"
 #include "content/public/browser/notification_source.h"
+#include "content/public/browser/url_data_source.h"
 #include "content/public/browser/user_metrics.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/browser/web_ui.h"
+#include "content/public/browser/web_ui_data_source.h"
 #include "grit/browser_resources.h"
 #include "grit/chromium_strings.h"
 #include "grit/generated_resources.h"
@@ -109,7 +109,7 @@ void SetURLAndTitle(DictionaryValue* result,
 
 content::WebUIDataSource* CreateHistoryUIHTMLSource() {
   content::WebUIDataSource* source =
-      ChromeWebUIDataSource::Create(chrome::kChromeUIHistoryFrameHost);
+      content::WebUIDataSource::Create(chrome::kChromeUIHistoryFrameHost);
   source->AddLocalizedString("loading", IDS_HISTORY_LOADING);
   source->AddLocalizedString("title", IDS_HISTORY_TITLE);
   source->AddLocalizedString("newest", IDS_HISTORY_NEWEST);
@@ -167,7 +167,7 @@ BrowsingHistoryHandler::~BrowsingHistoryHandler() {
 void BrowsingHistoryHandler::RegisterMessages() {
   // Create our favicon data source.
   Profile* profile = Profile::FromWebUI(web_ui());
-  ChromeURLDataManager::AddDataSource(
+  content::URLDataSource::Add(
       profile, new FaviconSource(profile, FaviconSource::FAVICON));
 
   // Get notifications when history is cleared.
@@ -243,9 +243,8 @@ void BrowsingHistoryHandler::QueryHistory(
 void BrowsingHistoryHandler::HandleQueryHistory(const ListValue* args) {
   history::QueryOptions options;
 
-  // Parse the arguments from JavaScript. There are four required arguments:
+  // Parse the arguments from JavaScript. There are three required arguments:
   // - the text to search for (may be empty)
-  // - the end time of the range to search (see QueryOptions.end_time)
   // - the search cursor, an opaque value from a previous query result, which
   //   allows this query to pick up where the previous one left off. May be
   //   null or undefined.
@@ -253,24 +252,18 @@ void BrowsingHistoryHandler::HandleQueryHistory(const ListValue* args) {
   //   is no maximum)
   string16 search_text = ExtractStringValue(args);
 
-  double end_time;
-  if (!args->GetDouble(1, &end_time))
-    return;
-  if (end_time)
-    options.end_time = base::Time::FromJsTime(end_time);
-
   const Value* cursor_value;
 
   // Get the cursor. It must be either null, or a list.
-  if (!args->Get(2, &cursor_value) ||
+  if (!args->Get(1, &cursor_value) ||
       (!cursor_value->IsType(Value::TYPE_NULL) &&
       !history::QueryCursor::FromValue(cursor_value, &options.cursor))) {
-    NOTREACHED() << "Failed to convert argument 2. ";
+    NOTREACHED() << "Failed to convert argument 1. ";
     return;
   }
 
-  if (!ExtractIntegerValueAtIndex(args, 3, &options.max_count)) {
-    NOTREACHED() << "Failed to convert argument 3.";
+  if (!ExtractIntegerValueAtIndex(args, 2, &options.max_count)) {
+    NOTREACHED() << "Failed to convert argument 2.";
     return;
   }
 
@@ -291,10 +284,7 @@ void BrowsingHistoryHandler::HandleRemoveURLsOnOneDay(const ListValue* args) {
     web_ui()->CallJavascriptFunction("deleteFailed");
     return;
   }
-  base::Time::Exploded exploded;
-  base::Time::FromJsTime(visit_time).LocalExplode(&exploded);
-  exploded.hour = exploded.minute = exploded.second = exploded.millisecond = 0;
-  base::Time begin_time = base::Time::FromLocalExploded(exploded);
+  base::Time begin_time = base::Time::FromJsTime(visit_time).LocalMidnight();
   base::Time end_time = begin_time + base::TimeDelta::FromDays(1);
 
   // Get URLs.
@@ -303,14 +293,14 @@ void BrowsingHistoryHandler::HandleRemoveURLsOnOneDay(const ListValue* args) {
        v != args->end(); ++v) {
     if ((*v)->GetType() != Value::TYPE_STRING)
       continue;
-    const StringValue* string_value = static_cast<const StringValue*>(*v);
     string16 string16_value;
-    if (!string_value->GetAsString(&string16_value))
+    if (!(*v)->GetAsString(&string16_value))
       continue;
 
     urls_to_be_deleted_.insert(GURL(string16_value));
   }
 
+  Profile* profile = Profile::FromWebUI(web_ui());
   HistoryService* hs = HistoryServiceFactory::GetForProfile(
       Profile::FromWebUI(web_ui()), Profile::EXPLICIT_ACCESS);
   hs->ExpireHistoryBetween(
@@ -318,6 +308,17 @@ void BrowsingHistoryHandler::HandleRemoveURLsOnOneDay(const ListValue* args) {
       base::Bind(&BrowsingHistoryHandler::RemoveComplete,
                  base::Unretained(this)),
       &delete_task_tracker_);
+
+  history::WebHistoryService* web_history =
+      WebHistoryServiceFactory::GetForProfile(profile);
+  if (web_history) {
+    web_history_delete_request_ = web_history->ExpireHistoryBetween(
+      urls_to_be_deleted_,
+      begin_time,
+      end_time,
+      base::Bind(&BrowsingHistoryHandler::RemoveWebHistoryComplete,
+                 base::Unretained(this)));
+  }
 }
 
 void BrowsingHistoryHandler::HandleClearBrowsingData(const ListValue* args) {
@@ -477,6 +478,13 @@ void BrowsingHistoryHandler::RemoveComplete() {
   web_ui()->CallJavascriptFunction("deleteComplete");
 }
 
+void BrowsingHistoryHandler::RemoveWebHistoryComplete(
+    history::WebHistoryService::Request* request, bool success) {
+  // Notify the page that the deletion request is complete.
+  base::FundamentalValue success_value(success);
+  web_ui()->CallJavascriptFunction("webHistoryDeleteComplete", success_value);
+}
+
 // Helper function for Observe that determines if there are any differences
 // between the URLs noticed for deletion and the ones we are expecting.
 static bool DeletionsDiffer(const history::URLRows& deleted_rows,
@@ -516,8 +524,8 @@ HistoryUI::HistoryUI(content::WebUI* web_ui) : WebUIController(web_ui) {
   web_ui->AddMessageHandler(new BrowsingHistoryHandler());
 
   // Set up the chrome://history-frame/ source.
-  ChromeURLDataManager::AddWebUIDataSource(Profile::FromWebUI(web_ui),
-                                           CreateHistoryUIHTMLSource());
+  content::WebUIDataSource::Add(Profile::FromWebUI(web_ui),
+                                CreateHistoryUIHTMLSource());
 }
 
 // static

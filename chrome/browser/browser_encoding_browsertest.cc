@@ -11,11 +11,12 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/download_manager.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/notification_source.h"
@@ -65,6 +66,37 @@ const EncodingTestData kEncodingTestDatas[] = {
   { "windows-1258.html", "windows-1258" }
 };
 
+class SavePackageFinishedObserver : public content::DownloadManager::Observer {
+ public:
+  SavePackageFinishedObserver(content::DownloadManager* manager,
+                              const base::Closure& callback)
+      : download_manager_(manager),
+        callback_(callback) {
+    download_manager_->AddObserver(this);
+  }
+
+  virtual ~SavePackageFinishedObserver() {
+    if (download_manager_)
+      download_manager_->RemoveObserver(this);
+  }
+
+  // DownloadManager::Observer:
+  virtual void OnSavePackageSuccessfullyFinished(
+      content::DownloadManager* manager, content::DownloadItem* item) OVERRIDE {
+    callback_.Run();
+  }
+  virtual void ManagerGoingDown(content::DownloadManager* manager) OVERRIDE {
+    download_manager_->RemoveObserver(this);
+    download_manager_ = NULL;
+  }
+
+ private:
+  content::DownloadManager* download_manager_;
+  base::Closure callback_;
+
+  DISALLOW_COPY_AND_ASSIGN(SavePackageFinishedObserver);
+};
+
 }  // namespace
 
 using content::BrowserThread;
@@ -86,13 +118,15 @@ class BrowserEncodingTest
     // We save the page as way of complete HTML file, which requires a directory
     // name to save sub resources in it. Although this test file does not have
     // sub resources, but the directory name is still required.
-    content::WindowedNotificationObserver observer(
-        content::NOTIFICATION_SAVE_PACKAGE_SUCCESSFULLY_FINISHED,
-        content::NotificationService::AllSources());
-    chrome::GetActiveWebContents(browser())->SavePage(
+    scoped_refptr<content::MessageLoopRunner> loop_runner(
+        new content::MessageLoopRunner);
+    SavePackageFinishedObserver observer(
+        content::BrowserContext::GetDownloadManager(browser()->profile()),
+        loop_runner->QuitClosure());
+    browser()->tab_strip_model()->GetActiveWebContents()->SavePage(
         full_file_name, temp_sub_resource_dir_,
         content::SAVE_PAGE_TYPE_AS_COMPLETE_HTML);
-    observer.Wait();
+    loop_runner->Run();
 
     FilePath expected_file_name = ui_test_utils::GetTestFilePath(
         FilePath(kTestDir), expected);
@@ -131,7 +165,8 @@ IN_PROC_BROWSER_TEST_P(BrowserEncodingTest, TestEncodingAliasMapping) {
   GURL url = content::URLRequestMockHTTPJob::GetMockUrl(test_file_path);
   ui_test_utils::NavigateToURL(browser(), url);
   EXPECT_EQ(GetParam().encoding_name,
-            chrome::GetActiveWebContents(browser())->GetEncoding());
+            browser()->tab_strip_model()->GetActiveWebContents()->
+                GetEncoding());
 }
 
 INSTANTIATE_TEST_CASE_P(EncodingAliases,
@@ -149,7 +184,8 @@ IN_PROC_BROWSER_TEST_F(BrowserEncodingTest, TestOverrideEncoding) {
   test_dir_path = test_dir_path.AppendASCII(kTestFileName);
   GURL url = content::URLRequestMockHTTPJob::GetMockUrl(test_dir_path);
   ui_test_utils::NavigateToURL(browser(), url);
-  content::WebContents* web_contents = chrome::GetActiveWebContents(browser());
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
   EXPECT_EQ("ISO-8859-1", web_contents->GetEncoding());
 
   // Override the encoding to "gb18030".
@@ -254,7 +290,8 @@ IN_PROC_BROWSER_TEST_F(BrowserEncodingTest, MAYBE_TestEncodingAutoDetect) {
   browser()->profile()->GetPrefs()->SetString(prefs::kDefaultCharset,
                                               "ISO-8859-4");
 
-  content::WebContents* web_contents = chrome::GetActiveWebContents(browser());
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
   for (size_t i = 0; i < ARRAYSIZE_UNSAFE(kTestDatas); ++i) {
     // Disable auto detect if it is on.
     browser()->profile()->GetPrefs()->SetBoolean(

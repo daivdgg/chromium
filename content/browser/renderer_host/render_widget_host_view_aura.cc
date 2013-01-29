@@ -197,7 +197,7 @@ class RenderWidgetHostViewAura::WindowObserver : public aura::WindowObserver {
 
   // Overridden from aura::WindowObserver:
   virtual void OnWindowAddedToRootWindow(aura::Window* window) OVERRIDE {
-    view_->AddingToRootWindow();
+    view_->AddedToRootWindow();
   }
 
   virtual void OnWindowRemovingFromRootWindow(aura::Window* window) OVERRIDE {
@@ -1597,6 +1597,8 @@ void RenderWidgetHostViewAura::OnMouseEvent(ui::MouseEvent* event) {
 void RenderWidgetHostViewAura::OnScrollEvent(ui::ScrollEvent* event) {
   TRACE_EVENT0("browser", "RenderWidgetHostViewAura::OnScrollEvent");
   if (event->type() == ui::ET_SCROLL) {
+    if (event->finger_count() != 2)
+      return;
     WebKit::WebGestureEvent gesture_event =
         MakeWebGestureEventFlingCancel();
     host_->ForwardGestureEvent(gesture_event);
@@ -1758,6 +1760,14 @@ void RenderWidgetHostViewAura::OnWindowFocused(aura::Window* gained_focus,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// RenderWidgetHostViewAura, aura::RootWindowObserver implementation:
+
+void RenderWidgetHostViewAura::OnRootWindowMoved(const aura::RootWindow* root,
+                                                 const gfx::Point& new_origin) {
+  UpdateScreenInfo(window_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // RenderWidgetHostViewAura, ui::CompositorObserver implementation:
 
 void RenderWidgetHostViewAura::OnCompositingDidCommit(
@@ -1829,6 +1839,8 @@ RenderWidgetHostViewAura::~RenderWidgetHostViewAura() {
     factory->RemoveObserver(this);
   }
   window_->RemoveObserver(window_observer_.get());
+  if (window_->GetRootWindow())
+    window_->GetRootWindow()->RemoveRootWindowObserver(this);
   UnlockMouse();
   if (popup_type_ != WebKit::WebPopupTypeNone && popup_parent_host_view_) {
     DCHECK(popup_parent_host_view_->popup_child_host_view_ == NULL ||
@@ -1976,12 +1988,14 @@ void RenderWidgetHostViewAura::InsertSyncPointAndACK(
       params.route_id, params.gpu_host_id, ack_params);
 }
 
-void RenderWidgetHostViewAura::AddingToRootWindow() {
+void RenderWidgetHostViewAura::AddedToRootWindow() {
+  window_->GetRootWindow()->AddRootWindowObserver(this);
   host_->ParentChanged(GetNativeViewId());
   UpdateScreenInfo(window_);
 }
 
 void RenderWidgetHostViewAura::RemovingFromRootWindow() {
+  window_->GetRootWindow()->RemoveRootWindowObserver(this);
   host_->ParentChanged(0);
   // We are about to disconnect ourselves from the compositor, we need to issue
   // the callbacks now, because we won't get notified when the frame is done.

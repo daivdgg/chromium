@@ -41,7 +41,6 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window_state.h"
 #include "chrome/browser/ui/find_bar/find_bar_controller.h"
 #include "chrome/browser/ui/find_bar/find_tab_helper.h"
@@ -78,7 +77,6 @@
 #include "chrome/browser/ui/gtk/website_settings/website_settings_popup_gtk.h"
 #include "chrome/browser/ui/omnibox/location_bar.h"
 #include "chrome/browser/ui/omnibox/omnibox_view.h"
-#include "chrome/browser/ui/page_info_bubble.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/common/chrome_notification_types.h"
@@ -741,7 +739,8 @@ void BrowserWindowGtk::BookmarkBarStateChanged(
 }
 
 void BrowserWindowGtk::UpdateDevTools() {
-  UpdateDevToolsForContents(chrome::GetActiveWebContents(browser_.get()));
+  UpdateDevToolsForContents(
+      browser_->tab_strip_model()->GetActiveWebContents());
 }
 
 void BrowserWindowGtk::UpdateLoadingAnimations(bool should_animate) {
@@ -771,7 +770,8 @@ void BrowserWindowGtk::LoadingAnimationCallback() {
     tabstrip_->UpdateLoadingAnimations();
   } else if (ShouldShowWindowIcon()) {
     // ... or in the window icon area for popups and app windows.
-    WebContents* web_contents = chrome::GetActiveWebContents(browser_.get());
+    WebContents* web_contents =
+        browser_->tab_strip_model()->GetActiveWebContents();
     // GetSelectedTabContents can return NULL for example under Purify when
     // the animations are running slowly and this function is called on
     // a timer through LoadingAnimationCallback.
@@ -969,8 +969,9 @@ void BrowserWindowGtk::ShowChromeToMobileBubble() {
 
 #if defined(ENABLE_ONE_CLICK_SIGNIN)
 void BrowserWindowGtk::ShowOneClickSigninBubble(
-      const StartSyncCallback& start_sync_callback) {
-  new OneClickSigninBubbleGtk(this, start_sync_callback);
+    OneClickSigninBubbleType type,
+    const StartSyncCallback& start_sync_callback) {
+  new OneClickSigninBubbleGtk(this, type, start_sync_callback);
 }
 #endif
 
@@ -1004,22 +1005,14 @@ void BrowserWindowGtk::WebContentsFocused(WebContents* contents) {
   NOTIMPLEMENTED();
 }
 
-void BrowserWindowGtk::ShowPageInfo(content::WebContents* web_contents,
-                                    const GURL& url,
-                                    const SSLStatus& ssl,
-                                    bool show_history) {
-  chrome::ShowPageInfoBubble(window_, web_contents, url, ssl, show_history,
-                             browser_.get());
-}
-
 void BrowserWindowGtk::ShowWebsiteSettings(
     Profile* profile,
     content::WebContents* web_contents,
     const GURL& url,
     const content::SSLStatus& ssl,
     bool show_history) {
-    WebsiteSettingsPopupGtk::Show(GetNativeWindow(), profile,
-                                  web_contents, url, ssl);
+  WebsiteSettingsPopupGtk::Show(GetNativeWindow(), profile,
+                                web_contents, url, ssl);
 }
 
 void BrowserWindowGtk::ShowAppMenu() {
@@ -1119,17 +1112,17 @@ void BrowserWindowGtk::ShowCreateChromeAppShortcutsDialog(
 
 void BrowserWindowGtk::Cut() {
   gtk_window_util::DoCut(
-      window_, chrome::GetActiveWebContents(browser_.get()));
+      window_, browser_->tab_strip_model()->GetActiveWebContents());
 }
 
 void BrowserWindowGtk::Copy() {
   gtk_window_util::DoCopy(
-      window_, chrome::GetActiveWebContents(browser_.get()));
+      window_, browser_->tab_strip_model()->GetActiveWebContents());
 }
 
 void BrowserWindowGtk::Paste() {
   gtk_window_util::DoPaste(
-      window_, chrome::GetActiveWebContents(browser_.get()));
+      window_, browser_->tab_strip_model()->GetActiveWebContents());
 }
 
 gfx::Rect BrowserWindowGtk::GetInstantBounds() {
@@ -1165,7 +1158,8 @@ void BrowserWindowGtk::ShowPasswordGenerationBubble(
     const gfx::Rect& rect,
     const content::PasswordForm& form,
     autofill::PasswordGenerator* password_generator) {
-  WebContents* web_contents = chrome::GetActiveWebContents(browser_.get());
+  WebContents* web_contents =
+      browser_->tab_strip_model()->GetActiveWebContents();
   if (!web_contents || !web_contents->GetContentNativeView()) {
     return;
   }
@@ -1188,8 +1182,8 @@ void BrowserWindowGtk::Observe(int type,
 void BrowserWindowGtk::TabDetachedAt(WebContents* contents, int index) {
   // We use index here rather than comparing |contents| because by this time
   // the model has already removed |contents| from its list, so
-  // chrome::GetActiveWebContents(browser_.get()) will return NULL or something
-  // else.
+  // browser_->tab_strip_model()->GetActiveWebContents() will return NULL or
+  // something else.
   if (index == browser_->tab_strip_model()->active_index()) {
     infobar_container_->ChangeInfoBarService(NULL);
     UpdateDevToolsForContents(NULL);
@@ -1987,7 +1981,8 @@ gboolean BrowserWindowGtk::OnKeyPress(GtkWidget* widget, GdkEventKey* event) {
 
   // If a widget besides the native view is focused, we have to try to handle
   // the custom accelerators before letting it handle them.
-  WebContents* current_web_contents = chrome::GetActiveWebContents(browser());
+  WebContents* current_web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
   // The current tab might not have a render view if it crashed.
   if (!current_web_contents || !current_web_contents->GetContentNativeView() ||
       !gtk_widget_is_focus(current_web_contents->GetContentNativeView())) {

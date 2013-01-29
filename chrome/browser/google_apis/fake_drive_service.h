@@ -38,6 +38,12 @@ class FakeDriveService : public DriveServiceInterface {
   // when offline. By default the offline state is false.
   void set_offline(bool offline) { offline_ = offline; }
 
+  // Changes the default max results returned from GetResourceList().
+  // By default, it's set to 0, which is unlimited.
+  void set_default_max_results(int default_max_results) {
+    default_max_results_ = default_max_results;
+  }
+
   // Returns the largest changestamp, which starts from 0 by default. See
   // also comments at LoadAccountMetadataForWapi().
   int64 largest_changestamp() const { return largest_changestamp_; }
@@ -52,6 +58,9 @@ class FakeDriveService : public DriveServiceInterface {
     return account_metadata_load_count_;
   }
 
+  // Returns the (fake) URL for the link.
+  static GURL GetFakeLinkUrl(const std::string& resource_id);
+
   // DriveServiceInterface Overrides
   virtual void Initialize(Profile* profile) OVERRIDE;
   virtual void AddObserver(DriveServiceObserver* observer) OVERRIDE;
@@ -63,6 +72,8 @@ class FakeDriveService : public DriveServiceInterface {
   virtual std::string GetRootResourceId() const OVERRIDE;
   virtual bool HasAccessToken() const OVERRIDE;
   virtual bool HasRefreshToken() const OVERRIDE;
+  // See the comment for EntryMatchWidthQuery() in .cc file for details about
+  // the supported search query types.
   virtual void GetResourceList(
       const GURL& feed_url,
       int64 start_changestamp,
@@ -100,15 +111,15 @@ class FakeDriveService : public DriveServiceInterface {
                               const std::string& new_name,
                               const EntryActionCallback& callback) OVERRIDE;
   virtual void AddResourceToDirectory(
-      const GURL& parent_content_url,
+      const std::string& parent_resource_id,
       const GURL& edit_url,
       const EntryActionCallback& callback) OVERRIDE;
   virtual void RemoveResourceFromDirectory(
-      const GURL& parent_content_url,
+      const std::string& parent_resource_id,
       const std::string& resource_id,
       const EntryActionCallback& callback) OVERRIDE;
   virtual void AddNewDirectory(
-      const GURL& parent_content_url,
+      const std::string& parent_resource_id,
       const std::string& directory_name,
       const GetResourceEntryCallback& callback) OVERRIDE;
   virtual void InitiateUpload(const InitiateUploadParams& params,
@@ -144,6 +155,7 @@ class FakeDriveService : public DriveServiceInterface {
   scoped_ptr<base::Value> account_metadata_value_;
   scoped_ptr<base::Value> app_info_value_;
   int64 largest_changestamp_;
+  int default_max_results_;
   int resource_id_count_;
   int resource_list_load_count_;
   int account_metadata_load_count_;

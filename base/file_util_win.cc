@@ -302,32 +302,6 @@ bool DirectoryExists(const FilePath& path) {
   return false;
 }
 
-bool GetFileCreationLocalTimeFromHandle(HANDLE file_handle,
-                                        LPSYSTEMTIME creation_time) {
-  base::ThreadRestrictions::AssertIOAllowed();
-  if (!file_handle)
-    return false;
-
-  FILETIME utc_filetime;
-  if (!GetFileTime(file_handle, &utc_filetime, NULL, NULL))
-    return false;
-
-  FILETIME local_filetime;
-  if (!FileTimeToLocalFileTime(&utc_filetime, &local_filetime))
-    return false;
-
-  return !!FileTimeToSystemTime(&local_filetime, creation_time);
-}
-
-bool GetFileCreationLocalTime(const std::wstring& filename,
-                              LPSYSTEMTIME creation_time) {
-  base::ThreadRestrictions::AssertIOAllowed();
-  base::win::ScopedHandle file_handle(
-      CreateFile(filename.c_str(), GENERIC_READ, kFileShareAll, NULL,
-                 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
-  return GetFileCreationLocalTimeFromHandle(file_handle.Get(), creation_time);
-}
-
 bool GetTempDir(FilePath* path) {
   base::ThreadRestrictions::AssertIOAllowed();
 
@@ -563,8 +537,8 @@ int WriteFile(const FilePath& filename, const char* data, int size) {
                                           0,
                                           NULL));
   if (!file) {
-    DLOG(WARNING) << "CreateFile failed for path " << filename.value()
-                  << " error code=" << GetLastError();
+    DLOG_GETLASTERROR(WARNING) << "CreateFile failed for path "
+                               << filename.value();
     return -1;
   }
 
@@ -575,8 +549,8 @@ int WriteFile(const FilePath& filename, const char* data, int size) {
 
   if (!result) {
     // WriteFile failed.
-    DLOG(WARNING) << "writing file " << filename.value()
-                  << " failed, error code=" << GetLastError();
+    DLOG_GETLASTERROR(WARNING) << "writing file " << filename.value()
+                               << " failed";
   } else {
     // Didn't write all the bytes.
     DLOG(WARNING) << "wrote" << written << " bytes to "
@@ -595,8 +569,8 @@ int AppendToFile(const FilePath& filename, const char* data, int size) {
                                           0,
                                           NULL));
   if (!file) {
-    DLOG(WARNING) << "CreateFile failed for path " << filename.value()
-                  << " error code=" << GetLastError();
+    DLOG_GETLASTERROR(WARNING) << "CreateFile failed for path "
+                               << filename.value();
     return -1;
   }
 
@@ -607,8 +581,8 @@ int AppendToFile(const FilePath& filename, const char* data, int size) {
 
   if (!result) {
     // WriteFile failed.
-    DLOG(WARNING) << "writing file " << filename.value()
-                  << " failed, error code=" << GetLastError();
+    DLOG_GETLASTERROR(WARNING) << "writing file " << filename.value()
+                               << " failed";
   } else {
     // Didn't write all the bytes.
     DLOG(WARNING) << "wrote" << written << " bytes to "

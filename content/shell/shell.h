@@ -41,6 +41,7 @@ class GURL;
 namespace content {
 
 class BrowserContext;
+class ShellDevToolsFrontend;
 class ShellJavaScriptDialogCreator;
 class SiteInstance;
 class WebContents;
@@ -62,7 +63,7 @@ class Shell : public WebContentsDelegate,
   void CloseDevTools();
 
   // Do one time initialization at application startup.
-  static void PlatformInitialize();
+  static void Initialize();
 
   static Shell* CreateNewWindow(BrowserContext* browser_context,
                                 const GURL& url,
@@ -146,6 +147,9 @@ class Shell : public WebContentsDelegate,
   // Helper to create a new Shell given a newly created WebContents.
   static Shell* CreateShell(WebContents* web_contents);
 
+  // Helper for one time initialization of application
+  static void PlatformInitialize(const gfx::Size& default_window_size);
+
   // All the methods that begin with Platform need to be implemented by the
   // platform specific Shell implementation.
   // Called from the destructor to let each platform do any necessary cleanup.
@@ -207,7 +211,7 @@ class Shell : public WebContentsDelegate,
 
   scoped_ptr<WebContents> web_contents_;
 
-  Shell* dev_tools_;
+  ShellDevToolsFrontend* devtools_frontend_;
 
   bool is_fullscreen_;
 

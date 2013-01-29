@@ -34,6 +34,15 @@ class MockMediaStreamTrackList
     return tracks_[index];
   }
 
+  virtual TrackType* Find(const std::string& id) OVERRIDE {
+    for (size_t i = 0; i < tracks_.size(); ++i) {
+      if (tracks_.at(i)->id() == id) {
+        return tracks_.at(i);
+      }
+    }
+    return NULL;
+  }
+
   void AddTrack(TrackType* track) {
     tracks_.push_back(track);
   }
@@ -348,6 +357,16 @@ MockMediaStreamDependencyFactory::CreateVideoSource(
   return last_video_source_;
 }
 
+bool MockMediaStreamDependencyFactory::InitializeAudioSource(
+  const StreamDeviceInfo& device_info) {
+  return true;
+}
+
+bool MockMediaStreamDependencyFactory::CreateWebAudioSource(
+    WebKit::WebMediaStreamSource* source) {
+  return true;
+}
+
 scoped_refptr<webrtc::LocalMediaStreamInterface>
 MockMediaStreamDependencyFactory::CreateLocalMediaStream(
     const std::string& label) {
@@ -389,9 +408,6 @@ MockMediaStreamDependencyFactory::CreateIceCandidate(
     int sdp_mline_index,
     const std::string& sdp) {
   return new MockIceCandidate(sdp_mid, sdp_mline_index, sdp);
-}
-
-void MockMediaStreamDependencyFactory::SetAudioDeviceSessionId(int session_id) {
 }
 
 }  // namespace content

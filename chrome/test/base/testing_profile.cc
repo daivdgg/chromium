@@ -28,8 +28,8 @@
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/geolocation/chrome_geolocation_permission_context.h"
 #include "chrome/browser/geolocation/chrome_geolocation_permission_context_factory.h"
-#include "chrome/browser/history/history.h"
 #include "chrome/browser/history/history_backend.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/shortcuts_backend.h"
 #include "chrome/browser/history/shortcuts_backend_factory.h"
@@ -757,11 +757,6 @@ bool TestingProfile::WasCreatedByVersionOrLater(const std::string& version) {
 
 Profile::ExitType TestingProfile::GetLastSessionExitType() {
   return last_session_exited_cleanly_ ? EXIT_NORMAL : EXIT_CRASHED;
-}
-
-base::Callback<ChromeURLDataManagerBackend*(void)>
-    TestingProfile::GetChromeURLDataManagerBackendGetter() const {
-  return base::Callback<ChromeURLDataManagerBackend*(void)>();
 }
 
 TestingProfile::Builder::Builder()

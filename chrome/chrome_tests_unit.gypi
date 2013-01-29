@@ -142,8 +142,6 @@
         'browser/password_manager/mock_password_store.h',
         'browser/password_manager/password_form_data.cc',
         'browser/password_manager/password_form_data.h',
-        'browser/policy/mock_cloud_policy_data_store.cc',
-        'browser/policy/mock_cloud_policy_data_store.h',
         'browser/policy/mock_configuration_policy_provider.cc',
         'browser/policy/mock_configuration_policy_provider.h',
         'browser/policy/policy_builder.cc',
@@ -436,6 +434,7 @@
         'browser/autocomplete/shortcuts_provider_unittest.cc',
         'browser/autofill/address_field_unittest.cc',
         'browser/autofill/address_unittest.cc',
+        'browser/autofill/autocheckout_page_meta_data_unittest.cc',
         'browser/autofill/autocomplete_history_manager_unittest.cc',
         'browser/autofill/autofill_country_unittest.cc',
         'browser/autofill/autofill_download_unittest.cc',
@@ -662,6 +661,8 @@
         'browser/extensions/api/declarative/initializing_rules_registry_unittest.cc',
         'browser/extensions/api/declarative/rules_registry_service_unittest.cc',
         'browser/extensions/api/declarative/rules_registry_with_cache_unittest.cc',
+        'browser/extensions/api/declarative_content/content_action_unittest.cc',
+        'browser/extensions/api/declarative_content/content_condition_unittest.cc',
         'browser/extensions/api/declarative_webrequest/webrequest_action_unittest.cc',
         'browser/extensions/api/declarative_webrequest/webrequest_condition_attribute_unittest.cc',
         'browser/extensions/api/declarative_webrequest/webrequest_condition_unittest.cc',
@@ -842,6 +843,7 @@
         'browser/managed_mode/managed_mode_unittest.cc',
         'browser/managed_mode/managed_mode_url_filter_unittest.cc',
         'browser/managed_mode/managed_user_service_unittest.cc',
+        'browser/media/chrome_webrtc_internals_unittest.cc',
         'browser/media/media_internals_unittest.cc',
         'browser/media_gallery/linux/mtp_device_object_enumerator_unittest.cc',
         'browser/media_gallery/media_file_system_registry_unittest.cc',
@@ -849,6 +851,7 @@
         'browser/media_gallery/media_galleries_dialog_controller_mock.h',
         'browser/media_gallery/media_galleries_preferences_unittest.cc',
         'browser/media_gallery/media_gallery_database_unittest.cc',
+        'browser/media_gallery/win/mtp_device_object_enumerator_unittest.cc',
         'browser/metrics/metrics_log_unittest.cc',
         'browser/metrics/metrics_log_serializer_unittest.cc',
         'browser/metrics/metrics_service_unittest.cc',
@@ -874,7 +877,6 @@
         'browser/net/network_stats_unittest.cc',
         'browser/net/predictor_unittest.cc',
         'browser/net/pref_proxy_config_tracker_impl_unittest.cc',
-        'browser/net/quoted_printable_unittest.cc',
         'browser/net/spdyproxy/http_auth_handler_spdyproxy_unittest.cc',
         'browser/net/sqlite_persistent_cookie_store_unittest.cc',
         'browser/net/sqlite_server_bound_cert_store_unittest.cc',
@@ -905,13 +907,10 @@
         'browser/policy/auto_enrollment_client_unittest.cc',
         'browser/policy/browser_policy_connector_unittest.cc',
         'browser/policy/cloud_policy_client_unittest.cc',
-        'browser/policy/cloud_policy_controller_unittest.cc',
         'browser/policy/cloud_policy_core_unittest.cc',
         'browser/policy/cloud_policy_manager_unittest.cc',
-        'browser/policy/cloud_policy_provider_unittest.cc',
         'browser/policy/cloud_policy_refresh_scheduler_unittest.cc',
         'browser/policy/cloud_policy_service_unittest.cc',
-        'browser/policy/cloud_policy_subsystem_unittest.cc',
         'browser/policy/cloud_policy_validator_unittest.cc',
         'browser/policy/config_dir_policy_loader_unittest.cc',
         'browser/policy/configuration_policy_handler_chromeos_unittest.cc',
@@ -919,17 +918,11 @@
         'browser/policy/configuration_policy_pref_store_unittest.cc',
         'browser/policy/configuration_policy_provider_test.cc',
         'browser/policy/configuration_policy_provider_test.h',
-        'browser/policy/cros_user_policy_cache_unittest.cc',
         'browser/policy/device_cloud_policy_manager_chromeos_unittest.cc',
         'browser/policy/device_cloud_policy_store_chromeos_unittest.cc',
         'browser/policy/device_management_service_unittest.cc',
-        'browser/policy/device_policy_cache_unittest.cc',
-        'browser/policy/device_token_fetcher_unittest.cc',
         'browser/policy/device_local_account_policy_service_unittest.cc',
         'browser/policy/enterprise_install_attributes_unittest.cc',
-        'browser/policy/logging_work_scheduler.cc',
-        'browser/policy/logging_work_scheduler.h',
-        'browser/policy/logging_work_scheduler_unittest.cc',
         'browser/policy/managed_mode_policy_provider_unittest.cc',
         'browser/policy/mock_cloud_policy_client.cc',
         'browser/policy/mock_cloud_policy_client.h',
@@ -952,17 +945,12 @@
         'browser/policy/preferences_mock_mac.cc',
         'browser/policy/preferences_mock_mac.h',
         'browser/policy/proxy_policy_provider_unittest.cc',
-        'browser/policy/testing_cloud_policy_subsystem.cc',
-        'browser/policy/testing_cloud_policy_subsystem.h',
-        'browser/policy/testing_policy_url_fetcher_factory.cc',
-        'browser/policy/testing_policy_url_fetcher_factory.h',
         'browser/policy/url_blacklist_manager_unittest.cc',
         'browser/policy/user_cloud_policy_manager_chromeos_unittest.cc',
         'browser/policy/user_cloud_policy_manager_unittest.cc',
         'browser/policy/user_cloud_policy_store_chromeos_unittest.cc',
         'browser/policy/user_cloud_policy_store_unittest.cc',
         'browser/policy/user_info_fetcher_unittest.cc',
-        'browser/policy/user_policy_cache_unittest.cc',
         'browser/policy/user_policy_signin_service_unittest.cc',
         'browser/predictors/autocomplete_action_predictor_table_unittest.cc',
         'browser/predictors/autocomplete_action_predictor_unittest.cc',
@@ -1057,8 +1045,8 @@
         'browser/signin/token_service_unittest.h',
         'browser/signin/ubertoken_fetcher_unittest.cc',
         'browser/speech/extension_api/extension_manifests_tts_unittest.cc',
-        'browser/speech/extension_api/tts_extension_api_controller_unittest.cc',
         'browser/speech/speech_recognition_bubble_controller_unittest.cc',
+        'browser/speech/tts_controller_unittest.cc',
         'browser/spellchecker/spellcheck_custom_dictionary_unittest.cc',
         'browser/spellchecker/spellcheck_host_metrics_unittest.cc',
         'browser/spellchecker/spellcheck_platform_mac_unittest.cc',
@@ -1233,7 +1221,7 @@
         'browser/ui/cocoa/browser/avatar_button_controller_unittest.mm',
         'browser/ui/cocoa/browser/avatar_menu_bubble_controller_unittest.mm',
         'browser/ui/cocoa/browser/edit_search_engine_cocoa_controller_unittest.mm',
-	'browser/ui/cocoa/browser/password_generation_bubble_controller_unittest.mm',
+        'browser/ui/cocoa/browser/password_generation_bubble_controller_unittest.mm',
         'browser/ui/cocoa/browser_window_cocoa_unittest.mm',
         'browser/ui/cocoa/browser_window_controller_unittest.mm',
         'browser/ui/cocoa/bubble_view_unittest.mm',
@@ -1310,10 +1298,10 @@
         'browser/ui/cocoa/notifications/balloon_controller_unittest.mm',
         'browser/ui/cocoa/nsimage_cache_unittest.mm',
         'browser/ui/cocoa/nsmenuitem_additions_unittest.mm',
+        'browser/ui/cocoa/nsview_additions_unittest.mm',
         'browser/ui/cocoa/omnibox/omnibox_popup_view_mac_unittest.mm',
         'browser/ui/cocoa/omnibox/omnibox_view_mac_unittest.mm',
         'browser/ui/cocoa/one_click_signin_bubble_controller_unittest.mm',
-        'browser/ui/cocoa/page_info_bubble_controller_unittest.mm',
         'browser/ui/cocoa/panels/panel_cocoa_unittest.mm',
         'browser/ui/cocoa/profile_menu_controller_unittest.mm',
         'browser/ui/cocoa/ratings_view_unittest.mm',
@@ -1406,6 +1394,7 @@
         'browser/ui/views/accessibility/accessibility_event_router_views_unittest.cc',
         'browser/ui/views/bookmarks/bookmark_context_menu_test.cc',
         'browser/ui/views/bookmarks/bookmark_editor_view_unittest.cc',
+        'browser/ui/views/confirm_bubble_views_unittest.cc',
         'browser/ui/views/crypto_module_password_dialog_view_unittest.cc',
         'browser/ui/views/extensions/browser_action_drag_data_unittest.cc',
         'browser/ui/views/first_run_bubble_unittest.cc',
@@ -1419,7 +1408,6 @@
         'browser/ui/views/tabs/tab_strip_unittest.cc',
         'browser/ui/web_contents_modal_dialog_manager_unittest.cc',
         'browser/ui/website_settings/website_settings_unittest.cc',
-        'browser/ui/webui/chrome_web_ui_data_source_unittest.cc',
         'browser/ui/webui/fileicon_source_unittest.cc',
         'browser/ui/webui/ntp/android/partner_bookmarks_shim_unittest.cc',
         'browser/ui/webui/ntp/suggestions_combiner_unittest.cc',
@@ -1434,7 +1422,6 @@
         'browser/ui/webui/theme_source_unittest.cc',
         'browser/ui/webui/web_dialog_web_contents_delegate_unittest.cc',
         'browser/ui/webui/web_ui_unittest.cc',
-        'browser/ui/webui/web_ui_util_unittest.cc',
         'browser/ui/window_sizer/window_sizer_ash_unittest.cc',
         'browser/ui/window_sizer/window_sizer_common_unittest.cc',
         'browser/ui/window_sizer/window_sizer_unittest.cc',
@@ -1470,6 +1457,9 @@
         'common/content_settings_helper_unittest.cc',
         'common/content_settings_pattern_parser_unittest.cc',
         'common/content_settings_pattern_unittest.cc',
+        'common/extensions/api/commands/commands_manifest_unittest.cc',
+        'common/extensions/api/extension_action/browser_action_manifest_unittest.cc',
+        'common/extensions/api/extension_action/page_action_manifest_unittest.cc',
         'common/extensions/api/extension_action/script_badge_manifest_unittest.cc',
         'common/extensions/command_unittest.cc',
         'common/extensions/csp_validator_unittest.cc',
@@ -1489,9 +1479,7 @@
         'common/extensions/manifest_tests/extension_manifest_test.cc',
         'common/extensions/manifest_tests/extension_manifests_auth_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_background_unittest.cc',
-        'common/extensions/manifest_tests/extension_manifests_browseraction_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_chromepermission_unittest.cc',
-        'common/extensions/manifest_tests/extension_manifests_command_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_contentscript_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_contentsecuritypolicy_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_default_unittest.cc',
@@ -1508,7 +1496,6 @@
         'common/extensions/manifest_tests/extension_manifests_old_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_options_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_override_unittest.cc',
-        'common/extensions/manifest_tests/extension_manifests_pageaction_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_platformapp_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_portsinpermissions_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_requirements_unittest.cc',
@@ -1605,6 +1592,10 @@
         'test/logging/win/mof_data_parser_unittest.cc',
         'tools/convert_dict/convert_dict_unittest.cc',
 
+        # Duplicate these tests here because PathService has more items in
+        # unit_tests than in base_unittests.
+        '../base/path_service_unittest.cc',
+
         # TODO(joi): Move to 'base_prefs' target in base/base.gyp once
         # Prefs move is complete and dependencies have been broken.
         '../base/prefs/json_pref_store_unittest.cc',
@@ -1665,11 +1656,6 @@
         '../webkit/glue/web_intent_service_data_unittest.cc',
         '../webkit/quota/mock_storage_client.cc',
         '../webkit/quota/mock_storage_client.h',
-
-        # TODO(boliu): Move this to components_unittests target under
-        # components/.
-        '../components/auto_login_parser/auto_login_parser_unittest.cc',
-        '../components/visitedlink/test/visitedlink_unittest.cc',
       ],
       'conditions': [
         ['OS!="ios"', {
@@ -1768,6 +1754,7 @@
             'browser/extensions/extension_context_menu_model_unittest.cc',
             'browser/extensions/extension_ui_unittest.cc',
             'browser/extensions/permissions_updater_unittest.cc',
+            'common/extensions/extension_unittest.cc',
           ],
         }],
         ['use_ash==1', {
@@ -2058,6 +2045,7 @@
           'dependencies': [
             'chrome_version_resources',
             'installer_util_strings',
+            'unit_tests_exe_pdb_workaround',
             '../third_party/iaccessible2/iaccessible2.gyp:iaccessible2',
             '../third_party/isimpledom/isimpledom.gyp:isimpledom',
           ],
@@ -2316,6 +2304,8 @@
       ],
     },
   ],
+
+
   'conditions': [
     # Special target to wrap a gtest_target_type==shared_library
     # unit_tests into an android apk for execution.
@@ -2351,6 +2341,25 @@
           'sources': [
             'unit_tests.isolate',
           ],
+        },
+      ],
+    }],
+    ['OS=="win"', {
+      'targets' : [
+        {
+          # This target is only depended upon on Windows.
+          'target_name': 'unit_tests_exe_pdb_workaround',
+          'type': 'static_library',
+          'sources': [ 'empty_pdb_workaround.cc' ],
+          'msvs_settings': {
+            'VCCLCompilerTool': {
+              # This *in the compile phase* must match the pdb name that's
+              # output by the final link. See empty_pdb_workaround.cc for
+              # more details.
+              'DebugInformationFormat': '3',
+              'ProgramDataBaseFileName': '<(PRODUCT_DIR)/unit_tests.exe.pdb',
+            },
+          },
         },
       ],
     }],

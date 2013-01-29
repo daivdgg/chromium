@@ -218,6 +218,7 @@ void AutofillAgent::DidFailProvisionalLoad(WebFrame* frame,
 void AutofillAgent::DidCommitProvisionalLoad(WebFrame* frame,
                                              bool is_new_navigation) {
   autocheckout_click_in_progress_ = false;
+  in_flight_request_form_.reset();
 }
 
 void AutofillAgent::FrameDetached(WebFrame* frame) {
@@ -645,9 +646,12 @@ void AutofillAgent::OnAcceptPasswordAutofillSuggestion(const string16& value) {
 
 void AutofillAgent::OnRequestAutocompleteResult(
     WebFormElement::AutocompleteResult result, const FormData& form_data) {
-  DCHECK(!in_flight_request_form_.isNull());
+  if (in_flight_request_form_.isNull())
+    return;
+
   if (result == WebFormElement::AutocompleteResultSuccess)
     FillFormIncludingNonFocusableElements(form_data, in_flight_request_form_);
+
   in_flight_request_form_.finishRequestAutocomplete(result);
   in_flight_request_form_.reset();
 }
@@ -726,6 +730,9 @@ void AutofillAgent::ShowSuggestions(const WebInputElement& element,
 
 void AutofillAgent::QueryAutofillSuggestions(const WebInputElement& element,
                                              bool display_warning_if_disabled) {
+  if (!element.document().frame())
+    return;
+
   static int query_counter = 0;
   autofill_query_id_ = query_counter++;
   display_warning_if_disabled_ = display_warning_if_disabled;

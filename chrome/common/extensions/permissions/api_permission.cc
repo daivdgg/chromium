@@ -176,6 +176,7 @@ void APIPermissionInfo::RegisterAllPermissions(
       IDS_EXTENSION_PROMPT_WARNING_CLIPBOARD,
       PermissionMessage::kClipboard },
     { APIPermission::kClipboardWrite, "clipboardWrite" },
+    { APIPermission::kDeclarativeContent, "declarativeContent" },
     { APIPermission::kDeclarativeWebRequest, "declarativeWebRequest" },
     { APIPermission::kDownloads, "downloads", kFlagNone,
       IDS_EXTENSION_PROMPT_WARNING_DOWNLOADS,
@@ -349,6 +350,7 @@ void APIPermissionInfo::RegisterAllPermissions(
     { APIPermission::kSystemIndicator, "systemIndicator", kFlagNone,
       IDS_EXTENSION_PROMPT_WARNING_SYSTEM_INDICATOR,
       PermissionMessage::kSystemIndicator },
+    { APIPermission::kSystemInfoDisplay, "systemInfo.display" },
     { APIPermission::kPointerLock, "pointerLock" },
   };
 

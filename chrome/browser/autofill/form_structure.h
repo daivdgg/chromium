@@ -9,10 +9,12 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
+#include "base/memory/scoped_ptr.h"
 #include "base/memory/scoped_vector.h"
 #include "chrome/browser/autofill/autofill_field.h"
 #include "chrome/browser/autofill/autofill_type.h"
 #include "chrome/browser/autofill/field_types.h"
+#include "chrome/common/autofill/web_element_descriptor.h"
 #include "googleurl/src/gurl.h"
 
 struct FormData;
@@ -30,6 +32,10 @@ enum UploadRequired {
 };
 
 class AutofillMetrics;
+
+namespace autofill {
+struct AutocheckoutPageMetaData;
+}
 
 namespace base {
 class TimeTicks;
@@ -66,9 +72,11 @@ class FormStructure {
 
   // Parses the field types from the server query response. |forms| must be the
   // same as the one passed to EncodeQueryRequest when constructing the query.
-  static void ParseQueryResponse(const std::string& response_xml,
-                                 const std::vector<FormStructure*>& forms,
-                                 const AutofillMetrics& metric_logger);
+  static void ParseQueryResponse(
+      const std::string& response_xml,
+      const std::vector<FormStructure*>& forms,
+      autofill::AutocheckoutPageMetaData* page_meta_data,
+      const AutofillMetrics& metric_logger);
 
   // Fills |forms| with the details from the given |form_structures| and their
   // fields' predicted types.
@@ -123,14 +131,6 @@ class FormStructure {
   // at least one field.
   void ParseFieldTypesFromAutocompleteAttributes(bool* found_types,
                                                  bool* found_sections);
-
-  // Returns true if the autofill server says that the current page is start of
-  // the autofillable flow.
-  bool IsStartOfAutofillableFlow() const;
-
-  // Returns true if the autofill server says that the current page is in the
-  // autofillable flow.
-  bool IsInAutofillableFlow() const;
 
   const AutofillField* field(size_t index) const;
   AutofillField* field(size_t index);
@@ -219,14 +219,6 @@ class FormStructure {
 
   // GET or POST.
   RequestMethod method_;
-
-  // Page number of the autofill flow this form belongs to (zero-indexed).
-  // If this form doesn't belong to any autofill flow, it is set to -1.
-  int current_page_number_;
-
-  // Total number of pages in the autofill flow. If this form doesn't belong
-  // to any autofill flow, it is set to -1.
-  int total_pages_;
 
   // Whether the form includes any field types explicitly specified by the site
   // author, via the |autocompletetype| attribute.

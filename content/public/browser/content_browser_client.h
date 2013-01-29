@@ -22,7 +22,6 @@
 #include "base/posix/global_descriptors.h"
 #endif
 
-
 class CommandLine;
 class FilePath;
 class GURL;
@@ -65,12 +64,11 @@ class RenderViewHost;
 class RenderViewHostDelegateView;
 class ResourceContext;
 class SiteInstance;
-class SpeechInputManagerDelegate;
 class SpeechRecognitionManagerDelegate;
 class WebContents;
 class WebContentsView;
 class WebContentsViewDelegate;
-class WebUIControllerFactory;
+class WebRTCInternals;
 struct MainFunctionParams;
 struct ShowDesktopNotificationHostMsgParams;
 
@@ -109,17 +107,20 @@ class CONTENT_EXPORT ContentBrowserClient {
   // Notifies that a new RenderHostView has been created.
   virtual void RenderViewHostCreated(RenderViewHost* render_view_host) {}
 
+  // Notifies that a <webview> guest WebContents has been created.
+  virtual void GuestWebContentsCreated(WebContents* guest_web_contents,
+                                       WebContents* embedder_web_contents) {}
+
   // Notifies that a RenderProcessHost has been created. This is called before
   // the content layer adds its own BrowserMessageFilters, so that the
   // embedder's IPC filters have priority.
   virtual void RenderProcessHostCreated(RenderProcessHost* host) {}
 
+  // Notifies that a RenderProcessHost is about to be deleted.
+  virtual void RenderProcessHostDeleted(RenderProcessHost* host) {}
+
   // Notifies that a BrowserChildProcessHost has been created.
   virtual void BrowserChildProcessHostCreated(BrowserChildProcessHost* host) {}
-
-  // Gets the WebUIControllerFactory which will be responsible for generating
-  // WebUIs. Can return NULL if the embedder doesn't need WebUI support.
-  virtual WebUIControllerFactory* GetWebUIControllerFactory();
 
   // Get the effective URL for the given actual URL, to allow an embedder to
   // group different url schemes in the same SiteInstance.
@@ -324,9 +325,13 @@ class CONTENT_EXPORT ContentBrowserClient {
       int render_process_id,
       int render_view_id) {}
 
-  // Returns a a class to get notifications about media event. The embedder can
+  // Returns a class to get notifications about media event. The embedder can
   // return NULL if they're not interested.
   virtual MediaObserver* GetMediaObserver();
+
+  // Returns a class to get WebRTC updates. The embedder can return NULL if they
+  // are not interested.
+  virtual WebRTCInternals* GetWebRTCInternals();
 
   // Asks permission to show desktop notifications.
   virtual void RequestDesktopNotificationPermission(

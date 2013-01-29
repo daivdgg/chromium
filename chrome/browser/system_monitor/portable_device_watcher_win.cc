@@ -449,14 +449,6 @@ bool HandleDeviceAttachedEventOnBlockingThread(
                                        device_details);
 }
 
-// Constructs and returns a storage path from storage unique identifier.
-string16 GetStoragePathFromStorageId(const std::string& storage_unique_id) {
-  // Construct a dummy device path using the storage name. This is only used
-  // for registering the device media file system.
-  DCHECK(!storage_unique_id.empty());
-  return UTF8ToUTF16("\\\\" + storage_unique_id);
-}
-
 // Registers |hwnd| to receive portable device notification details. On success,
 // returns the device notifications handle else returns NULL.
 HDEVNOTIFY RegisterPortableDeviceNotification(HWND hwnd) {
@@ -519,7 +511,7 @@ void PortableDeviceWatcherWin::OnWindowMessage(UINT event_type, LPARAM data) {
 bool PortableDeviceWatcherWin::GetMTPStorageInfoFromDeviceId(
     const std::string& storage_device_id,
     string16* device_location,
-    string16* storage_object_id) {
+    string16* storage_object_id) const {
   DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
   DCHECK(device_location);
   DCHECK(storage_object_id);
@@ -543,6 +535,15 @@ bool PortableDeviceWatcherWin::GetMTPStorageInfoFromDeviceId(
     }
   }
   return false;
+}
+
+// static
+string16 PortableDeviceWatcherWin::GetStoragePathFromStorageId(
+    const std::string& storage_unique_id) {
+  // Construct a dummy device path using the storage name. This is only used
+  // for registering the device media file system.
+  DCHECK(!storage_unique_id.empty());
+  return UTF8ToUTF16("\\\\" + storage_unique_id);
 }
 
 void PortableDeviceWatcherWin::EnumerateAttachedDevices() {

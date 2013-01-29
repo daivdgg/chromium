@@ -44,7 +44,7 @@ namespace {
 // ContextGroup's memory type managers and the GpuMemoryManager class.
 class GpuCommandBufferMemoryTracker : public gpu::gles2::MemoryTracker {
  public:
-  GpuCommandBufferMemoryTracker(GpuChannel* channel) :
+  explicit GpuCommandBufferMemoryTracker(GpuChannel* channel) :
       tracking_group_(channel->gpu_channel_manager()->gpu_memory_manager()->
           CreateTrackingGroup(channel->renderer_pid(), this)) {
   }
@@ -55,6 +55,10 @@ class GpuCommandBufferMemoryTracker : public gpu::gles2::MemoryTracker {
     tracking_group_->TrackMemoryAllocatedChange(
         old_size, new_size, pool);
   }
+
+  virtual bool EnsureGPUMemoryAvailable(size_t size_needed) {
+    return tracking_group_->EnsureGPUMemoryAvailable(size_needed);
+  };
 
  private:
   ~GpuCommandBufferMemoryTracker() {
@@ -115,6 +119,7 @@ GpuCommandBufferStub::GpuCommandBufferStub(
       surface_id_(surface_id),
       software_(software),
       last_flush_count_(0),
+      last_memory_allocation_valid_(false),
       parent_stub_for_initialization_(),
       parent_texture_for_initialization_(0),
       watchdog_(watchdog),
@@ -263,19 +268,9 @@ void GpuCommandBufferStub::OnEcho(const IPC::Message& message) {
   Send(new IPC::Message(message));
 }
 
-void GpuCommandBufferStub::DelayEcho(IPC::Message* message) {
-  delayed_echos_.push_back(message);
-}
-
 void GpuCommandBufferStub::OnReschedule() {
   if (!IsScheduled())
     return;
-  while (!delayed_echos_.empty()) {
-    scoped_ptr<IPC::Message> message(delayed_echos_.front());
-    delayed_echos_.pop_front();
-
-    OnMessageReceived(*message);
-  }
 
   channel_->OnScheduled();
 }
@@ -306,11 +301,6 @@ void GpuCommandBufferStub::Destroy() {
   // The scheduler has raw references to the decoder and the command buffer so
   // destroy it before those.
   scheduler_.reset();
-
-  while (!delayed_echos_.empty()) {
-    delete delayed_echos_.front();
-    delayed_echos_.pop_front();
-  }
 
   bool have_context = false;
   if (decoder_.get())
@@ -367,8 +357,8 @@ void GpuCommandBufferStub::OnInitialize(
   scheduler_.reset(new gpu::GpuScheduler(command_buffer_.get(),
                                          decoder_.get(),
                                          decoder_.get()));
-  if (preempt_by_counter_.get())
-    scheduler_->SetPreemptByCounter(preempt_by_counter_);
+  if (preemption_flag_.get())
+    scheduler_->SetPreemptByFlag(preemption_flag_);
 
   decoder_->set_engine(scheduler_.get());
 
@@ -837,11 +827,11 @@ void GpuCommandBufferStub::RemoveDestructionObserver(
   destruction_observers_.RemoveObserver(observer);
 }
 
-void GpuCommandBufferStub::SetPreemptByCounter(
-    scoped_refptr<gpu::RefCountedCounter> counter) {
-  preempt_by_counter_ = counter;
+void GpuCommandBufferStub::SetPreemptByFlag(
+    scoped_refptr<gpu::PreemptionFlag> flag) {
+  preemption_flag_ = flag;
   if (scheduler_.get())
-    scheduler_->SetPreemptByCounter(preempt_by_counter_);
+    scheduler_->SetPreemptByFlag(preemption_flag_);
 }
 
 bool GpuCommandBufferStub::GetTotalGpuMemory(size_t* bytes) {
@@ -861,14 +851,25 @@ gpu::gles2::MemoryTracker* GpuCommandBufferStub::GetMemoryTracker() const {
 
 void GpuCommandBufferStub::SetMemoryAllocation(
     const GpuMemoryAllocation& allocation) {
-  Send(new GpuCommandBufferMsg_SetMemoryAllocation(
-      route_id_, allocation.renderer_allocation));
-  // This can be called outside of OnMessageReceived, so the context needs to be
-  // made current before calling methods on the surface.
-  if (!surface_ || !MakeCurrent())
-    return;
-  surface_->SetFrontbufferAllocation(
-      allocation.browser_allocation.suggest_have_frontbuffer);
+  if (!last_memory_allocation_valid_ ||
+      !allocation.renderer_allocation.Equals(
+          last_memory_allocation_.renderer_allocation)) {
+    Send(new GpuCommandBufferMsg_SetMemoryAllocation(
+        route_id_, allocation.renderer_allocation));
+  }
+
+  if (!last_memory_allocation_valid_ ||
+      !allocation.browser_allocation.Equals(
+          last_memory_allocation_.browser_allocation)) {
+    // This can be called outside of OnMessageReceived, so the context needs
+    // to be made current before calling methods on the surface.
+    if (surface_ && MakeCurrent())
+      surface_->SetFrontbufferAllocation(
+          allocation.browser_allocation.suggest_have_frontbuffer);
+  }
+
+  last_memory_allocation_valid_ = true;
+  last_memory_allocation_ = allocation;
 }
 
 }  // namespace content

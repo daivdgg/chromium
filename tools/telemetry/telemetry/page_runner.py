@@ -1,15 +1,16 @@
 # Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
+import codecs
 import logging
 import os
-import re
 import time
 import traceback
 import urlparse
 import random
 
 from telemetry import browser_gone_exception
+from telemetry import page_filter as page_filter_module
 from telemetry import page_test
 from telemetry import tab_crash_exception
 from telemetry import util
@@ -27,6 +28,8 @@ class _RunState(object):
     self.is_tracing = False
 
   def Close(self):
+    self.is_tracing = False
+
     if self.tab:
       self.tab.Disconnect()
       self.tab = None
@@ -42,22 +45,9 @@ def _ShuffleAndFilterPageSet(page_set, options):
   if options.pageset_shuffle_order_file:
     return page_set.ReorderPageSet(options.pageset_shuffle_order_file)
 
-  pages = page_set.pages[:]
-  if options.page_filter:
-    try:
-      page_regex = re.compile(options.page_filter)
-    except re.error:
-      raise Exception('--page-filter: invalid regex')
-  else:
-    page_regex = None
-
-  def IsSelected(page):
-    if page.disabled:
-      return False
-    if page_regex:
-      return page_regex.search(page.url)
-    return True
-  pages = [page for page in pages if IsSelected(page)]
+  page_filter = page_filter_module.PageFilter(options)
+  pages = [page for page in page_set.pages[:]
+           if not page.disabled and page_filter.IsSelected(page)]
 
   if options.pageset_shuffle:
     random.Random().shuffle(pages)
@@ -255,6 +245,7 @@ class PageRunner(object):
 
   def _EndTracing(self, state, options, page):
     if state.is_tracing:
+      assert state.browser
       state.is_tracing = False
       state.browser.StopTracing()
       trace = state.browser.GetTrace()
@@ -273,7 +264,8 @@ class PageRunner(object):
           trace_file_index = trace_file_index + 1
       else:
         trace_file = '%s.json' % trace_file_base
-      with open(trace_file, 'w') as trace_file:
+      with codecs.open(trace_file, 'w',
+                       encoding='utf-8') as trace_file:
         trace_file.write(trace)
       logging.info('Trace saved.')
 
@@ -316,3 +308,7 @@ class PageRunner(object):
                               chrome.benchmarking.closeConnections()""")
     except Exception:
       pass
+
+  @staticmethod
+  def AddCommandLineOptions(parser):
+    page_filter_module.PageFilter.AddCommandLineOptions(parser)

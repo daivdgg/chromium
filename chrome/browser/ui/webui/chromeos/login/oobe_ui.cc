@@ -33,7 +33,6 @@
 #include "chrome/browser/ui/webui/chromeos/login/user_image_screen_handler.h"
 #include "chrome/browser/ui/webui/options/chromeos/user_image_source.h"
 #include "chrome/browser/ui/webui/theme_source.h"
-#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/url_data_source.h"
@@ -42,6 +41,7 @@
 #include "grit/browser_resources.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/webui/jstemplate_builder.h"
+#include "ui/webui/web_ui_util.h"
 
 using content::WebContents;
 
@@ -129,16 +129,17 @@ std::string OobeUIHTMLSource::GetDataResource(int resource_id) const {
 // OobeUI ----------------------------------------------------------------------
 
 // static
-const char OobeUI::kScreenOobeNetwork[]     = "connect";
-const char OobeUI::kScreenOobeEula[]        = "eula";
-const char OobeUI::kScreenOobeUpdate[]      = "update";
-const char OobeUI::kScreenOobeEnrollment[]  = "oauth-enrollment";
-const char OobeUI::kScreenGaiaSignin[]      = "gaia-signin";
-const char OobeUI::kScreenAccountPicker[]   = "account-picker";
-const char OobeUI::kScreenErrorMessage[]    = "error-message";
-const char OobeUI::kScreenUserImagePicker[] = "user-image";
-const char OobeUI::kScreenTpmError[]        = "tpm-error-message";
-const char OobeUI::kScreenPasswordChanged[] = "password-changed";
+const char OobeUI::kScreenOobeNetwork[]         = "connect";
+const char OobeUI::kScreenOobeEula[]            = "eula";
+const char OobeUI::kScreenOobeUpdate[]          = "update";
+const char OobeUI::kScreenOobeEnrollment[]      = "oauth-enrollment";
+const char OobeUI::kScreenGaiaSignin[]          = "gaia-signin";
+const char OobeUI::kScreenAccountPicker[]       = "account-picker";
+const char OobeUI::kScreenErrorMessage[]        = "error-message";
+const char OobeUI::kScreenUserImagePicker[]     = "user-image";
+const char OobeUI::kScreenTpmError[]            = "tpm-error-message";
+const char OobeUI::kScreenPasswordChanged[]     = "password-changed";
+const char OobeUI::kScreenManagedUserCreation[] = "managed-user-creation";
 
 OobeUI::OobeUI(content::WebUI* web_ui)
     : WebUIController(web_ui),
@@ -204,21 +205,21 @@ OobeUI::OobeUI(content::WebUI* web_ui)
   Profile* profile = Profile::FromWebUI(web_ui);
   // Set up the chrome://theme/ source, for Chrome logo.
   ThemeSource* theme = new ThemeSource(profile);
-  ChromeURLDataManager::AddDataSource(profile, theme);
+  content::URLDataSource::Add(profile, theme);
 
   // Set up the chrome://terms/ data source, for EULA content.
   AboutUIHTMLSource* about_source =
       new AboutUIHTMLSource(chrome::kChromeUITermsHost, profile);
-  ChromeURLDataManager::AddDataSource(profile, about_source);
+  content::URLDataSource::Add(profile, about_source);
 
   // Set up the chrome://oobe/ source.
   OobeUIHTMLSource* html_source = new OobeUIHTMLSource(localized_strings);
-  ChromeURLDataManager::AddDataSource(profile, html_source);
+  content::URLDataSource::Add(profile, html_source);
 
   // Set up the chrome://userimage/ source.
   options::UserImageSource* user_image_source =
       new options::UserImageSource();
-  ChromeURLDataManager::AddDataSource(profile, user_image_source);
+  content::URLDataSource::Add(profile, user_image_source);
 }
 
 OobeUI::~OobeUI() {
@@ -274,7 +275,7 @@ void OobeUI::GetLocalizedStrings(base::DictionaryValue* localized_strings) {
   // Note, handlers_[0] is a GenericHandler used by the WebUI.
   for (size_t i = 0; i < handlers_.size(); ++i)
     handlers_[i]->GetLocalizedStrings(localized_strings);
-  web_ui_util::SetFontAndTextDirection(localized_strings);
+  webui::SetFontAndTextDirection(localized_strings);
 
 #if defined(GOOGLE_CHROME_BUILD)
   localized_strings->SetString("buildType", "chrome");
@@ -321,6 +322,7 @@ void OobeUI::InitializeScreenMaps() {
   screen_names_[SCREEN_USER_IMAGE_PICKER] = kScreenUserImagePicker;
   screen_names_[SCREEN_TPM_ERROR] = kScreenTpmError;
   screen_names_[SCREEN_PASSWORD_CHANGED] = kScreenPasswordChanged;
+  screen_names_[SCREEN_CREATE_MANAGED_USER] = kScreenManagedUserCreation;
 
   screen_ids_.clear();
   for (size_t i = 0; i < screen_names_.size(); ++i)

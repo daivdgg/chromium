@@ -55,12 +55,60 @@ const int kMinimumDragDistance = 8;
 // Size between the buttons.
 const int kButtonSpacing = 4;
 
+// Additional spacing for the left and right side of icons.
+const int kHorizontalIconSpacing = 8;
+
 // The proportion of the launcher space reserved for non-panel icons. Panels
 // may flow into this space but will be put into the overflow bubble if there
 // is contention for the space.
 const float kReservedNonPanelIconProportion = 0.67f;
 
+// This is the command id of the menu item which contains the name of the menu.
+const int kCommandIdOfMenuName = 0;
+
 namespace {
+
+// The MenuModelAdapter gets slightly changed to adapt the menu appearance to
+// our requirements.
+class LauncherMenuModelAdapter
+    : public views::MenuModelAdapter {
+ public:
+  explicit LauncherMenuModelAdapter(ui::MenuModel* menu_model);
+
+  // Overriding MenuModelAdapter's MenuDelegate implementation.
+  virtual const gfx::Font* GetLabelFont(int command_id) const OVERRIDE;
+  virtual void GetHorizontalIconMargins(int id,
+                                        int icon_size,
+                                        int* left_margin,
+                                        int* right_margin) const OVERRIDE;
+
+ private:
+
+  DISALLOW_COPY_AND_ASSIGN(LauncherMenuModelAdapter);
+};
+
+
+LauncherMenuModelAdapter::LauncherMenuModelAdapter(ui::MenuModel* menu_model)
+    : MenuModelAdapter(menu_model) {}
+
+const gfx::Font* LauncherMenuModelAdapter::GetLabelFont(
+    int command_id) const {
+  if (command_id != kCommandIdOfMenuName)
+    return MenuModelAdapter::GetLabelFont(command_id);
+
+  ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
+  return &rb.GetFont(ui::ResourceBundle::BoldFont);
+}
+
+void LauncherMenuModelAdapter::GetHorizontalIconMargins(
+    int command_id,
+    int icon_size,
+    int* left_margin,
+    int* right_margin) const {
+  *left_margin = kHorizontalIconSpacing;
+  *right_margin = (command_id != kCommandIdOfMenuName) ?
+      kHorizontalIconSpacing : -icon_size;
+}
 
 // Custom FocusSearch used to navigate the launcher in the order items are in
 // the ViewModel.
@@ -219,7 +267,7 @@ void ReflectItemStatus(const ash::LauncherItem& item,
 
 }  // namespace
 
-// AnimationDelegate used when inserting a new item. This steadily decreased the
+// AnimationDelegate used when deleting an item. This steadily decreased the
 // opacity of the layer as the animation progress.
 class LauncherView::FadeOutAnimationDelegate
     : public views::BoundsAnimator::OwnedAnimationDelegate {
@@ -235,7 +283,7 @@ class LauncherView::FadeOutAnimationDelegate
     view_->layer()->ScheduleDraw();
   }
   virtual void AnimationEnded(const Animation* animation) OVERRIDE {
-    launcher_view_->AnimateToIdealBounds();
+    launcher_view_->OnFadeOutAnimationEnded();
   }
   virtual void AnimationCanceled(const Animation* animation) OVERRIDE {
   }
@@ -799,6 +847,21 @@ void LauncherView::UpdateFirstButtonPadding() {
   }
 }
 
+void LauncherView::OnFadeOutAnimationEnded() {
+  AnimateToIdealBounds();
+
+  // If overflow button is visible, fading the new lat item in after sliding
+  // animation is finished.
+  if (overflow_button_->visible()) {
+    views::View* last_visible_view = view_model_->view_at(last_visible_index_);
+    last_visible_view->layer()->SetOpacity(0);
+    bounds_animator_->SetAnimationDelegate(
+        last_visible_view,
+        new LauncherView::StartFadeAnimationDelegate(this, last_visible_view),
+        true);
+  }
+}
+
 bool LauncherView::ShouldHideTooltip(const gfx::Point& cursor_location) {
   gfx::Rect active_bounds;
 
@@ -1235,7 +1298,7 @@ void LauncherView::ShowContextMenuForView(views::View* source,
 void LauncherView::ShowMenu(ui::MenuModel* menu_model,
                             views::View* source,
                             const gfx::Point& point) {
-  views::MenuModelAdapter menu_model_adapter(menu_model);
+  LauncherMenuModelAdapter menu_model_adapter(menu_model);
   launcher_menu_runner_.reset(
       new views::MenuRunner(menu_model_adapter.CreateMenu()));
   // NOTE: if you convert to HAS_MNEMONICS be sure and update menu building

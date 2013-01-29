@@ -16,6 +16,7 @@
 #include "base/utf_string_conversions.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/extensions/app_launcher.h"
 #include "chrome/browser/first_run/first_run.h"
 #include "chrome/browser/google/google_util.h"
 #include "chrome/browser/policy/browser_policy_connector.h"
@@ -32,7 +33,6 @@
 #include "chrome/browser/ui/webui/ntp/ntp_login_handler.h"
 #include "chrome/browser/ui/webui/sync_promo/sync_promo_ui.h"
 #include "chrome/browser/ui/webui/sync_setup_handler.h"
-#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/browser/web_resource/notification_promo.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/chrome_switches.h"
@@ -54,6 +54,7 @@
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/sys_color_change_listener.h"
 #include "ui/webui/jstemplate_builder.h"
+#include "ui/webui/web_ui_util.h"
 
 #if defined(OS_MACOSX)
 #include "chrome/browser/platform_util.h"
@@ -163,7 +164,8 @@ std::string GetNewTabBackgroundTilingCSS(
 }  // namespace
 
 NTPResourceCache::NTPResourceCache(Profile* profile)
-    : profile_(profile), is_swipe_tracking_from_scroll_events_enabled_(false) {
+    : profile_(profile), is_swipe_tracking_from_scroll_events_enabled_(false),
+      should_show_apps_page_(NewTabUI::ShouldShowApps()) {
   registrar_.Add(this, chrome::NOTIFICATION_BROWSER_THEME_CHANGED,
                  content::Source<ThemeService>(
                      ThemeServiceFactory::GetForProfile(profile)));
@@ -192,6 +194,11 @@ bool NTPResourceCache::NewTabCacheNeedsRefresh() {
     return true;
   }
 #endif
+  bool should_show_apps_page = !extensions::IsAppLauncherEnabled();
+  if (should_show_apps_page != should_show_apps_page_) {
+    should_show_apps_page_ = should_show_apps_page;
+    return true;
+  }
   return false;
 }
 
@@ -291,7 +298,7 @@ void NTPResourceCache::CreateNewTabIncognitoHTML() {
       prefs::kShowBookmarkBar);
   localized_strings.SetBoolean("bookmarkbarattached", bookmark_bar_attached);
 
-  web_ui_util::SetFontAndTextDirection(&localized_strings);
+  webui::SetFontAndTextDirection(&localized_strings);
 
   static const base::StringPiece incognito_tab_html(
       ResourceBundle::GetSharedInstance().GetRawDataResource(
@@ -379,7 +386,6 @@ void NTPResourceCache::CreateNewTabHTML() {
       l10n_util::GetStringUTF16(IDS_NEW_TAB_APP_INSTALL_HINT_LABEL));
   load_time_data.SetBoolean("isDiscoveryInNTPEnabled",
       NewTabUI::IsDiscoveryInNTPEnabled());
-  load_time_data.SetBoolean("showApps", NewTabUI::ShouldShowApps());
   load_time_data.SetString("collapseSessionMenuItemText",
       l10n_util::GetStringUTF16(IDS_NEW_TAB_OTHER_SESSIONS_COLLAPSE_SESSION));
   load_time_data.SetString("expandSessionMenuItemText",
@@ -399,6 +405,7 @@ void NTPResourceCache::CreateNewTabHTML() {
   // feature is enabled.
   load_time_data.SetBoolean("isSwipeTrackingFromScrollEventsEnabled",
                             is_swipe_tracking_from_scroll_events_enabled_);
+  load_time_data.SetBoolean("showApps", should_show_apps_page_);
 
 #if defined(OS_CHROMEOS)
   load_time_data.SetString("expandMenu",
@@ -408,7 +415,7 @@ void NTPResourceCache::CreateNewTabHTML() {
   NewTabPageHandler::GetLocalizedValues(profile_, &load_time_data);
   NTPLoginHandler::GetLocalizedValues(profile_, &load_time_data);
 
-  web_ui_util::SetFontAndTextDirection(&load_time_data);
+  webui::SetFontAndTextDirection(&load_time_data);
 
   // Control fade and resize animations.
   load_time_data.SetBoolean("anim", ui::Animation::ShouldRenderRichAnimation());

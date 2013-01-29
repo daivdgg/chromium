@@ -127,8 +127,6 @@
         'sessions/sync_session_context.cc',
         'sessions/sync_session_context.h',
         'syncable/blob.h',
-        'syncable/delete_journal.cc',
-        'syncable/delete_journal.h',
         'syncable/dir_open_result.h',
         'syncable/directory.cc',
         'syncable/directory.h',
@@ -159,6 +157,8 @@
         'syncable/syncable_base_transaction.h',
         'syncable/syncable_changes_version.h',
         'syncable/syncable_columns.h',
+        'syncable/syncable_delete_journal.cc',
+        'syncable/syncable_delete_journal.h',
         'syncable/syncable_enum_conversions.cc',
         'syncable/syncable_enum_conversions.h',
         'syncable/syncable_id.cc',
@@ -218,6 +218,7 @@
         '../third_party/cacheinvalidation/cacheinvalidation.gyp:cacheinvalidation',
         # TODO(akalin): Remove this (http://crbug.com/133352).
         '../third_party/cacheinvalidation/cacheinvalidation.gyp:cacheinvalidation_proto_cpp',
+        '../third_party/libjingle/libjingle.gyp:libjingle',
         'sync_core',
       ],
       'export_dependent_settings': [
@@ -241,12 +242,7 @@
         'notifier/object_id_invalidation_map.h',
       ],
       'conditions': [
-        ['OS == "ios"', {
-          'sources!': [
-            'notifier/invalidator_factory.cc',
-          ],
-        }],
-        ['OS != "android" and OS != "ios"', {
+        ['OS != "android"', {
           'sources': [
             'notifier/ack_tracker.cc',
             'notifier/ack_tracker.h',
@@ -265,11 +261,6 @@
             'notifier/sync_invalidation_listener.h',
             'notifier/sync_system_resources.cc',
             'notifier/sync_system_resources.h',
-          ],
-        }],
-        ['OS != "ios"', {
-          'dependencies': [
-            '../third_party/libjingle/libjingle.gyp:libjingle',
           ],
         }],
       ],
@@ -761,6 +752,7 @@
         '../testing/gmock.gyp:gmock',
         '../testing/gtest.gyp:gtest',
         '../third_party/cacheinvalidation/cacheinvalidation.gyp:cacheinvalidation',
+        '../third_party/libjingle/libjingle.gyp:libjingle',
         'sync_core',
         'sync_notifier',
         'test_support_sync_notifier',
@@ -774,6 +766,7 @@
         '../testing/gmock.gyp:gmock',
         '../testing/gtest.gyp:gtest',
         '../third_party/cacheinvalidation/cacheinvalidation.gyp:cacheinvalidation',
+        '../third_party/libjingle/libjingle.gyp:libjingle',
         'sync_core',
         'sync_notifier',
         'test_support_sync_notifier',
@@ -786,15 +779,7 @@
           'notifier/invalidator_factory_unittest.cc',
         ],
         'conditions': [
-          ['OS == "ios"', {
-            'sources!': [
-              # TODO(ios): Re-enable this test on iOS once there is an iOS
-              # implementation of invalidator_factory.
-              'notifier/invalidator_factory_unittest.cc',
-              'notifier/sync_notifier_factory_unittest.cc',
-            ],
-          }],
-          ['OS != "android" and OS != "ios"', {
+          ['OS != "android"', {
             'sources': [
               'notifier/ack_tracker_unittest.cc',
               'notifier/fake_invalidator_unittest.cc',
@@ -810,16 +795,6 @@
           }],
         ],
       },
-      'conditions': [
-        ['OS != "ios"', {
-          'dependencies': [
-            '../third_party/libjingle/libjingle.gyp:libjingle',
-          ],
-          'export_dependent_settings': [
-            '../third_party/libjingle/libjingle.gyp:libjingle',
-          ],
-        }],
-      ],
     },
 
     # Unit tests for the 'sync_internal_api' target.  This cannot be a static
@@ -1041,6 +1016,7 @@
             'java_in_dir': '../sync/android/java',
           },
           'dependencies': [
+            '../base/base.gyp:base_java',
             '../third_party/cacheinvalidation/cacheinvalidation.gyp:cacheinvalidation_javalib',
             '../third_party/guava/guava.gyp:guava_javalib',
             '../third_party/jsr-305/jsr-305.gyp:jsr_305_javalib',

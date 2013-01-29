@@ -12,6 +12,7 @@
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/logging.h"
+#include "base/path_service.h"
 #include "base/stl_util.h"
 #include "base/string_number_conversions.h"
 #include "base/string_util.h"
@@ -46,8 +47,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/signin/signin_names_io_thread.h"
-#include "chrome/browser/ui/webui/chrome_url_data_manager_backend.h"
 #include "chrome/common/chrome_notification_types.h"
+#include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/startup_metric_utils.h"
@@ -69,6 +70,7 @@
 #include "net/url_request/file_protocol_handler.h"
 #include "net/url_request/ftp_protocol_handler.h"
 #include "net/url_request/url_request.h"
+#include "net/url_request/url_request_file_job.h"
 #include "net/url_request/url_request_job_factory_impl.h"
 
 #if defined(ENABLE_MANAGED_USERS)
@@ -139,6 +141,86 @@ Profile* GetProfileOnUI(ProfileManager* profile_manager, Profile* profile) {
     return profile;
   return NULL;
 }
+
+#if defined(DEBUG_DEVTOOLS)
+bool IsSupportedDevToolsURL(const GURL& url, FilePath* path) {
+  if (!url.SchemeIs(chrome::kChromeDevToolsScheme) ||
+      url.host() != chrome::kChromeUIDevToolsHost) {
+    return false;
+  }
+
+  if (!url.is_valid()) {
+    NOTREACHED();
+    return false;
+  }
+
+  // Remove Query and Ref from URL.
+  GURL stripped_url;
+  GURL::Replacements replacements;
+  replacements.ClearQuery();
+  replacements.ClearRef();
+  stripped_url = url.ReplaceComponents(replacements);
+
+  std::string relative_path;
+  const std::string& spec = stripped_url.possibly_invalid_spec();
+  const url_parse::Parsed& parsed =
+      stripped_url.parsed_for_possibly_invalid_spec();
+  // + 1 to skip the slash at the beginning of the path.
+  int offset = parsed.CountCharactersBefore(url_parse::Parsed::PATH, false) + 1;
+  if (offset < static_cast<int>(spec.size()))
+    relative_path.assign(spec.substr(offset));
+
+  // Check that |relative_path| is not an absolute path (otherwise
+  // AppendASCII() will DCHECK).  The awkward use of StringType is because on
+  // some systems FilePath expects a std::string, but on others a std::wstring.
+  FilePath p(FilePath::StringType(relative_path.begin(), relative_path.end()));
+  if (p.IsAbsolute())
+    return false;
+
+  FilePath inspector_dir;
+  if (!PathService::Get(chrome::DIR_INSPECTOR, &inspector_dir))
+    return false;
+
+  if (inspector_dir.empty())
+    return false;
+
+  *path = inspector_dir.AppendASCII(relative_path);
+  return true;
+}
+
+class DebugDevToolsInterceptor : public net::URLRequestJobFactory::Interceptor {
+ public:
+  DebugDevToolsInterceptor() {}
+  virtual ~DebugDevToolsInterceptor() {}
+
+  virtual net::URLRequestJob* MaybeIntercept(
+      net::URLRequest* request,
+      net::NetworkDelegate* network_delegate) const OVERRIDE {
+    FilePath path;
+    if (IsSupportedDevToolsURL(request->url(), &path))
+      return new net::URLRequestFileJob(request, network_delegate, path);
+
+    return NULL;
+  }
+
+  virtual net::URLRequestJob* MaybeInterceptRedirect(
+        const GURL& location,
+        net::URLRequest* request,
+        net::NetworkDelegate* network_delegate) const OVERRIDE {
+    return NULL;
+  }
+
+  virtual net::URLRequestJob* MaybeInterceptResponse(
+      net::URLRequest* request,
+      net::NetworkDelegate* network_delegate) const OVERRIDE {
+    return NULL;
+  }
+
+  virtual bool WillHandleProtocol(const std::string& protocol) const {
+    return protocol == chrome::kChromeDevToolsScheme;
+  }
+};
+#endif  // defined(DEBUG_DEVTOOLS)
 
 }  // namespace
 
@@ -377,12 +459,6 @@ content::ResourceContext* ProfileIOData::GetResourceContext() const {
   return resource_context_.get();
 }
 
-ChromeURLDataManagerBackend*
-ProfileIOData::GetChromeURLDataManagerBackend() const {
-  LazyInitialize();
-  return chrome_url_data_manager_backend_.get();
-}
-
 ChromeURLRequestContext*
 ProfileIOData::GetMainRequestContext() const {
   LazyInitialize();
@@ -557,8 +633,6 @@ void ProfileIOData::LazyInitialize() const {
           ChromeURLRequestContext::CONTEXT_TYPE_EXTENSIONS,
           load_time_stats_));
 
-  chrome_url_data_manager_backend_.reset(new ChromeURLDataManagerBackend);
-
   ChromeNetworkDelegate* network_delegate =
       new ChromeNetworkDelegate(
           io_thread_globals->extension_event_router_forwarder.get(),
@@ -638,23 +712,12 @@ scoped_ptr<net::URLRequestJobFactory> ProfileIOData::SetUpJobFactoryDefaults(
   DCHECK(set_protocol);
 
   set_protocol = job_factory->SetProtocolHandler(
-      chrome::kChromeDevToolsScheme,
-      CreateDevToolsProtocolHandler(chrome_url_data_manager_backend(),
-                                    network_delegate, is_incognito()));
-  DCHECK(set_protocol);
-  set_protocol = job_factory->SetProtocolHandler(
       extensions::kExtensionScheme,
       CreateExtensionProtocolHandler(is_incognito(), GetExtensionInfoMap()));
   DCHECK(set_protocol);
   set_protocol = job_factory->SetProtocolHandler(
       chrome::kExtensionResourceScheme,
       CreateExtensionResourceProtocolHandler());
-  DCHECK(set_protocol);
-  set_protocol = job_factory->SetProtocolHandler(
-      chrome::kChromeUIScheme,
-      ChromeURLDataManagerBackend::CreateProtocolHandler(
-          chrome_url_data_manager_backend_.get(),
-          is_incognito()));
   DCHECK(set_protocol);
   set_protocol = job_factory->SetProtocolHandler(
       chrome::kDataScheme, new net::DataProtocolHandler());
@@ -678,6 +741,10 @@ scoped_ptr<net::URLRequestJobFactory> ProfileIOData::SetUpJobFactoryDefaults(
       new net::FtpProtocolHandler(ftp_transaction_factory,
                                   ftp_auth_cache));
 #endif  // !defined(DISABLE_FTP_SUPPORT)
+
+#if defined(DEBUG_DEVTOOLS)
+  job_factory->AddInterceptor(new DebugDevToolsInterceptor());
+#endif
 
   if (protocol_handler_interceptor) {
     protocol_handler_interceptor->Chain(

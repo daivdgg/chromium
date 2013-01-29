@@ -9,6 +9,8 @@
 
 // Contains constants for known URLs and portions thereof.
 
+class GURL;
+
 // TODO(jam): rename this to content.
 namespace chrome {
 
@@ -19,6 +21,7 @@ CONTENT_EXPORT extern const char kAboutScheme[];
 CONTENT_EXPORT extern const char kBlobScheme[];
 CONTENT_EXPORT extern const char kChromeDevToolsScheme[];
 CONTENT_EXPORT extern const char kChromeInternalScheme[];
+CONTENT_EXPORT extern const char kChromeSearchScheme[];
 CONTENT_EXPORT extern const char kChromeUIScheme[];  // Used for WebUIs.
 CONTENT_EXPORT extern const char kCrosScheme[];      // Used for ChromeOS.
 CONTENT_EXPORT extern const char kDataScheme[];
@@ -40,9 +43,11 @@ CONTENT_EXPORT extern const char kAboutSrcDocURL[];
 CONTENT_EXPORT extern const char kChromeUIAppCacheInternalsHost[];
 CONTENT_EXPORT extern const char kChromeUIBlobInternalsHost[];
 CONTENT_EXPORT extern const char kChromeUIBrowserCrashHost[];
-CONTENT_EXPORT extern const char kChromeUINetworkViewCacheHost[];
-CONTENT_EXPORT extern const char kChromeUITcmallocHost[];
+CONTENT_EXPORT extern const char kChromeUIDevToolsHost[];
 CONTENT_EXPORT extern const char kChromeUIHistogramHost[];
+CONTENT_EXPORT extern const char kChromeUINetworkViewCacheHost[];
+CONTENT_EXPORT extern const char kChromeUIResourcesHost[];
+CONTENT_EXPORT extern const char kChromeUITcmallocHost[];
 
 // Full about URLs (including schemes).
 CONTENT_EXPORT extern const char kChromeUICrashURL[];
@@ -74,6 +79,10 @@ extern const char kSwappedOutURL[];
 // Null terminated list of schemes that are savable. This function can be
 // invoked on any thread.
 CONTENT_EXPORT const char* const* GetSavableSchemes();
+
+// Returns true if the url has a scheme for WebUI.  See also
+// WebUIControllerFactory::UseWebUIForURL in the browser process.
+CONTENT_EXPORT bool HasWebUIScheme(const GURL& url);
 
 }  // namespace content
 

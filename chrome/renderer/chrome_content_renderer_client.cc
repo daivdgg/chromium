@@ -34,7 +34,6 @@
 #include "chrome/renderer/autofill/autofill_agent.h"
 #include "chrome/renderer/autofill/password_autofill_manager.h"
 #include "chrome/renderer/autofill/password_generation_manager.h"
-#include "chrome/renderer/automation/automation_renderer_helper.h"
 #include "chrome/renderer/benchmarking_extension.h"
 #include "chrome/renderer/chrome_render_process_observer.h"
 #include "chrome/renderer/chrome_render_view_observer.h"
@@ -59,7 +58,7 @@
 #include "chrome/renderer/prerender/prerender_helper.h"
 #include "chrome/renderer/prerender/prerender_webmediaplayer.h"
 #include "chrome/renderer/prerender/prerenderer_client.h"
-#include "chrome/renderer/print_web_view_helper.h"
+#include "chrome/renderer/printing/print_web_view_helper.h"
 #include "chrome/renderer/safe_browsing/malware_dom_details.h"
 #include "chrome/renderer/safe_browsing/phishing_classifier_delegate.h"
 #include "chrome/renderer/searchbox/searchbox.h"
@@ -94,6 +93,10 @@
 #include "webkit/plugins/npapi/plugin_list.h"
 #include "webkit/plugins/ppapi/plugin_module.h"
 #include "webkit/plugins/ppapi/ppapi_interface_factory.h"
+
+#if defined(ENABLE_AUTOMATION)
+#include "chrome/renderer/automation/automation_renderer_helper.h"
+#endif
 
 using autofill::AutofillAgent;
 using autofill::PasswordAutofillManager;
@@ -287,7 +290,7 @@ void ChromeContentRendererClient::RenderViewCreated(
   new extensions::ExtensionHelper(render_view, extension_dispatcher_.get());
   new PageLoadHistograms(render_view);
 #if defined(ENABLE_PRINTING)
-  new PrintWebViewHelper(render_view);
+  new printing::PrintWebViewHelper(render_view);
 #endif
   new SearchBox(render_view);
   new SpellCheckProvider(render_view, spellcheck_.get());
@@ -319,11 +322,13 @@ void ChromeContentRendererClient::RenderViewCreated(
   new PepperHelper(render_view);
 #endif
 
+#if defined(ENABLE_AUTOMATION)
   // Used only for testing/automation.
   if (CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kDomAutomationController)) {
     new AutomationRendererHelper(render_view);
   }
+#endif
 }
 
 void ChromeContentRendererClient::SetNumberOfViews(int number_of_views) {
@@ -797,9 +802,23 @@ bool ChromeContentRendererClient::AllowPopup() {
 
 bool ChromeContentRendererClient::ShouldFork(WebFrame* frame,
                                              const GURL& url,
+                                             const std::string& http_method,
                                              bool is_initial_navigation,
                                              bool* send_referrer) {
   DCHECK(!frame->parent());
+
+  // If this is the Instant process, fork all navigations originating from the
+  // renderer.  The destination page will then be bucketed back to this Instant
+  // process if it is an Instant url, or to another process if not.
+  if (CommandLine::ForCurrentProcess()->HasSwitch(switches::kInstantProcess))
+    return true;
+
+  // For now, we skip the rest for POST submissions.  This is because
+  // http://crbug.com/101395 is more likely to cause compatibility issues
+  // with hosted apps and extensions than WebUI pages.  We will remove this
+  // check when cross-process POST submissions are supported.
+  if (http_method != "GET")
+    return false;
 
   // If |url| matches one of the prerendered URLs, stop this navigation and try
   // to swap in the prerendered page on the browser process. If the prerendered

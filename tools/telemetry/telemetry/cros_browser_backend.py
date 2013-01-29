@@ -3,7 +3,6 @@
 # found in the LICENSE file.
 import logging
 import os
-import socket
 import subprocess
 
 from telemetry import browser_backend
@@ -48,10 +47,7 @@ class CrOSBrowserBackend(browser_backend.BrowserBackend):
     cri.GetCmdOutput(args)
 
     # Find a free local port.
-    tmp = socket.socket()
-    tmp.bind(('', 0))
-    self._port = tmp.getsockname()[1]
-    tmp.close()
+    self._port = util.GetAvailableLocalPort()
 
     # Forward the remote debugging port.
     logging.info('Forwarding remote debugging port')
@@ -74,6 +70,9 @@ class CrOSBrowserBackend(browser_backend.BrowserBackend):
     logging.info('Browser is up!')
 
   def GetBrowserStartupArgs(self):
+    self.webpagereplay_remote_http_port = self._cri.GetRemotePort()
+    self.webpagereplay_remote_https_port = self._cri.GetRemotePort()
+
     args = super(CrOSBrowserBackend, self).GetBrowserStartupArgs()
 
     args.extend([
@@ -89,6 +88,9 @@ class CrOSBrowserBackend(browser_backend.BrowserBackend):
             '--start-maximized'])
 
     return args
+
+  def GetRemotePort(self, _):
+    return self._cri.GetRemotePort()
 
   def SetBrowser(self, browser):
     super(CrOSBrowserBackend, self).SetBrowser(browser)
@@ -187,29 +189,20 @@ class SSHForwarder(object):
   def __init__(self, cri, forwarding_flag, *port_pairs):
     self._proc = None
 
-    new_port_pairs = []
-
-    for port_pair in port_pairs:
-      if port_pair.remote_port is None:
-        new_port_pairs.append(
-            util.PortPair(port_pair.local_port, cri.GetRemotePort()))
-      else:
-        new_port_pairs.append(port_pair)
-
     if forwarding_flag == 'R':
-      self._host_port = new_port_pairs[0].remote_port
+      self._host_port = port_pairs[0].remote_port
       command_line = ['-%s%i:localhost:%i' % (forwarding_flag,
                                               port_pair.remote_port,
                                               port_pair.local_port)
-                      for port_pair in new_port_pairs]
+                      for port_pair in port_pairs]
     else:
-      self._host_port = new_port_pairs[0].local_port
+      self._host_port = port_pairs[0].local_port
       command_line = ['-%s%i:localhost:%i' % (forwarding_flag,
                                               port_pair.local_port,
                                               port_pair.remote_port)
-                      for port_pair in new_port_pairs]
+                      for port_pair in port_pairs]
 
-    self._device_port = new_port_pairs[0].remote_port
+    self._device_port = port_pairs[0].remote_port
 
     self._proc = subprocess.Popen(
       cri.FormSSHCommandLine(['sleep', '999999999'], command_line),

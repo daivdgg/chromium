@@ -297,6 +297,7 @@ ModelTypeSet SyncManagerImpl::GetTypesWithEmptyProgressMarkerToken(
 void SyncManagerImpl::ConfigureSyncer(
     ConfigureReason reason,
     ModelTypeSet types_to_config,
+    ModelTypeSet failed_types,
     const ModelSafeRoutingInfo& new_routing_info,
     const base::Closure& ready_task,
     const base::Closure& retry_task) {
@@ -309,7 +310,8 @@ void SyncManagerImpl::ConfigureSyncer(
   if (!session_context_->routing_info().empty())
     previous_types = GetRoutingInfoTypes(session_context_->routing_info());
   if (!PurgeDisabledTypes(previous_types,
-                          GetRoutingInfoTypes(new_routing_info))) {
+                          GetRoutingInfoTypes(new_routing_info),
+                          failed_types)) {
     // We failed to cleanup the types. Invoke the ready task without actually
     // configuring any types. The caller should detect this as a configuration
     // failure and act appropriately.
@@ -415,22 +417,11 @@ void SyncManagerImpl::Init(
   connection_manager_->set_client_id(directory()->cache_guid());
   connection_manager_->AddListener(this);
 
-  // Retrieve and set the sync notifier state.
+  // Retrieve and set the sync notifier id.
   std::string unique_id = directory()->cache_guid();
   DVLOG(1) << "Read notification unique ID: " << unique_id;
   allstatus_.SetUniqueId(unique_id);
   invalidator_->SetUniqueId(unique_id);
-
-  std::string state = directory()->GetNotificationState();
-  if (VLOG_IS_ON(1)) {
-    std::string encoded_state;
-    base::Base64Encode(state, &encoded_state);
-    DVLOG(1) << "Read notification state: " << encoded_state;
-  }
-
-  // TODO(tim): Remove once invalidation state has been migrated to new
-  // InvalidationStateTracker store. Bug 124140.
-  invalidator_->SetStateDeprecated(state);
 
   // Build a SyncSessionContext and store the worker in it.
   DVLOG(1) << "Sync is bringing up SyncSessionContext.";
@@ -578,12 +569,14 @@ bool SyncManagerImpl::PurgePartiallySyncedTypes() {
                        partially_synced_types.Size());
   if (partially_synced_types.Empty())
     return true;
-  return directory()->PurgeEntriesWithTypeIn(partially_synced_types);
+  return directory()->PurgeEntriesWithTypeIn(partially_synced_types,
+                                             ModelTypeSet());
 }
 
 bool SyncManagerImpl::PurgeDisabledTypes(
     ModelTypeSet previously_enabled_types,
-    ModelTypeSet currently_enabled_types) {
+    ModelTypeSet currently_enabled_types,
+    ModelTypeSet failed_types) {
   ModelTypeSet disabled_types = Difference(previously_enabled_types,
                                            currently_enabled_types);
   if (disabled_types.Empty())
@@ -591,7 +584,7 @@ bool SyncManagerImpl::PurgeDisabledTypes(
 
   DVLOG(1) << "Purging disabled types "
            << ModelTypeSetToString(disabled_types);
-  return directory()->PurgeEntriesWithTypeIn(disabled_types);
+  return directory()->PurgeEntriesWithTypeIn(disabled_types, failed_types);
 }
 
 void SyncManagerImpl::UpdateCredentials(

@@ -14,6 +14,7 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.webkit.ConsoleMessage;
 import android.webkit.GeolocationPermissions;
+import android.webkit.ValueCallback;
 
 import org.chromium.content.browser.ContentViewClient;
 import org.chromium.content.browser.ContentViewCore;
@@ -207,8 +208,9 @@ public abstract class AwContentsClient extends ContentViewClient {
     //             WebView specific methods that map directly to WebViewClient / WebChromeClient
     //--------------------------------------------------------------------------------------------
 
-    // TODO(boliu): Make this abstract.
-    public void doUpdateVisitedHistory(String url, boolean isReload) {}
+    public abstract void getVisitedHistory(ValueCallback<String[]> callback);
+
+    public abstract void doUpdateVisitedHistory(String url, boolean isReload);
 
     public abstract void onProgressChanged(int progress);
 
@@ -224,6 +226,8 @@ public abstract class AwContentsClient extends ContentViewClient {
 
     public abstract void onReceivedHttpAuthRequest(AwHttpAuthHandler handler,
             String host, String realm);
+
+    public abstract void onReceivedLoginRequest(String realm, String account, String args);
 
     public abstract void onFormResubmission(Message dontResend, Message resend);
 

@@ -110,6 +110,11 @@
         'base/cert_verify_proc_win.h',
         'base/cert_verify_result.cc',
         'base/cert_verify_result.h',
+        'base/client_cert_store.h',
+        'base/client_cert_store_impl.h',
+        'base/client_cert_store_impl_mac.cc',
+        'base/client_cert_store_impl_nss.cc',
+        'base/client_cert_store_impl_win.cc',
         'base/completion_callback.h',
         'base/connection_type_histograms.cc',
         'base/connection_type_histograms.h',
@@ -694,6 +699,9 @@
         'quic/crypto/quic_encrypter.h',
         'quic/crypto/quic_random.cc',
         'quic/crypto/quic_random.h',
+        'quic/quic_bandwidth.cc',
+        'quic/quic_bandwidth.h',
+        'quic/quic_blocked_writer_interface.h',
         'quic/quic_client_session.cc',
         'quic/quic_client_session.h',
         'quic/quic_crypto_client_stream.cc',
@@ -1034,6 +1042,7 @@
               'base/cert_database_nss.cc',
               'base/cert_verify_proc_nss.cc',
               'base/cert_verify_proc_nss.h',
+              'base/client_cert_store_impl_nss.cc',
               'base/crypto_module_nss.cc',
               'base/keygen_handler_nss.cc',
               'base/nss_cert_database.cc',
@@ -1145,6 +1154,7 @@
             'sources!': [
               'base/cert_verify_proc_nss.cc',
               'base/cert_verify_proc_nss.h',
+              'base/client_cert_store_impl_nss.cc',
             ],
         }],
         [ 'enable_websockets != 1', {
@@ -1159,6 +1169,7 @@
         }],
         [ 'OS == "win"', {
             'sources!': [
+              'base/client_cert_store_impl_nss.cc',
               'http/http_auth_handler_ntlm_portable.cc',
               'socket/tcp_client_socket_libevent.cc',
               'socket/tcp_client_socket_libevent.h',
@@ -1187,6 +1198,9 @@
           },
         ],
         [ 'OS == "mac"', {
+            'sources!': [
+              'base/client_cert_store_impl_nss.cc',
+            ],
             'dependencies': [
               '../third_party/nss/nss.gyp:nspr',
               '../third_party/nss/nss.gyp:nss',
@@ -1303,6 +1317,7 @@
         'base/backoff_entry_unittest.cc',
         'base/big_endian_unittest.cc',
         'base/cert_verify_proc_unittest.cc',
+        'base/client_cert_store_impl_unittest.cc',
         'base/crl_set_unittest.cc',
         'base/data_url_unittest.cc',
         'base/default_server_bound_cert_store_unittest.cc',
@@ -1493,6 +1508,7 @@
         'quic/test_tools/reliable_quic_stream_peer.h',
         'quic/test_tools/test_task_runner.cc',
         'quic/test_tools/test_task_runner.h',
+        'quic/quic_bandwidth_test.cc',
         'quic/quic_client_session_test.cc',
         'quic/quic_clock_test.cc',
         'quic/quic_connection_helper_test.cc',
@@ -1600,6 +1616,7 @@
             # No res_ninit() et al on Android, so this doesn't make a lot of
             # sense.
             'dns/dns_config_service_posix_unittest.cc',
+            'base/client_cert_store_impl_unittest.cc',
           ],
         }],
         [ 'use_glib == 1', {
@@ -1644,8 +1661,9 @@
             # TODO(bulach): Add equivalent tests when the underlying
             #               functionality is ported to OpenSSL.
             'sources!': [
-              'base/x509_util_nss_unittest.cc',
+              'base/client_cert_store_impl_unittest.cc',
               'base/nss_cert_database_unittest.cc',
+              'base/x509_util_nss_unittest.cc',
             ],
           }, {  # else !use_openssl: remove the unneeded files
             'sources!': [
@@ -1731,6 +1749,7 @@
             'sources!': [
               # TODO(droger): The following tests are disabled because the
               # implementation is missing or incomplete.
+              'base/client_cert_store_impl_unittest.cc',
               # KeygenHandler::GenKeyAndSignChallenge() is not ported to iOS.
               'base/keygen_handler_unittest.cc',
               # Need to read input data files.

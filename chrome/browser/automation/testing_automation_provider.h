@@ -16,7 +16,7 @@
 #include "chrome/browser/automation/automation_event_queue.h"
 #include "chrome/browser/automation/automation_provider.h"
 #include "chrome/browser/automation/automation_provider_json.h"
-#include "chrome/browser/history/history.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/importer/importer_list_observer.h"
 #include "chrome/browser/ui/browser_list_observer.h"
 #include "content/public/browser/notification_registrar.h"
@@ -1442,15 +1442,6 @@ class TestingAutomationProvider : public AutomationProvider,
 
   void DisconnectFromPrivateNetwork(base::DictionaryValue* args,
                                     IPC::Message* reply_message);
-
-  // Enterprise policy.
-  void IsEnterpriseDevice(DictionaryValue* args, IPC::Message* reply_message);
-
-  void EnrollEnterpriseDevice(DictionaryValue* args,
-                              IPC::Message* reply_message);
-
-  void GetEnterprisePolicyInfo(DictionaryValue* args,
-                               IPC::Message* reply_message);
 
   // Accessibility.
   void EnableSpokenFeedback(DictionaryValue* args, IPC::Message* reply_message);

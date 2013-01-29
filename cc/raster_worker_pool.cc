@@ -13,6 +13,11 @@
 #include "cc/picture_pile_impl.h"
 #include "third_party/skia/include/core/SkDevice.h"
 
+#if defined(OS_ANDROID)
+// TODO(epenner): Move thread priorities to base. (crbug.com/170549)
+#include <sys/resource.h>
+#endif
+
 namespace cc {
 
 namespace {
@@ -70,14 +75,24 @@ RasterWorkerPool::Thread::Task::~Task() {
 RasterWorkerPool::Thread::Thread(const std::string name)
     : base::Thread(name.c_str()),
       num_pending_tasks_(0) {
-  Start();
 }
 
 RasterWorkerPool::Thread::~Thread() {
   Stop();
+  DCHECK_EQ(num_pending_tasks_, 0);
 }
 
-RasterWorkerPool::RasterWorkerPool(size_t num_raster_threads) {
+void RasterWorkerPool::Thread::Init() {
+#if defined(OS_ANDROID)
+  // TODO(epenner): Move thread priorities to base. (crbug.com/170549)
+  int nice_value = 10; // Idle priority.
+  setpriority(PRIO_PROCESS, base::PlatformThread::CurrentId(), nice_value);
+#endif
+}
+
+RasterWorkerPool::RasterWorkerPool(size_t num_raster_threads)
+    : is_running_(false),
+      raster_threads_need_sorting_(false) {
   const std::string thread_name_prefix = kRasterThreadNamePrefix;
   while (raster_threads_.size() < num_raster_threads) {
     int thread_number = raster_threads_.size() + 1;
@@ -88,10 +103,39 @@ RasterWorkerPool::RasterWorkerPool(size_t num_raster_threads) {
 }
 
 RasterWorkerPool::~RasterWorkerPool() {
+  Stop();
   STLDeleteElements(&raster_threads_);
 }
 
+bool RasterWorkerPool::Start() {
+  for (ThreadVector::iterator it = raster_threads_.begin();
+       it != raster_threads_.end(); it++) {
+    Thread* thread = *it;
+    if (!thread->Start())
+      return false;
+  }
+
+  is_running_ = true;
+  return true;
+}
+
+void RasterWorkerPool::Stop() {
+  if (!is_running_)
+    return;
+
+  for (ThreadVector::iterator it = raster_threads_.begin();
+       it != raster_threads_.end(); it++) {
+    Thread* thread = *it;
+    thread->Stop();
+  }
+
+  is_running_ = false;
+}
+
 bool RasterWorkerPool::IsBusy() {
+  DCHECK(is_running_);
+  SortRasterThreadsIfNeeded();
+
   Thread* thread = raster_threads_.front();
   return thread->num_pending_tasks() >= kNumPendingRasterTasksPerThread;
 }
@@ -101,6 +145,7 @@ void RasterWorkerPool::PostRasterTaskAndReply(PicturePileImpl* picture_pile,
                                               const gfx::Rect& rect,
                                               float contents_scale,
                                               const base::Closure& reply) {
+  CHECK(is_running_);
   Thread::Task* task = CreateTask();
 
   scoped_refptr<PicturePileImpl> picture_pile_clone =
@@ -124,6 +169,7 @@ void RasterWorkerPool::PostRasterTaskAndReply(PicturePileImpl* picture_pile,
 void RasterWorkerPool::PostImageDecodeTaskAndReply(
     skia::LazyPixelRef* pixel_ref,
     const base::Closure& reply) {
+  CHECK(is_running_);
   Thread::Task* task = CreateTask();
 
   task->thread_->message_loop_proxy()->PostTaskAndReply(
@@ -159,15 +205,13 @@ RasterWorkerPool::Thread::Task* RasterWorkerPool::CreateTask() {
   DCHECK(thread->num_pending_tasks() < kNumPendingRasterTasksPerThread);
 
   scoped_ptr<Thread::Task> task(new Thread::Task(thread));
-  std::sort(raster_threads_.begin(), raster_threads_.end(),
-            PendingTaskComparator());
+  raster_threads_need_sorting_ = true;
   return task.release();
 }
 
 void RasterWorkerPool::DestroyTask(Thread::Task* task) {
   delete task;
-  std::sort(raster_threads_.begin(), raster_threads_.end(),
-            PendingTaskComparator());
+  raster_threads_need_sorting_ = true;
 }
 
 void RasterWorkerPool::OnTaskCompleted(
@@ -181,6 +225,15 @@ void RasterWorkerPool::OnRasterTaskCompleted(
     scoped_refptr<PicturePileImpl> picture_pile,
     const base::Closure& reply) {
   OnTaskCompleted(task, reply);
+}
+
+void RasterWorkerPool::SortRasterThreadsIfNeeded() {
+  if (!raster_threads_need_sorting_)
+    return;
+
+  std::sort(raster_threads_.begin(), raster_threads_.end(),
+            PendingTaskComparator());
+  raster_threads_need_sorting_ = false;
 }
 
 }  // namespace cc

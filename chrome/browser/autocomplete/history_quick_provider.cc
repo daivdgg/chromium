@@ -19,8 +19,8 @@
 #include "chrome/browser/autocomplete/autocomplete_field_trial.h"
 #include "chrome/browser/autocomplete/autocomplete_result.h"
 #include "chrome/browser/autocomplete/history_url_provider.h"
-#include "chrome/browser/history/history.h"
 #include "chrome/browser/history/history_database.h"
+#include "chrome/browser/history/history_service.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/in_memory_url_index.h"
 #include "chrome/browser/history/in_memory_url_index_types.h"
@@ -143,7 +143,7 @@ void HistoryQuickProvider::Start(const AutocompleteInput& input,
       base::TimeTicks end_time = base::TimeTicks::Now();
       std::string name = "HistoryQuickProvider.QueryIndexTime." +
           base::IntToString(input.text().length());
-      base::Histogram* counter = base::Histogram::FactoryGet(
+      base::HistogramBase* counter = base::Histogram::FactoryGet(
           name, 1, 1000, 50, base::Histogram::kUmaTargetedHistogramFlag);
       counter->Add(static_cast<int>((end_time - start_time).InMilliseconds()));
     }

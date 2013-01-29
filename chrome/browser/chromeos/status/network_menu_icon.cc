@@ -546,9 +546,10 @@ void NetworkIcon::UpdateIcon(const Network* network) {
 }
 
 void NetworkIcon::GenerateImage() {
-  if (icon_.isNull())
-    return;
-
+  if (icon_.isNull()) {
+    set_icon(NetworkMenuIcon::GetDisconnectedImage(
+        NetworkMenuIcon::ARCS, resource_color_theme_));
+  }
   image_ = NetworkMenuIcon::GenerateImageFromComponents(icon_, top_left_badge_,
       top_right_badge_, bottom_left_badge_, bottom_right_badge_);
 }
@@ -662,17 +663,16 @@ void NetworkMenuIcon::AnimationProgressed(const ui::Animation* animation) {
 
 // Private methods:
 
-// In menu mode, returns any connecting network.
-// In dropdown mode, only returns connecting network if not connected.
+// If disconnected: returns any connecting non-ethernet network.
+// Otherwise, only return a network if the conenction was user initiated.
 const Network* NetworkMenuIcon::GetConnectingNetwork() {
   NetworkLibrary* cros = CrosLibrary::Get()->GetNetworkLibrary();
-  if ((mode_ == MENU_MODE) ||
-      (mode_ == DROPDOWN_MODE && !cros->connected_network())) {
-    const Network* connecting_network = cros->connecting_network();
-    // Only show connecting icon for wireless networks.
-    if (connecting_network && connecting_network->type() != TYPE_ETHERNET) {
-      return connecting_network;
-    }
+  const Network* connecting_network = cros->connecting_network();
+  if (connecting_network &&
+      connecting_network->type() != TYPE_ETHERNET &&
+      (!cros->connected_network() ||
+       connecting_network->connection_started())) {
+    return connecting_network;
   }
   return NULL;
 }
@@ -745,12 +745,10 @@ void NetworkMenuIcon::SetIconAndText() {
   NetworkLibrary* cros = CrosLibrary::Get()->GetNetworkLibrary();
   DCHECK(cros);
 
-  if (cros->wifi_scanning())
-    return;  // Don't update icon while scanning
-
   icon_->ClearIconAndBadges();
 
-  // If we are connecting to a network, display that.
+  // If we are connecting to a network and it was user-initiated or we are
+  // not connected, display that.
   connecting_network_ = GetConnectingNetwork();
   if (connecting_network_) {
     SetConnectingIconAndText();

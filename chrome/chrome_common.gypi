@@ -127,6 +127,10 @@
         'common/custom_handlers/protocol_handler.cc',
         'common/custom_handlers/protocol_handler.h',
         'common/descriptors_android.h',
+        'common/extensions/api/commands/commands_handler.cc',
+        'common/extensions/api/commands/commands_handler.h',
+        'common/extensions/api/extension_action/browser_action_handler.cc',
+        'common/extensions/api/extension_action/browser_action_handler.h',
         'common/extensions/api/extension_action/script_badge_handler.cc',
         'common/extensions/api/extension_action/script_badge_handler.h',
         'common/extensions/api/extension_action/action_info.cc',
@@ -381,7 +385,6 @@
           ],
         }, {  # OS == ios
           'sources/': [
-            ['exclude', '^common/automation_'],
             ['exclude', '^common/child_process_'],
             ['exclude', '^common/chrome_content_client\\.cc$'],
             ['exclude', '^common/chrome_version_info_posix\\.cc$'],
@@ -473,11 +476,23 @@
             ['include', 'common/extensions/api/extension_api_stub.cc'],
             ['include', 'common/extensions/api/extension_action/action_info.cc'],
             ['include', 'common/extensions/api/extension_action/action_info.h'],
+            ['include', 'common/extensions/api/extension_action/browser_action_handler.cc'],
+            ['include', 'common/extensions/api/extension_action/browser_action_handler.h'],
           ],
         }],
         ['remoting==1', {
           'dependencies': [
             '../remoting/remoting.gyp:remoting_client_plugin',
+          ],
+        }],
+        ['enable_automation==0', {
+          'sources/': [
+            ['exclude', '^common/automation_']
+	  ]
+        }],
+        ['use_system_nspr==1', {
+          'dependencies': [
+            '<(DEPTH)/base/third_party/nspr/nspr.gyp:nspr',
           ],
         }],
       ],

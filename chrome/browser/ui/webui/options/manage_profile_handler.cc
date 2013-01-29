@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,12 +20,13 @@
 #include "chrome/browser/profiles/profile_metrics.h"
 #include "chrome/browser/profiles/profile_shortcut_manager.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/webui/web_ui_util.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/pref_names.h"
+#include "content/public/browser/browser_thread.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/web_ui.h"
 #include "grit/generated_resources.h"
+#include "ui/webui/web_ui_util.h"
 
 namespace options {
 
@@ -162,7 +163,7 @@ void ManageProfileHandler::SendProfileIcons(
         cache.GetGAIAPictureOfProfileAtIndex(profile_index);
     if (icon) {
       gfx::Image icon2 = profiles::GetAvatarIconForWebUI(*icon, true);
-      gaia_picture_url_ = web_ui_util::GetBitmapDataUrl(icon2.AsBitmap());
+      gaia_picture_url_ = webui::GetBitmapDataUrl(icon2.AsBitmap());
       image_url_list.Append(new base::StringValue(gaia_picture_url_));
     }
   }
