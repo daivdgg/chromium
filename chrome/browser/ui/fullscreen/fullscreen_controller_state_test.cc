@@ -95,7 +95,7 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
       STATE_TAB_BROWSER_FULLSCREEN,           // Event BUBBLE_ALLOW
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event BUBBLE_DENY
       STATE_TAB_BROWSER_FULLSCREEN,           // Event WINDOW_CHANGE
-    },    
+    },
     { // STATE_TO_NORMAL:
       STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN
       STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN_CHROME
