@@ -12,7 +12,7 @@ vars = {
   "chromium_git": "https://chromium.googlesource.com",
   "chromiumos_git": "https://chromium.googlesource.com/chromiumos",
   "swig_revision": "69281",
-  "nacl_revision": "10650",
+  "nacl_revision": "10668",
   # After changing nacl_revision, run 'glient sync' and check native_client/DEPS
   # to update other nacl_*_revision's.
   "nacl_tools_revision": "10001",  # native_client/DEPS: tools_rev
@@ -25,11 +25,11 @@ vars = {
 
   # These two FFmpeg variables must be updated together.  One is used for SVN
   # checkouts and the other for Git checkouts.
-  "ffmpeg_revision": "178482",
-  "ffmpeg_hash": "6a9af4b1a19cac98be103c6e094c4b55c292d571",
+  "ffmpeg_revision": "179235",
+  "ffmpeg_hash": "46d8f0aa21d3157f1bad8754009c9ec2481492ce",
 
   "sfntly_revision": "134",
-  "skia_revision": "7409",
+  "skia_revision": "7444",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling Skia
   # and V8 without interference from each other.
@@ -106,7 +106,7 @@ deps = {
     (Var("googlecode_url") % "gyp") + "/trunk@1565",
 
   "src/tools/swarm_client":
-    "/trunk/tools/swarm_client@178386",
+    "/trunk/tools/swarm_client@178819",
 
   "src/v8":
     (Var("googlecode_url") % "v8") + "/trunk@" + Var("v8_revision"),
@@ -201,6 +201,9 @@ deps = {
     Var("webkit_revision"),
   "src/content/test/data/layout_tests/LayoutTests/platform/chromium/fast/workers":
     Var("webkit_trunk") + "/LayoutTests/platform/chromium/fast/workers@" +
+    Var("webkit_revision"),
+  "src/content/test/data/layout_tests/LayoutTests/platform/chromium/fast/files":
+    Var("webkit_trunk") + "/LayoutTests/platform/chromium/fast/files@" +
     Var("webkit_revision"),
   "src/content/test/data/layout_tests/LayoutTests/platform/chromium/fast/events":
     Var("webkit_trunk") + "/LayoutTests/platform/chromium/fast/events@" +
@@ -311,7 +314,7 @@ deps = {
     "/trunk/deps/third_party/undoview@119694",
 
   "src/tools/deps2git":
-    "/trunk/tools/deps2git@173611",
+    "/trunk/tools/deps2git@179157",
 
   "src/third_party/webpagereplay":
     (Var("googlecode_url") % "web-page-replay") + "/trunk@506",

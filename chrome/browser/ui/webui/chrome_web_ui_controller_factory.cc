@@ -27,7 +27,6 @@
 #include "chrome/browser/ui/webui/feedback_ui.h"
 #include "chrome/browser/ui/webui/flags_ui.h"
 #include "chrome/browser/ui/webui/flash_ui.h"
-#include "chrome/browser/ui/webui/generic_handler.h"
 #include "chrome/browser/ui/webui/gpu_internals_ui.h"
 #include "chrome/browser/ui/webui/help/help_ui.h"
 #include "chrome/browser/ui/webui/history_ui.h"
@@ -35,6 +34,7 @@
 #include "chrome/browser/ui/webui/instant_ui.h"
 #include "chrome/browser/ui/webui/local_omnibox_popup/local_omnibox_popup_ui.h"
 #include "chrome/browser/ui/webui/media/media_internals_ui.h"
+#include "chrome/browser/ui/webui/memory_internals/memory_internals_ui.h"
 #include "chrome/browser/ui/webui/media/webrtc_internals_ui.h"
 #include "chrome/browser/ui/webui/net_internals/net_internals_ui.h"
 #include "chrome/browser/ui/webui/ntp/new_tab_ui.h"
@@ -48,7 +48,6 @@
 #include "chrome/browser/ui/webui/quota_internals_ui.h"
 #include "chrome/browser/ui/webui/signin_internals_ui.h"
 #include "chrome/browser/ui/webui/sync_internals_ui.h"
-#include "chrome/browser/ui/webui/test_chrome_web_ui_controller_factory.h"
 #include "chrome/browser/ui/webui/tracing_ui.h"
 #include "chrome/browser/ui/webui/user_actions/user_actions_ui.h"
 #include "chrome/browser/ui/webui/version_ui.h"
@@ -119,8 +118,6 @@ using ui::ExternalWebDialogUI;
 using ui::WebDialogUI;
 
 namespace {
-
-static bool g_use_test_factory = false;
 
 // A function for creating a new WebUI. The caller owns the return value, which
 // may be NULL (for example, if the URL refers to an non-existent extension).
@@ -214,6 +211,11 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<LocalOmniboxPopupUI>;
   if (url.host() == chrome::kChromeUIMediaInternalsHost)
     return &NewWebUI<MediaInternalsUI>;
+  if (url.host() == chrome::kChromeUIMemoryInternalsHost &&
+      CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kEnableMemoryInternalsUI)) {
+    return &NewWebUI<MemoryInternalsUI>;
+  }
 #if !defined(DISABLE_NACL)
   if (url.host() == chrome::kChromeUINaClHost)
     return &NewWebUI<NaClUI>;
@@ -410,20 +412,6 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
   return NULL;
 }
 
-// When the test-type switch is set, return a TestType object, which should be a
-// subclass of Type. The logic is provided here in the traits class, rather than
-// in GetInstance() so that the choice is made only once, when the Singleton is
-// first instantiated, rather than every time GetInstance() is called.
-template<typename Type, typename TestType>
-struct PossibleTestSingletonTraits : public DefaultSingletonTraits<Type> {
-  static Type* New() {
-    if (g_use_test_factory)
-      return DefaultSingletonTraits<TestType>::New();
-    else
-      return DefaultSingletonTraits<Type>::New();
-  }
-};
-
 void RunFaviconCallbackAsync(
     const FaviconService::FaviconResultsCallback& callback,
     const std::vector<history::FaviconBitmapResult>* results) {
@@ -456,27 +444,6 @@ bool ChromeWebUIControllerFactory::UseWebUIBindingsForURL(
       UseWebUIForURL(browser_context, url);
 }
 
-bool ChromeWebUIControllerFactory::IsURLAcceptableForWebUI(
-    content::BrowserContext* browser_context,
-    const GURL& url,
-    bool data_urls_allowed) const {
-  return UseWebUIForURL(browser_context, url) ||
-      // javacsript: URLs are allowed to run in Web UI pages
-      url.SchemeIs(chrome::kJavaScriptScheme) ||
-      // It's possible to load about:blank in a Web UI renderer.
-      // See http://crbug.com/42547
-      url.spec() == chrome::kAboutBlankURL ||
-      // Chrome URLs crash, kill, hang, and shorthang are allowed.
-      url == GURL(chrome::kChromeUICrashURL) ||
-      url == GURL(chrome::kChromeUIKillURL) ||
-      url == GURL(chrome::kChromeUIHangURL) ||
-      url == GURL(content::kChromeUIShorthangURL) ||
-      // Data URLs are usually not allowed in WebUI for security reasons.
-      // BalloonHosts are one exception needed by ChromeOS, and are safe because
-      // they cannot be scripted by other pages.
-      (data_urls_allowed && url.SchemeIs(chrome::kDataScheme));
-}
-
 WebUIController* ChromeWebUIControllerFactory::CreateWebUIControllerForURL(
     WebUI* web_ui,
     const GURL& url) const {
@@ -485,10 +452,7 @@ WebUIController* ChromeWebUIControllerFactory::CreateWebUIControllerForURL(
   if (!function)
     return NULL;
 
-  WebUIController* controller = (*function)(web_ui, url);
-  if (controller)
-    web_ui->AddMessageHandler(new GenericHandler());
-  return controller;
+  return (*function)(web_ui, url);
 }
 
 void ChromeWebUIControllerFactory::GetFaviconForURL(
@@ -542,13 +506,7 @@ void ChromeWebUIControllerFactory::GetFaviconForURL(
 
 // static
 ChromeWebUIControllerFactory* ChromeWebUIControllerFactory::GetInstance() {
-  return Singleton< ChromeWebUIControllerFactory, PossibleTestSingletonTraits<
-      ChromeWebUIControllerFactory, TestChromeWebUIControllerFactory> >::get();
-}
-
-// static
-void ChromeWebUIControllerFactory::UseTestFactoryForTesting() {
-  g_use_test_factory = true;
+  return Singleton<ChromeWebUIControllerFactory>::get();
 }
 
 ChromeWebUIControllerFactory::ChromeWebUIControllerFactory() {

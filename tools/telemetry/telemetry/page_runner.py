@@ -1,6 +1,7 @@
 # Copyright (c) 2012 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
+import codecs
 import logging
 import os
 import time
@@ -27,6 +28,8 @@ class _RunState(object):
     self.is_tracing = False
 
   def Close(self):
+    self.is_tracing = False
+
     if self.tab:
       self.tab.Disconnect()
       self.tab = None
@@ -242,6 +245,7 @@ class PageRunner(object):
 
   def _EndTracing(self, state, options, page):
     if state.is_tracing:
+      assert state.browser
       state.is_tracing = False
       state.browser.StopTracing()
       trace = state.browser.GetTrace()
@@ -260,7 +264,8 @@ class PageRunner(object):
           trace_file_index = trace_file_index + 1
       else:
         trace_file = '%s.json' % trace_file_base
-      with open(trace_file, 'w') as trace_file:
+      with codecs.open(trace_file, 'w',
+                       encoding='utf-8') as trace_file:
         trace_file.write(trace)
       logging.info('Trace saved.')
 

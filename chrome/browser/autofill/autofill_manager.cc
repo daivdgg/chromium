@@ -581,7 +581,7 @@ void AutofillManager::OnQueryFormFieldAutofill(int query_id,
     // If form is known to be at the start of the autofillable flow (i.e, when
     // Autofill server said so), then trigger payments UI while also returning
     // standard autofill suggestions to renderer process.
-    if (form_structure->IsStartOfAutofillableFlow()) {
+    if (page_meta_data_.IsStartOfAutofillableFlow()) {
       AutocheckoutInfoBarDelegate::Create(
           *metric_logger_,
           form.origin,
@@ -792,6 +792,10 @@ void AutofillManager::ShowRequestAutocompleteDialog(
       form, source_url, ssl_status, callback);
 }
 
+void AutofillManager::RequestAutocompleteDialogClosed() {
+  manager_delegate_->RequestAutocompleteDialogClosed();
+}
+
 void AutofillManager::OnAddPasswordFormMapping(
       const FormFieldData& form,
       const PasswordFormFillData& fill_data) {
@@ -841,6 +845,11 @@ void AutofillManager::OnRequestAutocomplete(
 
 void AutofillManager::ReturnAutocompleteResult(
     WebFormElement::AutocompleteResult result, const FormData& form_data) {
+  // web_contents() will be NULL when the interactive autocomplete is closed due
+  // to a tab or browser window closing.
+  if (!web_contents())
+    return;
+
   RenderViewHost* host = web_contents()->GetRenderViewHost();
   if (!host)
     return;
@@ -851,11 +860,7 @@ void AutofillManager::ReturnAutocompleteResult(
 }
 
 void AutofillManager::ReturnAutocompleteData(const FormStructure* result) {
-  // web_contents() will be NULL when the interactive autocomplete is closed due
-  // to a tab or browser window closing.
-  if (!web_contents())
-    return;
-
+  RequestAutocompleteDialogClosed();
   if (!result) {
     ReturnAutocompleteResult(WebFormElement::AutocompleteResultErrorCancel,
                              FormData());
@@ -870,6 +875,7 @@ void AutofillManager::OnLoadedServerPredictions(
   // Parse and store the server predictions.
   FormStructure::ParseQueryResponse(response_xml,
                                     form_structures_.get(),
+                                    &page_meta_data_,
                                     *metric_logger_);
 
   // If the corresponding flag is set, annotate forms with the predicted types.

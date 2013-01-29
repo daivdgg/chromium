@@ -543,6 +543,9 @@ const char kEnableMemoryInfo[]              = "enable-memory-info";
 const char kEnableMetricsReportingForTesting[] =
     "enable-metrics-reporting-for-testing";
 
+// Enables the chrome://memory-internals/ page.
+const char kEnableMemoryInternalsUI[] = "enable-memory-internals-ui";
+
 // Runs the Native Client inside the renderer process and enables GPU plugin
 // (internally adds lEnableGpuPlugin to the command line).
 const char kEnableNaCl[]                    = "enable-nacl";
@@ -607,9 +610,6 @@ const char kEnableQueryExtraction[]         = "enable-query-extraction";
 // preferences.
 const char kEnableResourceContentSettings[] =
     "enable-resource-content-settings";
-
-// Enables rich templated notifications and NotificationCenter.
-const char kEnableRichNotifications[]       = "enable-rich-notifications";
 
 // Controls the support for SDCH filtering (dictionary based expansion of
 // content). By default SDCH filtering is enabled. To disable SDCH filtering,
@@ -1179,9 +1179,6 @@ const char kShowComponentExtensionOptions[] =
 // See kHideIcons.
 const char kShowIcons[]                     = "show-icons";
 
-// If true the alignment of the launcher can be changed.
-const char kShowLauncherAlignmentMenu[]     = "show-launcher-alignment-menu";
-
 // Enables or disables sideload wipeout extension effort.
 const char kSideloadWipeout[]               = "sideload-wipeout";
 
@@ -1408,8 +1405,8 @@ const char kDisableChromeCaptivePortalDetector[] =
 // Disables Google Drive integration.
 const char kDisableDrive[]                  = "disable-drive";
 
-// Disables file prefetching in Google Drive Client for Chrome OS.
-const char kDisableDrivePrefetch[]          = "disable-drive-prefetch";
+// Enables file prefetching in Google Drive Client for Chrome OS.
+const char kEnableDrivePrefetch[]           = "enable-drive-prefetch";
 
 // Avoid doing expensive animations upon login.
 const char kDisableLoginAnimations[]        = "disable-login-animations";

@@ -66,13 +66,6 @@ class RenderViewHostManagerTestWebUIControllerFactory
     return HasWebUIScheme(url);
   }
 
-  virtual bool IsURLAcceptableForWebUI(
-      BrowserContext* browser_context,
-      const GURL& url,
-      bool data_urls_allowed) const OVERRIDE {
-    return HasWebUIScheme(url);
-  }
-
  private:
   bool should_create_webui_;
 
@@ -91,7 +84,7 @@ class RenderViewHostManagerTest
 
   virtual void TearDown() OVERRIDE {
     RenderViewHostImplTestHarness::TearDown();
-    WebUIControllerFactoryRegistry::UnregisterFactoryForTesting(&factory_);
+    WebUIControllerFactory::UnregisterFactoryForTesting(&factory_);
   }
 
   void set_should_create_webui(bool should_create_webui) {

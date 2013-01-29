@@ -53,12 +53,6 @@ class SiteInstanceTestWebUIControllerFactory : public WebUIControllerFactory {
                                       const GURL& url) const OVERRIDE {
     return HasWebUIScheme(url);
   }
-  virtual bool IsURLAcceptableForWebUI(
-      BrowserContext* browser_context,
-      const GURL& url,
-      bool data_urls_allowed) const OVERRIDE {
-    return false;
-  }
 };
 
 class SiteInstanceTestBrowserClient : public TestContentBrowserClient {
@@ -69,7 +63,7 @@ class SiteInstanceTestBrowserClient : public TestContentBrowserClient {
   }
 
   ~SiteInstanceTestBrowserClient() {
-    WebUIControllerFactoryRegistry::UnregisterFactoryForTesting(&factory_);
+    WebUIControllerFactory::UnregisterFactoryForTesting(&factory_);
   }
 
   virtual bool IsSuitableHost(RenderProcessHost* process_host,

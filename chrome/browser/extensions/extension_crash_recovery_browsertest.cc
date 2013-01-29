@@ -18,7 +18,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/navigation_controller.h"
@@ -178,7 +177,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionCrashRecoveryTest, ReloadIndependently) {
   SCOPED_TRACE("after reloading");
   CheckExtensionConsistency(first_extension_id_);
 
-  WebContents* current_tab = chrome::GetActiveWebContents(browser());
+  WebContents* current_tab =
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(current_tab);
 
   // The balloon should automatically hide after the extension is successfully
@@ -193,13 +193,15 @@ IN_PROC_BROWSER_TEST_F(ExtensionCrashRecoveryTest,
   CrashExtension(first_extension_id_);
   ASSERT_EQ(size_before, GetExtensionService()->extensions()->size());
 
-  WebContents* original_tab = chrome::GetActiveWebContents(browser());
+  WebContents* original_tab =
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(original_tab);
   ASSERT_EQ(1U, CountBalloons());
 
   // Open a new tab, but the balloon will still be there.
   chrome::NewTab(browser());
-  WebContents* new_current_tab = chrome::GetActiveWebContents(browser());
+  WebContents* new_current_tab =
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(new_current_tab);
   ASSERT_NE(new_current_tab, original_tab);
   ASSERT_EQ(1U, CountBalloons());
@@ -221,7 +223,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionCrashRecoveryTest,
   CrashExtension(first_extension_id_);
   ASSERT_EQ(size_before, GetExtensionService()->extensions()->size());
 
-  WebContents* current_tab = chrome::GetActiveWebContents(browser());
+  WebContents* current_tab =
+      browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(current_tab);
   ASSERT_EQ(1U, CountBalloons());
 
@@ -339,13 +342,13 @@ IN_PROC_BROWSER_TEST_F(ExtensionCrashRecoveryTest, TwoExtensionsOneByOne) {
 }
 
 // http://crbug.com/84719
-#if defined(OS_LINUX)
+#if defined(OS_LINUX) || defined(OS_MACOSX)
 #define MAYBE_TwoExtensionsShutdownWhileCrashed \
     DISABLED_TwoExtensionsShutdownWhileCrashed
 #else
 #define MAYBE_TwoExtensionsShutdownWhileCrashed \
     TwoExtensionsShutdownWhileCrashed
-#endif  // defined(OS_LINUX)
+#endif  // defined(OS_LINUX) || defined(OS_MACOSX)
 
 // Make sure that when we don't do anything about the crashed extensions
 // and close the browser, it doesn't crash. The browser is closed implicitly
@@ -394,7 +397,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionCrashRecoveryTest,
 
   {
     SCOPED_TRACE("first: reload");
-    WebContents* current_tab = chrome::GetActiveWebContents(browser());
+    WebContents* current_tab =
+        browser()->tab_strip_model()->GetActiveWebContents();
     ASSERT_TRUE(current_tab);
     // At the beginning we should have one balloon displayed for each extension.
     ASSERT_EQ(2U, CountBalloons());
@@ -494,7 +498,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionCrashRecoveryTest,
     content::WindowedNotificationObserver observer(
         content::NOTIFICATION_LOAD_STOP,
         content::Source<NavigationController>(
-            &chrome::GetActiveWebContents(browser())->GetController()));
+            &browser()->tab_strip_model()->GetActiveWebContents()->
+                GetController()));
     chrome::Reload(browser(), CURRENT_TAB);
     observer.Wait();
   }

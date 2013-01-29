@@ -27,6 +27,7 @@
 #include "chrome/browser/autocomplete/autocomplete_provider.h"
 #include "chrome/browser/autocomplete/autocomplete_result.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/google/google_util.h"
 #include "chrome/browser/plugins/plugin_prefs.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -43,6 +44,7 @@
 #include "content/public/common/content_client.h"
 #include "content/public/common/gpu_info.h"
 #include "googleurl/src/gurl.h"
+#include "net/base/network_change_notifier.h"
 #include "ui/gfx/screen.h"
 #include "webkit/plugins/webplugininfo.h"
 
@@ -304,6 +306,65 @@ void WriteScreenDPIInformationProto(SystemProfileProto::Hardware* hardware) {
 
 }  // namespace
 
+class MetricsLog::NetworkObserver
+    : public net::NetworkChangeNotifier::ConnectionTypeObserver {
+ public:
+  NetworkObserver() : connection_type_is_ambiguous_(false) {
+    net::NetworkChangeNotifier::AddConnectionTypeObserver(this);
+    Reset();
+  }
+  virtual ~NetworkObserver() {
+    net::NetworkChangeNotifier::RemoveConnectionTypeObserver(this);
+  }
+
+  void Reset() {
+    connection_type_is_ambiguous_ = false;
+    connection_type_ = net::NetworkChangeNotifier::GetConnectionType();
+  }
+
+  // ConnectionTypeObserver:
+  virtual void OnConnectionTypeChanged(
+      net::NetworkChangeNotifier::ConnectionType type) OVERRIDE {
+    if (type == net::NetworkChangeNotifier::CONNECTION_NONE)
+      return;
+    if (type != connection_type_ &&
+        connection_type_ != net::NetworkChangeNotifier::CONNECTION_NONE) {
+      connection_type_is_ambiguous_ = true;
+    }
+    connection_type_ = type;
+  }
+
+  bool connection_type_is_ambiguous() const {
+    return connection_type_is_ambiguous_;
+  }
+
+  SystemProfileProto::Network::ConnectionType connection_type() const {
+    switch (connection_type_) {
+      case net::NetworkChangeNotifier::CONNECTION_NONE:
+      case net::NetworkChangeNotifier::CONNECTION_UNKNOWN:
+        return SystemProfileProto::Network::CONNECTION_UNKNOWN;
+      case net::NetworkChangeNotifier::CONNECTION_ETHERNET:
+        return SystemProfileProto::Network::CONNECTION_ETHERNET;
+      case net::NetworkChangeNotifier::CONNECTION_WIFI:
+        return SystemProfileProto::Network::CONNECTION_WIFI;
+      case net::NetworkChangeNotifier::CONNECTION_2G:
+        return SystemProfileProto::Network::CONNECTION_2G;
+      case net::NetworkChangeNotifier::CONNECTION_3G:
+        return SystemProfileProto::Network::CONNECTION_3G;
+      case net::NetworkChangeNotifier::CONNECTION_4G:
+        return SystemProfileProto::Network::CONNECTION_4G;
+    }
+    NOTREACHED();
+    return SystemProfileProto::Network::CONNECTION_UNKNOWN;
+  }
+
+ private:
+  bool connection_type_is_ambiguous_;
+  net::NetworkChangeNotifier::ConnectionType connection_type_;
+
+  DISALLOW_COPY_AND_ASSIGN(NetworkObserver);
+};
+
 GoogleUpdateMetrics::GoogleUpdateMetrics() : is_system_install(false) {}
 
 GoogleUpdateMetrics::~GoogleUpdateMetrics() {}
@@ -312,7 +373,8 @@ static base::LazyInstance<std::string>::Leaky
   g_version_extension = LAZY_INSTANCE_INITIALIZER;
 
 MetricsLog::MetricsLog(const std::string& client_id, int session_id)
-    : MetricsLogBase(client_id, session_id, MetricsLog::GetVersionString()) {}
+    : MetricsLogBase(client_id, session_id, MetricsLog::GetVersionString()),
+      network_observer_(new NetworkObserver()) {}
 
 MetricsLog::~MetricsLog() {}
 
@@ -800,6 +862,11 @@ void MetricsLog::RecordEnvironmentProto(
     const std::vector<webkit::WebPluginInfo>& plugin_list,
     const GoogleUpdateMetrics& google_update_metrics) {
   SystemProfileProto* system_profile = uma_proto()->mutable_system_profile();
+
+  std::string brand_code;
+  if (google_util::GetBrand(&brand_code))
+    system_profile->set_brand_code(brand_code);
+
   int enabled_date;
   bool success = base::StringToInt(GetMetricsEnabledDate(GetPrefService()),
                                    &enabled_date);
@@ -815,6 +882,12 @@ void MetricsLog::RecordEnvironmentProto(
 #if defined(OS_WIN)
   hardware->set_dll_base(reinterpret_cast<uint64>(&__ImageBase));
 #endif
+
+  SystemProfileProto::Network* network = system_profile->mutable_network();
+  network->set_connection_type_is_ambiguous(
+      network_observer_->connection_type_is_ambiguous());
+  network->set_connection_type(network_observer_->connection_type());
+  network_observer_->Reset();
 
   SystemProfileProto::OS* os = system_profile->mutable_os();
   std::string os_name = base::SysInfo::OperatingSystemName();
