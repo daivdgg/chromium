@@ -9,7 +9,6 @@
 #include <iomanip>
 #include <iostream>
 
-#include "base/mac/mac_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
