@@ -94,7 +94,6 @@ public:
 
     virtual void setNeedsDisplayRect(const gfx::RectF& dirtyRect);
     void setNeedsDisplay() { setNeedsDisplayRect(gfx::RectF(gfx::PointF(), bounds())); }
-    virtual bool needsDisplay() const;
 
     void setOpacity(float);
     float opacity() const;
@@ -295,6 +294,9 @@ public:
     // Constructs a LayerImpl of the correct runtime type for this Layer type.
     virtual scoped_ptr<LayerImpl> createLayerImpl(LayerTreeImpl* treeImpl);
 
+    bool needsDisplayForTesting() const { return m_needsDisplay; }
+    void resetNeedsDisplayForTesting() { m_needsDisplay = false; }
+
 protected:
     friend class LayerImpl;
     friend class TreeSynchronizer;
@@ -331,8 +333,6 @@ private:
     void setParent(Layer*);
     bool hasAncestor(Layer*) const;
     bool descendantIsFixedToContainerLayer() const;
-
-    size_t numChildren() const { return m_children.size(); }
 
     // Returns the index of the child or -1 if not found.
     int indexOfChild(const Layer*);

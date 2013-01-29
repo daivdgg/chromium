@@ -32,6 +32,10 @@
 #include "ui/gl/gl_switches.h"
 #include "ui/surface/surface_switches.h"
 
+#if defined(ENABLE_MESSAGE_CENTER)
+#include "ui/message_center/message_center_switches.h"
+#endif
+
 #if defined(USE_ASH)
 #include "ash/ash_switches.h"
 #endif
@@ -924,13 +928,6 @@ const Experiment kExperiments[] = {
   },
 #if defined(USE_ASH)
   {
-    "show-launcher-alignment-menu",
-    IDS_FLAGS_SHOW_LAUNCHER_ALIGNMENT_MENU_NAME,
-    IDS_FLAGS_SHOW_LAUNCHER_ALIGNMENT_MENU_DESCRIPTION,
-    kOsAll,
-    SINGLE_VALUE_TYPE(switches::kShowLauncherAlignmentMenu)
-  },
-  {
     "show-touch-hud",
     IDS_FLAGS_SHOW_TOUCH_HUD_NAME,
     IDS_FLAGS_SHOW_TOUCH_HUD_DESCRIPTION,
@@ -1227,13 +1224,15 @@ const Experiment kExperiments[] = {
     kOsWin | kOsMac | kOsLinux,
     SINGLE_VALUE_TYPE(switches::kLoadCloudPolicyOnSignin)
   },
+#if defined(ENABLE_MESSAGE_CENTER)
   {
     "enable-rich-notifications",
     IDS_FLAGS_ENABLE_RICH_NOTIFICATIONS_NAME,
     IDS_FLAGS_ENABLE_RICH_NOTIFICATIONS_DESCRIPTION,
     kOsWin | kOsCrOS,
-    SINGLE_VALUE_TYPE(switches::kEnableRichNotifications)
+    SINGLE_VALUE_TYPE(message_center::switches::kEnableRichNotifications)
   },
+#endif
   {
     "full-history-sync",
     IDS_FLAGS_FULL_HISTORY_SYNC_NAME,

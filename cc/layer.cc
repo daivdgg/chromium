@@ -168,7 +168,7 @@ bool Layer::hasAncestor(Layer* ancestor) const
 
 void Layer::addChild(scoped_refptr<Layer> child)
 {
-    insertChild(child, numChildren());
+    insertChild(child, m_children.size());
 }
 
 void Layer::insertChild(scoped_refptr<Layer> child, size_t index)
@@ -178,8 +178,7 @@ void Layer::insertChild(scoped_refptr<Layer> child, size_t index)
     child->m_stackingOrderChanged = true;
 
     index = std::min(index, m_children.size());
-    LayerList::iterator iter = m_children.begin();
-    m_children.insert(iter + index, child);
+    m_children.insert(m_children.begin() + index, child);
     setNeedsFullTreeSync();
 }
 
@@ -227,7 +226,7 @@ void Layer::replaceChild(Layer* reference, scoped_refptr<Layer> newLayer)
 
 int Layer::indexOfChild(const Layer* reference)
 {
-    for (size_t i = 0; i < m_children.size(); i++) {
+    for (size_t i = 0; i < m_children.size(); ++i) {
         if (m_children[i] == reference)
             return i;
     }
@@ -279,8 +278,7 @@ void Layer::setChildren(const LayerList& children)
         return;
 
     removeAllChildren();
-    size_t listSize = children.size();
-    for (size_t i = 0; i < listSize; i++)
+    for (size_t i = 0; i < children.size(); ++i)
         addChild(children[i]);
 }
 
@@ -391,11 +389,6 @@ void Layer::setBackgroundFilters(const WebKit::WebFilterOperations& backgroundFi
         LayerTreeHost::setNeedsFilterContext(true);
 }
 
-bool Layer::needsDisplay() const
-{
-    return m_needsDisplay;
-}
-
 void Layer::setOpacity(float opacity)
 {
     if (m_opacity == opacity)
@@ -419,7 +412,7 @@ void Layer::setContentsOpaque(bool opaque)
     if (m_contentsOpaque == opaque)
         return;
     m_contentsOpaque = opaque;
-    setNeedsDisplay();
+    setNeedsCommit();
 }
 
 void Layer::setPosition(const gfx::PointF& position)
@@ -557,14 +550,12 @@ void Layer::setIsDrawable(bool isDrawable)
 void Layer::setNeedsDisplayRect(const gfx::RectF& dirtyRect)
 {
     m_updateRect.Union(dirtyRect);
+    m_needsDisplay = true;
 
     // Simply mark the contents as dirty. For non-root layers, the call to
     // setNeedsCommit will schedule a fresh compositing pass.
     // For the root layer, setNeedsCommit has no effect.
-    if (!dirtyRect.IsEmpty())
-        m_needsDisplay = true;
-
-    if (drawsContent())
+    if (drawsContent() && !m_updateRect.IsEmpty())
         setNeedsCommit();
 }
 
@@ -715,8 +706,10 @@ void Layer::forceAutomaticRasterScaleToBeRecomputed()
 {
     if (!m_automaticallyComputeRasterScale)
         return;
+    if (!m_rasterScale)
+        return;
     m_rasterScale = 0;
-    setNeedsDisplay();
+    setNeedsCommit();
 }
 
 void Layer::setBoundsContainPageScale(bool boundsContainPageScale)

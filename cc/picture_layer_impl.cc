@@ -84,6 +84,8 @@ void PictureLayerImpl::appendQuads(QuadSink& quadSink,
 
   SharedQuadState* sharedQuadState =
       quadSink.useSharedQuadState(createSharedQuadState());
+  appendDebugBorderQuad(quadSink, sharedQuadState, appendQuadsData);
+
   bool clipped = false;
   gfx::QuadF target_quad = MathUtil::mapQuad(
       drawTransform(),
@@ -208,7 +210,7 @@ void PictureLayerImpl::updateTilePriorities() {
       current_source_frame_number != last_source_frame_number_;
 
   double current_frame_time =
-      (base::TimeTicks::Now() - base::TimeTicks()).InSecondsF();
+      (layerTreeImpl()->CurrentFrameTime() - base::TimeTicks()).InSecondsF();
   bool first_update_in_new_impl_frame =
       current_frame_time != last_impl_frame_time_;
 
@@ -580,6 +582,12 @@ void PictureLayerImpl::CleanUpUnusedTilings(
 
   for (size_t i = 0; i < to_remove.size(); ++i)
     tilings_->Remove(to_remove[i]);
+}
+
+void PictureLayerImpl::getDebugBorderProperties(
+    SkColor* color, float* width) const {
+  *color = DebugColors::TiledContentLayerBorderColor();
+  *width = DebugColors::TiledContentLayerBorderWidth(layerTreeImpl());
 }
 
 }  // namespace cc

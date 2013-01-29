@@ -182,7 +182,7 @@ void ExtensionInstallUIDefault::OnInstallSuccess(const Extension* extension,
   if (extension->is_app()) {
     bool use_bubble = false;
 
-#if defined(TOOLKIT_VIEWS)
+#if defined(TOOLKIT_VIEWS)  || defined(OS_MACOSX)
     CommandLine* cmdline = CommandLine::ForCurrentProcess();
     use_bubble = (use_app_installed_bubble_ ||
                   cmdline->HasSwitch(switches::kAppsNewInstallBubble));
@@ -205,7 +205,8 @@ void ExtensionInstallUIDefault::OnInstallFailure(
 
   Browser* browser = chrome::FindLastActiveWithProfile(profile_,
       chrome::GetActiveDesktop());
-  WebContents* web_contents = chrome::GetActiveWebContents(browser);
+  WebContents* web_contents =
+      browser->tab_strip_model()->GetActiveWebContents();
   if (!web_contents)
     return;
   ErrorInfobarDelegate::Create(InfoBarService::FromWebContents(web_contents),

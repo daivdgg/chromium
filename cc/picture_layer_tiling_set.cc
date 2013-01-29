@@ -126,6 +126,9 @@ PictureLayerTilingSet::Iterator::Iterator(
     }
   }
 
+  if (ideal_tiling_ == set_->tilings_.size() && ideal_tiling_ > 0)
+    ideal_tiling_--;
+
   ++(*this);
 }
 

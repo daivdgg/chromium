@@ -18,7 +18,7 @@
 #include "chrome/browser/extensions/webstore_installer.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/test_launcher_utils.h"
@@ -243,10 +243,10 @@ class ExtensionWebstoreGetWebGLStatusTest : public InProcessBrowserTest {
         new GetWebGLStatusFunction();
     scoped_ptr<base::Value> result(utils::RunFunctionAndReturnSingleResult(
             function.get(), kEmptyArgs, browser()));
+    ASSERT_TRUE(result);
     EXPECT_EQ(base::Value::TYPE_STRING, result->GetType());
-    StringValue* value = static_cast<StringValue*>(result.get());
     std::string webgl_status = "";
-    EXPECT_TRUE(value && value->GetAsString(&webgl_status));
+    EXPECT_TRUE(result->GetAsString(&webgl_status));
     EXPECT_STREQ(webgl_allowed ? kWebGLStatusAllowed : kWebGLStatusBlocked,
                  webgl_status.c_str());
   }
@@ -255,7 +255,8 @@ class ExtensionWebstoreGetWebGLStatusTest : public InProcessBrowserTest {
 // Test cases for webstore origin frame blocking.
 IN_PROC_BROWSER_TEST_F(ExtensionWebstorePrivateApiTest,
                        FrameWebstorePageBlocked) {
-  content::WebContents* contents = chrome::GetActiveWebContents(browser());
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
   string16 expected_title = UTF8ToUTF16("PASS: about:blank");
   string16 failure_title = UTF8ToUTF16("FAIL");
   content::TitleWatcher watcher(contents, expected_title);
@@ -269,7 +270,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionWebstorePrivateApiTest,
 
 IN_PROC_BROWSER_TEST_F(ExtensionWebstorePrivateApiTest,
                        FrameErrorPageBlocked) {
-  content::WebContents* contents = chrome::GetActiveWebContents(browser());
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
   string16 expected_title = UTF8ToUTF16("PASS: about:blank");
   string16 failure_title = UTF8ToUTF16("FAIL");
   content::TitleWatcher watcher(contents, expected_title);

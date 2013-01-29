@@ -5,7 +5,7 @@
 # FOR HOW TO ROLL DEPS
 vars = {
     'ffmpeg_hash':
-         '@6a9af4b1a19cac98be103c6e094c4b55c292d571',
+         '@46d8f0aa21d3157f1bad8754009c9ec2481492ce',
     'webkit_url':
          'https://chromium.googlesource.com/external/WebKit_trimmed.git',
     'git_url':
@@ -28,7 +28,7 @@ deps = {
     'src/googleurl':
         Var('git_url') + '/external/google-url.git@22b60f394da2bfe6654e1ffd1b8ec509a14645df',
     'src/native_client':
-        Var('git_url') + '/native_client/src/native_client.git@e66ac8210fc623efa31f6edeed9b1b084cd35524',
+        Var('git_url') + '/native_client/src/native_client.git@83a28ca9fd89f883de4038a48c6d2ab855969009',
     'src/sandbox/linux/seccomp-legacy':
         Var('git_url') + '/external/seccompsandbox.git@91baa6234536b66149ba576d0e6c0506c3b3d2e3',
     'src/sdch/open-vcdiff':
@@ -98,11 +98,11 @@ deps = {
     'src/third_party/sfntly/cpp/src':
         Var('git_url') + '/external/sfntly/cpp/src.git@cfb2f1743f0169ad8d01035458617bce97107539',
     'src/third_party/skia/gyp':
-        Var('git_url') + '/external/skia/gyp.git@4362dd4e5cdf14d7b84114d81ad68fedcf99f3d3',
+        Var('git_url') + '/external/skia/gyp.git@eb4368875655a74b57ac36de6d04ce250079a9f2',
     'src/third_party/skia/include':
-        Var('git_url') + '/external/skia/include.git@286e321e4381eec42f71d4185b4dfd950d471395',
+        Var('git_url') + '/external/skia/include.git@fee24412abd2e9ea7b78384235be590313ce7417',
     'src/third_party/skia/src':
-        Var('git_url') + '/external/skia/src.git@932282cef86834bbac144235e8ee1355eca7f26d',
+        Var('git_url') + '/external/skia/src.git@929e7ba58200cfee75f87275f137735bb5376e67',
     'src/third_party/smhasher/src':
         Var('git_url') + '/external/smhasher.git@e813f9b95be7adad5a2e441f4484278c453e5261',
     'src/third_party/snappy/src':
@@ -128,7 +128,7 @@ deps = {
     'src/third_party/yasm/source/patched-yasm':
         Var('git_url') + '/chromium/deps/yasm/patched-yasm.git@c960eb11ccda80b10ed50be39df4f0663b371d1d',
     'src/tools/deps2git':
-        Var('git_url') + '/chromium/tools/deps2git.git@f8041c7e3dc3c6e295235c56c50d3bba0b618a28',
+        Var('git_url') + '/chromium/tools/deps2git.git@820cd92c9c2f28f60f4af8f4d73423d1d6ac2e9e',
     'src/tools/grit':
         Var('git_url') + '/external/grit-i18n.git@ca6c225d0059dd17b476c934e744a3c4f60e2df2',
     'src/tools/gyp':
@@ -136,7 +136,7 @@ deps = {
     'src/tools/page_cycler/acid3':
         Var('git_url') + '/chromium/deps/acid3.git@6be0a66a1ebd7ebc5abc1b2f405a945f6d871521',
     'src/tools/swarm_client':
-        Var('git_url') + '/chromium/tools/swarm_client.git@e1e1bff58a907eeece3a70d9c2280d0ea45b7203',
+        Var('git_url') + '/chromium/tools/swarm_client.git@f14633beee7e5f54267a84ef6745f16862338f82',
     'src/v8':
         Var('git_url') + '/external/v8.git@c47dff5fc3b12ecc3a7a9fc61fbd02868548dde6',
     'src/webkit/media/crypto/ppapi/cdm':
