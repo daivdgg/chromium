@@ -20,9 +20,10 @@ class FullscreenControllerStateTest {
   enum State {
     // The window is not in fullscreen.
     STATE_NORMAL,
-    // User-initiated fullscreen. On Mac, this is Lion-mode for 10.7+. On 10.6,
-    // this is synonymous with STATE_BROWSER_FULLSCREEN_WITH_CHROME.
+    // User-initiated fullscreen.
     STATE_BROWSER_FULLSCREEN_NO_CHROME,
+    // Mac User-initiated 'Lion Fullscreen' with browser chrome. OSX 10.7+ only.
+    STATE_BROWSER_FULLSCREEN_WITH_CHROME,
 #if defined(OS_WIN)
     // Windows 8 Metro Snap mode, which puts the window at 20% screen-width.
     // No TO_ state for Metro, as the windows implementation is only reentrant.
@@ -36,6 +37,7 @@ class FullscreenControllerStateTest {
     // before transitioning to their named state.
     STATE_TO_NORMAL,
     STATE_TO_BROWSER_FULLSCREEN_NO_CHROME,
+    STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,
     STATE_TO_TAB_FULLSCREEN,
     NUM_STATES,
     STATE_INVALID,
@@ -44,6 +46,8 @@ class FullscreenControllerStateTest {
   enum Event {
     // FullscreenController::ToggleFullscreenMode()
     TOGGLE_FULLSCREEN,
+    // FullscreenController::ToggleFullscreenWithChrome()
+    TOGGLE_FULLSCREEN_CHROME,
     // FullscreenController::ToggleFullscreenModeForTab(, true)
     TAB_FULLSCREEN_TRUE,
     // FullscreenController::ToggleFullscreenModeForTab(, false)
