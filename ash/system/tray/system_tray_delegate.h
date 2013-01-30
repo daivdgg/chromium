@@ -123,6 +123,9 @@ class SystemTrayDelegate {
   virtual const gfx::ImageSkia& GetUserImage() const = 0;
   virtual user::LoginStatus GetUserLoginStatus() const = 0;
 
+  // Shows UI for changing user's profile picture.
+  virtual void ChangeProfilePicture() = 0;
+
   // Returns the domain that manages the device, if it is enterprise-enrolled.
   virtual const std::string GetEnterpriseDomain() const = 0;
 
@@ -189,8 +192,11 @@ class SystemTrayDelegate {
   // Returns a list of available bluetooth devices.
   virtual void GetAvailableBluetoothDevices(BluetoothDeviceList* devices) = 0;
 
-  // Requests bluetooth start or stop discovering devices.
-  virtual void BluetoothSetDiscovering(bool value) = 0;
+  // Requests bluetooth start discovering devices.
+  virtual void BluetoothStartDiscovering() = 0;
+
+  // Requests bluetooth stop discovering devices.
+  virtual void BluetoothStopDiscovering() = 0;
 
   // Toggles connection to a specific bluetooth device.
   virtual void ToggleBluetoothConnection(const std::string& address) = 0;
