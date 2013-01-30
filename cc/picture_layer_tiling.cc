@@ -5,7 +5,9 @@
 #include "cc/picture_layer_tiling.h"
 
 #include "cc/math_util.h"
+#include "ui/gfx/point_conversions.h"
 #include "ui/gfx/rect_conversions.h"
+#include "ui/gfx/safe_integer_conversions.h"
 #include "ui/gfx/size_conversions.h"
 
 namespace cc {
@@ -39,6 +41,10 @@ gfx::Rect PictureLayerTiling::ContentRect() const {
   gfx::Size content_bounds =
       gfx::ToCeiledSize(gfx::ScaleSize(layer_bounds_, contents_scale_));
   return gfx::Rect(gfx::Point(), content_bounds);
+}
+
+gfx::SizeF PictureLayerTiling::ContentSizeF() const {
+  return gfx::ScaleSize(layer_bounds_, contents_scale_);
 }
 
 Tile* PictureLayerTiling::TileAt(int i, int j) const {
@@ -170,8 +176,9 @@ PictureLayerTiling::Iterator::Iterator(const PictureLayerTiling* tiling,
                                        gfx::Rect dest_rect)
     : tiling_(tiling),
       dest_rect_(dest_rect),
-      dest_to_content_scale_(tiling_->contents_scale_ / dest_scale),
       current_tile_(NULL),
+      dest_to_content_scale_x_(0),
+      dest_to_content_scale_y_(0),
       tile_i_(0),
       tile_j_(0),
       left_(0),
@@ -182,8 +189,28 @@ PictureLayerTiling::Iterator::Iterator(const PictureLayerTiling* tiling,
   if (dest_rect_.IsEmpty())
     return;
 
+  float dest_to_content_scale = tiling_->contents_scale_ / dest_scale;
+  dest_to_content_scale_x_ = dest_to_content_scale;
+  dest_to_content_scale_y_ = dest_to_content_scale;
+
+  // Do not draw last row/column of texels if they don't have enough
+  // rasterization coverage. i.e.: the ceiled content size does not equal the
+  // floored size.
+  gfx::SizeF content_size = tiling_->ContentSizeF();
+  gfx::Size content_size_ceil = gfx::ToCeiledSize(content_size);
+  gfx::Size content_size_floor = gfx::ToFlooredSize(content_size);
+
+  if (content_size_floor.width() != content_size_ceil.width())
+    dest_to_content_scale_x_ = dest_to_content_scale *
+        content_size_floor.width() / content_size_ceil.width();
+  if (content_size_floor.height() != content_size_ceil.height())
+    dest_to_content_scale_y_ = dest_to_content_scale *
+        content_size_floor.height() /content_size_ceil.height();
+
   gfx::Rect content_rect =
-      gfx::ToEnclosingRect(gfx::ScaleRect(dest_rect_, dest_to_content_scale_));
+      gfx::ToEnclosingRect(gfx::ScaleRect(dest_rect_,
+                                          dest_to_content_scale_x_,
+                                          dest_to_content_scale_y_));
   // IndexFromSrcCoord clamps to valid tile ranges, so it's necessary to
   // check for non-intersection first.
   content_rect.Intersect(gfx::Rect(tiling_->tiling_data_.total_size()));
@@ -225,13 +252,16 @@ PictureLayerTiling::Iterator& PictureLayerTiling::Iterator::operator++() {
   current_tile_ = tiling_->TileAt(tile_i_, tile_j_);
 
   // Calculate the current geometry rect.  Due to floating point rounding
-  // and ToEnclosedRect, tiles might overlap in destination space on the
+  // and ToEnclosingRect, tiles might overlap in destination space on the
   // edges.
   gfx::Rect last_geometry_rect = current_geometry_rect_;
 
   gfx::Rect content_rect = tiling_->tiling_data_.TileBounds(tile_i_, tile_j_);
+
   current_geometry_rect_ = gfx::ToEnclosingRect(
-      gfx::ScaleRect(content_rect, 1 / dest_to_content_scale_));
+      gfx::ScaleRect(content_rect, 1 / dest_to_content_scale_x_,
+                                   1 / dest_to_content_scale_y_));
+
   current_geometry_rect_.Intersect(dest_rect_);
 
   if (first_time)
@@ -268,14 +298,14 @@ gfx::Rect PictureLayerTiling::Iterator::geometry_rect() const {
 }
 
 gfx::RectF PictureLayerTiling::Iterator::texture_rect() const {
-  gfx::Rect full_bounds = tiling_->tiling_data_.TileBoundsWithBorder(tile_i_,
-                                                                     tile_j_);
-  full_bounds.set_size(texture_size());
+  gfx::PointF tex_origin =
+      tiling_->tiling_data_.TileBoundsWithBorder(tile_i_, tile_j_).origin();
 
   // Convert from dest space => content space => texture space.
-  gfx::RectF texture_rect = gfx::ScaleRect(current_geometry_rect_,
-                                           dest_to_content_scale_);
-  texture_rect.Offset(-full_bounds.OffsetFromOrigin());
+  gfx::RectF texture_rect(current_geometry_rect_);
+  texture_rect.Scale(dest_to_content_scale_x_,
+                     dest_to_content_scale_y_);
+  texture_rect.Offset(-tex_origin.OffsetFromOrigin());
 
   DCHECK_GE(texture_rect.x(), 0);
   DCHECK_GE(texture_rect.y(), 0);
@@ -292,6 +322,7 @@ gfx::Size PictureLayerTiling::Iterator::texture_size() const {
 void PictureLayerTiling::UpdateTilePriorities(
     WhichTree tree,
     const gfx::Size& device_viewport,
+    const gfx::RectF viewport_in_layer_space,
     float last_layer_contents_scale,
     float current_layer_contents_scale,
     const gfx::Transform& last_screen_transform,
@@ -301,10 +332,40 @@ void PictureLayerTiling::UpdateTilePriorities(
   if (content_rect.IsEmpty())
     return;
 
-  gfx::Rect view_rect(gfx::Point(), device_viewport);
+  gfx::Rect viewport_in_content_space =
+      gfx::ToEnclosingRect(gfx::ScaleRect(viewport_in_layer_space,
+                                          contents_scale_));
+  gfx::Rect inflated_rect = viewport_in_content_space;
+  inflated_rect.Inset(
+      -TilePriority::kMaxDistanceInContentSpace,
+      -TilePriority::kMaxDistanceInContentSpace,
+      -TilePriority::kMaxDistanceInContentSpace,
+      -TilePriority::kMaxDistanceInContentSpace);
+  inflated_rect.Intersect(ContentRect());
+
+  // Iterate through all of the tiles that were live last frame but will
+  // not be live this frame, and mark them as being dead.
+  for (TilingData::DifferenceIterator iter(&tiling_data_,
+                                           last_prioritized_rect_,
+                                           inflated_rect);
+       iter;
+       ++iter) {
+    TileMap::iterator find = tiles_.find(iter.index());
+    if (find == tiles_.end())
+      continue;
+
+    TilePriority priority;
+    DCHECK(!priority.is_live);
+    Tile* tile = find->second.get();
+    tile->set_priority(tree, priority);
+  }
+  last_prioritized_rect_ = inflated_rect;
+
+  gfx::Rect view_rect(device_viewport);
   float current_scale = current_layer_contents_scale / contents_scale_;
   float last_scale = last_layer_contents_scale / contents_scale_;
 
+  // Fast path tile priority calculation when both transforms are translations.
   if (last_screen_transform.IsIdentityOrTranslation() &&
       current_screen_transform.IsIdentityOrTranslation())
   {
@@ -315,60 +376,72 @@ void PictureLayerTiling::UpdateTilePriorities(
         last_screen_transform.matrix().get(0, 3),
         last_screen_transform.matrix().get(1, 3));
 
-    for (TileMap::const_iterator it = tiles_.begin();
-        it != tiles_.end(); ++it) {
-      TileMapKey key = it->first;
-      TilePriority priority;
-      priority.resolution = resolution_;
+    for (TilingData::Iterator iter(&tiling_data_, inflated_rect);
+         iter; ++iter) {
+      TileMap::iterator find = tiles_.find(iter.index());
+      if (find == tiles_.end())
+        continue;
+      Tile* tile = find->second.get();
 
-      gfx::Rect tile_bound = tiling_data_.TileBounds(key.first, key.second);
+      gfx::Rect tile_bounds =
+          tiling_data_.TileBounds(iter.index_x(), iter.index_y());
       gfx::RectF current_screen_rect = gfx::ScaleRect(
-          tile_bound,
+          tile_bounds,
           current_scale,
           current_scale) + current_offset;
       gfx::RectF last_screen_rect = gfx::ScaleRect(
-          tile_bound,
+          tile_bounds,
           last_scale,
           last_scale) + last_offset;
 
-      priority.time_to_visible_in_seconds =
+      float time_to_visible_in_seconds =
           TilePriority::TimeForBoundsToIntersect(
               last_screen_rect, current_screen_rect, time_delta, view_rect);
-
-      priority.distance_to_visible_in_pixels =
+      float distance_to_visible_in_pixels =
           TilePriority::manhattanDistance(current_screen_rect, view_rect);
-      it->second->set_priority(tree, priority);
+
+      TilePriority priority(
+          resolution_,
+          time_to_visible_in_seconds,
+          distance_to_visible_in_pixels);
+      tile->set_priority(tree, priority);
     }
   }
   else
   {
-    for (TileMap::const_iterator it = tiles_.begin();
-           it != tiles_.end(); ++it) {
-      TileMapKey key = it->first;
-      TilePriority priority;
-      priority.resolution = resolution_;
+    for (TilingData::Iterator iter(&tiling_data_, inflated_rect);
+         iter; ++iter) {
+      TileMap::iterator find = tiles_.find(iter.index());
+      if (find == tiles_.end())
+        continue;
+      Tile* tile = find->second.get();
 
-      gfx::Rect tile_bound = tiling_data_.TileBounds(key.first, key.second);
+      gfx::Rect tile_bounds =
+          tiling_data_.TileBounds(iter.index_x(), iter.index_y());
       gfx::RectF current_layer_content_rect = gfx::ScaleRect(
-          tile_bound,
+          tile_bounds,
           current_scale,
           current_scale);
       gfx::RectF current_screen_rect = MathUtil::mapClippedRect(
           current_screen_transform, current_layer_content_rect);
       gfx::RectF last_layer_content_rect = gfx::ScaleRect(
-          tile_bound,
+          tile_bounds,
           last_scale,
           last_scale);
       gfx::RectF last_screen_rect  = MathUtil::mapClippedRect(
           last_screen_transform, last_layer_content_rect);
 
-      priority.time_to_visible_in_seconds =
+      float time_to_visible_in_seconds =
           TilePriority::TimeForBoundsToIntersect(
               last_screen_rect, current_screen_rect, time_delta, view_rect);
-
-      priority.distance_to_visible_in_pixels =
+      float distance_to_visible_in_pixels =
           TilePriority::manhattanDistance(current_screen_rect, view_rect);
-      it->second->set_priority(tree, priority);
+
+      TilePriority priority(
+          resolution_,
+          time_to_visible_in_seconds,
+          distance_to_visible_in_pixels);
+      tile->set_priority(tree, priority);
     }
   }
 }

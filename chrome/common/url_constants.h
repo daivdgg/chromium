@@ -197,7 +197,6 @@ extern const char kChromeUIUberFrameHost[];
 extern const char kChromeUIUberHost[];
 extern const char kChromeUIUserActionsHost[];
 extern const char kChromeUIVersionHost[];
-extern const char kChromeUIWebRTCInternalsHost[];
 extern const char kChromeUIWorkersHost[];
 
 extern const char kChromeUIScreenshotPath[];
@@ -279,6 +278,7 @@ extern const char kSyncSetupSubPage[];
 #if defined(OS_CHROMEOS)
 extern const char kInternetOptionsSubPage[];
 extern const char kBluetoothAddDeviceSubPage[];
+extern const char kChangeProfilePictureSubPage[];
 #endif
 
 // Extensions sub pages.

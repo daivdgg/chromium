@@ -1,0 +1,46 @@
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#include "content/browser/media/webrtc_internals_message_handler.h"
+
+#include "content/browser/media/webrtc_internals.h"
+#include "content/public/browser/browser_thread.h"
+#include "content/public/browser/render_view_host.h"
+#include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_ui.h"
+
+namespace content {
+
+WebRTCInternalsMessageHandler::WebRTCInternalsMessageHandler() {
+  WebRTCInternals::GetInstance()->AddObserver(this);
+}
+
+WebRTCInternalsMessageHandler::~WebRTCInternalsMessageHandler() {
+  WebRTCInternals::GetInstance()->RemoveObserver(this);
+}
+
+void WebRTCInternalsMessageHandler::RegisterMessages() {
+  web_ui()->RegisterMessageCallback("getAllUpdates",
+      base::Bind(&WebRTCInternalsMessageHandler::OnGetAllUpdates,
+                 base::Unretained(this)));
+}
+
+void WebRTCInternalsMessageHandler::OnGetAllUpdates(
+    const base::ListValue* list) {
+  WebRTCInternals::GetInstance()->SendAllUpdates();
+}
+
+void WebRTCInternalsMessageHandler::OnUpdate(const std::string& command,
+                                            const base::Value* args) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
+  std::vector<const Value*> args_vector;
+  args_vector.push_back(args);
+  string16 update = WebUI::GetJavascriptCall(command, args_vector);
+
+  RenderViewHost* host = web_ui()->GetWebContents()->GetRenderViewHost();
+  if (host)
+    host->ExecuteJavascriptInWebFrame(string16(), update);
+}
+
+}  // namespace content

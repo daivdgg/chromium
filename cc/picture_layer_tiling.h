@@ -52,6 +52,7 @@ class CC_EXPORT PictureLayerTiling {
   TileResolution resolution() const { return resolution_; }
 
   gfx::Rect ContentRect() const;
+  gfx::SizeF ContentSizeF() const;
   float contents_scale() const { return contents_scale_; }
 
   std::vector<Tile*> AllTilesForTesting() const {
@@ -91,7 +92,8 @@ class CC_EXPORT PictureLayerTiling {
    private:
     const PictureLayerTiling* tiling_;
     gfx::Rect dest_rect_;
-    float dest_to_content_scale_;
+    float dest_to_content_scale_x_;
+    float dest_to_content_scale_y_;
 
     Tile* current_tile_;
     gfx::Rect current_geometry_rect_;
@@ -112,6 +114,7 @@ class CC_EXPORT PictureLayerTiling {
   void UpdateTilePriorities(
       WhichTree tree,
       const gfx::Size& device_viewport,
+      const gfx::RectF viewport_in_layer_space,
       float last_contents_scale,
       float current_contents_scale,
       const gfx::Transform& last_screen_transform,
@@ -135,6 +138,7 @@ class CC_EXPORT PictureLayerTiling {
   PictureLayerTilingClient* client_;
   float contents_scale_;
   gfx::Size layer_bounds_;
+  gfx::Rect last_prioritized_rect_;
   // It is not legal to have a NULL tile in the tiles_ map.
   TileMap tiles_;
   TilingData tiling_data_;
