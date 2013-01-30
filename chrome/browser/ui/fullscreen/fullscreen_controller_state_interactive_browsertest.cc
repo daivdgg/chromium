@@ -50,12 +50,16 @@ void FullscreenControllerStateInteractiveTest::ChangeWindowFullscreenState() {
 bool FullscreenControllerStateInteractiveTest::InvokeEvent(Event event) {
   switch (event) {
     case TOGGLE_FULLSCREEN:
+    case TOGGLE_FULLSCREEN_CHROME:
     case TAB_FULLSCREEN_TRUE:
     case TAB_FULLSCREEN_FALSE:
 #if defined(OS_WIN)
     case METRO_SNAP_TRUE:
     case METRO_SNAP_FALSE:
 #endif
+    case BUBBLE_EXIT_LINK:
+    case BUBBLE_ALLOW:
+    case BUBBLE_DENY:
       fullscreen_observer_.reset(new FullscreenNotificationObserver());
       break;
     case WINDOW_CHANGE:
