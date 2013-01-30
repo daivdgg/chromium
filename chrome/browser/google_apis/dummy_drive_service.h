@@ -40,7 +40,7 @@ class DummyDriveService : public DriveServiceInterface {
   virtual void GetAccountMetadata(
       const GetAccountMetadataCallback& callback) OVERRIDE;
   virtual void GetAppList(const GetAppListCallback& callback) OVERRIDE;
-  virtual void DeleteResource(const GURL& edit_url,
+  virtual void DeleteResource(const std::string& resource_id,
                               const EntryActionCallback& callback) OVERRIDE;
   virtual void DownloadHostedDocument(
       const FilePath& virtual_path,
@@ -58,7 +58,7 @@ class DummyDriveService : public DriveServiceInterface {
       const std::string& resource_id,
       const std::string& new_name,
       const GetResourceEntryCallback& callback) OVERRIDE;
-  virtual void RenameResource(const GURL& edit_url,
+  virtual void RenameResource(const std::string& resource_id,
                               const std::string& new_name,
                               const EntryActionCallback& callback) OVERRIDE;
   virtual void AddResourceToDirectory(

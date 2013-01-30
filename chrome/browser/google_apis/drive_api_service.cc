@@ -361,7 +361,7 @@ void DriveAPIService::DownloadFile(
 }
 
 void DriveAPIService::DeleteResource(
-    const GURL& edit_url,
+    const std::string& resource_id,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -393,7 +393,7 @@ void DriveAPIService::CopyHostedDocument(
 }
 
 void DriveAPIService::RenameResource(
-    const GURL& edit_url,
+    const std::string& resource_id,
     const std::string& new_name,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));

@@ -76,10 +76,6 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     private static final int IS_LONG_PRESS = 1;
     private static final int IS_LONG_TAP = 2;
 
-    // To avoid checkerboard, we clamp the fling velocity based on the maximum number of tiles
-    // should be allowed to upload per 100ms.
-    private final int mMaxNumUploadTiles;
-
     // Personality of the ContentView.
     private final int mPersonality;
 
@@ -219,10 +215,35 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
 
     private SelectionHandleController mSelectionHandleController;
     private InsertionHandleController mInsertionHandleController;
-    // These offsets in document space with page scale normalized to 1.0.
-    private final PointF mStartHandleNormalizedPoint = new PointF();
-    private final PointF mEndHandleNormalizedPoint = new PointF();
-    private final PointF mInsertionHandleNormalizedPoint = new PointF();
+
+    /**
+     * Handles conversion of a point from window to document space and vice versa.
+     */
+    private class NormalizedPoint {
+        final PointF document = new PointF();
+        final PointF window = new PointF();
+        void updateDocumentFromWindow() {
+            float x = (window.x + mNativeScrollX) / mNativePageScaleFactor;
+            float y = (window.y + mNativeScrollY) / mNativePageScaleFactor;
+            document.set(x, y);
+        }
+        void updateWindowFromDocument() {
+            float x = document.x * mNativePageScaleFactor - mNativeScrollX;
+            float y = document.y * mNativePageScaleFactor - mNativeScrollY;
+            window.set(x, y);
+        }
+        void setWindow(float x, float y) {
+            window.set(x, y);
+            updateDocumentFromWindow();
+        }
+        void setDocument(float x, float y) {
+            document.set(x, y);
+            updateWindowFromDocument();
+        }
+    }
+    private final NormalizedPoint mStartHandlePoint = new NormalizedPoint();
+    private final NormalizedPoint mEndHandlePoint = new NormalizedPoint();
+    private final NormalizedPoint mInsertionHandlePoint = new NormalizedPoint();
 
     // Tracks whether a selection is currently active.  When applied to selected text, indicates
     // whether the last selected text is still highlighted.
@@ -300,30 +321,6 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
         WeakContext.initializeWeakContext(context);
         mPersonality = personality;
         HeapStatsLogger.init(mContext.getApplicationContext());
-
-        // We should set this constant based on the GPU performance. As it doesn't exist in the
-        // framework yet, we use the memory class as an indicator. Here are some good values that
-        // we determined via manual experimentation:
-        //
-        // Device            Screen size        Memory class   Tiles per 100ms
-        // ================= ================== ============== =====================
-        // Nexus S            480 x  800         128            9 (3 rows portrait)
-        // Galaxy Nexus       720 x 1280         256           12 (3 rows portrait)
-        // Nexus 7           1280 x  800         384           18 (3 rows landscape)
-        // Nexus 10          2560 x 1600         512           44 (4 rows landscape)
-        //
-        // Here is a spreadsheet with the data, plus a curve fit:
-        // https://docs.google.com/a/chromium.org/spreadsheet/pub?key=0AlNYk7HM2CgQdG1vUWRVWkU3ODRTc1B2SVF3ZTJBUkE&output=html
-        // That gives us tiles-per-100ms of 8, 13, 22, 37 for the devices listed above.
-        // Not too bad, and it should behave reasonably sensibly for unknown devices.
-        // If you want to tweak these constants, please update the spreadsheet appropriately.
-        //
-        // The curve is y = b * m^x, with coefficients as follows:
-        double b = 4.70009671080384;
-        double m = 1.00404437546897;
-        int memoryClass = ((ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE))
-                .getLargeMemoryClass();
-        mMaxNumUploadTiles = (int) Math.round(b * Math.pow(m, memoryClass));
     }
 
     /**
@@ -1092,8 +1089,8 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
                 return true;
             case ContentViewGestureHandler.GESTURE_FLING_START:
                 nativeFlingStart(mNativeContentViewCore, timeMs, x, y,
-                        clampFlingVelocityX(b.getInt(ContentViewGestureHandler.VELOCITY_X, 0)),
-                        clampFlingVelocityY(b.getInt(ContentViewGestureHandler.VELOCITY_Y, 0)));
+                        b.getInt(ContentViewGestureHandler.VELOCITY_X, 0),
+                        b.getInt(ContentViewGestureHandler.VELOCITY_Y, 0));
                 return true;
             case ContentViewGestureHandler.GESTURE_FLING_CANCEL:
                 nativeFlingCancel(mNativeContentViewCore, timeMs);
@@ -1646,32 +1643,6 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
         }
     }
 
-    /*
-     * To avoid checkerboard, we clamp the fling velocity based on the maximum number of tiles
-     * allowed to be uploaded per 100ms. Calculation is limited to one direction. We assume the
-     * tile size is 256x256. The precise distance / velocity should be calculated based on the
-     * logic in Scroller.java. As it is almost linear for the first 100ms, we use a simple math.
-     */
-    private int clampFlingVelocityX(int velocity) {
-        int cols = mMaxNumUploadTiles / (int) (Math.ceil((float) getHeight() / 256) + 1);
-        int maxVelocity = cols > 0 ? cols * 2560 : 1000;
-        if (Math.abs(velocity) > maxVelocity) {
-            return velocity > 0 ? maxVelocity : -maxVelocity;
-        } else {
-            return velocity;
-        }
-    }
-
-    private int clampFlingVelocityY(int velocity) {
-        int rows = mMaxNumUploadTiles / (int) (Math.ceil((float) getWidth() / 256) + 1);
-        int maxVelocity = rows > 0 ? rows * 2560 : 1000;
-        if (Math.abs(velocity) > maxVelocity) {
-            return velocity > 0 ? maxVelocity : -maxVelocity;
-        } else {
-            return velocity;
-        }
-    }
-
     /**
      * Get the screen orientation from the OS and push it to WebKit.
      *
@@ -1733,15 +1704,8 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
                 }
 
                 @Override
-                public void showHandlesAt(int x1, int y1, int dir1, int x2, int y2, int dir2) {
-                    super.showHandlesAt(x1, y1, dir1, x2, y2, dir2);
-                    mStartHandleNormalizedPoint.set(
-                            (x1 + mNativeScrollX) / mNativePageScaleFactor,
-                            (y1 + mNativeScrollY) / mNativePageScaleFactor);
-                    mEndHandleNormalizedPoint.set(
-                            (x2 + mNativeScrollX) / mNativePageScaleFactor,
-                            (y2 + mNativeScrollY) / mNativePageScaleFactor);
-
+                public void showHandles(int startDir, int endDir) {
+                    super.showHandles(startDir, endDir);
                     showSelectActionBar();
                 }
 
@@ -1777,11 +1741,8 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
                 }
 
                 @Override
-                public void showHandleAt(int x, int y) {
-                    super.showHandleAt(x, y);
-                    mInsertionHandleNormalizedPoint.set(
-                            (x + mNativeScrollX) / mNativePageScaleFactor,
-                            (y + mNativeScrollY) / mNativePageScaleFactor);
+                public void showHandle() {
+                    super.showHandle();
                 }
             };
 
@@ -1796,20 +1757,16 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     }
 
     private void updateHandleScreenPositions() {
+        mStartHandlePoint.updateWindowFromDocument();
+        mEndHandlePoint.updateWindowFromDocument();
+        mInsertionHandlePoint.updateWindowFromDocument();
         if (mSelectionHandleController != null && mSelectionHandleController.isShowing()) {
-            float startX = mStartHandleNormalizedPoint.x * mNativePageScaleFactor - mNativeScrollX;
-            float startY = mStartHandleNormalizedPoint.y * mNativePageScaleFactor - mNativeScrollY;
-            mSelectionHandleController.setStartHandlePosition((int) startX, (int) startY);
-
-            float endX = mEndHandleNormalizedPoint.x * mNativePageScaleFactor - mNativeScrollX;
-            float endY = mEndHandleNormalizedPoint.y * mNativePageScaleFactor - mNativeScrollY;
-            mSelectionHandleController.setEndHandlePosition((int) endX, (int) endY);
+            mSelectionHandleController.setStartHandlePosition(mStartHandlePoint.window);
+            mSelectionHandleController.setEndHandlePosition(mEndHandlePoint.window);
         }
 
         if (mInsertionHandleController != null && mInsertionHandleController.isShowing()) {
-            float x = mInsertionHandleNormalizedPoint.x * mNativePageScaleFactor - mNativeScrollX;
-            float y = mInsertionHandleNormalizedPoint.y * mNativePageScaleFactor - mNativeScrollY;
-            mInsertionHandleController.setHandlePosition((int) x, (int) y);
+            mInsertionHandleController.setHandlePosition(mInsertionHandlePoint.window);
         }
     }
 
@@ -2037,11 +1994,16 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
         int y1 = startRect.bottom;
         int x2 = endRect.left;
         int y2 = endRect.bottom;
+
         if (x1 != x2 || y1 != y2) {
             if (mInsertionHandleController != null) {
                 mInsertionHandleController.hide();
             }
-            getSelectionHandleController().onSelectionChanged(x1, y1, dir1, x2, y2, dir2);
+            mStartHandlePoint.setWindow(x1, y1);
+            mEndHandlePoint.setWindow(x2, y2);
+
+            getSelectionHandleController().onSelectionChanged(dir1, dir2);
+            updateHandleScreenPositions();
             mHasSelection = true;
         } else {
             hideSelectActionBar();
@@ -2053,12 +2015,16 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
                 if (mSelectionHandleController != null) {
                     mSelectionHandleController.hide();
                 }
-                getInsertionHandleController().onCursorPositionChanged(x1, y1);
+                mInsertionHandlePoint.setWindow(x1, y1);
+
+                getInsertionHandleController().onCursorPositionChanged();
+                updateHandleScreenPositions();
                 InputMethodManager manager = (InputMethodManager)
                         getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
                 if (manager.isWatchingCursor(mContainerView)) {
-                    manager.updateCursor(mContainerView, startRect.left, startRect.top,
-                            startRect.right, startRect.bottom);
+                    PointF point = mInsertionHandlePoint.window;
+                    manager.updateCursor(mContainerView, (int)point.x, (int)point.y, (int)point.x,
+                            (int)point.y);
                 }
             } else {
                 // Deselection
@@ -2084,8 +2050,9 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     @SuppressWarnings("unused")
     @CalledByNative
     private void showPastePopup(int x, int y) {
-        getInsertionHandleController()
-                .showHandleWithPastePopupAt(x - mNativeScrollX, y - mNativeScrollY);
+        mInsertionHandlePoint.setWindow(x, y);
+        getInsertionHandleController().showHandleWithPastePopup();
+        updateHandleScreenPositions();
     }
 
     @SuppressWarnings("unused")

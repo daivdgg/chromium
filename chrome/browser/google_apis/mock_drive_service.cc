@@ -99,7 +99,7 @@ void MockDriveService::GetAccountMetadataStub(
 }
 
 void MockDriveService::DeleteResourceStub(
-    const GURL& edit_url,
+    const std::string& resource_id,
     const EntryActionCallback& callback) {
   base::MessageLoopProxy::current()->PostTask(
       FROM_HERE,
@@ -130,7 +130,7 @@ void MockDriveService::CopyHostedDocumentStub(
 }
 
 void MockDriveService::RenameResourceStub(
-    const GURL& edit_url,
+    const std::string& resource_id,
     const std::string& new_name,
     const EntryActionCallback& callback) {
   base::MessageLoopProxy::current()->PostTask(

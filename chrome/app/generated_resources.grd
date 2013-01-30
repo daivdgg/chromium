@@ -8828,6 +8828,9 @@ The following plug-in is unresponsive: <ph name="PLUGIN_NAME">$1
       <message name="IDS_PRINT_PREVIEW_OPTION_BACKGROUND_COLORS_AND_IMAGES" desc="Checkbox label shown in print preview page to print webpage backgrounds.">
         Background colors and images
       </message>
+      <message name="IDS_PRINT_PREVIEW_OPTION_SELECTION_ONLY" desc="Checkbox label shown in print preview page to print only selected content.">
+        Selection only
+      </message>
       <message name="IDS_PRINT_PREVIEW_MARGINS_LABEL" desc="Margins option label. Provides user the option to change the margins of the printed page.">
         Margins
       </message>
@@ -8957,6 +8960,9 @@ The following plug-in is unresponsive: <ph name="PLUGIN_NAME">$1
       </message>
       <message name="IDS_LOAD_STATE_RESOLVING_HOST_IN_PROXY_SCRIPT">
         Resolving host in proxy script...
+      </message>
+      <message name="IDS_LOAD_STATE_DOWNLOADING_PROXY_SCRIPT">
+        Downloading proxy script...
       </message>
       <message name="IDS_LOAD_STATE_RESOLVING_HOST">
         Resolving host...
@@ -10535,6 +10541,9 @@ Would you like to start <ph name="CONTROL_PANEL_APPLET_NAME">$1<ex>Add/Remove Pr
       </message>
       <message name="IDS_OPTIONS_TOOLBAR_SHOW_BOOKMARKS_BAR" desc="The label of the 'Show bookmarks bar' checkbox">
         Always show the bookmarks bar
+      </message>
+      <message name="IDS_TOOLBAR_INFORM_SET_HOME_PAGE" desc="The confirmation message when dropping a link on the Home toolbar button">
+         Your home page has been set.
       </message>
       <message name="IDS_OPTIONS_DEFAULTSEARCH_GROUP_NAME" desc="The title of the default search engine group">
         Search

@@ -175,10 +175,10 @@ class DriveServiceInterface {
   // |callback| must not be null.
   virtual void GetAppList(const GetAppListCallback& callback) = 0;
 
-  // Deletes a resource identified by its |edit_url|.
+  // Deletes a resource identified by its |resource_id|.
   // Upon completion, invokes |callback| with results on the calling thread.
   // |callback| must not be null.
-  virtual void DeleteResource(const GURL& edit_url,
+  virtual void DeleteResource(const std::string& resource_id,
                               const EntryActionCallback& callback) = 0;
 
   // Downloads a document identified by its |content_url| in a given |format|.
@@ -202,11 +202,11 @@ class DriveServiceInterface {
       const std::string& new_name,
       const GetResourceEntryCallback& callback) = 0;
 
-  // Renames a document or collection identified by its |edit_url|
+  // Renames a document or collection identified by its |resource_id|
   // to the UTF-8 encoded |new_name|. Upon completion,
   // invokes |callback| with results on the calling thread.
   // |callback| must not be null.
-  virtual void RenameResource(const GURL& edit_url,
+  virtual void RenameResource(const std::string& resource_id,
                               const std::string& new_name,
                               const EntryActionCallback& callback) = 0;
 

@@ -48,7 +48,7 @@ class MockDriveService : public DriveServiceInterface {
       void(const GetAccountMetadataCallback& callback));
   MOCK_METHOD1(GetAppList, void(const GetAppListCallback& callback));
   MOCK_METHOD2(DeleteResource,
-      void(const GURL& edit_url,
+      void(const std::string& resource_id,
           const EntryActionCallback& callback));
   MOCK_METHOD5(DownloadHostedDocument,
       void(const FilePath& virtual_path,
@@ -61,7 +61,7 @@ class MockDriveService : public DriveServiceInterface {
           const std::string& new_name,
           const GetResourceEntryCallback& callback));
   MOCK_METHOD3(RenameResource,
-      void(const GURL& edit_url,
+      void(const std::string& resource_id,
           const std::string& new_name,
           const EntryActionCallback& callback));
   MOCK_METHOD3(AddResourceToDirectory,
@@ -121,8 +121,8 @@ class MockDriveService : public DriveServiceInterface {
   void GetAccountMetadataStub(const GetAccountMetadataCallback& callback);
 
   // Will call |callback| with HTTP_SUCCESS.
-  void DeleteResourceStub(const GURL& edit_url,
-      const EntryActionCallback& callback);
+  void DeleteResourceStub(const std::string& resource_id,
+                          const EntryActionCallback& callback);
 
   // Will call |callback| with HTTP_SUCCESS, the given URL, and the host+path
   // portion of the URL as the temporary file path.
@@ -140,7 +140,7 @@ class MockDriveService : public DriveServiceInterface {
                               const GetResourceEntryCallback& callback);
 
   // Will call |callback| with HTTP_SUCCESS.
-  void RenameResourceStub(const GURL& edit_url,
+  void RenameResourceStub(const std::string& resource_id,
                           const std::string& new_name,
                           const EntryActionCallback& callback);
 
