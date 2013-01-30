@@ -177,6 +177,9 @@ class ASH_EXPORT LauncherView : public views::View,
   // button creation and every time when shelf alignment is changed.
   void UpdateFirstButtonPadding();
 
+  // Invoked after the fading out animation for item deletion is ended.
+  void OnFadeOutAnimationEnded();
+
   // Overridden from views::View:
   virtual gfx::Size GetPreferredSize() OVERRIDE;
   virtual void OnBoundsChanged(const gfx::Rect& previous_bounds) OVERRIDE;
@@ -217,21 +220,20 @@ class ASH_EXPORT LauncherView : public views::View,
   // Show the list of all running items for this |item|. It will return true
   // when the menu was shown and false if there were no possible items to
   // choose from. |source| specifies the view which is responsible for showing
-  // the menu and |point| is the origin for the point.
-  // TODO(skuhne): Depending on the menu type we use in the end (hover vs.
-  // click), |point| might become obsolete.
+  // the menu, and the bubble will point towards it.
   bool ShowListMenuForView(const LauncherItem& item,
-                           views::View* source,
-                           const gfx::Point& point);
+                           views::View* source);
 
   // Overridden from views::ContextMenuController:
   virtual void ShowContextMenuForView(views::View* source,
                                       const gfx::Point& point) OVERRIDE;
 
   // Show either a context or normal click menu of given |menu_model|.
+  // If |context_menu| is set, the displayed menu is a context menu and not
+  // a menu listing one or more running applications.
   void ShowMenu(ui::MenuModel* menu_model,
-                views::View*source,
-                const gfx::Point& point);
+                views::View* source,
+                bool context_menu);
 
   // Overridden from views::BoundsAnimatorObserver:
   virtual void OnBoundsAnimatorProgressed(

@@ -100,6 +100,81 @@ GURL ExtensionNameToGURL(const FilePath::StringType& extension_name) {
   return extensions::Extension::GetBaseURLFromExtensionId(id);
 }
 
+ACTION(InvokeCompletionCallback) {
+  base::MessageLoopProxy::current()->PostTask(FROM_HERE, arg1);
+}
+
+// Invokes |arg0| as a GetDataCallback.
+ACTION_P2(InvokeGetAccountMetadataCallback0, error, result) {
+  scoped_ptr<google_apis::AccountMetadataFeed> account_metadata(result.Pass());
+  base::MessageLoopProxy::current()->PostTask(
+      FROM_HERE,
+      base::Bind(arg0, error, base::Passed(&account_metadata)));
+}
+
+// Invokes |arg1| as a GetResourceEntryCallback.
+ACTION_P2(InvokeGetResourceEntryCallback1, error, result) {
+  scoped_ptr<google_apis::ResourceEntry> entry(result.Pass());
+  base::MessageLoopProxy::current()->PostTask(
+      FROM_HERE,
+      base::Bind(arg1, error, base::Passed(&entry)));
+}
+
+// Invokes |arg2| as a GetResourceEntryCallback.
+ACTION_P2(InvokeGetResourceEntryCallback2, error, result) {
+  scoped_ptr<google_apis::ResourceEntry> entry(result.Pass());
+  base::MessageLoopProxy::current()->PostTask(
+      FROM_HERE,
+      base::Bind(arg2, error, base::Passed(&entry)));
+}
+
+// Invokes |arg5| as a GetResourceListCallback.
+ACTION_P2(InvokeGetResourceListCallback5, error, result) {
+  scoped_ptr<google_apis::ResourceList> resource_list(result.Pass());
+  base::MessageLoopProxy::current()->PostTask(
+      FROM_HERE,
+      base::Bind(arg5, error, base::Passed(&resource_list)));
+}
+
+ACTION(PrepareForRemoteChange_Busy) {
+  base::MessageLoopProxy::current()->PostTask(
+      FROM_HERE,
+      base::Bind(arg2,
+                 fileapi::SYNC_STATUS_FILE_BUSY,
+                 fileapi::SyncFileMetadata(),
+                 fileapi::FileChangeList()));
+}
+
+ACTION(PrepareForRemoteChange_NotFound) {
+  base::MessageLoopProxy::current()->PostTask(
+      FROM_HERE,
+      base::Bind(arg2,
+                 fileapi::SYNC_STATUS_OK,
+                 fileapi::SyncFileMetadata(fileapi::SYNC_FILE_TYPE_UNKNOWN, 0,
+                                           base::Time()),
+                 fileapi::FileChangeList()));
+}
+
+ACTION(PrepareForRemoteChange_NotModified) {
+  base::MessageLoopProxy::current()->PostTask(
+      FROM_HERE,
+      base::Bind(arg2,
+                 fileapi::SYNC_STATUS_OK,
+                 fileapi::SyncFileMetadata(fileapi::SYNC_FILE_TYPE_FILE, 0,
+                                           base::Time()),
+                 fileapi::FileChangeList()));
+}
+
+ACTION(InvokeDidDownloadFile) {
+  base::MessageLoopProxy::current()->PostTask(
+      FROM_HERE, base::Bind(arg3, google_apis::HTTP_SUCCESS, arg1));
+}
+
+ACTION(InvokeDidApplyRemoteChange) {
+  base::MessageLoopProxy::current()->PostTask(
+      FROM_HERE, base::Bind(arg3, fileapi::SYNC_STATUS_OK));
+}
+
 }  // namespace
 
 class MockRemoteServiceObserver : public RemoteFileSyncService::Observer {
@@ -159,10 +234,12 @@ class DriveFileSyncServiceTest : public testing::Test {
     EXPECT_TRUE(done);
   }
 
-  void SetUpDriveSyncService() {
+  void SetUpDriveSyncService(bool enabled) {
     sync_service_ = DriveFileSyncService::CreateForTesting(profile_.get(),
         base_dir_.path(), sync_client_.Pass(), metadata_store_.Pass()).Pass();
+    sync_service_->SetSyncEnabled(enabled);
     sync_service_->AddObserver(&mock_remote_observer_);
+    message_loop_.RunUntilIdle();
   }
 
   virtual void TearDown() OVERRIDE {
@@ -181,6 +258,10 @@ class DriveFileSyncServiceTest : public testing::Test {
 
     profile_.reset();
     message_loop_.RunUntilIdle();
+  }
+
+  void SetSyncEnabled(bool enabled) {
+    sync_service_->SetSyncEnabled(enabled);
   }
 
  protected:
@@ -321,6 +402,75 @@ class DriveFileSyncServiceTest : public testing::Test {
         DriveFileSyncService::REMOTE_SYNC_TYPE_INCREMENTAL);
   }
 
+  // Mock setup helpers ------------------------------------------------------
+  void SetUpDriveServiceExpectCallsForGetResourceList(
+      const std::string& result_mock_json_name,
+      const std::string& query,
+      const std::string& search_directory) {
+    scoped_ptr<Value> result_value(LoadJSONFile(
+            result_mock_json_name));
+    scoped_ptr<google_apis::ResourceList> result(
+        google_apis::ResourceList::ExtractAndParse(*result_value));
+    EXPECT_CALL(*mock_drive_service(),
+                GetResourceList(GURL(), 0, query, false, search_directory, _))
+        .WillOnce(InvokeGetResourceListCallback5(
+                google_apis::HTTP_SUCCESS,
+                base::Passed(&result)));
+  }
+
+  void SetUpDriveServiceExpectCallsForGetSyncRoot() {
+    SetUpDriveServiceExpectCallsForGetResourceList(
+        "sync_file_system/sync_root_found.json",
+        FormatTitleQuery(kSyncRootDirectoryName),
+        std::string());
+  }
+
+  void SetUpDriveServiceExpectCallsForGetAccountMetadata() {
+    scoped_ptr<Value> account_metadata_value(LoadJSONFile(
+        "gdata/account_metadata.json"));
+    scoped_ptr<google_apis::AccountMetadataFeed> account_metadata(
+        google_apis::AccountMetadataFeed::CreateFrom(*account_metadata_value));
+    EXPECT_CALL(*mock_drive_service(),
+                GetAccountMetadata(_))
+        .WillOnce(InvokeGetAccountMetadataCallback0(
+            google_apis::HTTP_SUCCESS,
+            base::Passed(&account_metadata)));
+  }
+
+  void SetUpDriveServiceExpectCallsForDownloadFile(
+      const std::string& file_resource_id) {
+    scoped_ptr<Value> file_entry_value(
+        LoadJSONFile("gdata/file_entry.json").Pass());
+    scoped_ptr<google_apis::ResourceEntry> file_entry
+        = google_apis::ResourceEntry::ExtractAndParse(*file_entry_value);
+    EXPECT_CALL(*mock_drive_service(),
+                GetResourceEntry(file_resource_id, _))
+        .WillOnce(InvokeGetResourceEntryCallback1(
+            google_apis::HTTP_SUCCESS,
+            base::Passed(&file_entry)));
+
+    EXPECT_CALL(*mock_drive_service(),
+                DownloadFile(_, _, GURL("https://file_content_url"), _, _))
+        .WillOnce(InvokeDidDownloadFile());
+  }
+
+  void SetUpDriveServiceExpectCallsForAddNewDirectory(
+      const std::string& parent_directory,
+      const std::string& directory_name) {
+    scoped_ptr<Value> origin_directory_created_value(LoadJSONFile(
+        "sync_file_system/origin_directory_created.json"));
+    scoped_ptr<google_apis::ResourceEntry> origin_directory_created
+        = google_apis::ResourceEntry::ExtractAndParse(
+            *origin_directory_created_value);
+    EXPECT_CALL(*mock_drive_service(),
+                AddNewDirectory(parent_directory, directory_name, _))
+        .WillOnce(InvokeGetResourceEntryCallback2(
+            google_apis::HTTP_SUCCESS,
+            base::Passed(&origin_directory_created)));
+  }
+
+  // End of mock setup helpers -----------------------------------------------
+
  private:
   MessageLoop message_loop_;
   content::TestBrowserThread ui_thread_;
@@ -342,94 +492,10 @@ class DriveFileSyncServiceTest : public testing::Test {
   DISALLOW_COPY_AND_ASSIGN(DriveFileSyncServiceTest);
 };
 
-ACTION(InvokeCompletionCallback) {
-  base::MessageLoopProxy::current()->PostTask(FROM_HERE, arg1);
-}
-
-// Invokes |arg0| as a GetDataCallback.
-ACTION_P2(InvokeGetAccountMetadataCallback0, error, result) {
-  scoped_ptr<google_apis::AccountMetadataFeed> account_metadata(result.Pass());
-  base::MessageLoopProxy::current()->PostTask(
-      FROM_HERE,
-      base::Bind(arg0, error, base::Passed(&account_metadata)));
-}
-
-// Invokes |arg1| as a GetResourceEntryCallback.
-ACTION_P2(InvokeGetResourceEntryCallback1, error, result) {
-  scoped_ptr<google_apis::ResourceEntry> entry(result.Pass());
-  base::MessageLoopProxy::current()->PostTask(
-      FROM_HERE,
-      base::Bind(arg1, error, base::Passed(&entry)));
-}
-
-// Invokes |arg2| as a GetResourceEntryCallback.
-ACTION_P2(InvokeGetResourceEntryCallback2, error, result) {
-  scoped_ptr<google_apis::ResourceEntry> entry(result.Pass());
-  base::MessageLoopProxy::current()->PostTask(
-      FROM_HERE,
-      base::Bind(arg2, error, base::Passed(&entry)));
-}
-
-// Invokes |arg5| as a GetResourceListCallback.
-ACTION_P2(InvokeGetResourceListCallback5, error, result) {
-  scoped_ptr<google_apis::ResourceList> resource_list(result.Pass());
-  base::MessageLoopProxy::current()->PostTask(
-      FROM_HERE,
-      base::Bind(arg5, error, base::Passed(&resource_list)));
-}
-
-ACTION(PrepareForRemoteChange_Busy) {
-  base::MessageLoopProxy::current()->PostTask(
-      FROM_HERE,
-      base::Bind(arg2,
-                 fileapi::SYNC_STATUS_FILE_BUSY,
-                 fileapi::SyncFileMetadata(),
-                 fileapi::FileChangeList()));
-}
-
-ACTION(PrepareForRemoteChange_NotFound) {
-  base::MessageLoopProxy::current()->PostTask(
-      FROM_HERE,
-      base::Bind(arg2,
-                 fileapi::SYNC_STATUS_OK,
-                 fileapi::SyncFileMetadata(fileapi::SYNC_FILE_TYPE_UNKNOWN, 0,
-                                           base::Time()),
-                 fileapi::FileChangeList()));
-}
-
-ACTION(PrepareForRemoteChange_NotModified) {
-  base::MessageLoopProxy::current()->PostTask(
-      FROM_HERE,
-      base::Bind(arg2,
-                 fileapi::SYNC_STATUS_OK,
-                 fileapi::SyncFileMetadata(fileapi::SYNC_FILE_TYPE_FILE, 0,
-                                           base::Time()),
-                 fileapi::FileChangeList()));
-}
-
-ACTION(InvokeDidDownloadFile) {
-  base::MessageLoopProxy::current()->PostTask(
-      FROM_HERE, base::Bind(arg3, google_apis::HTTP_SUCCESS, arg1));
-}
-
-ACTION(InvokeDidApplyRemoteChange) {
-  base::MessageLoopProxy::current()->PostTask(
-      FROM_HERE, base::Bind(arg3, fileapi::SYNC_STATUS_OK));
-}
-
 #if !defined(OS_ANDROID)
 
 TEST_F(DriveFileSyncServiceTest, GetSyncRoot) {
-  scoped_ptr<Value> sync_root_found_value(LoadJSONFile(
-      "sync_file_system/sync_root_found.json"));
-  scoped_ptr<google_apis::ResourceList> sync_root_found(
-      google_apis::ResourceList::ExtractAndParse(*sync_root_found_value));
-  std::string query = FormatTitleQuery(kSyncRootDirectoryName);
-  EXPECT_CALL(*mock_drive_service(),
-              GetResourceList(GURL(), 0, query, false, std::string(), _))
-      .WillOnce(InvokeGetResourceListCallback5(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&sync_root_found)));
+  SetUpDriveServiceExpectCallsForGetSyncRoot();
 
   EXPECT_CALL(*mock_remote_observer(),
               OnRemoteServiceStateUpdated(REMOTE_SERVICE_OK, _))
@@ -437,7 +503,7 @@ TEST_F(DriveFileSyncServiceTest, GetSyncRoot) {
   EXPECT_CALL(*mock_remote_observer(), OnRemoteChangeQueueUpdated(0))
       .Times(AnyNumber());
 
-  SetUpDriveSyncService();
+  SetUpDriveSyncService(true);
   message_loop()->RunUntilIdle();
 
   EXPECT_EQ("folder:sync_root_resource_id",
@@ -467,33 +533,17 @@ TEST_F(DriveFileSyncServiceTest, BatchSyncOnInitialization) {
 
   InSequence sequence;
 
-  scoped_ptr<Value> account_metadata_value(LoadJSONFile(
-      "gdata/account_metadata.json"));
-  scoped_ptr<google_apis::AccountMetadataFeed> account_metadata(
-      google_apis::AccountMetadataFeed::CreateFrom(*account_metadata_value));
-  EXPECT_CALL(*mock_drive_service(),
-              GetAccountMetadata(_))
-      .WillOnce(InvokeGetAccountMetadataCallback0(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&account_metadata)));
-
-  scoped_ptr<Value> listing_files_in_directory_value(LoadJSONFile(
-      "sync_file_system/listing_files_in_directory.json"));
-  scoped_ptr<google_apis::ResourceList> listing_files_in_directory(
-      google_apis::ResourceList::ExtractAndParse(
-          *listing_files_in_directory_value));
-  EXPECT_CALL(*mock_drive_service(),
-              GetResourceList(GURL(), 0, std::string(), false,
-                              kDirectoryResourceId1, _))
-      .WillOnce(InvokeGetResourceListCallback5(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&listing_files_in_directory)));
+  SetUpDriveServiceExpectCallsForGetAccountMetadata();
+  SetUpDriveServiceExpectCallsForGetResourceList(
+      "sync_file_system/listing_files_in_directory.json",
+      std::string(),
+      kDirectoryResourceId1);
 
   EXPECT_CALL(*mock_remote_observer(),
               OnRemoteServiceStateUpdated(REMOTE_SERVICE_OK, _))
       .Times(1);
 
-  SetUpDriveSyncService();
+  SetUpDriveSyncService(true);
   message_loop()->RunUntilIdle();
 
   // kOrigin1 should be a batch sync origin and kOrigin2 should be an
@@ -521,62 +571,27 @@ TEST_F(DriveFileSyncServiceTest, RegisterNewOrigin) {
 
   InSequence sequence;
 
-  scoped_ptr<Value> origin_directory_not_found_value(LoadJSONFile(
-      "sync_file_system/origin_directory_not_found.json"));
-  scoped_ptr<google_apis::ResourceList> origin_directory_not_found(
-      google_apis::ResourceList::ExtractAndParse(
-          *origin_directory_not_found_value));
-
-  std::string query = FormatTitleQuery(
-      DriveFileSyncClient::OriginToDirectoryTitle(kOrigin));
-
-  EXPECT_CALL(*mock_drive_service(),
-              GetResourceList(GURL(), 0, query, false, kSyncRootResourceId, _))
-      .WillOnce(InvokeGetResourceListCallback5(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&origin_directory_not_found)))
-      .RetiresOnSaturation();
+  SetUpDriveServiceExpectCallsForGetResourceList(
+      "sync_file_system/origin_directory_not_found.json",
+      FormatTitleQuery(DriveFileSyncClient::OriginToDirectoryTitle(kOrigin)),
+      kSyncRootResourceId);
 
   // If the directory for the origin is missing, DriveFileSyncService should
   // attempt to create it.
-  scoped_ptr<Value> origin_directory_created_value(LoadJSONFile(
-      "sync_file_system/origin_directory_created.json"));
-  scoped_ptr<google_apis::ResourceEntry> origin_directory_created
-      = google_apis::ResourceEntry::ExtractAndParse(
-          *origin_directory_created_value);
-  std::string dirname =
-      DriveFileSyncClient::OriginToDirectoryTitle(kOrigin);
-  EXPECT_CALL(*mock_drive_service(),
-              AddNewDirectory(kSyncRootResourceId, dirname, _))
-      .WillOnce(InvokeGetResourceEntryCallback2(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&origin_directory_created)));
+  SetUpDriveServiceExpectCallsForAddNewDirectory(
+      kSyncRootResourceId,
+      DriveFileSyncClient::OriginToDirectoryTitle(kOrigin));
 
   // Once the directory is created GetAccountMetadata should be called to get
   // the largest changestamp for the origin as a prepariation of the batch sync.
-  scoped_ptr<Value> account_metadata_value(LoadJSONFile(
-      "gdata/account_metadata.json"));
-  scoped_ptr<google_apis::AccountMetadataFeed> account_metadata(
-      google_apis::AccountMetadataFeed::CreateFrom(*account_metadata_value));
-  EXPECT_CALL(*mock_drive_service(), GetAccountMetadata(_))
-      .WillOnce(InvokeGetAccountMetadataCallback0(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&account_metadata)));
+  SetUpDriveServiceExpectCallsForGetAccountMetadata();
 
-  scoped_ptr<Value> listing_files_in_empty_directory_value(LoadJSONFile(
-      "sync_file_system/listing_files_in_empty_directory.json"));
-  scoped_ptr<google_apis::ResourceList> listing_files_in_empty_directory(
-      google_apis::ResourceList::ExtractAndParse(
-          *listing_files_in_empty_directory_value));
+  SetUpDriveServiceExpectCallsForGetResourceList(
+      "sync_file_system/listing_files_in_empty_directory.json",
+      std::string(),
+      kDirectoryResourceId);
 
-  EXPECT_CALL(*mock_drive_service(),
-              GetResourceList(GURL(), 0, std::string(), false,
-                              kDirectoryResourceId, _))
-      .WillOnce(InvokeGetResourceListCallback5(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&listing_files_in_empty_directory)));
-
-  SetUpDriveSyncService();
+  SetUpDriveSyncService(true);
   bool done = false;
   sync_service()->RegisterOriginForTrackingChanges(
       kOrigin, base::Bind(&ExpectEqStatus, &done, fileapi::SYNC_STATUS_OK));
@@ -603,45 +618,22 @@ TEST_F(DriveFileSyncServiceTest, RegisterExistingOrigin) {
 
   InSequence sequence;
 
-  scoped_ptr<Value> origin_directory_found_value(LoadJSONFile(
-      "sync_file_system/origin_directory_found.json"));
-  scoped_ptr<google_apis::ResourceList> origin_directory_found(
-      google_apis::ResourceList::ExtractAndParse(
-          *origin_directory_found_value));
+  // We already have a directory for the origin.
+  SetUpDriveServiceExpectCallsForGetResourceList(
+      "sync_file_system/origin_directory_found.json",
+      FormatTitleQuery(DriveFileSyncClient::OriginToDirectoryTitle(kOrigin)),
+      kSyncRootResourceId);
 
-  std::string query = FormatTitleQuery(
-      DriveFileSyncClient::OriginToDirectoryTitle(kOrigin));
-  EXPECT_CALL(*mock_drive_service(),
-              GetResourceList(GURL(), 0, query, false, kSyncRootResourceId, _))
-      .WillOnce(InvokeGetResourceListCallback5(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&origin_directory_found)))
-      .RetiresOnSaturation();
-
-  scoped_ptr<Value> account_metadata_value(LoadJSONFile(
-      "gdata/account_metadata.json"));
-  scoped_ptr<google_apis::AccountMetadataFeed> account_metadata(
-      google_apis::AccountMetadataFeed::CreateFrom(*account_metadata_value));
-  EXPECT_CALL(*mock_drive_service(), GetAccountMetadata(_))
-      .WillOnce(InvokeGetAccountMetadataCallback0(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&account_metadata)));
+  SetUpDriveServiceExpectCallsForGetAccountMetadata();
 
   // DriveFileSyncService should fetch the list of the directory content
   // to start the batch sync.
-  scoped_ptr<Value> listing_files_in_directory_value(LoadJSONFile(
-      "sync_file_system/listing_files_in_directory.json"));
-  scoped_ptr<google_apis::ResourceList> listing_files_in_directory(
-      google_apis::ResourceList::ExtractAndParse(
-          *listing_files_in_directory_value));
-  EXPECT_CALL(*mock_drive_service(),
-              GetResourceList(GURL(), 0, std::string(),
-                              false, kDirectoryResourceId, _))
-      .WillOnce(InvokeGetResourceListCallback5(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&listing_files_in_directory)));
+  SetUpDriveServiceExpectCallsForGetResourceList(
+      "sync_file_system/listing_files_in_directory.json",
+      std::string(),
+      kDirectoryResourceId);
 
-  SetUpDriveSyncService();
+  SetUpDriveSyncService(true);
   bool done = false;
   sync_service()->RegisterOriginForTrackingChanges(
       kOrigin, base::Bind(&ExpectEqStatus, &done, fileapi::SYNC_STATUS_OK));
@@ -678,30 +670,13 @@ TEST_F(DriveFileSyncServiceTest, UnregisterOrigin) {
 
   InSequence sequence;
 
-  scoped_ptr<Value> account_metadata_value(LoadJSONFile(
-      "gdata/account_metadata.json"));
-  scoped_ptr<google_apis::AccountMetadataFeed> account_metadata(
-      google_apis::AccountMetadataFeed::CreateFrom(*account_metadata_value));
+  SetUpDriveServiceExpectCallsForGetAccountMetadata();
+  SetUpDriveServiceExpectCallsForGetResourceList(
+      "sync_file_system/listing_files_in_directory.json",
+      std::string(),
+      kDirectoryResourceId1);
 
-  EXPECT_CALL(*mock_drive_service(),
-              GetAccountMetadata(_))
-      .WillOnce(InvokeGetAccountMetadataCallback0(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&account_metadata)));
-
-  scoped_ptr<Value> value(LoadJSONFile(
-      "sync_file_system/listing_files_in_directory.json"));
-  scoped_ptr<google_apis::ResourceList> listing_files_in_directory(
-      google_apis::ResourceList::ExtractAndParse(*value));
-
-  EXPECT_CALL(*mock_drive_service(),
-              GetResourceList(GURL(), 0, std::string(), false,
-                              kDirectoryResourceId1, _))
-      .WillOnce(InvokeGetResourceListCallback5(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&listing_files_in_directory)));
-
-  SetUpDriveSyncService();
+  SetUpDriveSyncService(true);
   message_loop()->RunUntilIdle();
 
   EXPECT_EQ(1u, metadata_store()->batch_sync_origins().size());
@@ -727,17 +702,7 @@ TEST_F(DriveFileSyncServiceTest, ResolveLocalSyncOperationType) {
   const std::string kResourceId("123456");
   const int64 kChangestamp = 654321;
 
-  scoped_ptr<Value> value(LoadJSONFile(
-      "sync_file_system/sync_root_found.json"));
-  scoped_ptr<google_apis::ResourceList> sync_root_found(
-      google_apis::ResourceList::ExtractAndParse(*value));
-
-  std::string query = FormatTitleQuery(kSyncRootDirectoryName);
-  EXPECT_CALL(*mock_drive_service(),
-              GetResourceList(GURL(), 0, query, false, std::string(), _))
-      .WillOnce(InvokeGetResourceListCallback5(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&sync_root_found)));
+  SetUpDriveServiceExpectCallsForGetSyncRoot();
 
   EXPECT_CALL(*mock_remote_observer(),
               OnRemoteServiceStateUpdated(REMOTE_SERVICE_OK, _))
@@ -745,7 +710,7 @@ TEST_F(DriveFileSyncServiceTest, ResolveLocalSyncOperationType) {
   EXPECT_CALL(*mock_remote_observer(), OnRemoteChangeQueueUpdated(_))
       .Times(AnyNumber());
 
-  SetUpDriveSyncService();
+  SetUpDriveSyncService(true);
   message_loop()->RunUntilIdle();
 
   const fileapi::FileChange local_add_or_update_change(
@@ -822,7 +787,7 @@ TEST_F(DriveFileSyncServiceTest, RemoteChange_NoChange) {
   EXPECT_CALL(*mock_remote_observer(), OnRemoteChangeQueueUpdated(_))
       .Times(AnyNumber());
 
-  SetUpDriveSyncService();
+  SetUpDriveSyncService(true);
 
   ProcessRemoteChange(fileapi::SYNC_STATUS_NO_CHANGE_TO_SYNC,
                       fileapi::FileSystemURL(),
@@ -856,7 +821,7 @@ TEST_F(DriveFileSyncServiceTest, RemoteChange_Busy) {
               ClearLocalChanges(CreateURL(kOrigin, kFileName), _))
       .WillOnce(InvokeCompletionCallback());
 
-  SetUpDriveSyncService();
+  SetUpDriveSyncService(true);
 
   scoped_ptr<ResourceEntry> entry(ResourceEntry::ExtractAndParse(
       *LoadJSONFile("gdata/file_entry.json")));
@@ -892,25 +857,13 @@ TEST_F(DriveFileSyncServiceTest, RemoteChange_NewFile) {
               ClearLocalChanges(CreateURL(kOrigin, kFileName), _))
       .WillOnce(InvokeCompletionCallback());
 
-  scoped_ptr<Value> file_entry_value(
-      LoadJSONFile("gdata/file_entry.json").Pass());
-  scoped_ptr<google_apis::ResourceEntry> file_entry
-      = google_apis::ResourceEntry::ExtractAndParse(*file_entry_value);
-  EXPECT_CALL(*mock_drive_service(),
-              GetResourceEntry(kFileResourceId, _))
-      .WillOnce(InvokeGetResourceEntryCallback1(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&file_entry)));
-
-  EXPECT_CALL(*mock_drive_service(),
-              DownloadFile(_, _, GURL("https://file_content_url"), _, _))
-      .WillOnce(InvokeDidDownloadFile());
+  SetUpDriveServiceExpectCallsForDownloadFile(kFileResourceId);
 
   EXPECT_CALL(*mock_remote_processor(),
               ApplyRemoteChange(_, _, CreateURL(kOrigin, kFileName), _))
       .WillOnce(InvokeDidApplyRemoteChange());
 
-  SetUpDriveSyncService();
+  SetUpDriveSyncService(true);
 
   scoped_ptr<ResourceEntry> entry(ResourceEntry::ExtractAndParse(
       *LoadJSONFile("gdata/file_entry.json")));
@@ -946,25 +899,13 @@ TEST_F(DriveFileSyncServiceTest, RemoteChange_UpdateFile) {
               ClearLocalChanges(CreateURL(kOrigin, kFileName), _))
       .WillOnce(InvokeCompletionCallback());
 
-  scoped_ptr<Value> file_entry_value(
-      LoadJSONFile("gdata/file_entry.json").Pass());
-  scoped_ptr<google_apis::ResourceEntry> file_entry
-      = google_apis::ResourceEntry::ExtractAndParse(*file_entry_value);
-  EXPECT_CALL(*mock_drive_service(),
-              GetResourceEntry(kFileResourceId, _))
-      .WillOnce(InvokeGetResourceEntryCallback1(
-          google_apis::HTTP_SUCCESS,
-          base::Passed(&file_entry)));
-
-  EXPECT_CALL(*mock_drive_service(),
-              DownloadFile(_, _, GURL("https://file_content_url"), _, _))
-      .WillOnce(InvokeDidDownloadFile());
+  SetUpDriveServiceExpectCallsForDownloadFile(kFileResourceId);
 
   EXPECT_CALL(*mock_remote_processor(),
               ApplyRemoteChange(_, _, CreateURL(kOrigin, kFileName), _))
       .WillOnce(InvokeDidApplyRemoteChange());
 
-  SetUpDriveSyncService();
+  SetUpDriveSyncService(true);
 
   scoped_ptr<ResourceEntry> entry(ResourceEntry::ExtractAndParse(
       *LoadJSONFile("gdata/file_entry.json")));
@@ -972,6 +913,44 @@ TEST_F(DriveFileSyncServiceTest, RemoteChange_UpdateFile) {
   ProcessRemoteChange(fileapi::SYNC_STATUS_OK,
                       CreateURL(kOrigin, kFileName),
                       fileapi::SYNC_OPERATION_UPDATED);
+}
+
+TEST_F(DriveFileSyncServiceTest, RegisterOriginWithSyncDisabled) {
+  const GURL kOrigin("chrome-extension://example");
+  const std::string kDirectoryResourceId("folder:origin_directory_resource_id");
+  const std::string kSyncRootResourceId("folder:sync_root_resource_id");
+
+  metadata_store()->SetSyncRootDirectory(kSyncRootResourceId);
+
+  EXPECT_CALL(*mock_remote_observer(),
+              OnRemoteServiceStateUpdated(REMOTE_SERVICE_DISABLED, _))
+      .Times(AtLeast(1));
+  EXPECT_CALL(*mock_remote_observer(), OnRemoteChangeQueueUpdated(0))
+      .Times(AnyNumber());
+
+  InSequence sequence;
+
+  SetUpDriveServiceExpectCallsForGetResourceList(
+      "sync_file_system/origin_directory_found.json",
+      FormatTitleQuery(DriveFileSyncClient::OriginToDirectoryTitle(kOrigin)),
+      kSyncRootResourceId);
+
+  // Usually the sync service starts batch sync here, but since we're
+  // setting up a drive service with sync disabled batch sync doesn't
+  // start (while register origin should still return OK).
+
+  SetUpDriveSyncService(false);
+  bool done = false;
+  sync_service()->RegisterOriginForTrackingChanges(
+      kOrigin, base::Bind(&ExpectEqStatus, &done, fileapi::SYNC_STATUS_OK));
+  message_loop()->RunUntilIdle();
+  EXPECT_TRUE(done);
+
+  // We must not have started batch sync for the newly registered origin,
+  // so it should still be in the batch_sync_origins.
+  EXPECT_EQ(1u, metadata_store()->batch_sync_origins().size());
+  EXPECT_TRUE(metadata_store()->incremental_sync_origins().empty());
+  EXPECT_TRUE(pending_changes().empty());
 }
 
 #endif  // !defined(OS_ANDROID)

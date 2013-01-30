@@ -1218,11 +1218,11 @@ const Experiment kExperiments[] = {
     SINGLE_VALUE_TYPE(switches::kEnableTouchDragDrop)
   },
   {
-    "load-cloud-policy-on-signin",
-    IDS_FLAGS_DESKTOP_CLOUD_POLICY_NAME,
-    IDS_FLAGS_DESKTOP_CLOUD_POLICY_DESCRIPTION,
+    "disable-cloud-policy-on-signin",
+    IDS_FLAGS_DISABLE_DESKTOP_CLOUD_POLICY_NAME,
+    IDS_FLAGS_DISABLE_DESKTOP_CLOUD_POLICY_DESCRIPTION,
     kOsWin | kOsMac | kOsLinux,
-    SINGLE_VALUE_TYPE(switches::kLoadCloudPolicyOnSignin)
+    SINGLE_VALUE_TYPE(switches::kDisableCloudPolicyOnSignin)
   },
 #if defined(ENABLE_MESSAGE_CENTER)
   {
@@ -1239,13 +1239,6 @@ const Experiment kExperiments[] = {
     IDS_FLAGS_FULL_HISTORY_SYNC_DESCRIPTION,
     kOsAll,
     SINGLE_VALUE_TYPE(switches::kHistoryEnableFullHistorySync)
-  },
-  {
-    "enable-data-channels",
-    IDS_FLAGS_RTC_DATACHANNELS,
-    IDS_FLAGS_RTC_DATACHANNELS_DESCRIPTION,
-    kOsAll,
-    SINGLE_VALUE_TYPE(switches::kEnableDataChannels)
   },
   {
     "enable-sync-dictionary",

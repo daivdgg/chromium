@@ -193,7 +193,7 @@ TEST_F(DriveSchedulerTest, DeleteResource) {
   google_apis::GDataErrorCode error = google_apis::GDATA_OTHER_ERROR;
 
   scheduler_->DeleteResource(
-      GURL("https://file1_link_self/file:2_file_resource_id"),
+      "file:2_file_resource_id",
       base::Bind(
           &google_apis::test_util::CopyResultsFromEntryActionCallback,
           &error));
@@ -227,7 +227,7 @@ TEST_F(DriveSchedulerTest, RenameResource) {
   google_apis::GDataErrorCode error = google_apis::GDATA_OTHER_ERROR;
 
   scheduler_->RenameResource(
-      GURL("https://file1_link_self/file:2_file_resource_id"),
+      "file:2_file_resource_id",
       "New Name",
       base::Bind(
           &google_apis::test_util::CopyResultsFromEntryActionCallback,
@@ -284,7 +284,7 @@ TEST_F(DriveSchedulerTest, AddNewDirectory) {
           &entry));
   google_apis::test_util::RunBlockingPoolTask();
 
-  ASSERT_EQ(google_apis::HTTP_SUCCESS, error);
+  ASSERT_EQ(google_apis::HTTP_CREATED, error);
   ASSERT_TRUE(entry);
 }
 

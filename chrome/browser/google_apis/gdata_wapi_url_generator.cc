@@ -33,7 +33,7 @@ const char kResourceURLForRemovalFormat[] =
     "/feeds/default/private/full/%s/contents/%s";
 
 // URL requesting single resource entry whose resource id is specified by "%s".
-const char kGetResourceEntryURLFormat[] = "/feeds/default/private/full/%s";
+const char kGetEditURLFormat[] = "/feeds/default/private/full/%s";
 
 // Root resource list url.
 const char kResourceListRootURL[] = "/feeds/default/private/full";
@@ -154,12 +154,16 @@ GURL GDataWapiUrlGenerator::GenerateResourceListUrl(
   return AddFeedUrlParams(url, max_docs, start_changestamp, search_string);
 }
 
-GURL GDataWapiUrlGenerator::GenerateResourceEntryUrl(
+GURL GDataWapiUrlGenerator::GenerateEditUrl(
     const std::string& resource_id) const {
-  GURL result = base_url_.Resolve(
-      base::StringPrintf(kGetResourceEntryURLFormat,
+  return AddStandardUrlParams(GenerateEditUrlWithoutParams(resource_id));
+}
+
+GURL GDataWapiUrlGenerator::GenerateEditUrlWithoutParams(
+    const std::string& resource_id) const {
+  return base_url_.Resolve(
+      base::StringPrintf(kGetEditURLFormat,
                          net::EscapePath(resource_id).c_str()));
-  return AddStandardUrlParams(result);
 }
 
 GURL GDataWapiUrlGenerator::GenerateContentUrl(

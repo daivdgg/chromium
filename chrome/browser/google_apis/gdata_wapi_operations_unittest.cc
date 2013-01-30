@@ -599,10 +599,10 @@ TEST_F(GDataWapiOperationsTest, DeleteResourceOperation) {
   DeleteResourceOperation* operation = new DeleteResourceOperation(
       &operation_registry_,
       request_context_getter_.get(),
+      *url_generator_,
       base::Bind(&CopyResultFromEntryActionCallbackAndQuit,
                  &result_code),
-      test_server_.GetURL(
-          "/feeds/default/private/full/file:2_file_resource_id"));
+      "file:2_file_resource_id");
 
   operation->Start(kTestGDataAuthToken, kTestUserAgent,
                    base::Bind(&test_util::DoNothingForReAuthenticateCallback));
@@ -610,8 +610,9 @@ TEST_F(GDataWapiOperationsTest, DeleteResourceOperation) {
 
   EXPECT_EQ(HTTP_SUCCESS, result_code);
   EXPECT_EQ(test_server::METHOD_DELETE, http_request_.method);
-  EXPECT_EQ("/feeds/default/private/full/file:2_file_resource_id?v=3&alt=json",
-            http_request_.relative_url);
+  EXPECT_EQ(
+      "/feeds/default/private/full/file%3A2_file_resource_id?v=3&alt=json",
+      http_request_.relative_url);
   EXPECT_EQ("*", http_request_.headers["If-Match"]);
 }
 
@@ -691,10 +692,10 @@ TEST_F(GDataWapiOperationsTest, RenameResourceOperation) {
   RenameResourceOperation* operation = new RenameResourceOperation(
       &operation_registry_,
       request_context_getter_.get(),
+      *url_generator_,
       base::Bind(&CopyResultFromEntryActionCallbackAndQuit,
                  &result_code),
-      test_server_.GetURL(
-          "/feeds/default/private/full/file:2_file_resource_id"),
+      "file:2_file_resource_id",
       "New File");
 
   operation->Start(kTestGDataAuthToken, kTestUserAgent,
@@ -703,8 +704,9 @@ TEST_F(GDataWapiOperationsTest, RenameResourceOperation) {
 
   EXPECT_EQ(HTTP_SUCCESS, result_code);
   EXPECT_EQ(test_server::METHOD_PUT, http_request_.method);
-  EXPECT_EQ("/feeds/default/private/full/file:2_file_resource_id?v=3&alt=json",
-            http_request_.relative_url);
+  EXPECT_EQ(
+      "/feeds/default/private/full/file%3A2_file_resource_id?v=3&alt=json",
+      http_request_.relative_url);
   EXPECT_EQ("application/atom+xml", http_request_.headers["Content-Type"]);
   EXPECT_EQ("*", http_request_.headers["If-Match"]);
 

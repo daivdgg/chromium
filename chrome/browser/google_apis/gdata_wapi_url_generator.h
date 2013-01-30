@@ -78,8 +78,18 @@ class GDataWapiUrlGenerator {
       bool shared_with_me,
       const std::string& directory_resource_id) const;
 
-  // Generates a URL for getting the resource entry of the given resource ID.
-  GURL GenerateResourceEntryUrl(const std::string& resource_id) const;
+  // Generates a URL for getting or editing the resource entry of
+  // the given resource ID.
+  GURL GenerateEditUrl(const std::string& resource_id) const;
+
+  // Generates a URL for getting or editing the resource entry of the
+  // given resource ID without query params.
+  // Note that, in order to access to the WAPI server, it is necessary to
+  // append some query parameters to the URL. GenerateEditUrl declared above
+  // should be used in such cases. This method is designed for constructing
+  // the data, such as xml element/attributes in request body containing
+  // edit urls.
+  GURL GenerateEditUrlWithoutParams(const std::string& resource_id) const;
 
   // Generates a URL for editing the contents in the directory specified
   // by the given resource ID.

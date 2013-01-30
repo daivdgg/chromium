@@ -31,7 +31,6 @@
 #include "ipc/ipc_channel.h"
 #include "ipc/ipc_channel_proxy.h"
 #include "ipc/ipc_listener.h"
-#include "media/video/capture/screen/screen_capturer.h"
 #include "net/base/network_change_notifier.h"
 #include "net/socket/ssl_server_socket.h"
 #include "remoting/base/auto_thread_task_runner.h"
@@ -51,6 +50,7 @@
 #include "remoting/host/dns_blackhole_checker.h"
 #include "remoting/host/event_executor.h"
 #include "remoting/host/heartbeat_sender.h"
+#include "remoting/host/host_change_notification_listener.h"
 #include "remoting/host/host_config.h"
 #include "remoting/host/host_event_logger.h"
 #include "remoting/host/host_exit_codes.h"
@@ -149,6 +149,7 @@ namespace remoting {
 class HostProcess
     : public ConfigFileWatcher::Delegate,
       public HeartbeatSender::Listener,
+      public HostChangeNotificationListener::Listener,
       public IPC::Listener,
       public base::RefCountedThreadSafe<HostProcess> {
  public:
@@ -165,6 +166,9 @@ class HostProcess
 
   // HeartbeatSender::Listener overrides.
   virtual void OnUnknownHostIdError() OVERRIDE;
+
+  // HostChangeNotificationListener::Listener overrides.
+  virtual void OnHostDeleted() OVERRIDE;
 
  private:
   enum HostState {
@@ -270,6 +274,8 @@ class HostProcess
 
   // Accessed on the UI thread.
   scoped_ptr<IPC::ChannelProxy> daemon_channel_;
+
+  // Created on the UI thread but used from the network thread.
   FilePath host_config_path_;
   scoped_ptr<DesktopEnvironmentFactory> desktop_environment_factory_;
 
@@ -286,7 +292,6 @@ class HostProcess
   std::string xmpp_login_;
   std::string xmpp_auth_token_;
   std::string xmpp_auth_service_;
-
   scoped_ptr<policy_hack::PolicyWatcher> policy_watcher_;
   bool allow_nat_traversal_;
   std::string talkgadget_prefix_;
@@ -300,6 +305,7 @@ class HostProcess
   scoped_ptr<XmppSignalStrategy> signal_strategy_;
   scoped_ptr<SignalingConnector> signaling_connector_;
   scoped_ptr<HeartbeatSender> heartbeat_sender_;
+  scoped_ptr<HostChangeNotificationListener> host_change_notification_listener_;
   scoped_ptr<LogToServer> log_to_server_;
   scoped_ptr<HostEventLogger> host_event_logger_;
 
@@ -553,10 +559,6 @@ void HostProcess::StartOnUiThread() {
   }
 
 #if defined(OS_LINUX)
-  // TODO(sergeyu): Pass configuration parameters to the Linux-specific version
-  // of DesktopEnvironmentFactory when we have it.
-  media::ScreenCapturer::EnableXDamage(true);
-
   // If an audio pipe is specific on the command-line then initialize
   // AudioCapturerLinux to capture from it.
   FilePath audio_pipe_name = CommandLine::ForCurrentProcess()->
@@ -585,7 +587,7 @@ void HostProcess::StartOnUiThread() {
 
 #else  // !defined(OS_WIN)
   DesktopEnvironmentFactory* desktop_environment_factory =
-      new BasicDesktopEnvironmentFactory();
+      new BasicDesktopEnvironmentFactory(true);
 #endif  // !defined(OS_WIN)
 
   desktop_environment_factory_.reset(desktop_environment_factory);
@@ -649,6 +651,11 @@ void HostProcess::ShutdownOnUiThread() {
 // Overridden from HeartbeatSender::Listener
 void HostProcess::OnUnknownHostIdError() {
   LOG(ERROR) << "Host ID not found.";
+  ShutdownHost(kInvalidHostIdExitCode);
+}
+
+void HostProcess::OnHostDeleted() {
+  LOG(ERROR) << "Host was deleted from the directory.";
   ShutdownHost(kInvalidHostIdExitCode);
 }
 
@@ -908,6 +915,9 @@ void HostProcess::StartHost() {
   heartbeat_sender_.reset(new HeartbeatSender(
       this, host_id_, signal_strategy_.get(), &key_pair_));
 
+  host_change_notification_listener_.reset(new HostChangeNotificationListener(
+      this, host_id_, signal_strategy_.get()));
+
   log_to_server_.reset(
       new LogToServer(host_, ServerLogEntry::ME2ME, signal_strategy_.get()));
   host_event_logger_ = HostEventLogger::Create(host_, kApplicationName);
@@ -1004,6 +1014,7 @@ void HostProcess::ShutdownOnNetworkThread() {
   host_event_logger_.reset();
   log_to_server_.reset();
   heartbeat_sender_.reset();
+  host_change_notification_listener_.reset();
   signaling_connector_.reset();
   signal_strategy_.reset();
   resizing_host_observer_.reset();

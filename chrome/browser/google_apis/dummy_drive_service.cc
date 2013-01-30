@@ -53,15 +53,8 @@ void DummyDriveService::GetAccountMetadata(
 
 void DummyDriveService::GetAppList(const GetAppListCallback& callback) {}
 
-void DummyDriveService::DeleteResource(const GURL& edit_url,
+void DummyDriveService::DeleteResource(const std::string& resource_id,
                                        const EntryActionCallback& callback) {}
-
-void DummyDriveService::DownloadHostedDocument(
-    const FilePath& virtual_path,
-    const FilePath& local_cache_path,
-    const GURL& content_url,
-    DocumentExportFormat format,
-    const DownloadActionCallback& callback) {}
 
 void DummyDriveService::DownloadFile(
     const FilePath& virtual_path,
@@ -75,7 +68,7 @@ void DummyDriveService::CopyHostedDocument(
     const std::string& new_name,
     const GetResourceEntryCallback& callback) {}
 
-void DummyDriveService::RenameResource(const GURL& edit_url,
+void DummyDriveService::RenameResource(const std::string& resource_id,
                                        const std::string& new_name,
                                        const EntryActionCallback& callback) {}
 

@@ -211,6 +211,8 @@
         'browser/autofill/autofill_regex_constants.h',
         'browser/autofill/autofill_regexes.cc',
         'browser/autofill/autofill_regexes.h',
+        'browser/autofill/risk/fingerprint.cc',
+        'browser/autofill/risk/fingerprint.h',
         'browser/autofill/autofill_scanner.cc',
         'browser/autofill/autofill_scanner.h',
         'browser/autofill/autofill_server_field_info.h',
@@ -1907,6 +1909,10 @@
         'browser/sync/backend_unrecoverable_error_handler.h',
         'browser/sync/failed_datatypes_handler.cc',
         'browser/sync/failed_datatypes_handler.h',
+        'browser/sync/glue/android_invalidator_bridge.cc',
+        'browser/sync/glue/android_invalidator_bridge.h',
+        'browser/sync/glue/android_invalidator_bridge_proxy.cc',
+        'browser/sync/glue/android_invalidator_bridge_proxy.h',
         'browser/sync/glue/app_notification_data_type_controller.cc',
         'browser/sync/glue/app_notification_data_type_controller.h',
         'browser/sync/glue/autofill_data_type_controller.cc',
@@ -1921,8 +1927,6 @@
         'browser/sync/glue/bookmark_data_type_controller.h',
         'browser/sync/glue/bookmark_model_associator.cc',
         'browser/sync/glue/bookmark_model_associator.h',
-        'browser/sync/glue/bridged_invalidator.cc',
-        'browser/sync/glue/bridged_invalidator.h',
         'browser/sync/glue/browser_thread_model_worker.cc',
         'browser/sync/glue/browser_thread_model_worker.h',
         'browser/sync/glue/change_processor.cc',
@@ -1933,8 +1937,6 @@
         'browser/sync/glue/chrome_extensions_activity_monitor.h',
         'browser/sync/glue/chrome_report_unrecoverable_error.cc',
         'browser/sync/glue/chrome_report_unrecoverable_error.h',
-        'browser/sync/glue/chrome_sync_notification_bridge.cc',
-        'browser/sync/glue/chrome_sync_notification_bridge.h',
         'browser/sync/glue/data_type_controller.cc',
         'browser/sync/glue/data_type_controller.h',
         'browser/sync/glue/data_type_error_handler.h',
@@ -2245,6 +2247,7 @@
           'dependencies': [
             'apps',
             'autofill_regexes',
+            'autofill_risk_proto',
             'browser/performance_monitor/performance_monitor.gyp:performance_monitor',
             'browser_extensions',
             'common/extensions/api/api.gyp:api',
@@ -2999,6 +3002,19 @@
                    '-o', '<(SHARED_INTERMEDIATE_DIR)',
                    'browser/autofill/autofill_regex_constants.cc.utf8'],
       }],
+    },
+    {
+      # Protobuf compiler / generate rule for Autofill's risk integration.
+      'target_name': 'autofill_risk_proto',
+      'type': 'static_library',
+      'sources': [
+        'browser/autofill/risk/proto/fingerprint.proto',
+      ],
+      'variables': {
+        'proto_in_dir': 'browser/autofill/risk/proto',
+        'proto_out_dir': 'chrome/browser/autofill/risk/proto',
+      },
+      'includes': [ '../build/protoc.gypi' ]
     },
     {
       # Protobuf compiler / generator for the fraudulent certificate reporting

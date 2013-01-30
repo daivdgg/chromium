@@ -17,6 +17,7 @@
 #include "ash/launcher/overflow_bubble.h"
 #include "ash/launcher/overflow_button.h"
 #include "ash/launcher/tabbed_launcher_button.h"
+#include "ash/root_window_controller.h"
 #include "ash/shell_delegate.h"
 #include "ash/wm/shelf_layout_manager.h"
 #include "base/auto_reset.h"
@@ -267,7 +268,7 @@ void ReflectItemStatus(const ash::LauncherItem& item,
 
 }  // namespace
 
-// AnimationDelegate used when inserting a new item. This steadily decreased the
+// AnimationDelegate used when deleting an item. This steadily decreased the
 // opacity of the layer as the animation progress.
 class LauncherView::FadeOutAnimationDelegate
     : public views::BoundsAnimator::OwnedAnimationDelegate {
@@ -283,7 +284,7 @@ class LauncherView::FadeOutAnimationDelegate
     view_->layer()->ScheduleDraw();
   }
   virtual void AnimationEnded(const Animation* animation) OVERRIDE {
-    launcher_view_->AnimateToIdealBounds();
+    launcher_view_->OnFadeOutAnimationEnded();
   }
   virtual void AnimationCanceled(const Animation* animation) OVERRIDE {
   }
@@ -847,6 +848,21 @@ void LauncherView::UpdateFirstButtonPadding() {
   }
 }
 
+void LauncherView::OnFadeOutAnimationEnded() {
+  AnimateToIdealBounds();
+
+  // If overflow button is visible and there is a valid new last item, fading
+  // the new last item in after sliding animation is finished.
+  if (overflow_button_->visible() && last_visible_index_ >= 0) {
+    views::View* last_visible_view = view_model_->view_at(last_visible_index_);
+    last_visible_view->layer()->SetOpacity(0);
+    bounds_animator_->SetAnimationDelegate(
+        last_visible_view,
+        new LauncherView::StartFadeAnimationDelegate(this, last_visible_view),
+        true);
+  }
+}
+
 bool LauncherView::ShouldHideTooltip(const gfx::Point& cursor_location) {
   gfx::Rect active_bounds;
 
@@ -1208,8 +1224,7 @@ void LauncherView::ButtonPressed(views::Button* sender,
     if (!call_object_handler) {
       // ShowListMenuForView only returns true if the menu was shown.
       if (ShowListMenuForView(model_->items()[view_index],
-                              sender,
-                              sender->GetBoundsInScreen().CenterPoint())) {
+                              sender)) {
         // When the menu was shown it is possible that this got deleted.
         return;
       }
@@ -1242,8 +1257,7 @@ void LauncherView::ButtonPressed(views::Button* sender,
 }
 
 bool LauncherView::ShowListMenuForView(const LauncherItem& item,
-                                       views::View* source,
-                                       const gfx::Point& point) {
+                                       views::View* source) {
   scoped_ptr<ui::MenuModel> menu_model;
   menu_model.reset(delegate_->CreateApplicationMenu(item));
 
@@ -1252,7 +1266,7 @@ bool LauncherView::ShowListMenuForView(const LauncherItem& item,
   if (!menu_model.get() || menu_model->GetItemCount() <= 1)
     return false;
 
-  ShowMenu(menu_model.get(), source, point);
+  ShowMenu(menu_model.get(), source, false);
   return true;
 }
 
@@ -1277,21 +1291,53 @@ void LauncherView::ShowContextMenuForView(views::View* source,
       &context_menu_id_,
       view_index == -1 ? 0 : model_->items()[view_index].id);
 
-  ShowMenu(menu_model.get(), source, point);
+  ShowMenu(menu_model.get(), source, true);
 }
 
 void LauncherView::ShowMenu(ui::MenuModel* menu_model,
                             views::View* source,
-                            const gfx::Point& point) {
-  LauncherMenuModelAdapter menu_model_adapter(menu_model);
+                            bool context_menu) {
+  launcher_menu_runner_.reset();
+  scoped_ptr<views::MenuModelAdapter> menu_model_adapter;
+  if (context_menu)
+    menu_model_adapter.reset(new views::MenuModelAdapter(menu_model));
+  else
+    menu_model_adapter.reset(new LauncherMenuModelAdapter(menu_model));
+
   launcher_menu_runner_.reset(
-      new views::MenuRunner(menu_model_adapter.CreateMenu()));
+      new views::MenuRunner(menu_model_adapter->CreateMenu()));
+
+  // Determine the menu alignment dependent on the shelf.
+  views::MenuItemView::AnchorPosition menu_alignment =
+      views::MenuItemView::TOPLEFT;
+
+  ash::ShelfAlignment align = RootWindowController::ForLauncher(
+      GetWidget()->GetNativeView())->shelf()->GetAlignment();
+
+  switch (align) {
+    case ash::SHELF_ALIGNMENT_BOTTOM:
+      menu_alignment = views::MenuItemView::BUBBLE_ABOVE;
+      break;
+    case ash::SHELF_ALIGNMENT_LEFT:
+      menu_alignment = views::MenuItemView::BUBBLE_RIGHT;
+      break;
+    case ash::SHELF_ALIGNMENT_RIGHT:
+      menu_alignment = views::MenuItemView::BUBBLE_LEFT;
+      break;
+    case ash::SHELF_ALIGNMENT_TOP:
+      menu_alignment = views::MenuItemView::BUBBLE_BELOW;
+      break;
+  }
+  const gfx::Rect anchor_point = source->GetBoundsInScreen();
+
   // NOTE: if you convert to HAS_MNEMONICS be sure and update menu building
   // code.
   if (launcher_menu_runner_->RunMenuAt(
-          source->GetWidget(), NULL, gfx::Rect(point, gfx::Size()),
-          views::MenuItemView::TOPLEFT, views::MenuRunner::CONTEXT_MENU) ==
-      views::MenuRunner::MENU_DELETED)
+          source->GetWidget(),
+          NULL,
+          anchor_point,
+          menu_alignment,
+          views::MenuRunner::CONTEXT_MENU) == views::MenuRunner::MENU_DELETED)
     return;
 
   Shell::GetInstance()->UpdateShelfVisibility();

@@ -333,19 +333,6 @@ void DriveAPIService::GetAppList(const GetAppListCallback& callback) {
       base::Bind(&ParseAppListAndRun, callback)));
 }
 
-void DriveAPIService::DownloadHostedDocument(
-    const FilePath& virtual_path,
-    const FilePath& local_cache_path,
-    const GURL& content_url,
-    DocumentExportFormat format,
-    const DownloadActionCallback& callback) {
-  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
-  DCHECK(!callback.is_null());
-
-  // TODO(kochi): Implement this.
-  NOTREACHED();
-}
-
 void DriveAPIService::DownloadFile(
     const FilePath& virtual_path,
     const FilePath& local_cache_path,
@@ -361,7 +348,7 @@ void DriveAPIService::DownloadFile(
 }
 
 void DriveAPIService::DeleteResource(
-    const GURL& edit_url,
+    const std::string& resource_id,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -377,8 +364,14 @@ void DriveAPIService::AddNewDirectory(
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
 
-  // TODO(kochi): Implement this.
-  NOTREACHED();
+  runner_->StartOperationWithRetry(
+      new drive::CreateDirectoryOperation(
+          operation_registry(),
+          url_request_context_getter_,
+          url_generator_,
+          parent_resource_id,
+          directory_name,
+          base::Bind(&ParseResourceEntryAndRun, callback)));
 }
 
 void DriveAPIService::CopyHostedDocument(
@@ -393,7 +386,7 @@ void DriveAPIService::CopyHostedDocument(
 }
 
 void DriveAPIService::RenameResource(
-    const GURL& edit_url,
+    const std::string& resource_id,
     const std::string& new_name,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
