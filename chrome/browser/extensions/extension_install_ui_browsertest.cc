@@ -18,10 +18,6 @@
 #include "chrome/browser/ui/webui/ntp/new_tab_ui.h"
 #include "content/public/browser/web_contents.h"
 
-#if defined(OS_MACOSX)
-#include "base/mac/mac_util.h"
-#endif
-
 using content::WebContents;
 using extensions::Extension;
 
@@ -121,10 +117,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionInstallUIBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ExtensionInstallUIBrowserTest,
                        TestInstallThemeInFullScreen) {
-  if (base::mac::IsOSLionOrLater())
-    EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_FULLSCREEN));
-  else
-    EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_PRESENTATION_MODE));
+  EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_FULLSCREEN));
   InstallThemeAndVerify("theme", "camo theme");
 }
 
