@@ -335,7 +335,9 @@ Browser* FullscreenControllerStateUnitTest::GetBrowser() {
 // would not be exposed by traversing to each state via TransitionToState().
 // TransitionToState() always takes the same path even when multiple paths
 // exist.
-TEST_F(FullscreenControllerStateUnitTest, TransitionsForEachState) {
+TEST_F(FullscreenControllerStateUnitTest, 
+
+       DISABLED_TransitionsForEachState) {
   // A tab is needed for tab fullscreen.
   AddTab(browser(), GURL(chrome::kAboutBlankURL));
   TestTransitionsForEachState();

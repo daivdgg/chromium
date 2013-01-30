@@ -55,8 +55,8 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
       STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN_CHROME
       STATE_TAB_BROWSER_FULLSCREEN,           // Event TAB_FULLSCREEN_TRUE
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event TAB_FULLSCREEN_FALSE
-      STATE_INVALID,                          // Event METRO_SNAP_TRUE
-      STATE_INVALID,                          // Event METRO_SNAP_FALSE
+      STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event METRO_SNAP_TRUE
+      STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event METRO_SNAP_FALSE
       STATE_TO_NORMAL,                        // Event BUBBLE_EXIT_LINK
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event BUBBLE_ALLOW
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event BUBBLE_DENY
@@ -64,7 +64,7 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
     },
     { // STATE_METRO_SNAP:
       STATE_METRO_SNAP,                       // Event TOGGLE_FULLSCREEN
-      STATE_INVALID,                          // Event TOGGLE_FULLSCREEN_CHROME
+      STATE_METRO_SNAP,                       // Event TOGGLE_FULLSCREEN_CHROME
       STATE_METRO_SNAP,                       // Event TAB_FULLSCREEN_TRUE
       STATE_METRO_SNAP,                       // Event TAB_FULLSCREEN_FALSE
       STATE_METRO_SNAP,                       // Event METRO_SNAP_TRUE
@@ -135,8 +135,8 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
       // TODO(scheib) Should be a route to TAB_BROWSER http://crbug.com/154196
       STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event TAB_FULLSCREEN_TRUE
       STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event TAB_FULLSCREEN_FALSE
-      STATE_INVALID,                          // Event METRO_SNAP_TRUE
-      STATE_INVALID,                          // Event METRO_SNAP_FALSE
+      STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event METRO_SNAP_TRUE
+      STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event METRO_SNAP_FALSE
       STATE_TO_NORMAL,                        // Event BUBBLE_EXIT_LINK
       STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event BUBBLE_ALLOW
       STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event BUBBLE_DENY
@@ -323,9 +323,9 @@ bool FullscreenControllerStateTest::InvokeEvent(Event event) {
       if (base::mac::IsOSLionOrLater())
         GetFullscreenController()->ToggleFullscreenWithChrome();
       else
-        NOTREACHED();
+        NOTREACHED() << GetAndClearDebugLog();
 #else
-      NOTREACHED();
+      NOTREACHED() << GetAndClearDebugLog();
 #endif
       break;
     case TAB_FULLSCREEN_TRUE:
@@ -340,14 +340,14 @@ bool FullscreenControllerStateTest::InvokeEvent(Event event) {
 #if defined(OS_WIN)
       GetFullscreenController()->SetMetroSnapMode(true);
 #else
-      NOTREACHED();
+      NOTREACHED() << GetAndClearDebugLog();
 #endif
       break;
     case METRO_SNAP_FALSE:
 #if defined(OS_WIN)
       GetFullscreenController()->SetMetroSnapMode(false);
 #else
-      NOTREACHED();
+      NOTREACHED() << GetAndClearDebugLog();
 #endif
       break;
     case BUBBLE_EXIT_LINK:
@@ -438,7 +438,7 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       EXPECT_TRUE(GetFullscreenController()->IsInMetroSnapMode())
           << GetAndClearDebugLog();
 #else
-      NOTREACHED();
+      NOTREACHED() << GetAndClearDebugLog();
 #endif
       break;
     case STATE_TAB_FULLSCREEN:
