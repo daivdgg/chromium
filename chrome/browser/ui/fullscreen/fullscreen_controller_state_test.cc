@@ -188,6 +188,9 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
   // Copy transition_table_ data into state_transitions_ table.
   for (int source = 0; source < NUM_STATES; source++) {
     for (int event = 0; event < NUM_EVENTS; event++) {
+      if (ShouldSkipStateAndEventPair(static_cast<State>(source),
+                                      static_cast<Event>(event)))
+        continue;
       State destination = transition_table_[source][event];
       state_transitions_[source][destination].event = static_cast<Event>(event);
       state_transitions_[source][destination].state = destination;
@@ -737,9 +740,6 @@ bool FullscreenControllerStateTest::ShouldSkipTest(State state,
 void FullscreenControllerStateTest::TestStateAndEvent(State state,
                                                      Event event,
                                                      bool reentrant) {
-  DebugLogStateTables();
-  return;
-
   if (ShouldSkipTest(state, event, reentrant))
     return;
 
@@ -766,21 +766,42 @@ void FullscreenControllerStateTest::DebugLogStateTables() {
   output << "\n\ntransition_table_[NUM_STATES = " << NUM_STATES
       << "][NUM_EVENTS = " << NUM_EVENTS
       << "] =\n";
-    for (int state_int = 0; state_int < NUM_STATES; state_int++) {
-      State state = static_cast<State>(state_int);
-      output << "    { // " << GetStateString(state) << ":\n";
-      for (int event_int = 0; event_int < NUM_EVENTS; event_int++) {
-        Event event = static_cast<Event>(event_int);
-        output << "      "
-            << std::left << std::setw(MAX_STATE_NAME_LENGTH+1)
-            << std::string(GetStateString(transition_table_[state][event])) +","
-            << "// Event "
-            << GetEventString(event) << "\n";
-      }
-      output << "    },\n";
+  for (int state_int = 0; state_int < NUM_STATES; state_int++) {
+    State state = static_cast<State>(state_int);
+    output << "    { // " << GetStateString(state) << ":\n";
+    for (int event_int = 0; event_int < NUM_EVENTS; event_int++) {
+      Event event = static_cast<Event>(event_int);
+      output << "      "
+          << std::left << std::setw(MAX_STATE_NAME_LENGTH+1)
+          << std::string(GetStateString(transition_table_[state][event])) + ","
+          << "// Event "
+          << GetEventString(event) << "\n";
     }
-    output << "  };\n\n";
+    output << "    },\n";
+  }
+  output << "  };\n\n";
 
+  output << "\n\nstate_transitions_[NUM_STATES = " << NUM_STATES
+      << "][NUM_STATES = " << NUM_STATES << "] =\n";
+  for (int state1_int = 0; state1_int < NUM_STATES; state1_int++) {
+    State state1 = static_cast<State>(state1_int);
+    output << "{ // " << GetStateString(state1) << ":\n";
+    for (int state2_int = 0; state2_int < NUM_STATES; state2_int++) {
+      State state2 = static_cast<State>(state2_int);
+      StateTransitionInfo &info = state_transitions_[state1][state2];
+      output << "{{ "
+        << std::left << std::setw(MAX_EVENT_NAME_LENGTH+1)
+        << std::string(GetEventString(info.event)) + ","
+        << std::left << std::setw(MAX_STATE_NAME_LENGTH+1)
+        << std::string(GetStateString(info.state)) + ","
+        << std::right << std::setw(2)
+        << info.distance
+        << " }, // "
+        << GetStateString(state2) << "\n";
+    }
+    output << "},\n";
+  }
+  output << "};\n\n";
 
   LOG(INFO) << output.str();
 }

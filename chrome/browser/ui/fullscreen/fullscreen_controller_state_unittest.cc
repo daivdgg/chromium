@@ -475,3 +475,18 @@ TEST_F(FullscreenControllerStateUnitTest, DISABLED_ToggleTabWhenPendingTab) {
 #endif
 }
 
+// Display the transition tables...
+TEST_F(FullscreenControllerStateUnitTest, DISABLED_DebugLogStateTables) {
+  AddTab(browser(), GURL(chrome::kAboutBlankURL));
+  DebugLogStateTables();
+
+  LOG(INFO) << "\n\n"
+      "NextTransitionInShortestPath(STATE_TAB_BROWSER_FULLSCREEN,"
+      "                             STATE_TO_NORMAL,"
+      "                             NUM_STATES";
+  NextTransitionInShortestPath(STATE_TAB_BROWSER_FULLSCREEN,
+                               STATE_TO_NORMAL,
+                               NUM_STATES);
+  DebugLogStateTables();
+}
+
