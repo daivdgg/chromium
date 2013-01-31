@@ -54,13 +54,13 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event TOGGLE_FULLSCREEN
       STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN_CHROME
       STATE_TAB_BROWSER_FULLSCREEN,           // Event TAB_FULLSCREEN_TRUE
-      STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event TAB_FULLSCREEN_FALSE
+      STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event TAB_FULLSCREEN_FALSE
       STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event METRO_SNAP_TRUE
       STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event METRO_SNAP_FALSE
       STATE_TO_NORMAL,                        // Event BUBBLE_EXIT_LINK
-      STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event BUBBLE_ALLOW
-      STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event BUBBLE_DENY
-      STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event WINDOW_CHANGE
+      STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event BUBBLE_ALLOW
+      STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event BUBBLE_DENY
+      STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event WINDOW_CHANGE
     },
     { // STATE_METRO_SNAP:
       STATE_METRO_SNAP,                       // Event TOGGLE_FULLSCREEN
@@ -320,13 +320,12 @@ bool FullscreenControllerStateTest::InvokeEvent(Event event) {
       break;
     case TOGGLE_FULLSCREEN_CHROME:
 #if defined(OS_MACOSX)
-      if (base::mac::IsOSLionOrLater())
+      if (base::mac::IsOSLionOrLater()) {
         GetFullscreenController()->ToggleFullscreenWithChrome();
-      else
-        NOTREACHED() << GetAndClearDebugLog();
-#else
-      NOTREACHED() << GetAndClearDebugLog();
+        break;
+      }
 #endif
+      NOTREACHED() << GetAndClearDebugLog();
       break;
     case TAB_FULLSCREEN_TRUE:
       GetFullscreenController()->ToggleFullscreenModeForTab(
