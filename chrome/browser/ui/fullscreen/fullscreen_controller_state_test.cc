@@ -542,15 +542,11 @@ void FullscreenControllerStateTest::VerifyWindowState() {
 }
 
 void FullscreenControllerStateTest::TestTransitionsForEachState() {
-  // TEMP
-    debugging_log_ << "TestTransitionsForEachState().\n";
   for (int reentrant = 0; reentrant <= 1; reentrant++) {
     for (int source_int = 0; source_int < NUM_STATES; source_int++) {
       for (int event1_int = 0; event1_int < NUM_EVENTS; event1_int++) {
         State state = static_cast<State>(source_int);
         Event event1 = static_cast<Event>(event1_int);
-  // TEMP
-    debugging_log_ << "TestTransitionsForEachState()0.\n";
 
         // Early out if skipping all tests for this state, reduces log noise.
         if (ShouldSkipTest(state, event1, !!reentrant))
@@ -561,23 +557,16 @@ void FullscreenControllerStateTest::TestTransitionsForEachState() {
             Event event2 = static_cast<Event>(event2_int);
             Event event3 = static_cast<Event>(event3_int);
 
-              // TEMP
-    debugging_log_ << "TestTransitionsForEachState()1.\n";
-
             // Test each state and each event.
             ASSERT_NO_FATAL_FAILURE(TestStateAndEvent(state,
                                                       event1,
                                                       !!reentrant))
                 << GetAndClearDebugLog();
-  // TEMP
-    debugging_log_ << "TestTransitionsForEachState()2.\n";
 
             // Then, add an additional event to the sequence.
             if (ShouldSkipStateAndEventPair(state_, event2))
               continue;
             ASSERT_TRUE(InvokeEvent(event2)) << GetAndClearDebugLog();
-  // TEMP
-    debugging_log_ << "TestTransitionsForEachState()3.\n";
 
             // Then, add an additional event to the sequence.
             if (ShouldSkipStateAndEventPair(state_, event3))
@@ -635,11 +624,6 @@ std::string FullscreenControllerStateTest::GetAndClearDebugLog() {
 
 bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
                                                                Event event) {
-  // TEMP
-    debugging_log_ << "ShouldSkipStateAndEventPair("
-        << GetStateString(state) << ", "
-        << GetEventString(event) << ").\n";
-
   // TODO(scheib) Toggling Tab fullscreen while pending Tab or
   // Browser fullscreen is broken currently http://crbug.com/154196
   if ((state == STATE_TO_BROWSER_FULLSCREEN_NO_CHROME ||
@@ -649,23 +633,24 @@ bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
   if (state == STATE_TO_NORMAL && event == TAB_FULLSCREEN_TRUE)
     return true;
 
-  // Skip metro snap events when not on windows.
+  // Skip metro snap state and events when not on windows.
 #if !defined(OS_WIN)
-  if (event == METRO_SNAP_TRUE || event == METRO_SNAP_FALSE)
+  if (state == STATE_METRO_SNAP ||
+      event == METRO_SNAP_TRUE ||
+      event == METRO_SNAP_FALSE)
     return true;
 #endif
 
-  // Skip Mac Lion Fullscreen event when not on OSX 10.7+.
-  if (event == TOGGLE_FULLSCREEN_CHROME
+  // Skip Mac Lion Fullscreen state and events when not on OSX 10.7+.
+  if (state == STATE_BROWSER_FULLSCREEN_WITH_CHROME ||
+      state == STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME ||
+      event == TOGGLE_FULLSCREEN_CHROME) {
 #if defined(OS_MACOSX)
-      && !base::mac::IsOSLionOrLater()
-#endif
-      ) {
-  // TEMP
-    debugging_log_ << "!!!!!!!!!!!!!!!!!!!Skipping("
-        << GetStateString(state) << ", "
-        << GetEventString(event) << ").\n";
+    if (!base::mac::IsOSLionOrLater())
+      return true;
+#else
     return true;
+#endif
   }
 
   return false;
@@ -674,11 +659,6 @@ bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
 bool FullscreenControllerStateTest::ShouldSkipTest(State state,
                                                   Event event,
                                                   bool reentrant) {
-  // TEMP
-    debugging_log_ << "ShouldSkipTest("
-        << GetStateString(state) << ", "
-        << GetEventString(event) << ", " << reentrant << ").\n";
-
   // FullscreenController verifies that WindowFullscreenStateChanged is
   // always reentrant on Windows. It will fail if we mock asynchronous calls.
 #if defined(OS_WIN)
