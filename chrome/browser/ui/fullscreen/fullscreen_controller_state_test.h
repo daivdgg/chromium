@@ -66,8 +66,8 @@ class FullscreenControllerStateTest {
     EVENT_INVALID,
   };
 
-  static const int MAX_STATE_NAME_LENGTH = 37;
-  static const int MAX_EVENT_NAME_LENGTH = 20;
+  static const int MAX_STATE_NAME_LENGTH = 39;
+  static const int MAX_EVENT_NAME_LENGTH = 24;
 
   FullscreenControllerStateTest();
   virtual ~FullscreenControllerStateTest();
@@ -100,6 +100,10 @@ class FullscreenControllerStateTest {
   // TransitionToState() always takes the same path even when multiple paths
   // exist.
   void TestTransitionsForEachState();
+
+  // Log information about the input transition_table_ and generated 
+  // state_transitions_.
+  void DebugLogStateTables();
 
  protected:
   // Generated information about the transitions between states.

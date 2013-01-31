@@ -302,6 +302,9 @@ bool FullscreenControllerStateTest::InvokeEvent(Event event) {
   State source_state = state_;
   State next_state = transition_table_[source_state][event];
 
+  EXPECT_FALSE(ShouldSkipStateAndEventPair(source_state, event))
+      << GetAndClearDebugLog();
+
   // When simulating reentrant window change calls, expect the next state
   // automatically.
   if (reentrant_)
@@ -536,11 +539,15 @@ void FullscreenControllerStateTest::VerifyWindowState() {
 }
 
 void FullscreenControllerStateTest::TestTransitionsForEachState() {
+  // TEMP
+    debugging_log_ << "TestTransitionsForEachState().\n";
   for (int reentrant = 0; reentrant <= 1; reentrant++) {
     for (int source_int = 0; source_int < NUM_STATES; source_int++) {
       for (int event1_int = 0; event1_int < NUM_EVENTS; event1_int++) {
         State state = static_cast<State>(source_int);
         Event event1 = static_cast<Event>(event1_int);
+  // TEMP
+    debugging_log_ << "TestTransitionsForEachState()0.\n";
 
         // Early out if skipping all tests for this state, reduces log noise.
         if (ShouldSkipTest(state, event1, !!reentrant))
@@ -551,16 +558,23 @@ void FullscreenControllerStateTest::TestTransitionsForEachState() {
             Event event2 = static_cast<Event>(event2_int);
             Event event3 = static_cast<Event>(event3_int);
 
+              // TEMP
+    debugging_log_ << "TestTransitionsForEachState()1.\n";
+
             // Test each state and each event.
             ASSERT_NO_FATAL_FAILURE(TestStateAndEvent(state,
                                                       event1,
                                                       !!reentrant))
                 << GetAndClearDebugLog();
+  // TEMP
+    debugging_log_ << "TestTransitionsForEachState()2.\n";
 
             // Then, add an additional event to the sequence.
             if (ShouldSkipStateAndEventPair(state_, event2))
               continue;
             ASSERT_TRUE(InvokeEvent(event2)) << GetAndClearDebugLog();
+  // TEMP
+    debugging_log_ << "TestTransitionsForEachState()3.\n";
 
             // Then, add an additional event to the sequence.
             if (ShouldSkipStateAndEventPair(state_, event3))
@@ -618,6 +632,11 @@ std::string FullscreenControllerStateTest::GetAndClearDebugLog() {
 
 bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
                                                                Event event) {
+  // TEMP
+    debugging_log_ << "ShouldSkipStateAndEventPair("
+        << GetStateString(state) << ", "
+        << GetEventString(event) << ").\n";
+
   // TODO(scheib) Toggling Tab fullscreen while pending Tab or
   // Browser fullscreen is broken currently http://crbug.com/154196
   if ((state == STATE_TO_BROWSER_FULLSCREEN_NO_CHROME ||
@@ -639,6 +658,10 @@ bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
       && !base::mac::IsOSLionOrLater()
 #endif
       ) {
+  // TEMP
+    debugging_log_ << "!!!!!!!!!!!!!!!!!!!Skipping("
+        << GetStateString(state) << ", "
+        << GetEventString(event) << ").\n";
     return true;
   }
 
@@ -648,6 +671,11 @@ bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
 bool FullscreenControllerStateTest::ShouldSkipTest(State state,
                                                   Event event,
                                                   bool reentrant) {
+  // TEMP
+    debugging_log_ << "ShouldSkipTest("
+        << GetStateString(state) << ", "
+        << GetEventString(event) << ", " << reentrant << ").\n";
+
   // FullscreenController verifies that WindowFullscreenStateChanged is
   // always reentrant on Windows. It will fail if we mock asynchronous calls.
 #if defined(OS_WIN)
@@ -709,6 +737,9 @@ bool FullscreenControllerStateTest::ShouldSkipTest(State state,
 void FullscreenControllerStateTest::TestStateAndEvent(State state,
                                                      Event event,
                                                      bool reentrant) {
+  DebugLogStateTables();
+  return;
+
   if (ShouldSkipTest(state, event, reentrant))
     return;
 
@@ -730,3 +761,26 @@ FullscreenController* FullscreenControllerStateTest::GetFullscreenController() {
     return GetBrowser()->fullscreen_controller();
 }
 
+void FullscreenControllerStateTest::DebugLogStateTables() {
+  std::ostringstream output;
+  output << "\n\ntransition_table_[NUM_STATES = " << NUM_STATES
+      << "][NUM_EVENTS = " << NUM_EVENTS
+      << "] =\n";
+    for (int state_int = 0; state_int < NUM_STATES; state_int++) {
+      State state = static_cast<State>(state_int);
+      output << "    { // " << GetStateString(state) << ":\n";
+      for (int event_int = 0; event_int < NUM_EVENTS; event_int++) {
+        Event event = static_cast<Event>(event_int);
+        output << "      "
+            << std::left << std::setw(MAX_STATE_NAME_LENGTH+1)
+            << std::string(GetStateString(transition_table_[state][event])) +","
+            << "// Event "
+            << GetEventString(event) << "\n";
+      }
+      output << "    },\n";
+    }
+    output << "  };\n\n";
+
+
+  LOG(INFO) << output.str();
+}
