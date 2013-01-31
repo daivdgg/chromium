@@ -101,9 +101,10 @@ class FullscreenControllerStateTest {
   // exist.
   void TestTransitionsForEachState();
 
-  // Log information about the input transition_table_ and generated 
-  // state_transitions_.
-  void DebugLogStateTables();
+  // Log transition_table_ to a string for debugging.
+  std::string GetTransitionTableAsString();
+  // Log state_transitions_ to a string for debugging.
+  std::string GetStateTransitionsAsString();
 
  protected:
   // Generated information about the transitions between states.

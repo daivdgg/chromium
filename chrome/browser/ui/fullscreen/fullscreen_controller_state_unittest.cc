@@ -477,16 +477,23 @@ TEST_F(FullscreenControllerStateUnitTest, DISABLED_ToggleTabWhenPendingTab) {
 
 // Display the transition tables...
 TEST_F(FullscreenControllerStateUnitTest, DISABLED_DebugLogStateTables) {
-  AddTab(browser(), GURL(chrome::kAboutBlankURL));
-  DebugLogStateTables();
+  std::ostringstream output;
+  output << "\n\nTransition Table:";
+  output << GetTransitionTableAsString();
 
-  LOG(INFO) << "\n\n"
-      "NextTransitionInShortestPath(STATE_TAB_BROWSER_FULLSCREEN,"
-      "                             STATE_TO_NORMAL,"
-      "                             NUM_STATES";
-  NextTransitionInShortestPath(STATE_TAB_BROWSER_FULLSCREEN,
-                               STATE_TO_NORMAL,
-                               NUM_STATES);
-  DebugLogStateTables();
+  output << "\n\nInitial transitions:";
+  output << GetStateTransitionsAsString();
+
+  for (int state1_int = 0; state1_int < NUM_STATES; state1_int++) {
+    State state1 = static_cast<State>(state1_int);
+    for (int state2_int = 0; state2_int < NUM_STATES; state2_int++) {
+      State state2 = static_cast<State>(state2_int);
+      NextTransitionInShortestPath(state1, state2, NUM_STATES);
+    }
+  }
+
+  output << "\n\nAll transitions:";
+  output << GetStateTransitionsAsString();
+
 }
 
