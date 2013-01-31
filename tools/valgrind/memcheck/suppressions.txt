@@ -4075,8 +4075,8 @@
    Memcheck:Uninitialized
    ...
    fun:_ZN4skia14BGRAConvolve2DEPKhibRKNS_19ConvolutionFilter1DES4_iPhb
-   fun:_ZN4skia15ImageOperations11ResizeBasicERK8SkBitmapNS0_12ResizeMethodEiiRK7SkIRect
-   fun:_ZN4skia15ImageOperations6ResizeERK8SkBitmapNS0_12ResizeMethodEiiRK7SkIRect
+   fun:_ZN4skia15ImageOperations11ResizeBasicE*
+   fun:_ZN4skia15ImageOperations6ResizeE*
 }
 {
    bug_106183a
@@ -6552,4 +6552,33 @@
    fun:_ZN7content18RenderViewHostImpl17OnMessageReceivedERKN3IPC7MessageE
    fun:_ZN7content21RenderProcessHostImpl17OnMessageReceivedERKN3IPC7MessageE
    fun:_ZN3IPC12ChannelProxy7Context17OnDispatchMessageERKNS_7MessageE
+}
+{
+   bug_173096
+   Memcheck:Uninitialized
+   fun:bcmp
+   fun:_ZN2cc19LayerTreeDebugState5equalERKS0_S2_
+   fun:_ZN2cc13LayerTreeHost13setDebugStateERKNS_19LayerTreeDebugStateE
+   fun:_ZN6WebKit20WebLayerTreeViewImpl*set*
+   fun:_ZN6WebKit11WebViewImpl33setIsAcceleratedCompositingActiveEb
+   fun:_ZN6WebKit11WebViewImpl20setRootGraphicsLayerEPN7WebCore13GraphicsLayerE
+   fun:_ZN6WebKit16ChromeClientImpl23attachRootGraphicsLayerEPN7WebCore5FrameEPNS1_13GraphicsLayerE
+   fun:_ZN7WebCore21RenderLayerCompositor15attachRootLayerENS0_19RootLayerAttachmentE
+   fun:_ZN7WebCore21RenderLayerCompositor15ensureRootLayerEv
+   fun:_ZN7WebCore21RenderLayerCompositor21enableCompositingModeEb
+   fun:_ZN7WebCore21RenderLayerCompositor13updateBackingEPNS_11RenderLayerENS0_24CompositingChangeRepaintE
+   fun:_ZN7WebCore21RenderLayerCompositor27updateLayerCompositingStateEPNS_11RenderLayerENS0_24CompositingChangeRepaintE
+   fun:_ZN7WebCore11RenderLayer12styleChangedENS_15StyleDifferenceEPKNS_11RenderStyleE
+   fun:_ZN7WebCore22RenderLayerModelObject14styleDidChangeENS_15StyleDifferenceEPKNS_11RenderStyleE
+   fun:_ZN7WebCore9RenderBox14styleDidChangeENS_15StyleDifferenceEPKNS_11RenderStyleE
+}
+{
+   bug_173097
+   Memcheck:Leak
+   fun:_Znw*
+   ...
+   fun:_ZN7WebCore22SkiaImageFilterBuilder5buildERKNS_16FilterOperationsE
+   fun:_ZN7WebCore21GraphicsLayerChromium10setFiltersERKNS_16FilterOperationsE
+   fun:_ZN7WebCore18RenderLayerBacking13updateFiltersEPKNS_11RenderStyleE
+   fun:_ZN7WebCore18RenderLayerBacking*GraphicsLayer*
 }

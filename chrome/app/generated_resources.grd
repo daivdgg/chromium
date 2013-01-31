@@ -10898,6 +10898,9 @@ experiment id: "<ph name="EXPERIMENT_ID">$5<ex>ar1</ex></ph>"
       <message name="IDS_AUTOFILL_DIALOG_SUBMIT_BUTTON" desc="Button text for confirmation of user details.">
         Submit
       </message>
+      <message name="IDS_AUTOFILL_DIALOG_AUTOCHECKOUT_PROGRESS_BAR" desc="Label for Autocheckout progres bar.">
+        Auto-Checkout...
+      </message>
 
 
       <message name="IDS_APPEARANCE_GROUP_NAME" desc="The title of the appearance group">
@@ -12548,6 +12551,15 @@ Some features may be unavailable.  Please check that the profile exists and you 
       </message>
       <message name="IDS_FILE_BROWSER_DRIVE_DIRECTORY_LABEL" desc="/drive directory label.">
         Google Drive
+      </message>
+      <message name="IDS_FILE_BROWSER_DRIVE_SHARED_WITH_ME_COLLECTION_LABEL" desc="A label for the 'shared with me' collection of Google Drive.">
+        Shared with me
+      </message>
+      <message name="IDS_FILE_BROWSER_DRIVE_RECENT_COLLECTION_LABEL" desc="A label for the 'Recent' collection of Google Drive.">
+        Recent
+      </message>
+      <message name="IDS_FILE_BROWSER_DRIVE_OFFLINE_COLLECTION_LABEL" desc="A label for the 'Offline' collection of Google Drive.">
+        Offline
       </message>
       <message name="IDS_FILE_BROWSER_DOWNLOADS_DIRECTORY_LABEL" desc="Downloads local directory label.">
         Downloads
@@ -15528,11 +15540,11 @@ Some features may be unavailable.  Please check that the profile exists and you 
       When enabled, a guest user will be available in desktop Chrome.
     </message>
 
-    <message name="IDS_FLAGS_DESKTOP_CLOUD_POLICY_NAME" desc="Name of about:flags option to turn on loading desktop cloud policy for signed in profiles">
-      Enable desktop cloud policy
+    <message name="IDS_FLAGS_DISABLE_DESKTOP_CLOUD_POLICY_NAME" desc="Name of about:flags option to turn off loading desktop cloud policy for signed in profiles">
+      Disable desktop cloud policy
     </message>
-    <message name="IDS_FLAGS_DESKTOP_CLOUD_POLICY_DESCRIPTION" desc="Description of about:flags option to turn on desktop cloud policy for signed in profiles">
-      When enabled, cloud policy will be loaded for signed-in profiles.
+    <message name="IDS_FLAGS_DISABLE_DESKTOP_CLOUD_POLICY_DESCRIPTION" desc="Description of about:flags option to turn off desktop cloud policy for signed in profiles">
+      When set, loading of cloud policy for signed-in profiles will be disabled.
     </message>
 
     <!-- Toast experiment. -->

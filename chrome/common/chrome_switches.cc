@@ -796,9 +796,9 @@ const char kKioskModePrinting[]             = "kiosk-printing";
 // Comma-separated list of directories with component extensions to load.
 const char kLoadComponentExtension[]        = "load-component-extension";
 
-// If present, cloud policy will be loaded and applied once the user is signed
-// in to the browser.
-const char kLoadCloudPolicyOnSignin[]        = "load-cloud-policy-on-signin";
+// If present, disables the loading and application of cloud policy for
+// signed-in users.
+const char kDisableCloudPolicyOnSignin[]    = "disable-cloud-policy-on-signin";
 
 // Loads an extension from the specified directory.
 const char kLoadExtension[]                 = "load-extension";
@@ -1386,6 +1386,7 @@ const char kTabletUI[]                      = "tablet-ui";
 
 #if defined(USE_ASH)
 const char kAshEnableTabScrubbing[]            = "ash-enable-tab-scrubbing";
+const char kOpenAsh[]                          = "open-ash";
 #endif
 
 #if defined(OS_CHROMEOS)

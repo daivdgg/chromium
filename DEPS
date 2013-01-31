@@ -8,7 +8,7 @@ vars = {
   "sourceforge_url": "http://%(repo)s.svn.sourceforge.net/svnroot/%(repo)s",
   "webkit_trunk": "http://svn.webkit.org/repository/webkit/trunk",
   "nacl_trunk": "http://src.chromium.org/native_client/trunk",
-  "webkit_revision": "141160",
+  "webkit_revision": "141286",
   "chromium_git": "https://chromium.googlesource.com",
   "chromiumos_git": "https://chromium.googlesource.com/chromiumos",
   "swig_revision": "69281",
@@ -20,26 +20,26 @@ vars = {
 
   "libjingle_revision": "273",
   "libphonenumber_revision": "456",
-  "libvpx_revision": "178966",
+  "libvpx_revision": "179478",
   "lss_revision": "17",
 
   # These two FFmpeg variables must be updated together.  One is used for SVN
   # checkouts and the other for Git checkouts.
-  "ffmpeg_revision": "179235",
-  "ffmpeg_hash": "46d8f0aa21d3157f1bad8754009c9ec2481492ce",
+  "ffmpeg_revision": "179499",
+  "ffmpeg_hash": "bb1bf0f1273ab1ad09e594afb1866a6008bbb234",
 
   "sfntly_revision": "134",
-  "skia_revision": "7444",
+  "skia_revision": "7453",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling Skia
   # and V8 without interference from each other.
-  "v8_revision": "13482",
+  "v8_revision": "13563",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling WebRTC
   # and V8 without interference from each other.
-  "webrtc_revision": "3402",
+  "webrtc_revision": "3426",
   "jsoncpp_revision": "248",
-  "nss_revision": "179208",
+  "nss_revision": "179335",
 }
 
 deps = {
@@ -47,7 +47,7 @@ deps = {
     (Var("googlecode_url") % "google-breakpad") + "/trunk/src@1104",
 
   "src/googleurl":
-    (Var("googlecode_url") % "google-url") + "/trunk@182",
+    (Var("googlecode_url") % "google-url") + "/trunk@183",
 
   "src/sandbox/linux/seccomp-legacy":
     (Var("googlecode_url") % "seccompsandbox") + "/trunk@189",

@@ -104,8 +104,8 @@
         'browser/chromeos/system/mock_statistics_provider.cc',
         'browser/chromeos/system/mock_statistics_provider.h',
         # The only thing used from browser is Browser::Type.
-        'browser/download/download_test_file_chooser_observer.cc',
-        'browser/download/download_test_file_chooser_observer.h',
+        'browser/download/download_test_file_activity_observer.cc',
+        'browser/download/download_test_file_activity_observer.h',
         'browser/download/test_download_shelf.cc',
         'browser/download/test_download_shelf.h',
         'browser/extensions/mock_extension_special_storage_policy.cc',
@@ -1180,6 +1180,7 @@
         'browser/ui/bookmarks/bookmark_prompt_controller_unittest.cc',
         'browser/ui/bookmarks/bookmark_ui_utils_unittest.cc',
         'browser/ui/browser_command_controller_unittest.cc',
+        'browser/ui/browser_iterator_unittest.cc',
         'browser/ui/chrome_select_file_policy_unittest.cc',
         # It is safe to list */cocoa/* files in the "common" file list
         # without an explicit exclusion since gyp is smart enough to
@@ -1462,6 +1463,7 @@
         'common/extensions/api/extension_action/browser_action_manifest_unittest.cc',
         'common/extensions/api/extension_action/page_action_manifest_unittest.cc',
         'common/extensions/api/extension_action/script_badge_manifest_unittest.cc',
+        'common/extensions/api/i18n/default_locale_manifest_unittest.cc',
         'common/extensions/command_unittest.cc',
         'common/extensions/csp_validator_unittest.cc',
         'common/extensions/event_filter_unittest.cc',
@@ -1483,7 +1485,7 @@
         'common/extensions/manifest_tests/extension_manifests_chromepermission_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_contentscript_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_contentsecuritypolicy_unittest.cc',
-        'common/extensions/manifest_tests/extension_manifests_default_unittest.cc',
+        'common/extensions/manifest_tests/extension_manifests_default_extent_path_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_devtools_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_excludematches_unittest.cc',
         'common/extensions/manifest_tests/extension_manifests_experimental_unittest.cc',
@@ -1599,7 +1601,6 @@
 
         # TODO(joi): Move to 'base_prefs' target in base/base.gyp once
         # Prefs move is complete and dependencies have been broken.
-        '../base/prefs/json_pref_store_unittest.cc',
         '../base/prefs/public/pref_change_registrar_unittest.cc',
         '../base/prefs/public/pref_member_unittest.cc',
 
@@ -2126,6 +2127,7 @@
             'browser/ui/bookmarks/bookmark_context_menu_controller_unittest.cc',
             'browser/ui/bookmarks/bookmark_prompt_controller_unittest.cc',
             'browser/ui/browser_command_controller_unittest.cc',
+            'browser/ui/browser_iterator_unittest.cc',
             'browser/ui/fullscreen/fullscreen_controller_state_unittest.cc',
             'browser/ui/fullscreen/fullscreen_controller_unittest.cc',
             'browser/ui/search/search_delegate_unittest.cc',

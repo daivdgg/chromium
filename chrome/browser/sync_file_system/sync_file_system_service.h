@@ -14,6 +14,7 @@
 #include "base/memory/singleton.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "chrome/browser/api/sync/profile_sync_service_observer.h"
 #include "chrome/browser/profiles/profile_keyed_service.h"
 #include "chrome/browser/profiles/profile_keyed_service_factory.h"
 #include "chrome/browser/sync_file_system/local_file_sync_service.h"
@@ -22,6 +23,8 @@
 #include "content/public/browser/notification_registrar.h"
 #include "googleurl/src/gurl.h"
 #include "webkit/fileapi/syncable/sync_callbacks.h"
+
+class ProfileSyncServiceBase;
 
 namespace fileapi {
 class FileSystemContext;
@@ -33,6 +36,7 @@ class SyncEventObserver;
 
 class SyncFileSystemService
     : public ProfileKeyedService,
+      public ProfileSyncServiceObserver,
       public LocalFileSyncService::Observer,
       public RemoteFileSyncService::Observer,
       public content::NotificationObserver,
@@ -68,15 +72,6 @@ class SyncFileSystemService
   void AddSyncEventObserver(SyncEventObserver* observer);
   void RemoveSyncEventObserver(SyncEventObserver* observer);
 
-  // Enables or disables automatic synchronization process.
-  // If this is enabled the service automatically runs remote/local sync
-  // process when it detects changes in remote/local filesystem for
-  // registered origins.
-  // It is enabled by default but can be disabled for testing (or maybe
-  // via an explicit API call).
-  void set_auto_sync_enabled(bool flag) { auto_sync_enabled_ = flag; }
-  bool auto_sync_enabled() const { return auto_sync_enabled_; }
-
  private:
   friend class SyncFileSystemServiceFactory;
   friend class SyncFileSystemServiceTest;
@@ -101,6 +96,9 @@ class SyncFileSystemService
   void DidRegisterOrigin(const GURL& app_origin,
                          const fileapi::SyncStatusCallback& callback,
                          fileapi::SyncStatusCode status);
+
+  // Overrides sync_enabled_ setting. This should be called only by tests.
+  void SetSyncEnabledForTesting(bool enabled);
 
   // Called when following observer methods are called:
   // - OnLocalChangeAvailable()
@@ -138,6 +136,14 @@ class SyncFileSystemService
                        const content::NotificationSource& source,
                        const content::NotificationDetails& details) OVERRIDE;
 
+  // ProfileSyncServiceObserver:
+  virtual void OnStateChanged() OVERRIDE;
+
+  // Check the profile's sync preference settings and call
+  // remote_file_service_->SetSyncEnabled() to update the status.
+  // |profile_sync_service| must be non-null.
+  void UpdateSyncEnabledStatus(ProfileSyncServiceBase* profile_sync_service);
+
   Profile* profile_;
   content::NotificationRegistrar registrar_;
 
@@ -156,8 +162,11 @@ class SyncFileSystemService
   // another remote sync.
   bool is_waiting_remote_sync_enabled_;
 
-  bool auto_sync_enabled_;
+  // Indicates if sync is currently enabled or not.
+  bool sync_enabled_;
 
+  // Origins that have been successfully initialized via
+  // InitializeForApp.
   std::set<GURL> initialized_app_origins_;
 
   ObserverList<SyncEventObserver> observers_;

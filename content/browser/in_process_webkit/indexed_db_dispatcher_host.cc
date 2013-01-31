@@ -27,6 +27,8 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBCursor.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBDatabase.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBDatabaseCallbacks.h"
+#include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBDatabaseError.h"
+#include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBDatabaseException.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBFactory.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBMetadata.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBTransaction.h"
@@ -40,6 +42,7 @@ using WebKit::WebExceptionCode;
 using WebKit::WebIDBCallbacks;
 using WebKit::WebIDBCursor;
 using WebKit::WebIDBDatabase;
+using WebKit::WebIDBDatabaseError;
 using WebKit::WebIDBIndex;
 using WebKit::WebIDBKey;
 using WebKit::WebIDBMetadata;
@@ -186,6 +189,42 @@ int64 IndexedDBDispatcherHost::RendererTransactionId(
 WebIDBCursor* IndexedDBDispatcherHost::GetCursorFromId(int32 ipc_cursor_id) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::WEBKIT_DEPRECATED));
   return cursor_dispatcher_host_->map_.Lookup(ipc_cursor_id);
+}
+
+IndexedDBDatabaseMetadata IndexedDBDispatcherHost::ConvertMetadata(
+    const WebIDBMetadata& web_metadata)
+{
+  IndexedDBDatabaseMetadata metadata;
+  metadata.id = web_metadata.id;
+  metadata.name = web_metadata.name;
+  metadata.version = web_metadata.version;
+  metadata.int_version = web_metadata.intVersion;
+  metadata.max_object_store_id = web_metadata.maxObjectStoreId;
+
+  for (size_t i = 0; i < web_metadata.objectStores.size(); ++i) {
+    const WebIDBMetadata::ObjectStore& web_store_metadata =
+        web_metadata.objectStores[i];
+    IndexedDBObjectStoreMetadata idb_store_metadata;
+    idb_store_metadata.id = web_store_metadata.id;
+    idb_store_metadata.name = web_store_metadata.name;
+    idb_store_metadata.keyPath = IndexedDBKeyPath(web_store_metadata.keyPath);
+    idb_store_metadata.autoIncrement = web_store_metadata.autoIncrement;
+    idb_store_metadata.max_index_id = web_store_metadata.maxIndexId;
+
+    for (size_t j = 0; j < web_store_metadata.indexes.size(); ++j) {
+      const WebIDBMetadata::Index& web_index_metadata =
+          web_store_metadata.indexes[j];
+      IndexedDBIndexMetadata idb_index_metadata;
+      idb_index_metadata.id = web_index_metadata.id;
+      idb_index_metadata.name = web_index_metadata.name;
+      idb_index_metadata.keyPath = IndexedDBKeyPath(web_index_metadata.keyPath);
+      idb_index_metadata.unique = web_index_metadata.unique;
+      idb_index_metadata.multiEntry = web_index_metadata.multiEntry;
+      idb_store_metadata.indexes.push_back(idb_index_metadata);
+    }
+    metadata.object_stores.push_back(idb_store_metadata);
+  }
+  return metadata;
 }
 
 void IndexedDBDispatcherHost::OnIDBFactoryGetDatabaseNames(
@@ -353,36 +392,7 @@ void IndexedDBDispatcherHost::DatabaseDispatcherHost::OnMetadata(
   if (!idb_database)
     return;
 
-  WebIDBMetadata web_metadata = idb_database->metadata();
-  metadata->id = web_metadata.id;
-  metadata->name = web_metadata.name;
-  metadata->version = web_metadata.version;
-  metadata->int_version = web_metadata.intVersion;
-  metadata->max_object_store_id = web_metadata.maxObjectStoreId;
-
-  for (size_t i = 0; i < web_metadata.objectStores.size(); ++i) {
-    const WebIDBMetadata::ObjectStore& web_store_metadata =
-        web_metadata.objectStores[i];
-    IndexedDBObjectStoreMetadata idb_store_metadata;
-    idb_store_metadata.id = web_store_metadata.id;
-    idb_store_metadata.name = web_store_metadata.name;
-    idb_store_metadata.keyPath = IndexedDBKeyPath(web_store_metadata.keyPath);
-    idb_store_metadata.autoIncrement = web_store_metadata.autoIncrement;
-    idb_store_metadata.max_index_id = web_store_metadata.maxIndexId;
-
-    for (size_t j = 0; j < web_store_metadata.indexes.size(); ++j) {
-      const WebIDBMetadata::Index& web_index_metadata =
-          web_store_metadata.indexes[j];
-      IndexedDBIndexMetadata idb_index_metadata;
-      idb_index_metadata.id = web_index_metadata.id;
-      idb_index_metadata.name = web_index_metadata.name;
-      idb_index_metadata.keyPath = IndexedDBKeyPath(web_index_metadata.keyPath);
-      idb_index_metadata.unique = web_index_metadata.unique;
-      idb_index_metadata.multiEntry = web_index_metadata.multiEntry;
-      idb_store_metadata.indexes.push_back(idb_index_metadata);
-    }
-    metadata->object_stores.push_back(idb_store_metadata);
-  }
+  *metadata = ConvertMetadata(idb_database->metadata());
 }
 
 void IndexedDBDispatcherHost::DatabaseDispatcherHost::OnCreateObjectStore(
@@ -652,14 +662,13 @@ void IndexedDBDispatcherHost::DatabaseDispatcherHost::OnCommit(
     return;
 
   int64 host_transaction_id = parent_->HostTransactionId(transaction_id);
-  // TODO(dgrogan): Tell the page the transaction aborted because of quota.
-  // http://crbug.com/113118
   // TODO(alecflett) move the map to the parent DispatcherHost (parent_)
   if (parent_->Context()->WouldBeOverQuota(
           transaction_url_map_[host_transaction_id],
           transaction_size_map_[host_transaction_id])) {
-      database->abort(host_transaction_id);
-      return;
+    database->abort(host_transaction_id, WebIDBDatabaseError(
+        WebKit::WebIDBDatabaseExceptionQuotaError));
+    return;
   }
 
   database->commit(host_transaction_id);
