@@ -130,7 +130,7 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event WINDOW_CHANGE
     },
     { // STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME:
-      STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN
+      STATE_TO_BROWSER_FULLSCREEN_NO_CHROME,  // Event TOGGLE_FULLSCREEN
       STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN_CHROME
       // TODO(scheib) Should be a route to TAB_BROWSER http://crbug.com/154196
       STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event TAB_FULLSCREEN_TRUE
