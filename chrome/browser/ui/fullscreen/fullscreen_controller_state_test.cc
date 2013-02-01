@@ -646,8 +646,8 @@ bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
       state == STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME ||
       event == TOGGLE_FULLSCREEN_CHROME) {
 #if defined(OS_MACOSX)
-//    if (!base::mac::IsOSLionOrLater())
-//      return true;
+    if (!base::mac::IsOSLionOrLater())
+      return true;
 #else
     return true;
 #endif
