@@ -246,6 +246,10 @@ void FullscreenControllerStateUnitTest::VerifyWindowState() {
       EXPECT_EQ(FullscreenControllerTestWindow::FULLSCREEN,
                 window_->state()) << GetAndClearDebugLog();
       break;
+    case STATE_BROWSER_FULLSCREEN_WITH_CHROME:
+      EXPECT_EQ(FullscreenControllerTestWindow::FULLSCREEN,
+                window_->state()) << GetAndClearDebugLog();
+      break;
 #if defined(OS_WIN)
     case STATE_METRO_SNAP:
       EXPECT_EQ(FullscreenControllerTestWindow::METRO_SNAP,
@@ -265,6 +269,10 @@ void FullscreenControllerStateUnitTest::VerifyWindowState() {
                 window_->state()) << GetAndClearDebugLog();
       break;
     case STATE_TO_BROWSER_FULLSCREEN_NO_CHROME:
+      EXPECT_EQ(FullscreenControllerTestWindow::TO_FULLSCREEN,
+                window_->state()) << GetAndClearDebugLog();
+      break;
+    case STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME:
       EXPECT_EQ(FullscreenControllerTestWindow::TO_FULLSCREEN,
                 window_->state()) << GetAndClearDebugLog();
       break;
