@@ -623,7 +623,7 @@ std::string FullscreenControllerStateTest::GetAndClearDebugLog() {
 }
 
 bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
-                                                               Event event) {
+                                                                Event event) {
   // TODO(scheib) Toggling Tab fullscreen while pending Tab or
   // Browser fullscreen is broken currently http://crbug.com/154196
   if ((state == STATE_TO_BROWSER_FULLSCREEN_NO_CHROME ||
@@ -646,8 +646,8 @@ bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
       state == STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME ||
       event == TOGGLE_FULLSCREEN_CHROME) {
 #if defined(OS_MACOSX)
-    if (!base::mac::IsOSLionOrLater())
-      return true;
+//    if (!base::mac::IsOSLionOrLater())
+//      return true;
 #else
     return true;
 #endif
