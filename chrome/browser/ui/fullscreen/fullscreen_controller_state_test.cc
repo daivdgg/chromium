@@ -100,7 +100,7 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
     },
     { // STATE_TO_NORMAL:
       STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN
-      STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN_CHROME
+      STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME,// Event TOGGLE_FULLSCREEN_CHROME
       // TODO(scheib) Should be a route back to TAB. http://crbug.com/154196
       STATE_TO_NORMAL,                        // Event TAB_FULLSCREEN_TRUE
       STATE_TO_NORMAL,                        // Event TAB_FULLSCREEN_FALSE
@@ -145,7 +145,7 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
     { // STATE_TO_TAB_FULLSCREEN:
       // TODO(scheib) Should be a route to TAB_BROWSER http://crbug.com/154196
       STATE_TO_TAB_FULLSCREEN,                // Event TOGGLE_FULLSCREEN
-      STATE_TO_TAB_FULLSCREEN,                // Event TOGGLE_FULLSCREEN_CHROME
+      STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN_CHROME
       STATE_TO_TAB_FULLSCREEN,                // Event TAB_FULLSCREEN_TRUE
 #if defined(OS_MACOSX)
       // Mac runs as expected due to a forced NotifyTabOfExitIfNecessary();
