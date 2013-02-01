@@ -631,6 +631,7 @@ bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
   // TODO(scheib) Toggling Tab fullscreen while pending Tab or
   // Browser fullscreen is broken currently http://crbug.com/154196
   if ((state == STATE_TO_BROWSER_FULLSCREEN_NO_CHROME ||
+       state == STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME ||
        state == STATE_TO_TAB_FULLSCREEN) &&
       (event == TAB_FULLSCREEN_TRUE || event == TAB_FULLSCREEN_FALSE))
     return true;
