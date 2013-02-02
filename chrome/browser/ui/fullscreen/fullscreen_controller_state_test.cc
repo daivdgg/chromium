@@ -628,6 +628,13 @@ std::string FullscreenControllerStateTest::GetAndClearDebugLog() {
 
 bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
                                                                 Event event) {
+  // http://crbug.com/168513
+  // Tab fullscreen does not remove the chrome when previously in
+  // 'with chrome' browser fullscreen.
+  if (state == STATE_BROWSER_FULLSCREEN_WITH_CHROME &&
+      event == TAB_FULLSCREEN_TRUE)
+    return true;
+
   // TODO(scheib) Toggling Tab fullscreen while pending Tab or
   // Browser fullscreen is broken currently http://crbug.com/154196
   if ((state == STATE_TO_BROWSER_FULLSCREEN_NO_CHROME ||
