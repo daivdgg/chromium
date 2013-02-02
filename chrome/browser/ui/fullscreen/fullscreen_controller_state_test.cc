@@ -761,10 +761,7 @@ void FullscreenControllerStateTest::TestStateAndEvent(State state,
       << (reentrant ? " with reentrant calls.\n" : ".\n");
   reentrant_ = reentrant;
 
-  debugging_log_ << "First,        "
-      // Space out before 'from' to align state with following lines.
-      << std::left << std::setw(MAX_EVENT_NAME_LENGTH) << ""
-      << "from "
+  debugging_log_ << "First,                               from"
       << GetStateString(state_) << "\n";
   ASSERT_NO_FATAL_FAILURE(TransitionToState(state))
       << GetAndClearDebugLog();
