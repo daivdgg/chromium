@@ -31,6 +31,9 @@ class FullscreenControllerStateTest {
     STATE_TAB_FULLSCREEN,
     // Both tab and browser fullscreen.
     STATE_TAB_BROWSER_FULLSCREEN,
+    // Both tab and browser fullscreen, displayed without chrome, but exits tab
+    // fullscreen to STATE_BROWSER_FULLSCREEN_WITH_CHROME.
+    STATE_TAB_BROWSER_FULLSCREEN_CHROME,
     // TO_ states are asynchronous states waiting for window state change
     // before transitioning to their named state.
     STATE_TO_NORMAL,

@@ -53,7 +53,7 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
     { // STATE_BROWSER_FULLSCREEN_WITH_CHROME:
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event TOGGLE_FULLSCREEN
       STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN_CHROME
-      STATE_TAB_BROWSER_FULLSCREEN,           // Event TAB_FULLSCREEN_TRUE
+      STATE_TAB_BROWSER_FULLSCREEN_CHROME,    // Event TAB_FULLSCREEN_TRUE
       STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event TAB_FULLSCREEN_FALSE
       STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event METRO_SNAP_TRUE
       STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event METRO_SNAP_FALSE
@@ -96,6 +96,18 @@ FullscreenControllerStateTest::FullscreenControllerStateTest()
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event BUBBLE_EXIT_LINK
       STATE_TAB_BROWSER_FULLSCREEN,           // Event BUBBLE_ALLOW
       STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event BUBBLE_DENY
+      STATE_TAB_BROWSER_FULLSCREEN,           // Event WINDOW_CHANGE
+    },
+    { // STATE_TAB_BROWSER_FULLSCREEN_CHROME:
+      STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN
+      STATE_TO_NORMAL,                        // Event TOGGLE_FULLSCREEN_CHROME
+      STATE_TAB_BROWSER_FULLSCREEN,           // Event TAB_FULLSCREEN_TRUE
+      STATE_BROWSER_FULLSCREEN_NO_CHROME,     // Event TAB_FULLSCREEN_FALSE
+      STATE_METRO_SNAP,                       // Event METRO_SNAP_TRUE
+      STATE_TAB_BROWSER_FULLSCREEN,           // Event METRO_SNAP_FALSE
+      STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event BUBBLE_EXIT_LINK
+      STATE_TAB_BROWSER_FULLSCREEN,           // Event BUBBLE_ALLOW
+      STATE_BROWSER_FULLSCREEN_WITH_CHROME,   // Event BUBBLE_DENY
       STATE_TAB_BROWSER_FULLSCREEN,           // Event WINDOW_CHANGE
     },
     { // STATE_TO_NORMAL:
@@ -217,6 +229,8 @@ const char* FullscreenControllerStateTest::GetStateString(State state) {
       return "STATE_TAB_FULLSCREEN";
     case STATE_TAB_BROWSER_FULLSCREEN:
       return "STATE_TAB_BROWSER_FULLSCREEN";
+    case STATE_TAB_BROWSER_FULLSCREEN_CHROME:
+      return "STATE_TAB_BROWSER_FULLSCREEN_CHROME";
     case STATE_TO_NORMAL:
       return "STATE_TO_NORMAL";
     case STATE_TO_BROWSER_FULLSCREEN_NO_CHROME:
@@ -462,14 +476,28 @@ void FullscreenControllerStateTest::VerifyWindowState() {
       break;
     case STATE_TAB_BROWSER_FULLSCREEN:
 #if defined(OS_MACOSX)
+      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithChrome())
+          << GetAndClearDebugLog();
+      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithoutChrome())
+          << GetAndClearDebugLog();
+#endif
+      EXPECT_TRUE(GetFullscreenController()->IsFullscreenForBrowser())
+          << GetAndClearDebugLog();
+      EXPECT_TRUE(GetFullscreenController()->IsFullscreenForTabOrPending())
+          << GetAndClearDebugLog();
+      EXPECT_FALSE(GetFullscreenController()->IsInMetroSnapMode())
+          << GetAndClearDebugLog();
+      break;
+    case STATE_TAB_BROWSER_FULLSCREEN_CHROME:
+#if defined(OS_MACOSX)
       // http://crbug.com/168513
       // Tab fullscreen does not remove the chrome when previously in
-      // 'with chrome' browser fullscreen.
-      // 
-      //EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithChrome())
-      //    << GetAndClearDebugLog();
-      //EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithoutChrome())
-      //    << GetAndClearDebugLog();
+      // 'with chrome' browser fullscreen. The following two With and Without
+      // expectations should be swapped so there is no chrome in this state.
+      EXPECT_TRUE(GetBrowser()->window()->IsFullscreenWithChrome())
+          << GetAndClearDebugLog();
+      EXPECT_FALSE(GetBrowser()->window()->IsFullscreenWithoutChrome())
+          << GetAndClearDebugLog();
 #endif
       EXPECT_TRUE(GetFullscreenController()->IsFullscreenForBrowser())
           << GetAndClearDebugLog();
@@ -628,13 +656,6 @@ std::string FullscreenControllerStateTest::GetAndClearDebugLog() {
 
 bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
                                                                 Event event) {
-  // http://crbug.com/168513
-  // Tab fullscreen does not remove the chrome when previously in
-  // 'with chrome' browser fullscreen.
-  if (state == STATE_BROWSER_FULLSCREEN_WITH_CHROME &&
-      event == TAB_FULLSCREEN_TRUE)
-    return true;
-
   // TODO(scheib) Toggling Tab fullscreen while pending Tab or
   // Browser fullscreen is broken currently http://crbug.com/154196
   if ((state == STATE_TO_BROWSER_FULLSCREEN_NO_CHROME ||
