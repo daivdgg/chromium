@@ -676,6 +676,7 @@ bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
 
   // Skip Mac Lion Fullscreen state and events when not on OSX 10.7+.
   if (state == STATE_BROWSER_FULLSCREEN_WITH_CHROME ||
+      state == STATE_TAB_BROWSER_FULLSCREEN_CHROME ||
       state == STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME ||
       event == TOGGLE_FULLSCREEN_CHROME) {
 #if defined(OS_MACOSX)
