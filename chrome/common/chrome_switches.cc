@@ -641,6 +641,10 @@ const char kEnableSyncDictionary[] = "enable-sync-dictionary";
 // Enables context menu for selecting groups of tabs.
 const char kEnableTabGroupsContextMenu[]    = "enable-tab-groups-context-menu";
 
+// Enables Alternate-Protocol when the port is user controlled (> 1024).
+const char kEnableUserAlternateProtocolPorts[] =
+    "enable-user-controlled-alternate-protocol-ports";
+
 // Spawns threads to watch for excessive delays in specified message loops.
 // User should set breakpoints on Alarm() to examine problematic thread.
 //
@@ -690,9 +694,13 @@ const char kFeedbackServer[]                = "feedback-server";
 // handled gracefully.
 const char kFileDescriptorLimit[]           = "file-descriptor-limit";
 
+// Forces application mode. This hides certain system UI elements and forces
+// the app to be installed if it hasn't been already.
+const char kForceAppMode[]                  = "force-app-mode";
+
 // Displays the First Run experience when the browser is started, regardless of
 // whether or not it's actually the First Run (this overrides kNoFirstRun).
-const char kForceFirstRun[]                      = "force-first-run";
+const char kForceFirstRun[]                 = "force-first-run";
 
 // Enables using GAIA information to populate profile name and icon.
 const char kGaiaProfileInfo[]               = "gaia-profile-info";
@@ -760,6 +768,13 @@ const char kHostResolverRetryAttempts[]     = "host-resolver-retry-attempts";
 // built-in rules. The JSON format is the same as that persisted in
 // <profile_dir>/Default/TransportSecurity
 const char kHstsHosts[]                     = "hsts-hosts";
+
+// Causes net::URLFetchers to ignore requests for SSL client certificates,
+// causing them to attempt an unauthenticated SSL/TLS session. This is intended
+// for use when testing various service URLs (eg: kPromoServerURL, kInstantURL,
+// kSbURLPrefix, kSyncServiceURL, kWalletServiceUrl, etc)
+const char kIgnoreUrlFetcherCertRequests[] =
+    "ignore-urlfetcher-cert-requests";
 
 // Performs importing from another browser. The value associated with this
 // setting encodes the target browser and what items to import.
@@ -1152,6 +1167,10 @@ const char kSbDisableAutoUpdate[] = "safebrowsing-disable-auto-update";
 const char kSbDisableDownloadProtection[] =
     "safebrowsing-disable-download-protection";
 
+// Disables safebrowsing feature that checks for blacklisted extensions.
+const char kSbDisableExtensionBlacklist[] =
+    "safebrowsing-disable-extension-blacklist";
+
 // Enables or disables extension scripts badges in the location bar.
 const char kScriptBadges[]                  = "script-badges";
 
@@ -1466,6 +1485,10 @@ const char kEnableStaticIPConfig[]          = "enable-static-ip-config";
 
 // Passed to Chrome on first boot. Not passed on restart after sign out.
 const char kFirstBoot[] = "first-boot";
+
+// Usually in browser tests the usual login manager bringup is skipped so that
+// tests can change how it's brought up. This flag disables that.
+const char kForceLoginManagerInTests[]     = "force-login-manager-in-tests";
 
 // Forces driving authentication through the legacy OAuth1 flow instead of
 // new flow based on OAuth2.

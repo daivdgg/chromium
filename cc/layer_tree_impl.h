@@ -28,6 +28,7 @@ class LayerTreeDebugState;
 class LayerTreeHostImpl;
 class LayerTreeImpl;
 class LayerTreeSettings;
+class MemoryHistory;
 class OutputSurface;
 class PaintTimeCounter;
 class Proxy;
@@ -52,6 +53,7 @@ class CC_EXPORT LayerTreeImpl {
   TileManager* tile_manager() const;
   FrameRateCounter* frame_rate_counter() const;
   PaintTimeCounter* paint_time_counter() const;
+  MemoryHistory* memory_history() const;
   bool IsActiveTree() const;
   bool IsPendingTree() const;
   bool IsRecycleTree() const;
@@ -145,6 +147,9 @@ class CC_EXPORT LayerTreeImpl {
     return needs_update_draw_properties_;
   }
 
+  void set_needs_full_tree_sync(bool needs) { needs_full_tree_sync_ = needs; }
+  bool needs_full_tree_sync() const { return needs_full_tree_sync_; }
+
   void ClearRenderSurfaces();
 
   bool AreVisibleResourcesReady() const;
@@ -205,6 +210,10 @@ protected:
 
   bool contents_textures_purged_;
   bool needs_update_draw_properties_;
+
+  // In impl-side painting mode, this is true when the tree may contain
+  // structural differences relative to the active tree.
+  bool needs_full_tree_sync_;
 
   DISALLOW_COPY_AND_ASSIGN(LayerTreeImpl);
 };

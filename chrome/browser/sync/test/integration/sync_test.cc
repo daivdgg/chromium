@@ -301,6 +301,11 @@ void SyncTest::InitializeInstance(int index) {
   EXPECT_FALSE(GetBrowser(index) == NULL) << "Could not create Browser "
                                           << index << ".";
 
+  // Make sure the ProfileSyncService has been created before creating the
+  // ProfileSyncServiceHarness - some tests expect the ProfileSyncService to
+  // already exist.
+  ProfileSyncServiceFactory::GetForProfile(GetProfile(index));
+
   clients_[index] = new ProfileSyncServiceHarness(GetProfile(index),
                                                   username_,
                                                   password_);
@@ -680,8 +685,8 @@ void SyncTest::TriggerNotification(syncer::ModelTypeSet changed_types) {
           "from_server",
           syncer::NOTIFY_ALL,
           syncer::ObjectIdSetToInvalidationMap(
-              syncer::ModelTypeSetToObjectIdSet(changed_types), std::string()),
-          syncer::REMOTE_INVALIDATION).ToString();
+              syncer::ModelTypeSetToObjectIdSet(changed_types), std::string())
+          ).ToString();
   const std::string& path =
       std::string("chromiumsync/sendnotification?channel=") +
       syncer::kSyncP2PNotificationChannel + "&data=" + data;

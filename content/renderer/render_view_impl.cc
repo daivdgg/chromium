@@ -189,6 +189,7 @@
 #include "ui/gfx/native_widget_types.h"
 #include "ui/gfx/point.h"
 #include "ui/gfx/rect.h"
+#include "ui/gfx/rect_conversions.h"
 #include "ui/gfx/size_conversions.h"
 #include "ui/shell_dialogs/selected_file_info.h"
 #include "v8/include/v8.h"
@@ -738,7 +739,11 @@ RenderViewImpl::RenderViewImpl(RenderViewImplParams* params)
   // along with the RenderView automatically.
   devtools_agent_ = new DevToolsAgent(this);
   mouse_lock_dispatcher_ = new RenderViewMouseLockDispatcher(this);
+#if defined(ENABLE_WEB_INTENTS)
   intents_host_ = new WebIntentsHost(this);
+#else
+  intents_host_ = NULL;
+#endif
   favicon_helper_ = new FaviconHelper(this);
 
   // Create renderer_accessibility_ if needed.
@@ -2089,6 +2094,10 @@ bool RenderViewImpl::isSelectTrailingWhitespaceEnabled() {
 #endif
 }
 
+void RenderViewImpl::didCancelCompositionOnSelectionChange() {
+  Send(new ViewHostMsg_ImeCancelComposition(routing_id()));
+}
+
 void RenderViewImpl::didChangeSelection(bool is_empty_selection) {
   if (!handling_input_event_ && !handling_select_range_)
       return;
@@ -2309,6 +2318,13 @@ void RenderViewImpl::UpdateTargetURL(const GURL& url,
     target_url_ = latest_url;
     target_url_status_ = TARGET_INFLIGHT;
   }
+}
+
+gfx::RectF RenderViewImpl::ClientRectToPhysicalWindowRect(
+    const gfx::RectF& rect) const {
+  gfx::RectF window_rect = rect;
+  window_rect.Scale(device_scale_factor_ * webview()->pageScaleFactor());
+  return window_rect;
 }
 
 void RenderViewImpl::StartNavStateSyncTimerIfNecessary() {
@@ -3306,14 +3322,10 @@ void RenderViewImpl::ProcessAcceleratedPinchZoomFlags(
   if (!webview()->isAcceleratedCompositingActive())
     return;
 
-  bool enable_viewport = command_line.HasSwitch(switches::kEnableViewport);
-  bool enable_pinch = command_line.HasSwitch(switches::kEnablePinch)
-      || command_line.HasSwitch(switches::kEnableCssTransformPinch);
-
-  if (enable_viewport)
+  if (command_line.HasSwitch(switches::kEnableViewport))
     return;
 
-  if (enable_pinch)
+  if (command_line.HasSwitch(switches::kEnablePinch))
     webview()->setPageScaleFactorLimits(1, 4);
   else
     webview()->setPageScaleFactorLimits(1, 1);
@@ -3920,8 +3932,10 @@ void RenderViewImpl::didCreateScriptContext(WebFrame* frame,
   GetContentClient()->renderer()->DidCreateScriptContext(
       frame, context, extension_group, world_id);
 
+#if defined(ENABLE_WEB_INTENTS)
   intents_host_->DidCreateScriptContext(
       frame, context, extension_group, world_id);
+#endif
 }
 
 void RenderViewImpl::willReleaseScriptContext(WebFrame* frame,
@@ -4059,6 +4073,11 @@ WebKit::WebFrame* RenderViewImpl::GetFrameByRemoteID(int remote_frame_id) {
 void RenderViewImpl::EnsureMediaStreamImpl() {
   if (!RenderThreadImpl::current())  // Will be NULL during unit tests.
     return;
+
+#if defined(OS_ANDROID)
+  if (!CommandLine::ForCurrentProcess()->HasSwitch(switches::kEnableWebRTC))
+    return;
+#endif
 
 #if defined(ENABLE_WEBRTC)
   if (!media_stream_dispatcher_)
@@ -4288,6 +4307,7 @@ void RenderViewImpl::requestStorageQuota(
 
 void RenderViewImpl::registerIntentService(
     WebFrame* frame, const WebIntentServiceInfo& service) {
+#if defined(ENABLE_WEB_INTENTS)
   webkit_glue::WebIntentServiceData data(service);
   if (data.title.empty())
     data.title = webview()->mainFrame()->document().title();
@@ -4295,10 +4315,12 @@ void RenderViewImpl::registerIntentService(
   Send(new IntentsHostMsg_RegisterIntentService(routing_id_,
                                                 data,
                                                 user_gesture));
+#endif
 }
 
 void RenderViewImpl::dispatchIntent(
     WebFrame* frame, const WebIntentRequest& intentRequest) {
+#if defined(ENABLE_WEB_INTENTS)
   webkit_glue::WebIntentData intent_data(intentRequest.intent());
 
   // See WebMessagePortChannelImpl::postMessage() and ::OnMessagedQueued()
@@ -4317,6 +4339,7 @@ void RenderViewImpl::dispatchIntent(
   int id = intents_host_->RegisterWebIntent(intentRequest);
   Send(new IntentsHostMsg_WebIntentDispatch(
       routing_id_, intent_data, id));
+#endif
 }
 
 bool RenderViewImpl::willCheckAndDispatchMessageEvent(
@@ -6555,13 +6578,16 @@ bool RenderViewImpl::didTapMultipleTargets(
       event.x - event.data.tap.width / 2, event.y - event.data.tap.height / 2,
       event.data.tap.width, event.data.tap.height);
   gfx::Rect zoom_rect;
-  float scale = DisambiguationPopupHelper::ComputeZoomAreaAndScaleFactor(
-      finger_rect, target_rects, GetSize(), &zoom_rect);
-  if (!scale)
+  float new_total_scale =
+      DisambiguationPopupHelper::ComputeZoomAreaAndScaleFactor(
+          finger_rect, target_rects, GetSize(),
+          gfx::Rect(webview()->mainFrame()->visibleContentRect()).size(),
+          device_scale_factor_ * webview()->pageScaleFactor(), &zoom_rect);
+  if (!new_total_scale)
     return false;
 
-  gfx::Size canvas_size = zoom_rect.size();
-  canvas_size = ToCeiledSize(gfx::ScaleSize(canvas_size, scale));
+  gfx::Size canvas_size = gfx::ToCeiledSize(gfx::ScaleSize(zoom_rect.size(),
+                                                           new_total_scale));
   TransportDIB* transport_dib = NULL;
   {
     scoped_ptr<skia::PlatformCanvas> canvas(
@@ -6570,14 +6596,23 @@ bool RenderViewImpl::didTapMultipleTargets(
     if (!canvas.get())
       return false;
 
-    canvas->scale(scale, scale);
+    // TODO(trchen): Cleanup the device scale factor mess.
+    // device scale will be applied in WebKit
+    // --> zoom_rect doesn't include device scale,
+    //     but WebKit will still draw on zoom_rect * device_scale_factor_
+    canvas->scale(new_total_scale / device_scale_factor_,
+                  new_total_scale / device_scale_factor_);
+    canvas->translate(-zoom_rect.x() * device_scale_factor_,
+                      -zoom_rect.y() * device_scale_factor_);
 
-    canvas->translate(-zoom_rect.x(), -zoom_rect.y());
     webwidget_->paint(webkit_glue::ToWebCanvas(canvas.get()), zoom_rect,
         WebWidget::ForceSoftwareRenderingAndIgnoreGPUResidentContent);
   }
+
+  gfx::Rect physical_window_zoom_rect = gfx::ToEnclosingRect(
+      ClientRectToPhysicalWindowRect(gfx::RectF(zoom_rect)));
   Send(new ViewHostMsg_ShowDisambiguationPopup(routing_id_,
-                                               zoom_rect,
+                                               physical_window_zoom_rect,
                                                canvas_size,
                                                transport_dib->id()));
 

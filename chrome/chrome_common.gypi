@@ -54,8 +54,12 @@
       'sources': [
         '../extensions/common/constants.cc',
         '../extensions/common/constants.h',
+        '../extensions/common/draggable_region.cc',
+        '../extensions/common/draggable_region.h',
         '../extensions/common/error_utils.cc',
         '../extensions/common/error_utils.h',
+        '../extensions/common/install_warning.h',
+        '../extensions/common/install_warning.cc',
         '../extensions/common/url_pattern.cc',
         '../extensions/common/url_pattern.h',
         '../extensions/common/url_pattern_set.cc',
@@ -127,6 +131,8 @@
         'common/custom_handlers/protocol_handler.cc',
         'common/custom_handlers/protocol_handler.h',
         'common/descriptors_android.h',
+        'common/dump_without_crashing.cc',
+        'common/dump_without_crashing.h',
         'common/extensions/api/commands/commands_handler.cc',
         'common/extensions/api/commands/commands_handler.h',
         'common/extensions/api/extension_action/browser_action_handler.cc',
@@ -140,6 +146,8 @@
         'common/extensions/api/extension_api_stub.cc',
         'common/extensions/api/i18n/default_locale_handler.cc',
         'common/extensions/api/i18n/default_locale_handler.h',
+        'common/extensions/api/identity/oauth2_manifest_handler.cc',
+        'common/extensions/api/identity/oauth2_manifest_handler.h',
         'common/extensions/api/input_ime/input_components_handler.cc',
         'common/extensions/api/input_ime/input_components_handler.h',
         'common/extensions/api/file_handlers/file_handlers_parser.cc',
@@ -152,8 +160,6 @@
         'common/extensions/command.h',
         'common/extensions/csp_validator.cc',
         'common/extensions/csp_validator.h',
-        'common/extensions/draggable_region.cc',
-        'common/extensions/draggable_region.h',
         'common/extensions/event_filter.cc',
         'common/extensions/event_filter.h',
         'common/extensions/event_filtering_info.cc',
@@ -318,6 +324,7 @@
         'common/nacl_messages.h',
         'common/nacl_types.cc',
         'common/nacl_types.h',
+        'common/one_click_signin_messages.h',
         'common/password_form_fill_data.cc',
         'common/password_form_fill_data.h',
         'common/password_generation_util.cc',
@@ -482,6 +489,8 @@
             ['include', 'common/extensions/api/extension_action/browser_action_handler.h'],
             ['include', 'common/extensions/api/i18n/default_locale_handler.cc'],
             ['include', 'common/extensions/api/i18n/default_locale_handler.h'],
+            ['include', 'common/extensions/api/identity/oauth2_manifest_handler.cc'],
+            ['include', 'common/extensions/api/identity/oauth2_manifest_handler.h'],
           ],
         }],
         ['remoting==1', {
@@ -493,6 +502,12 @@
           'sources/': [
             ['exclude', '^common/automation_']
 	  ]
+        }],
+        ['enable_web_intents==0', {
+          'sources!': [
+            'common/extensions/web_intents_handler.cc',
+            'common/extensions/web_intents_handler.h',
+          ],
         }],
         ['use_system_nspr==1', {
           'dependencies': [

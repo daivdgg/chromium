@@ -14,7 +14,6 @@
       # have the same dependencies. Once browser_extensions is untangled from
       # browser, then we can clean up these dependencies.
       'dependencies': [
-        '../sync/protocol/sync_proto.gyp:sync_proto',
         'chrome_resources.gyp:chrome_extra_resources',
         'chrome_resources.gyp:chrome_resources',
         'chrome_resources.gyp:chrome_strings',
@@ -32,8 +31,9 @@
         '../device/device.gyp:device_bluetooth',
         '../net/net.gyp:net',
         '../skia/skia.gyp:skia',
-        '../sync/sync.gyp:sync_notifier',
+        '../sync/sync.gyp:sync',
         '../third_party/bzip2/bzip2.gyp:bzip2',
+        '../third_party/cacheinvalidation/cacheinvalidation.gyp:cacheinvalidation',
         '../third_party/icu/icu.gyp:icui18n',
         '../third_party/icu/icu.gyp:icuuc',
         '../third_party/leveldatabase/leveldatabase.gyp:leveldatabase',
@@ -254,10 +254,9 @@
         'browser/extensions/api/messaging/message_service.h',
         'browser/extensions/api/messaging/native_message_process_host.cc',
         'browser/extensions/api/messaging/native_message_process_host.h',
-        'browser/extensions/api/messaging/native_message_process_host_posix.cc',
-        'browser/extensions/api/messaging/native_message_process_host_win.cc',
         'browser/extensions/api/messaging/native_process_launcher_posix.cc',
         'browser/extensions/api/messaging/native_process_launcher_win.cc',
+        'browser/extensions/api/messaging/native_process_launcher.cc',
         'browser/extensions/api/messaging/native_process_launcher.h',
         'browser/extensions/api/messaging/native_message_port.cc',
         'browser/extensions/api/messaging/native_message_port.h',
@@ -776,8 +775,7 @@
             ['include', '^browser/extensions/api/messaging/extension_message_port.cc'],
             ['include', '^browser/extensions/api/messaging/message_service.cc'],
             ['include', '^browser/extensions/api/messaging/native_message_process_host.cc'],
-            ['include', '^browser/extensions/api/messaging/native_message_process_host_posix.cc'],
-            ['include', '^browser/extensions/api/messaging/native_message_process_host_win.cc'],
+            ['include', '^browser/extensions/api/messaging/native_process_launcher.cc'],
             ['include', '^browser/extensions/api/messaging/native_process_launcher_posix.cc'],
             ['include', '^browser/extensions/api/messaging/native_process_launcher_win.cc'],
             ['include', '^browser/extensions/api/messaging/native_message_port.cc'],
@@ -807,6 +805,12 @@
           'dependencies!': [
             '../device/device.gyp:device_bluetooth',
             '../third_party/libusb/libusb.gyp:libusb'
+          ],
+        }],
+        ['enable_web_intents==0', {
+          'sources!': [
+            'browser/extensions/web_intents_parser.cc',
+            'browser/extensions/web_intents_parser.h',
           ],
         }],
         ['OS=="linux" and use_aura==1', {

@@ -7,6 +7,7 @@
 
 #include <map>
 #include <string>
+#include <utility>
 
 #include "base/basictypes.h"
 #include "base/callback.h"
@@ -24,7 +25,14 @@ enum PolicyDomain {
   // The extensions policy domain is a work in progress. Included here for
   // tests.
   POLICY_DOMAIN_EXTENSIONS,
+
+  // Must be the last entry.
+  POLICY_DOMAIN_SIZE,
 };
+
+// Groups a policy domain and a component ID in a single object representing
+// a policy namespace.
+typedef std::pair<PolicyDomain, std::string> PolicyNamespace;
 
 // The PolicyService merges policies from all available sources, taking into
 // account their priorities. Policy clients can retrieve policy for their domain
@@ -46,10 +54,11 @@ class PolicyService {
                                  const PolicyMap& previous,
                                  const PolicyMap& current) = 0;
 
-    // Invoked at most once, when the PolicyService becomes ready. If
-    // IsInitializationComplete() is false, then this will be invoked once all
-    // the policy providers are ready.
-    virtual void OnPolicyServiceInitialized() {}
+    // Invoked at most once for each |domain|, when the PolicyService becomes
+    // ready. If IsInitializationComplete() is false, then this will be invoked
+    // once all the policy providers have finished loading their policies for
+    // |domain|.
+    virtual void OnPolicyServiceInitialized(PolicyDomain domain) {}
 
    protected:
     virtual ~Observer() {}
@@ -62,21 +71,33 @@ class PolicyService {
 
   virtual void RemoveObserver(PolicyDomain domain, Observer* observer) = 0;
 
+  // Registers a namespace at the policy service, signaling that there is
+  // interest in receiving policy for that namespace. Registrations can be
+  // stacked; each namespace remains registered until an unregister call is made
+  // for each previous register call.
+  // Registering a new namespace does not automatically trigger a policy reload;
+  // invoke RefreshPolicies() if an immediate reload is intended.
+  virtual void RegisterPolicyNamespace(const PolicyNamespace& ns) = 0;
+
+  virtual void UnregisterPolicyNamespace(const PolicyNamespace& ns) = 0;
+
   virtual const PolicyMap& GetPolicies(
       PolicyDomain domain,
       const std::string& component_id) const = 0;
 
   // The PolicyService loads policy from several sources, and some require
   // asynchronous loads. IsInitializationComplete() returns true once all
-  // sources have loaded their policies. It is safe to read policy from the
-  // PolicyService even if IsInitializationComplete() is false; there will be an
-  // OnPolicyUpdated() notification once new policies become available.
+  // sources have loaded their policies for the given |domain|.
+  // It is safe to read policy from the PolicyService even if
+  // IsInitializationComplete() is false; there will be an OnPolicyUpdated()
+  // notification once new policies become available.
   //
   // OnPolicyServiceInitialized() is called when IsInitializationComplete()
-  // becomes true, which happens at most once. If IsInitializationComplete() is
-  // already true when an Observer is registered, then that Observer will not
-  // have a OnPolicyServiceInitialized() notification.
-  virtual bool IsInitializationComplete() const = 0;
+  // becomes true, which happens at most once for each domain.
+  // If IsInitializationComplete() is already true for |domain| when an Observer
+  // is registered, then that Observer will not receive an
+  // OnPolicyServiceInitialized() notification.
+  virtual bool IsInitializationComplete(PolicyDomain domain) const = 0;
 
   // Asks the PolicyService to reload policy from all available policy sources.
   // |callback| is invoked once every source has reloaded its policies, and

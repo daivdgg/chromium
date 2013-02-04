@@ -219,8 +219,7 @@ NavigationControllerImpl::NavigationControllerImpl(
       needs_reload_(false),
       is_initial_navigation_(true),
       pending_reload_(NO_RELOAD),
-      get_timestamp_callback_(base::Bind(&base::Time::Now)),
-      screenshot_count_(0) {
+      get_timestamp_callback_(base::Bind(&base::Time::Now)) {
   DCHECK(browser_context_);
 }
 
@@ -501,20 +500,17 @@ void NavigationControllerImpl::TakeScreenshot() {
   if (!take_screenshot_callback_.is_null())
     take_screenshot_callback_.Run(render_view_host);
 
-  skia::PlatformBitmap* temp_bitmap = new skia::PlatformBitmap;
   render_view_host->CopyFromBackingStore(gfx::Rect(),
       view->GetViewBounds().size(),
       base::Bind(&NavigationControllerImpl::OnScreenshotTaken,
                  base::Unretained(this),
-                 entry->GetUniqueID(),
-                 base::Owned(temp_bitmap)),
-      temp_bitmap);
+                 entry->GetUniqueID()));
 }
 
 void NavigationControllerImpl::OnScreenshotTaken(
     int unique_id,
-    skia::PlatformBitmap* bitmap,
-    bool success) {
+    bool success,
+    const SkBitmap& bitmap) {
   NavigationEntryImpl* entry = NULL;
   for (NavigationEntries::iterator i = entries_.begin();
        i != entries_.end();
@@ -536,28 +532,27 @@ void NavigationControllerImpl::OnScreenshotTaken(
   }
 
   std::vector<unsigned char> data;
-  if (gfx::PNGCodec::EncodeBGRASkBitmap(bitmap->GetBitmap(), true, &data)) {
-    if (!entry->screenshot())
-      ++screenshot_count_;
+  if (gfx::PNGCodec::EncodeBGRASkBitmap(bitmap, true, &data)) {
     entry->SetScreenshotPNGData(data);
     PurgeScreenshotsIfNecessary();
   } else {
     ClearScreenshot(entry);
   }
-  CHECK_GE(screenshot_count_, 0);
 }
 
-void NavigationControllerImpl::ClearScreenshot(NavigationEntryImpl* entry) {
-  if (entry->screenshot()) {
-    --screenshot_count_;
-    entry->SetScreenshotPNGData(std::vector<unsigned char>());
-  }
+bool NavigationControllerImpl::ClearScreenshot(NavigationEntryImpl* entry) {
+  if (!entry->screenshot())
+    return false;
+
+  entry->SetScreenshotPNGData(std::vector<unsigned char>());
+  return true;
 }
 
 void NavigationControllerImpl::PurgeScreenshotsIfNecessary() {
   // Allow only a certain number of entries to keep screenshots.
   const int kMaxScreenshots = 10;
-  if (screenshot_count_ < kMaxScreenshots)
+  int screenshot_count = GetScreenshotCount();
+  if (screenshot_count < kMaxScreenshots)
     return;
 
   const int current = GetCurrentEntryIndex();
@@ -599,21 +594,35 @@ void NavigationControllerImpl::PurgeScreenshotsIfNecessary() {
   // Purge any screenshot at |back| or lower indices, and |forward| or higher
   // indices.
 
-  while (screenshot_count_ > kMaxScreenshots && back >= 0) {
+  while (screenshot_count > kMaxScreenshots && back >= 0) {
     NavigationEntryImpl* entry = NavigationEntryImpl::FromNavigationEntry(
         GetEntryAtIndex(back));
-    ClearScreenshot(entry);
+    if (ClearScreenshot(entry))
+      --screenshot_count;
     --back;
   }
 
-  while (screenshot_count_ > kMaxScreenshots && forward < num_entries) {
+  while (screenshot_count > kMaxScreenshots && forward < num_entries) {
     NavigationEntryImpl* entry = NavigationEntryImpl::FromNavigationEntry(
         GetEntryAtIndex(forward));
-    ClearScreenshot(entry);
+    if (ClearScreenshot(entry))
+      --screenshot_count;
     ++forward;
   }
-  CHECK_GE(screenshot_count_, 0);
-  CHECK_LE(screenshot_count_, kMaxScreenshots);
+  CHECK_GE(screenshot_count, 0);
+  CHECK_LE(screenshot_count, kMaxScreenshots);
+}
+
+int NavigationControllerImpl::GetScreenshotCount() const {
+  int count = 0;
+  for (NavigationEntries::const_iterator it = entries_.begin();
+       it != entries_.end(); ++it) {
+    NavigationEntryImpl* entry =
+        NavigationEntryImpl::FromNavigationEntry(it->get());
+    if (entry->screenshot())
+      count++;
+  }
+  return count;
 }
 
 bool NavigationControllerImpl::CanGoBack() const {
@@ -1436,7 +1445,7 @@ void NavigationControllerImpl::ClearAllScreenshots() {
        it != entries_.end();
        ++it)
     ClearScreenshot(it->get());
-  DCHECK_EQ(screenshot_count_, 0);
+  DCHECK_EQ(GetScreenshotCount(), 0);
 }
 
 void NavigationControllerImpl::SetSessionStorageNamespace(

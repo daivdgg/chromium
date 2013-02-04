@@ -9,6 +9,7 @@
 #include "base/basictypes.h"
 #include "base/debug/trace_event.h"
 #include "base/json/json_writer.h"
+#include "base/metrics/histogram.h"
 #include "base/stl_util.h"
 #include "cc/append_quads_data.h"
 #include "cc/compositor_frame_metadata.h"
@@ -24,6 +25,7 @@
 #include "cc/layer_tree_host_common.h"
 #include "cc/layer_tree_impl.h"
 #include "cc/math_util.h"
+#include "cc/memory_history.h"
 #include "cc/overdraw_metrics.h"
 #include "cc/page_scale_animation.h"
 #include "cc/paint_time_counter.h"
@@ -133,6 +135,8 @@ scoped_ptr<LayerTreeHostImpl> LayerTreeHostImpl::create(const LayerTreeSettings&
 LayerTreeHostImpl::LayerTreeHostImpl(const LayerTreeSettings& settings, LayerTreeHostImplClient* client, Proxy* proxy)
     : m_client(client)
     , m_proxy(proxy)
+    , m_didLockScrollingLayer(false)
+    , m_shouldBubbleScrolls(false)
     , m_scrollDeltaIsInViewportSpace(false)
     , m_settings(settings)
     , m_debugState(settings.initialDebugState)
@@ -145,6 +149,7 @@ LayerTreeHostImpl::LayerTreeHostImpl(const LayerTreeSettings& settings, LayerTre
     , m_pinchGestureActive(false)
     , m_fpsCounter(FrameRateCounter::create(m_proxy->hasImplThread()))
     , m_paintTimeCounter(PaintTimeCounter::create())
+    , m_memoryHistory(MemoryHistory::create())
     , m_debugRectHistory(DebugRectHistory::create())
     , m_numImplThreadScrolls(0)
     , m_numMainThreadScrolls(0)
@@ -159,7 +164,7 @@ LayerTreeHostImpl::LayerTreeHostImpl(const LayerTreeSettings& settings, LayerTre
     didVisibilityChange(this, m_visible);
 
     if (settings.calculateTopControlsPosition)
-        m_topControlsManager = TopControlsManager::Create(this, settings.topControlsHeightPx);
+        m_topControlsManager = TopControlsManager::Create(this, settings.topControlsHeight);
 
     // LTHI always has an active tree.
     m_activeTree = LayerTreeImpl::create(this);
@@ -480,7 +485,7 @@ bool LayerTreeHostImpl::calculateRenderPasses(FrameData& frame)
                     RenderPass::Id contributingRenderPassId = it->firstContributingRenderPassId();
                     while (frame.renderPassesById.find(contributingRenderPassId) != frame.renderPassesById.end()) {
                         RenderPass* renderPass = frame.renderPassesById[contributingRenderPassId];
-  
+
                         AppendQuadsData appendQuadsData(renderPass->id);
                         appendQuadsForLayer(renderPass, *it, occlusionTracker, appendQuadsData);
 
@@ -785,6 +790,11 @@ void LayerTreeHostImpl::drawLayers(FrameData& frame)
     // RenderWidget.
     m_fpsCounter->saveTimeStamp(base::TimeTicks::Now());
 
+    if (m_tileManager) {
+        m_memoryHistory->SaveEntry(
+            m_tileManager->memory_stats_from_last_assign());
+    }
+
     if (m_debugState.showHudRects())
         m_debugRectHistory->saveDebugRectsForCurrentFrame(rootLayer(), *frame.renderSurfaceLayerList, frame.occludingScreenSpaceRects, frame.nonOccludingScreenSpaceRects, m_debugState);
 
@@ -980,7 +990,8 @@ void LayerTreeHostImpl::activatePendingTree()
     TRACE_EVENT_ASYNC_END0("cc", "PendingTree", m_pendingTree.get());
 
     m_activeTree->PushPersistedState(m_pendingTree.get());
-    m_activeTree->SetRootLayer(TreeSynchronizer::synchronizeTrees(m_pendingTree->RootLayer(), m_activeTree->DetachLayerTree(), m_activeTree.get()));
+    if (m_pendingTree->needs_full_tree_sync())
+        m_activeTree->SetRootLayer(TreeSynchronizer::synchronizeTrees(m_pendingTree->RootLayer(), m_activeTree->DetachLayerTree(), m_activeTree.get()));
     TreeSynchronizer::pushProperties(m_pendingTree->RootLayer(), m_activeTree->RootLayer());
     DCHECK(!m_recycleTree);
 
@@ -993,6 +1004,13 @@ void LayerTreeHostImpl::activatePendingTree()
     m_recycleTree->ClearRenderSurfaces();
 
     m_activeTree->DidBecomeActive();
+
+    // Reduce wasted memory now that unlinked resources are guaranteed to
+    // not be used. This should never evict currently used resources.
+    bool evictedResources = m_client->reduceContentsTextureMemoryOnImplThread(
+        std::numeric_limits<size_t>::max(),
+        PriorityCalculator::allowEverythingCutoff());
+    DCHECK(!evictedResources);
 
     m_client->onCanDrawStateChanged(canDraw());
     m_client->onHasPendingTreeStateChanged(pendingTree());
@@ -1046,7 +1064,7 @@ bool LayerTreeHostImpl::initializeRenderer(scoped_ptr<OutputSurface> outputSurfa
         return false;
 
     if (m_settings.implSidePainting)
-      m_tileManager.reset(new TileManager(this, resourceProvider.get(), m_settings.numRasterThreads));
+      m_tileManager.reset(new TileManager(this, resourceProvider.get(), m_settings.numRasterThreads, m_settings.recordRenderingStats));
 
     if (outputSurface->Capabilities().has_parent_compositor)
         m_renderer = DelegatingRenderer::Create(this, outputSurface.get(), resourceProvider.get());
@@ -1161,6 +1179,7 @@ InputHandlerClient::ScrollStatus LayerTreeHostImpl::scrollBegin(gfx::Point viewp
         // The content layer can also block attempts to scroll outside the main thread.
         if (layerImpl->tryScroll(deviceViewportPoint, type) == ScrollOnMainThread) {
             m_numMainThreadScrolls++;
+            UMA_HISTOGRAM_BOOLEAN("TryScroll.SlowScroll", true);
             return ScrollOnMainThread;
         }
 
@@ -1173,6 +1192,7 @@ InputHandlerClient::ScrollStatus LayerTreeHostImpl::scrollBegin(gfx::Point viewp
         // If any layer wants to divert the scroll event to the main thread, abort.
         if (status == ScrollOnMainThread) {
             m_numMainThreadScrolls++;
+            UMA_HISTOGRAM_BOOLEAN("TryScroll.SlowScroll", true);
             return ScrollOnMainThread;
         }
 
@@ -1182,12 +1202,14 @@ InputHandlerClient::ScrollStatus LayerTreeHostImpl::scrollBegin(gfx::Point viewp
 
     if (potentiallyScrollingLayerImpl) {
         m_activeTree->set_currently_scrolling_layer(potentiallyScrollingLayerImpl);
+        m_shouldBubbleScrolls = (type != NonBubblingGesture);
         // Gesture events need to be transformed from viewport coordinates to local layer coordinates
         // so that the scrolling contents exactly follow the user's finger. In contrast, wheel
         // events are already in local layer coordinates so we can just apply them directly.
         m_scrollDeltaIsInViewportSpace = (type == Gesture);
         m_numImplThreadScrolls++;
         m_client->renewTreePriority();
+        UMA_HISTOGRAM_BOOLEAN("TryScroll.SlowScroll", false);
         return ScrollStarted;
     }
     return ScrollIgnored;
@@ -1278,9 +1300,18 @@ bool LayerTreeHostImpl::scrollBy(const gfx::Point& viewportPoint,
 
         // If the layer wasn't able to move, try the next one in the hierarchy.
         float moveThresholdSquared = 0.1f * 0.1f;
-        if (appliedDelta.LengthSquared() < moveThresholdSquared)
-            continue;
+        if (appliedDelta.LengthSquared() < moveThresholdSquared) {
+            if (m_shouldBubbleScrolls || !m_didLockScrollingLayer)
+                continue;
+            else
+                break;
+        }
         didScroll = true;
+        m_didLockScrollingLayer = true;
+        if (!m_shouldBubbleScrolls) {
+            m_activeTree->set_currently_scrolling_layer(layerImpl);
+            break;
+        }
 
         // If the applied delta is within 45 degrees of the input delta, bail out to make it easier
         // to scroll just one layer in one direction without affecting any of its parents.
@@ -1310,6 +1341,7 @@ bool LayerTreeHostImpl::scrollBy(const gfx::Point& viewportPoint,
 void LayerTreeHostImpl::clearCurrentlyScrollingLayer()
 {
     m_activeTree->ClearCurrentlyScrollingLayer();
+    m_didLockScrollingLayer = false;
 }
 
 void LayerTreeHostImpl::scrollEnd()

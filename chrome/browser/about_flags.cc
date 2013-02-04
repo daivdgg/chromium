@@ -424,6 +424,17 @@ const Experiment kExperiments[] = {
 #endif
   },
   {
+    "enable-webrtc",
+    IDS_FLAGS_ENABLE_WEBRTC_NAME,
+    IDS_FLAGS_ENABLE_WEBRTC_DESCRIPTION,
+    kOsAndroid,
+#if defined(OS_ANDROID)
+    SINGLE_VALUE_TYPE(switches::kEnableWebRTC)
+#else
+    SINGLE_VALUE_TYPE("")
+#endif
+  },
+  {
     "fixed-position-creates-stacking-context",
     IDS_FLAGS_FIXED_POSITION_CREATES_STACKING_CONTEXT_NAME,
     IDS_FLAGS_FIXED_POSITION_CREATES_STACKING_CONTEXT_DESCRIPTION,
@@ -666,11 +677,11 @@ const Experiment kExperiments[] = {
     SINGLE_VALUE_TYPE(switches::kDisableMediaSource)
   },
   {
-    "enable-encrypted-media",
-    IDS_FLAGS_ENABLE_ENCRYPTED_MEDIA_NAME,
-    IDS_FLAGS_ENABLE_ENCRYPTED_MEDIA_DESCRIPTION,
+    "disable-encrypted-media",
+    IDS_FLAGS_DISABLE_ENCRYPTED_MEDIA_NAME,
+    IDS_FLAGS_DISABLE_ENCRYPTED_MEDIA_DESCRIPTION,
     kOsDesktop,
-    SINGLE_VALUE_TYPE(switches::kEnableEncryptedMedia)
+    SINGLE_VALUE_TYPE(switches::kDisableEncryptedMedia)
   },
   {
     "enable-opus-playback",
@@ -702,11 +713,11 @@ const Experiment kExperiments[] = {
     SINGLE_VALUE_TYPE(ash::switches::kAshDisableAutoWindowPlacement)
   },
   {
-    "ash-enable-per-app-launcher",
-    IDS_FLAGS_ASH_ENABLE_PER_APP_LAUNCHER_NAME,
-    IDS_FLAGS_ASH_ENABLE_PER_APP_LAUNCHER_DESCRIPTION,
+    "ash-disable-per-app-launcher",
+    IDS_FLAGS_ASH_DISABLE_PER_APP_LAUNCHER_NAME,
+    IDS_FLAGS_ASH_DISABLE_PER_APP_LAUNCHER_DESCRIPTION,
     kOsWin | kOsLinux | kOsCrOS,
-    SINGLE_VALUE_TYPE(ash::switches::kAshEnablePerAppLauncher)
+    SINGLE_VALUE_TYPE(ash::switches::kAshDisablePerAppLauncher)
   },
 #endif
   {
@@ -859,6 +870,13 @@ const Experiment kExperiments[] = {
     IDS_ENABLE_BEZEL_TOUCH_DESCRIPTION,
     kOsCrOS,
     SINGLE_VALUE_TYPE(switches::kEnableBezelTouch)
+  },
+  {
+    "enable-screensaver-extension",
+    IDS_ENABLE_SCREENSAVER_EXTENSION_NAME,
+    IDS_ENABLE_SCREENSAVER_EXTENSION_DESCRIPTION,
+    kOsCrOS,
+    SINGLE_VALUE_TYPE(chromeos::switches::kEnableScreensaverExtensions)
   },
   {
     "no-discard-tabs",

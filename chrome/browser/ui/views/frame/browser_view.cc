@@ -15,6 +15,7 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/app/chrome_dll_resource.h"
 #include "chrome/browser/api/infobars/infobar_service.h"
+#include "chrome/browser/app_mode/app_mode_utils.h"
 #include "chrome/browser/bookmarks/bookmark_utils.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/tab_helper.h"
@@ -398,6 +399,12 @@ BrowserView::~BrowserView() {
   // Child views maintain PrefMember attributes that point to
   // OffTheRecordProfile's PrefService which gets deleted by ~Browser.
   RemoveAllChildViews(true);
+
+  // It is possible that we were forced-closed by the native view system and
+  // that tabs remain in the browser. Close any such remaining tabs.
+  while (browser_->tab_strip_model()->count())
+    delete browser_->tab_strip_model()->GetWebContentsAt(0);
+
   // Explicitly set browser_ to NULL.
   browser_.reset();
 }
@@ -2279,9 +2286,7 @@ void BrowserView::ProcessFullscreen(bool fullscreen,
   browser_->WindowFullscreenStateChanged();
 
   if (fullscreen) {
-    bool is_kiosk =
-        CommandLine::ForCurrentProcess()->HasSwitch(switches::kKioskMode);
-    if (!is_kiosk && type != FOR_METRO) {
+    if (!chrome::IsRunningInAppMode() && type != FOR_METRO) {
       fullscreen_bubble_.reset(new FullscreenExitBubbleViews(
           GetWidget(), browser_.get(), url, bubble_type));
     }

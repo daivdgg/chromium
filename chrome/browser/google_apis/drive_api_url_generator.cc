@@ -6,7 +6,8 @@
 
 #include "base/string_number_conversions.h"
 #include "base/stringprintf.h"
-#include "chrome/common/net/url_util.h"
+#include "net/base/escape.h"
+#include "net/base/url_util.h"
 
 namespace google_apis {
 
@@ -17,7 +18,7 @@ const char kDriveV2AboutUrl[] = "/drive/v2/about";
 const char kDriveV2ApplistUrl[] = "/drive/v2/apps";
 const char kDriveV2ChangelistUrl[] = "/drive/v2/changes";
 const char kDriveV2FilelistUrl[] = "/drive/v2/files";
-const char kDriveV2FileUrlFormat[] = "/drive/v2/files/%s";
+const char kDriveV2FileUrlPrefix[] = "/drive/v2/files/";
 
 }  // namespace
 
@@ -49,7 +50,7 @@ GURL DriveApiUrlGenerator::GetChangelistUrl(
       base_url_.Resolve(kDriveV2ChangelistUrl) :
       override_url;
   return start_changestamp ?
-      chrome_common_net::AppendOrReplaceQueryParameter(
+      net::AppendOrReplaceQueryParameter(
           url, "startChangeId", base::Int64ToString(start_changestamp)) :
       url;
 }
@@ -63,13 +64,11 @@ GURL DriveApiUrlGenerator::GetFilelistUrl(
       override_url;
   return search_string.empty() ?
       url :
-      chrome_common_net::AppendOrReplaceQueryParameter(
-          url, "q", search_string);
+      net::AppendOrReplaceQueryParameter(url, "q", search_string);
 }
 
 GURL DriveApiUrlGenerator::GetFileUrl(const std::string& file_id) const {
-  return base_url_.Resolve(
-      base::StringPrintf(kDriveV2FileUrlFormat, file_id.c_str()));
+  return base_url_.Resolve(kDriveV2FileUrlPrefix + net::EscapePath(file_id));
 }
 
 }  // namespace google_apis

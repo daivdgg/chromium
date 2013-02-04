@@ -20,9 +20,9 @@
 #include "content/renderer/p2p/ipc_socket_factory.h"
 #include "content/renderer/p2p/port_allocator.h"
 #include "jingle/glue/thread_wrapper.h"
-#include "third_party/WebKit/Source/Platform/chromium/public/WebMediaStreamComponent.h"
-#include "third_party/WebKit/Source/Platform/chromium/public/WebMediaStreamDescriptor.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebMediaStream.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebMediaStreamSource.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebMediaStreamTrack.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebFrame.h"
 
 #if !defined(USE_OPENSSL)
@@ -85,7 +85,7 @@ class P2PPortAllocatorFactory : public webrtc::PortAllocatorFactoryInterface {
 // transition of webrtc media sources such as a camera or microphone.
 // An instance of the object deletes itself after use.
 // Usage:
-// 1. Create an instance of the object with the WebKit::WebMediaStreamDescriptor
+// 1. Create an instance of the object with the WebKit::WebMediaStream
 //    the observed sources belongs to a callback.
 // 2. Add the sources to the observer using AddSource.
 // 3. Call StartObserving()
@@ -95,7 +95,7 @@ class SourceStateObserver : public webrtc::ObserverInterface,
                             public base::NonThreadSafe {
  public:
   SourceStateObserver(
-      WebKit::WebMediaStreamDescriptor* description,
+      WebKit::WebMediaStream* description,
       const MediaStreamDependencyFactory::MediaSourcesCreatedCallback& callback)
      : description_(description),
        ready_callback_(callback),
@@ -149,7 +149,7 @@ class SourceStateObserver : public webrtc::ObserverInterface,
     }
   }
 
-  WebKit::WebMediaStreamDescriptor* description_;
+  WebKit::WebMediaStream* description_;
   MediaStreamDependencyFactory::MediaSourcesCreatedCallback ready_callback_;
   bool live_;
   typedef std::vector<scoped_refptr<webrtc::MediaSourceInterface> >
@@ -189,7 +189,7 @@ MediaStreamDependencyFactory::CreateRTCPeerConnectionHandler(
 void MediaStreamDependencyFactory::CreateNativeMediaSources(
     const WebKit::WebMediaConstraints& audio_constraints,
     const WebKit::WebMediaConstraints& video_constraints,
-    WebKit::WebMediaStreamDescriptor* description,
+    WebKit::WebMediaStream* description,
     const MediaSourcesCreatedCallback& sources_created) {
   DVLOG(1) << "MediaStreamDependencyFactory::CreateNativeMediaSources()";
   if (!EnsurePeerConnectionFactory()) {
@@ -204,7 +204,7 @@ void MediaStreamDependencyFactory::CreateNativeMediaSources(
 
   // Create local video sources.
   RTCMediaConstraints native_video_constraints(video_constraints);
-  WebKit::WebVector<WebKit::WebMediaStreamComponent> video_components;
+  WebKit::WebVector<WebKit::WebMediaStreamTrack> video_components;
   description->videoSources(video_components);
   for (size_t i = 0; i < video_components.size(); ++i) {
     const WebKit::WebMediaStreamSource& source = video_components[i].source();
@@ -218,15 +218,16 @@ void MediaStreamDependencyFactory::CreateNativeMediaSources(
     const bool is_screencast = (source_data->device_info().device.type ==
         content::MEDIA_TAB_VIDEO_CAPTURE);
     source_data->SetVideoSource(
-        CreateVideoSource(source_data->device_info().session_id,
-                          is_screencast,
-                          &native_video_constraints));
+        CreateLocalVideoSource(source_data->device_info().session_id,
+                               is_screencast,
+                               &native_video_constraints));
     source_observer->AddSource(source_data->video_source());
   }
 
   // Do additional source initialization if the audio source is a valid
   // microphone or tab audio.
-  WebKit::WebVector<WebKit::WebMediaStreamComponent> audio_components;
+  RTCMediaConstraints native_audio_constraints(audio_constraints);
+  WebKit::WebVector<WebKit::WebMediaStreamTrack> audio_components;
   description->audioSources(audio_components);
   for (size_t i = 0; i < audio_components.size(); ++i) {
     const WebKit::WebMediaStreamSource& source = audio_components[i].source();
@@ -246,13 +247,18 @@ void MediaStreamDependencyFactory::CreateNativeMediaSources(
         return;
       }
     }
+
+    // Creates a LocalAudioSource object which holds audio options.
+    source_data->SetLocalAudioSource(
+        CreateLocalAudioSource(&native_audio_constraints));
+    source_observer->AddSource(source_data->local_audio_source());
   }
 
   source_observer->StartObservering();
 }
 
 void MediaStreamDependencyFactory::CreateNativeLocalMediaStream(
-    WebKit::WebMediaStreamDescriptor* description) {
+    WebKit::WebMediaStream* description) {
   DVLOG(1) << "MediaStreamDependencyFactory::CreateNativeLocalMediaStream()";
   if (!EnsurePeerConnectionFactory()) {
       DVLOG(1) << "EnsurePeerConnectionFactory() failed!";
@@ -264,7 +270,7 @@ void MediaStreamDependencyFactory::CreateNativeLocalMediaStream(
       CreateLocalMediaStream(label);
 
   // Add audio tracks.
-  WebKit::WebVector<WebKit::WebMediaStreamComponent> audio_components;
+  WebKit::WebVector<WebKit::WebMediaStreamTrack> audio_components;
   description->audioSources(audio_components);
 
   for (size_t i = 0; i < audio_components.size(); ++i) {
@@ -276,10 +282,12 @@ void MediaStreamDependencyFactory::CreateNativeLocalMediaStream(
       // audio stream to each PeerConnection separately.  But currently WebRTC
       // is only able to handle a global audio stream sent to ALL peers.
 
-      // TODO(henrika): refactor and utilize audio constraints.
+      // TODO(henrika): Refactor and utilize audio constraints. Audio
+      // constraints are passed via LocalAudioSource.
       if (CreateWebAudioSource(&source)) {
         scoped_refptr<webrtc::LocalAudioTrackInterface> audio_track(
-            CreateLocalAudioTrack(UTF16ToUTF8(audio_components[i].id()), NULL));
+            CreateLocalAudioTrack(UTF16ToUTF8(audio_components[i].id()),
+                                  NULL));
         native_stream->AddTrack(audio_track);
         audio_track->set_enabled(audio_components[i].isEnabled());
       } else {
@@ -296,18 +304,16 @@ void MediaStreamDependencyFactory::CreateNativeLocalMediaStream(
           continue;
         }
 
-        // TODO(perkj): Refactor the creation of audio tracks to use a proper
-        // interface for receiving audio input data. Currently NULL is passed
-        // since the |audio_device| is the wrong class and is unused.
         scoped_refptr<webrtc::LocalAudioTrackInterface> audio_track(
-            CreateLocalAudioTrack(UTF16ToUTF8(source.id()), NULL));
+            CreateLocalAudioTrack(UTF16ToUTF8(source.id()),
+                                  source_data->local_audio_source()));
         native_stream->AddTrack(audio_track);
         audio_track->set_enabled(audio_components[i].isEnabled());
     }
   }
 
   // Add video tracks.
-  WebKit::WebVector<WebKit::WebMediaStreamComponent> video_components;
+  WebKit::WebVector<WebKit::WebMediaStreamTrack> video_components;
   description->videoSources(video_components);
   for (size_t i = 0; i < video_components.size(); ++i) {
     const WebKit::WebMediaStreamSource& source = video_components[i].source();
@@ -332,7 +338,7 @@ void MediaStreamDependencyFactory::CreateNativeLocalMediaStream(
 }
 
 void MediaStreamDependencyFactory::CreateNativeLocalMediaStream(
-    WebKit::WebMediaStreamDescriptor* description,
+    WebKit::WebMediaStream* description,
     const MediaStreamExtraData::StreamStopCallback& stream_stop) {
   CreateNativeLocalMediaStream(description);
 
@@ -386,8 +392,16 @@ MediaStreamDependencyFactory::CreateLocalMediaStream(
   return pc_factory_->CreateLocalMediaStream(label).get();
 }
 
+scoped_refptr<webrtc::AudioSourceInterface>
+MediaStreamDependencyFactory::CreateLocalAudioSource(
+    const webrtc::MediaConstraintsInterface* constraints) {
+  scoped_refptr<webrtc::AudioSourceInterface> source =
+      pc_factory_->CreateAudioSource(constraints).get();
+  return source;
+}
+
 scoped_refptr<webrtc::VideoSourceInterface>
-MediaStreamDependencyFactory::CreateVideoSource(
+MediaStreamDependencyFactory::CreateLocalVideoSource(
     int video_session_id,
     bool is_screencast,
     const webrtc::MediaConstraintsInterface* constraints) {
@@ -459,8 +473,8 @@ MediaStreamDependencyFactory::CreateLocalVideoTrack(
 scoped_refptr<webrtc::LocalAudioTrackInterface>
 MediaStreamDependencyFactory::CreateLocalAudioTrack(
     const std::string& label,
-    webrtc::AudioDeviceModule* audio_device) {
-  return pc_factory_->CreateLocalAudioTrack(label, audio_device).get();
+    webrtc::AudioSourceInterface* source) {
+  return pc_factory_->CreateAudioTrack(label, source).get();
 }
 
 webrtc::SessionDescriptionInterface*

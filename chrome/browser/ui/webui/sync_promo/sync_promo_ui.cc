@@ -16,6 +16,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_info_cache.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/signin/signin_manager.h"
+#include "chrome/browser/signin/signin_manager_factory.h"
 #include "chrome/browser/sync/profile_sync_service.h"
 #include "chrome/browser/sync/profile_sync_service_factory.h"
 #include "chrome/browser/ui/webui/options/core_options_handler.h"
@@ -25,7 +27,6 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
-#include "chrome/common/net/url_util.h"
 #include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
@@ -36,6 +37,7 @@
 #include "grit/theme_resources.h"
 #include "net/base/escape.h"
 #include "net/base/network_change_notifier.h"
+#include "net/base/url_util.h"
 #include "ui/base/l10n/l10n_util.h"
 
 using content::WebContents;
@@ -119,25 +121,17 @@ bool SyncPromoUI::ShouldShowSyncPromo(Profile* profile) {
   // There's no need to show the sync promo on cros since cros users are logged
   // into sync already.
   return false;
-#endif
+#else
 
   // Don't bother if we don't have any kind of network connection.
   if (net::NetworkChangeNotifier::IsOffline())
     return false;
 
-  // Honor the sync policies.
-  if (!profile->GetOriginalProfile()->IsSyncAccessible())
-    return false;
-
-  // If the user is already signed into sync then don't show the promo.
-  ProfileSyncService* service =
-      ProfileSyncServiceFactory::GetInstance()->GetForProfile(
-          profile->GetOriginalProfile());
-  if (!service || service->HasSyncSetupCompleted())
-    return false;
-
-  // Default to allow the promo.
-  return true;
+  // Display the signin promo if the user is not signed in.
+  SigninManager* signin = SigninManagerFactory::GetForProfile(
+      profile->GetOriginalProfile());
+  return signin->GetAuthenticatedUsername().empty();
+#endif
 }
 
 // static
@@ -267,7 +261,7 @@ GURL SyncPromoUI::GetNextPageURLForSyncPromoURL(const GURL& url) {
   const char* key_name = UseWebBasedSigninFlow() ? kSyncPromoQueryKeyContinue :
       kSyncPromoQueryKeyNextPage;
   std::string value;
-  if (chrome_common_net::GetValueForKeyInQuery(url, key_name, &value)) {
+  if (net::GetValueForKeyInQuery(url, key_name, &value)) {
     return GURL(value);
   }
   return GURL();
@@ -276,8 +270,7 @@ GURL SyncPromoUI::GetNextPageURLForSyncPromoURL(const GURL& url) {
 // static
 SyncPromoUI::Source SyncPromoUI::GetSourceForSyncPromoURL(const GURL& url) {
   std::string value;
-  if (chrome_common_net::GetValueForKeyInQuery(
-          url, kSyncPromoQueryKeySource, &value)) {
+  if (net::GetValueForKeyInQuery(url, kSyncPromoQueryKeySource, &value)) {
     int source = 0;
     if (base::StringToInt(value, &source) && source >= SOURCE_START_PAGE &&
         source < SOURCE_UNKNOWN) {
@@ -290,8 +283,7 @@ SyncPromoUI::Source SyncPromoUI::GetSourceForSyncPromoURL(const GURL& url) {
 // static
 bool SyncPromoUI::GetAutoCloseForSyncPromoURL(const GURL& url) {
   std::string value;
-  if (chrome_common_net::GetValueForKeyInQuery(
-          url, kSyncPromoQueryKeyAutoClose, &value)) {
+  if (net::GetValueForKeyInQuery(url, kSyncPromoQueryKeyAutoClose, &value)) {
     int source = 0;
     base::StringToInt(value, &source);
     return (source == 1);

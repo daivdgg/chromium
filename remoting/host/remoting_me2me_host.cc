@@ -4,8 +4,6 @@
 //
 // This file implements a standalone host process for Me2Me.
 
-#include "remoting/host/remoting_me2me_host.h"
-
 #include <string>
 
 #include "base/at_exit.h"
@@ -14,14 +12,13 @@
 #include "base/command_line.h"
 #include "base/file_path.h"
 #include "base/file_util.h"
-#include "base/logging.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/message_loop.h"
 #include "base/scoped_native_library.h"
 #include "base/single_thread_task_runner.h"
 #include "base/string_number_conversions.h"
 #include "base/string_util.h"
-#include "base/stringize_macros.h"
+#include "base/strings/stringize_macros.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/threading/thread.h"
 #include "base/utf_string_conversions.h"
@@ -276,7 +273,7 @@ class HostProcess
   scoped_ptr<IPC::ChannelProxy> daemon_channel_;
 
   // Created on the UI thread but used from the network thread.
-  FilePath host_config_path_;
+  base::FilePath host_config_path_;
   scoped_ptr<DesktopEnvironmentFactory> desktop_environment_factory_;
 
   // Accessed on the network thread.
@@ -405,7 +402,7 @@ bool HostProcess::InitWithCommandLine(const CommandLine* cmd_line) {
         context_->network_task_runner()));
   }
 
-  FilePath default_config_dir = remoting::GetConfigDir();
+  base::FilePath default_config_dir = remoting::GetConfigDir();
   host_config_path_ = default_config_dir.Append(kDefaultHostConfigFile);
   if (cmd_line->HasSwitch(kHostConfigSwitchName)) {
     host_config_path_ = cmd_line->GetSwitchValuePath(kHostConfigSwitchName);
@@ -430,7 +427,7 @@ void HostProcess::OnConfigUpdated(
   LOG(INFO) << "Processing new host configuration.";
 
   serialized_config_ = serialized_config;
-  scoped_ptr<JsonHostConfig> config(new JsonHostConfig(FilePath()));
+  scoped_ptr<JsonHostConfig> config(new JsonHostConfig(base::FilePath()));
   if (!config->SetSerializedData(serialized_config)) {
     LOG(ERROR) << "Invalid configuration.";
     ShutdownHost(kInvalidHostConfigurationExitCode);
@@ -561,7 +558,7 @@ void HostProcess::StartOnUiThread() {
 #if defined(OS_LINUX)
   // If an audio pipe is specific on the command-line then initialize
   // AudioCapturerLinux to capture from it.
-  FilePath audio_pipe_name = CommandLine::ForCurrentProcess()->
+  base::FilePath audio_pipe_name = CommandLine::ForCurrentProcess()->
       GetSwitchValuePath(kAudioPipeSwitchName);
   if (!audio_pipe_name.empty()) {
     remoting::AudioCapturerLinux::InitializePipeReader(
@@ -644,7 +641,7 @@ void HostProcess::ShutdownOnUiThread() {
   // thread will remain in-use and prevent the process from exiting.
   // TODO(wez): DesktopEnvironmentFactory should own the pipe reader.
   // See crbug.com/161373 and crbug.com/104544.
-  AudioCapturerLinux::InitializePipeReader(NULL, FilePath());
+  AudioCapturerLinux::InitializePipeReader(NULL, base::FilePath());
 #endif
 }
 
@@ -1050,7 +1047,9 @@ void HostProcess::OnCrash(const std::string& function_name,
   CHECK(false);
 }
 
-int HostProcessMain(int argc, char** argv) {
+}  // namespace remoting
+
+int main(int argc, char** argv) {
 #if defined(OS_MACOSX)
   // Needed so we don't leak objects when threads are created.
   base::mac::ScopedNSAutoreleasePool pool;
@@ -1058,14 +1057,15 @@ int HostProcessMain(int argc, char** argv) {
 
   CommandLine::Init(argc, argv);
 
-  // Initialize Breakpad as early as possible. On Mac the command-line needs to
-  // be initialized first, so that the preference for crash-reporting can be
-  // looked up in the config file.
-#if defined(OFFICIAL_BUILD) && (defined(MAC_BREAKPAD) || defined(OS_WIN))
-  if (IsUsageStatsAllowed()) {
-    InitializeCrashReporting();
+  // Initialize Breakpad as early as possible. On Windows, this happens in
+  // WinMain(), so it shouldn't also be done here. The command-line needs to be
+  // initialized first, so that the preference for crash-reporting can be looked
+  // up in the config file.
+#if defined(MAC_BREAKPAD)
+  if (remoting::IsUsageStatsAllowed()) {
+    remoting::InitializeCrashReporting();
   }
-#endif  // defined(OFFICIAL_BUILD) && (defined(MAC_BREAKPAD) || defined(OS_WIN))
+#endif  // MAC_BREAKPAD
 
   // This object instance is required by Chrome code (for example,
   // LazyInstance, MessageLoop).
@@ -1076,29 +1076,7 @@ int HostProcessMain(int argc, char** argv) {
     return 0;
   }
 
-  InitHostLogging();
-
-#if defined(OS_WIN)
-  // Register and initialize common controls.
-  INITCOMMONCONTROLSEX info;
-  info.dwSize = sizeof(info);
-  info.dwICC = ICC_STANDARD_CLASSES;
-  InitCommonControlsEx(&info);
-
-  // Mark the process as DPI-aware, so Windows won't scale coordinates in APIs.
-  // N.B. This API exists on Vista and above.
-  if (base::win::GetVersion() >= base::win::VERSION_VISTA) {
-    FilePath path(base::GetNativeLibraryName(UTF8ToUTF16("user32")));
-    base::ScopedNativeLibrary user32(path);
-    CHECK(user32.is_valid());
-
-    typedef BOOL (WINAPI * SetProcessDPIAwareFn)();
-    SetProcessDPIAwareFn set_process_dpi_aware =
-        static_cast<SetProcessDPIAwareFn>(
-            user32.GetFunctionPointer("SetProcessDPIAware"));
-    set_process_dpi_aware();
-  }
-#endif  // defined(OS_WIN)
+  remoting::InitHostLogging();
 
 #if defined(TOOLKIT_GTK)
   // Required for any calls into GTK functions, such as the Disconnect and
@@ -1114,18 +1092,18 @@ int HostProcessMain(int argc, char** argv) {
 
   // Create the main message loop and start helper threads.
   MessageLoop message_loop(MessageLoop::TYPE_UI);
-  scoped_ptr<ChromotingHostContext> context =
-      ChromotingHostContext::Create(
-          new AutoThreadTaskRunner(message_loop.message_loop_proxy(),
-                                   MessageLoop::QuitClosure()));
+  scoped_ptr<remoting::ChromotingHostContext> context =
+      remoting::ChromotingHostContext::Create(
+          new remoting::AutoThreadTaskRunner(message_loop.message_loop_proxy(),
+                                             MessageLoop::QuitClosure()));
   if (!context)
-    return kInitializationFailed;
+    return remoting::kInitializationFailed;
 
   // Create & start the HostProcess using these threads.
   // TODO(wez): The HostProcess holds a reference to itself until Shutdown().
   // Remove this hack as part of the multi-process refactoring.
-  int exit_code = kSuccessExitCode;
-  new HostProcess(context.Pass(), &exit_code);
+  int exit_code = remoting::kSuccessExitCode;
+  new remoting::HostProcess(context.Pass(), &exit_code);
 
   // Run the main (also UI) message loop until the host no longer needs it.
   message_loop.Run();
@@ -1133,10 +1111,44 @@ int HostProcessMain(int argc, char** argv) {
   return exit_code;
 }
 
-}  // namespace remoting
+#if defined(OS_WIN)
+HMODULE g_hModule = NULL;
 
-#if !defined(OS_WIN)
-int main(int argc, char** argv) {
-  return remoting::HostProcessMain(argc, argv);
+int CALLBACK WinMain(HINSTANCE instance,
+                     HINSTANCE previous_instance,
+                     LPSTR command_line,
+                     int show_command) {
+#if defined(OFFICIAL_BUILD)
+  if (remoting::IsUsageStatsAllowed()) {
+    remoting::InitializeCrashReporting();
+  }
+#endif  // OFFICIAL_BUILD
+
+  g_hModule = instance;
+
+  // Register and initialize common controls.
+  INITCOMMONCONTROLSEX info;
+  info.dwSize = sizeof(info);
+  info.dwICC = ICC_STANDARD_CLASSES;
+  InitCommonControlsEx(&info);
+
+  // Mark the process as DPI-aware, so Windows won't scale coordinates in APIs.
+  // N.B. This API exists on Vista and above.
+  if (base::win::GetVersion() >= base::win::VERSION_VISTA) {
+    base::FilePath path(base::GetNativeLibraryName(UTF8ToUTF16("user32")));
+    base::ScopedNativeLibrary user32(path);
+    CHECK(user32.is_valid());
+
+    typedef BOOL (WINAPI * SetProcessDPIAwareFn)();
+    SetProcessDPIAwareFn set_process_dpi_aware =
+        static_cast<SetProcessDPIAwareFn>(
+            user32.GetFunctionPointer("SetProcessDPIAware"));
+    set_process_dpi_aware();
+  }
+
+  // CommandLine::Init() ignores the passed |argc| and |argv| on Windows getting
+  // the command line from GetCommandLineW(), so we can safely pass NULL here.
+  return main(0, NULL);
 }
-#endif  // !defined(OS_WIN)
+
+#endif  // defined(OS_WIN)

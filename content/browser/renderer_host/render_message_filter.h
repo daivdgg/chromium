@@ -65,7 +65,7 @@ struct WebPluginInfo;
 namespace content {
 class BrowserContext;
 class DOMStorageContextImpl;
-class MediaObserver;
+class MediaInternals;
 class PluginServiceImpl;
 class RenderWidgetHelper;
 class ResourceContext;
@@ -82,7 +82,7 @@ class RenderMessageFilter : public BrowserMessageFilter {
                       BrowserContext* browser_context,
                       net::URLRequestContextGetter* request_context,
                       RenderWidgetHelper* render_widget_helper,
-                      MediaObserver* media_observer,
+                      MediaInternals* media_internals,
                       DOMStorageContextImpl* dom_storage_context);
 
   // IPC::ChannelProxy::MessageFilter methods:
@@ -189,10 +189,9 @@ class RenderMessageFilter : public BrowserMessageFilter {
 
   void OnGetCPUUsage(int* cpu_usage);
 
-  void OnGetHardwareBufferSize(uint32* buffer_size);
-  void OnGetHardwareInputSampleRate(int* sample_rate);
-  void OnGetHardwareSampleRate(int* sample_rate);
-  void OnGetHardwareInputChannelLayout(media::ChannelLayout* layout);
+  void OnGetAudioHardwareConfig(int* output_buffer_size,
+                                int* output_sample_rate, int* input_sample_rate,
+                                media::ChannelLayout* input_channel_layout);
 
   // Used to look up the monitor color profile.
   void OnGetMonitorColorProfile(std::vector<char>* profile);
@@ -291,7 +290,7 @@ class RenderMessageFilter : public BrowserMessageFilter {
   // Used for sampling CPU usage of the renderer process.
   scoped_ptr<base::ProcessMetrics> process_metrics_;
 
-  MediaObserver* media_observer_;
+  MediaInternals* media_internals_;
 
   DISALLOW_COPY_AND_ASSIGN(RenderMessageFilter);
 };

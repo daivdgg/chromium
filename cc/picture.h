@@ -34,13 +34,15 @@ class CC_EXPORT Picture
 
   // Record a paint operation. To be able to safely use this SkPicture for
   // playback on a different thread this can only be called once.
-  void Record(ContentLayerClient*, RenderingStats&);
+  void Record(ContentLayerClient*, RenderingStats*);
 
   // Has Record() been called yet?
   bool HasRecording() const { return picture_.get() != NULL; }
 
   // Apply this contents scale and raster the content rect into the canvas.
   void Raster(SkCanvas* canvas, gfx::Rect content_rect, float contents_scale);
+
+  bool IsCheapInRect(const gfx::Rect& layer_rect);
 
   void GatherPixelRefs(
       const gfx::Rect& layer_rect,

@@ -59,6 +59,7 @@
 #include "chrome/browser/chromeos/power/suspend_observer.h"
 #include "chrome/browser/chromeos/power/user_activity_notifier.h"
 #include "chrome/browser/chromeos/power/video_activity_notifier.h"
+#include "chrome/browser/chromeos/screensaver/screensaver_controller.h"
 #include "chrome/browser/chromeos/settings/device_settings_service.h"
 #include "chrome/browser/chromeos/settings/owner_key_util.h"
 #include "chrome/browser/chromeos/system/statistics_provider.h"
@@ -588,8 +589,10 @@ void ChromeBrowserMainPartsChromeos::PostProfileInit() {
 
   // Tests should be able to tune login manager before showing it.
   // Thus only show login manager in normal (non-testing) mode.
-  if (!parameters().ui_task)
+  if (!parameters().ui_task ||
+      parsed_command_line().HasSwitch(::switches::kForceLoginManagerInTests)) {
     OptionallyRunChromeOSLoginManager(parsed_command_line(), profile());
+  }
 
   // These observers must be initialized after the profile because
   // they use the profile to dispatch extension events.
@@ -600,6 +603,10 @@ void ChromeBrowserMainPartsChromeos::PostProfileInit() {
   output_observer_.reset(new OutputObserver());
   resume_observer_.reset(new ResumeObserver());
   screen_lock_observer_.reset(new ScreenLockObserver());
+  if (CommandLine::ForCurrentProcess()->HasSwitch(
+      switches::kEnableScreensaverExtensions)) {
+    screensaver_controller_.reset(new ScreensaverController());
+  }
   suspend_observer_.reset(new SuspendObserver());
   if (KioskModeSettings::Get()->IsKioskModeEnabled()) {
     power_state_override_ = new PowerStateOverride(

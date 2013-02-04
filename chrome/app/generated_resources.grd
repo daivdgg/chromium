@@ -413,7 +413,7 @@ are declared in build/common.gypi.
       <message name="IDS_HISTORY_DELETE_PRIOR_VISITS_WARNING" desc="Warning shown before deleting">
         Are you sure you want to delete these pages from your history?
 
-Psst! Incognito mode <ph name="SHORTCUT_KEY">$1<ex>(Ctrl+Shift+N)</ex></ph> may come in useful next time.
+Psst! Incognito mode <ph name="SHORTCUT_KEY">$1<ex>(Ctrl+Shift+N)</ex></ph> may come in handy next time.
       </message>
 
       <!-- History HTML UI -->
@@ -4908,6 +4908,9 @@ Public Exponent (<ph name="PUBLIC_EXPONENT_NUM_BITS">$3<ex>24</ex></ph> bits):
       <message name="IDS_EXTENSION_PERMISSIONS_PROMPT_TITLE" desc="Titlebar of the extension or app permissions prompt window">
         Confirm Permissions
       </message>
+      <message name="IDS_EXTENSION_POST_INSTALL_PERMISSIONS_PROMPT_TITLE" desc="Titlebar of the extension or app permissions review window">
+        Current Permissions
+      </message>
       <message name="IDS_EXTENSION_INSTALL_PROMPT_HEADING" desc="First bold line in the content area of the extension or app installation prompt. Asks the user if they want to install a particular extension or app.">
         Add "<ph name="EXTENSION_NAME">$1<ex>Gmail Checker</ex></ph>"?
       </message>
@@ -4928,6 +4931,9 @@ Public Exponent (<ph name="PUBLIC_EXPONENT_NUM_BITS">$3<ex>24</ex></ph> bits):
       </message>
       <message name="IDS_EXTENSION_PERMISSIONS_PROMPT_HEADING" desc="First bold line in the content area of the extension or app permissions prompt. Asks the user if they want to grant the permissions to the particular extension or app.">
         "<ph name="EXTENSION_NAME">$1<ex>Gmail Checker</ex></ph>" has requested additional permissions.
+      </message>
+      <message name="IDS_EXTENSION_POST_INSTALL_PERMISSIONS_PROMPT_HEADING" desc="First bold line in the content area of the extension or app permissions prompt. Shows the user the permissions a particular extension or app has.">
+        <ph name="EXTENSION_NAME">$1<ex>Gmail Checker</ex></ph>
       </message>
 
       <!-- Extension alerts. -->
@@ -4966,6 +4972,10 @@ Public Exponent (<ph name="PUBLIC_EXPONENT_NUM_BITS">$3<ex>24</ex></ph> bits):
       <message name="IDS_EXTENSION_PROMPT_WANTS_ACCESS_TO" desc="Second line in the content area of the extension or app permissions prompt. Note that the exact wording is important. This should mean that the extension _wants to_ access the listed privileges, but not necessarily that it will or needs to. This message appeared because the user must approve new permissions of the extension or app.">
         It could:
       </message>
+      <message name="IDS_EXTENSION_PROMPT_CAN_ACCESS" desc="Second line in the content area of the extension or app permissions view dialog. Note that the exact wording is important. This should mean that the extension _can now_ access the listed privileges, because it has already been installed. This message appeared because the user must approve new permissions of the extension or app.">
+        It can:
+      </message>
+
       <message name="IDS_EXTENSION_PERMISSION_LINE" desc="Template for item in list of privileges that an extension or app has">
         • <ph name="PERMISSION">$1<ex>Access your data on all websites</ex></ph>
       </message>
@@ -5433,8 +5443,11 @@ Public Exponent (<ph name="PUBLIC_EXPONENT_NUM_BITS">$3<ex>24</ex></ph> bits):
           Reload (Ctrl+R)
         </message>
       </if>
-      <message name="IDS_EXTENSIONS_OPTIONS_LINK" desc="The button text for the options button.">
+      <message name="IDS_EXTENSIONS_OPTIONS_LINK" desc="The link text for the Options link.">
         Options
+      </message>
+      <message name="IDS_EXTENSIONS_PERMISSIONS_LINK" desc="The link text for the Permissions link.">
+        Permissions
       </message>
       <message name="IDS_EXTENSIONS_ACTIVITY_LINK" desc="The link for showing extension activity.">
         Activity
@@ -5605,6 +5618,9 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_EXTENSION_ACTIVITY_CONTENT_SCRIPT" desc="Text for the label next to an activity message that represents a content script injection.">
         Content Script
       </message>
+      <message name="IDS_EXTENSION_ACTIVITY_EVENT_DISPATCH" desc="Text for the label next to an activity message that represents an extension event callback.">
+        API Event
+      </message>
 
       <!-- chrome://extension-info bubble -->
       <message name="IDS_EXTENSION_SCRIPT_POPUP_IS_RUNNING" desc="The label in the extension info bubble that indicates the extension is running scripts on this page">
@@ -5678,10 +5694,13 @@ Keep your key file in a safe place. You will need it to create new versions of y
         Remove from Chrome
       </message>
 
-      <!-- chrome://settings-frame/options_settings_app.html for the App Launcher (Windows only) -->
+      <!-- chrome://settings-frame/options_settings_app.html for the App Launcher Settings App -->
       <if expr="pp_ifdef('enable_settings_app')">
         <message name="IDS_SETTINGS_APP_LAUNCHER_PRODUCT_NAME" desc="Product name to use when referring to applications running in the App Launcher inside the non-browser Settings App">
           App Launcher
+        </message>
+        <message name="IDS_SETTINGS_APP_PROFILES_SWITCH_BUTTON_LABEL" desc="The label that appears on the profile switch user button in the Settings App to allow a user to switch the app launcher profile to the current selection.">
+          Switch user
         </message>
         <message name="IDS_SETTINGS_APP_SYNC_OVERVIEW" desc="The message that appears in the non-browser Settings App when sync has not been set up by the user.">
           Sign in with your Google Account to allow apps to synchronize settings and provide other customized services.
@@ -6238,6 +6257,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_ENABLE_BEZEL_TOUCH_DESCRIPTION" desc="Description of the enable bezel touch actions flag.">
         Enable bezel touch actions.
       </message>
+      <message name="IDS_ENABLE_SCREENSAVER_EXTENSION_NAME" desc="Title of the enble screensaver extensions flag." >
+        Enable screensaver extensions.
+      </message>
+      <message name="IDS_ENABLE_SCREENSAVER_EXTENSION_DESCRIPTION" desc="Description of the enable screensaver extensions flag.">
+        Enable screensaver extensions.
+      </message>
       <message name="IDS_FLAGS_CONFLICTS_CHECK_NAME" desc="Title of the run conflicts check flag">
         Check for known conflicts with 3rd party modules.
       </message>
@@ -6626,6 +6651,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_DISABLE_WEBGL_DESCRIPTION" desc="Description for the flag to disable WebGL.">
         Enabling this option prevents web applications from accessing the WebGL API.
       </message>
+      <message name="IDS_FLAGS_ENABLE_WEBRTC_NAME" desc="Name of the 'Enable WebRTC' lab.">
+        Enable WebRTC
+      </message>
+      <message name="IDS_FLAGS_ENABLE_WEBRTC_DESCRIPTION" desc="Description for the flag to enable WebRTC.">
+        Enabling this option allows web applications to access the WebRTC API.
+      </message>
       <message name="IDS_FLAGS_FIXED_POSITION_CREATES_STACKING_CONTEXT_NAME" desc="Name of the 'Fixed position creates stacking context' lab.">
         Fixed position elements create stacking contexts.
       </message>
@@ -6668,11 +6699,11 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_DISABLE_MEDIA_SOURCE_DESCRIPTION" desc="Description for the flag to disable the Media Source API on &lt;video&gt; elements.">
         Disable experimental Media Source API on the video elements. This API allows JavaScript to send media data directly to a video element.
       </message>
-      <message name="IDS_FLAGS_ENABLE_ENCRYPTED_MEDIA_NAME" desc="Title for the flag to enable the Encrypted Media Extensions on &lt;video&gt; elements.">
-        Enable Encrypted Media Extensions on <ph name="VIDEO_HTML">&lt;video&gt;<ex>&lt;video&gt;</ex></ph> elements.
+      <message name="IDS_FLAGS_DISABLE_ENCRYPTED_MEDIA_NAME" desc="Title for the flag to disable the Encrypted Media Extensions on &lt;video&gt; elements.">
+        Disable Encrypted Media Extensions on <ph name="VIDEO_HTML">&lt;video&gt;<ex>&lt;video&gt;</ex></ph> elements.
       </message>
-      <message name="IDS_FLAGS_ENABLE_ENCRYPTED_MEDIA_DESCRIPTION" desc="Description for the flag to enable the Encrypted Media Extensions on &lt;video&gt; elements.">
-        Enable experimental Encrypted Media Extensions on the video elements.
+      <message name="IDS_FLAGS_DISABLE_ENCRYPTED_MEDIA_DESCRIPTION" desc="Description for the flag to disable the Encrypted Media Extensions on &lt;video&gt; elements.">
+        Disable experimental Encrypted Media Extensions on the video elements.
       </message>
       <message name="IDS_FLAGS_ENABLE_OPUS_PLAYBACK_NAME" desc="Title for the flag to enable Opus playback in &lt;video&gt; elements.">
         Enable Opus playback in &lt;video&gt; elements.
@@ -6698,17 +6729,17 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_ASH_AUTO_WINDOW_PLACEMENT_DESCRIPTION" desc="Description for the option to enable/disable the auto window placement functionality.">
         Disable automatic window placement for one and two browser / app windows.
       </message>
-      <message name="IDS_FLAGS_ASH_ENABLE_PER_APP_LAUNCHER_NAME" desc="Name for the option to enable/disable the per application sorting launcher functionality.">
-        Per application sorting in the launcher.
-      </message>
-      <message name="IDS_FLAGS_ASH_ENABLE_PER_APP_LAUNCHER_DESCRIPTION" desc="Description for the option to enable/disable the per application sorting launcher functionality.">
-        Enable the per application sorting mode of the launcher.
-      </message>
       <message name="IDS_FLAGS_AURA_DISABLE_HOLD_MOUSE_MOVES_NAME" desc="Title for the flag to disable throttling the rate of window resize.">
         Throttle the rate of window resize.
       </message>
       <message name="IDS_FLAGS_AURA_DISABLE_HOLD_MOUSE_MOVES_DESCRIPTION" desc="Description for the flag to disable throttling the rate of window resize.">
         Disable throttling the rate of window resize. We throttle the resize for less perceived latency.
+      </message>
+      <message name="IDS_FLAGS_ASH_DISABLE_PER_APP_LAUNCHER_NAME" desc="Name for the option to enable/disable the per application sorting launcher functionality.">
+        Disable per application sorting in the launcher.
+      </message>
+      <message name="IDS_FLAGS_ASH_DISABLE_PER_APP_LAUNCHER_DESCRIPTION" desc="Description for the option to enable/disable the per application sorting launcher functionality.">
+        Disable the per application sorting mode of the launcher.
       </message>
       <message name="IDS_FLAGS_ENABLE_WEBAUDIO_INPUT_NAME" desc="Title for the flag to enable the webaudio input feature.">
         Web Audio Input
@@ -8088,6 +8119,9 @@ The following plug-in is unresponsive: <ph name="PLUGIN_NAME">$1
       <!-- Clear Browsing Data -->
       <message name="IDS_CLEAR_BROWSING_DATA_TITLE" desc="Dialog title">
         Clear browsing data
+      </message>
+      <message name="IDS_CLEAR_BROWSING_DATA_INFO_BAR_TEXT" desc="The text of the infobar that is displayed in the clear browsing data dialog. This infobar remindes users that they can use the incognito mode instead of clearing their browsing data.">
+        Psst! Incognito mode (<ph name="INCOGNITO_MODE_SHORTCUT">$1<ex>Shift+Ctrl+N</ex></ph>) may come in handy next time.
       </message>
       <message name="IDS_CLEAR_BROWSING_DATA_LABEL" desc="Label at the top of the client area of the dialog, preceding the period combo box">
         Obliterate the following items from:
@@ -10880,6 +10914,9 @@ experiment id: "<ph name="EXPERIMENT_ID">$5<ex>ar1</ex></ph>"
       <message name="IDS_AUTOFILL_DIALOG_SITE_WARNING" desc="Text that explains that user data will be sent to the site.">
         The following details will be shared with <ph name="SITE">$1<ex>www.shopping.com</ex></ph>
       </message>
+      <message name="IDS_AUTOFILL_DIALOG_VERIFY_CVV" desc="Text explaining that the user needs to enter their credit card's verification code before they can continue their transaction.">
+        For your security, please verify your card details.
+      </message>
       <message name="IDS_AUTOFILL_DIALOG_SECTION_EMAIL" desc="Label for the email section of the imperative autofill dialog.">
         Email address
       </message>
@@ -12642,6 +12679,9 @@ Some features may be unavailable.  Please check that the profile exists and you 
       <message name="IDS_FILE_BROWSER_ERROR_NEW_FOLDER_EMPTY_NAME" desc="Warning displayed when user trys to enter empty name for the new folder.">
         Please specify a folder name
       </message>
+      <message name="IDS_FILE_BROWSER_ERROR_LONG_NAME" desc="Error message displayed when user trys to enter too long name for a file or a folder.">
+        This name is too long
+      </message>
       <message name="IDS_FILE_BROWSER_NEW_FOLDER_BUTTON_LABEL" desc="Label on the 'New folder' button.">
         New folder
       </message>
@@ -12805,6 +12845,9 @@ Some features may be unavailable.  Please check that the profile exists and you 
       </message>
       <message name="IDS_FILE_BROWSER_GALLERY_VIDEO_ERROR" desc="In the Gallery, message informing that the video could not be played.">
         This file could not be played.
+      </message>
+      <message name="IDS_FILE_BROWSER_GALLERY_VIDEO_DECODING_ERROR" desc="In the Gallery, message informing that an error occured while playing the movie.">
+        An error occurred. Click to restart from the beginning.
       </message>
       <message name="IDS_FILE_BROWSER_AUDIO_ERROR" desc="In the Audio Player, message informing that the file could not be played.">
         This file could not be played.
@@ -13618,6 +13661,9 @@ Some features may be unavailable.  Please check that the profile exists and you 
       <message name="IDS_SYNC_ACCOUNT_SYNCED_TO_USER_WITH_TIME" desc="The message that appears in the options dialog indicating that account is synced to a user with the given email address. The last sync also appears in the message.">
         Synced as <ph name="USER_EMAIL_ADDRESS">$1<ex>foo@gmail.com</ex></ph>. Last synced: <ph name="LAST_SYNC_TIME">$2<ex>12 seconds ago</ex></ph>
       </message>
+      <message name="IDS_SIGNED_IN_WITH_SYNC_DISABLED" desc="The message that appears in the options dialog indicating that user is signed in with the given email address, but sync is not enabled.">
+        Signed in as <ph name="USER_EMAIL_ADDRESS">$1<ex>foo@gmail.com</ex></ph>. Sync is disabled by your administrator.
+      </message>
       <message name="IDS_SYNC_ACCOUNT_SYNCING_TO_USER" desc="The message that appears in the options dialog indicating that account is syncing to a user with the given email address.">
         Signed in as <ph name="USER_EMAIL_ADDRESS">$1<ex>foo@gmail.com</ex></ph>.
       </message>
@@ -14037,9 +14083,6 @@ Some features may be unavailable.  Please check that the profile exists and you 
         <message name="IDS_SYNC_MENU_SYNCED_LABEL" desc="The text for the sync app menu item when bookmark sync has been enabled">
           Signed in as <ph name="USER_NAME">$1<ex>pat@example.com</ex></ph>...
         </message>
-        <message name="IDS_SYNC_MENU_SYNC_ERROR_LABEL" desc="The text for the sync app menu item when a bookmark sync error has occurred">
-          Sync error...
-        </message>
       </if>
       <if expr="pp_ifdef('use_titlecase')">
         <message name="IDS_SYNC_MENU_PRE_SYNCED_LABEL" desc="The text for the sync app menu item before an account is synced.">
@@ -14047,9 +14090,6 @@ Some features may be unavailable.  Please check that the profile exists and you 
         </message>
         <message name="IDS_SYNC_MENU_SYNCED_LABEL" desc="The text for the sync app menu item when bookmark sync has been enabled">
           Signed in as <ph name="USER_NAME">$1<ex>pat@example.com</ex></ph>...
-        </message>
-        <message name="IDS_SYNC_MENU_SYNC_ERROR_LABEL" desc="In Title Case: The text for the sync app menu item when a bookmark sync error has occurred">
-          Sync Error...
         </message>
       </if>
 
@@ -15413,11 +15453,6 @@ Some features may be unavailable.  Please check that the profile exists and you 
     </message>
     <message name="IDS_PROFILES_REMOVE_SHORTCUT_CHECKBOX" desc="Remove Shortcut Checkbox">
       Remove desktop shortcut for this user
-    </message>
-
-    <!-- Tracing about page strings -->
-    <message name="IDS_TRACING_TITLE" desc="Title for the about:tracing page.">
-      Tracing
     </message>
 
     <!-- Aura strings -->

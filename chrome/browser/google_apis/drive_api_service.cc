@@ -18,7 +18,6 @@
 #include "chrome/browser/google_apis/operation_runner.h"
 #include "chrome/browser/google_apis/time_util.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/common/net/url_util.h"
 #include "content/public/browser/browser_thread.h"
 
 using content::BrowserThread;
@@ -349,6 +348,7 @@ void DriveAPIService::DownloadFile(
 
 void DriveAPIService::DeleteResource(
     const std::string& resource_id,
+    const std::string& etag,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -392,13 +392,19 @@ void DriveAPIService::RenameResource(
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
 
-  // TODO(kochi): Implement this.
-  NOTREACHED();
+  runner_->StartOperationWithRetry(
+      new drive::RenameResourceOperation(
+          operation_registry(),
+          url_request_context_getter_,
+          url_generator_,
+          resource_id,
+          new_name,
+          callback));
 }
 
 void DriveAPIService::AddResourceToDirectory(
     const std::string& parent_resource_id,
-    const GURL& edit_url,
+    const std::string& resource_id,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());

@@ -49,14 +49,6 @@ void CopyResultsFromDownloadActionCallbackAndQuit(
   MessageLoop::current()->Quit();
 }
 
-// Copies the result from EntryActionCallback and quit the message loop.
-void CopyResultFromEntryActionCallbackAndQuit(
-    GDataErrorCode* out_result_code,
-    GDataErrorCode result_code) {
-  *out_result_code = result_code;
-  MessageLoop::current()->Quit();
-}
-
 // Copies the result from InitiateUploadCallback and quit the message loop.
 void CopyResultFromInitiateUploadCallbackAndQuit(
     GDataErrorCode* out_result_code,
@@ -600,9 +592,10 @@ TEST_F(GDataWapiOperationsTest, DeleteResourceOperation) {
       &operation_registry_,
       request_context_getter_.get(),
       *url_generator_,
-      base::Bind(&CopyResultFromEntryActionCallbackAndQuit,
+      base::Bind(&test_util::CopyResultFromEntryActionCallbackAndQuit,
                  &result_code),
-      "file:2_file_resource_id");
+      "file:2_file_resource_id",
+      "");
 
   operation->Start(kTestGDataAuthToken, kTestUserAgent,
                    base::Bind(&test_util::DoNothingForReAuthenticateCallback));
@@ -614,6 +607,30 @@ TEST_F(GDataWapiOperationsTest, DeleteResourceOperation) {
       "/feeds/default/private/full/file%3A2_file_resource_id?v=3&alt=json",
       http_request_.relative_url);
   EXPECT_EQ("*", http_request_.headers["If-Match"]);
+}
+
+TEST_F(GDataWapiOperationsTest, DeleteResourceOperationWithETag) {
+  GDataErrorCode result_code = GDATA_OTHER_ERROR;
+
+  DeleteResourceOperation* operation = new DeleteResourceOperation(
+      &operation_registry_,
+      request_context_getter_.get(),
+      *url_generator_,
+      base::Bind(&test_util::CopyResultFromEntryActionCallbackAndQuit,
+                 &result_code),
+      "file:2_file_resource_id",
+      "etag");
+
+  operation->Start(kTestGDataAuthToken, kTestUserAgent,
+                   base::Bind(&test_util::DoNothingForReAuthenticateCallback));
+  MessageLoop::current()->Run();
+
+  EXPECT_EQ(HTTP_SUCCESS, result_code);
+  EXPECT_EQ(test_server::METHOD_DELETE, http_request_.method);
+  EXPECT_EQ(
+      "/feeds/default/private/full/file%3A2_file_resource_id?v=3&alt=json",
+      http_request_.relative_url);
+  EXPECT_EQ("etag", http_request_.headers["If-Match"]);
 }
 
 TEST_F(GDataWapiOperationsTest, CreateDirectoryOperation) {
@@ -693,7 +710,7 @@ TEST_F(GDataWapiOperationsTest, RenameResourceOperation) {
       &operation_registry_,
       request_context_getter_.get(),
       *url_generator_,
-      base::Bind(&CopyResultFromEntryActionCallbackAndQuit,
+      base::Bind(&test_util::CopyResultFromEntryActionCallbackAndQuit,
                  &result_code),
       "file:2_file_resource_id",
       "New File");
@@ -796,11 +813,10 @@ TEST_F(GDataWapiOperationsTest, AddResourceToDirectoryOperation) {
           &operation_registry_,
           request_context_getter_.get(),
           *url_generator_,
-          base::Bind(&CopyResultFromEntryActionCallbackAndQuit,
+          base::Bind(&test_util::CopyResultFromEntryActionCallbackAndQuit,
                      &result_code),
           "folder:root",
-          test_server_.GetURL(
-              "/feeds/default/private/full/file:2_file_resource_id"));
+          "file:2_file_resource_id");
 
   operation->Start(kTestGDataAuthToken, kTestUserAgent,
                    base::Bind(&test_util::DoNothingForReAuthenticateCallback));
@@ -816,7 +832,7 @@ TEST_F(GDataWapiOperationsTest, AddResourceToDirectoryOperation) {
   EXPECT_EQ("<?xml version=\"1.0\"?>\n"
             "<entry xmlns=\"http://www.w3.org/2005/Atom\">\n"
             " <id>http://127.0.0.1:8040/feeds/default/private/full/"
-            "file:2_file_resource_id</id>\n"
+            "file%3A2_file_resource_id</id>\n"
             "</entry>\n",
             http_request_.content);
 }
@@ -830,7 +846,7 @@ TEST_F(GDataWapiOperationsTest, RemoveResourceFromDirectoryOperation) {
           &operation_registry_,
           request_context_getter_.get(),
           *url_generator_,
-          base::Bind(&CopyResultFromEntryActionCallbackAndQuit,
+          base::Bind(&test_util::CopyResultFromEntryActionCallbackAndQuit,
                      &result_code),
           "folder:root",
           "file:2_file_resource_id");

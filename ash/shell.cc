@@ -110,6 +110,7 @@
 #include "base/message_pump_aurax11.h"
 #include "chromeos/display/output_configurator.h"
 #include "content/public/browser/gpu_data_manager.h"
+#include "content/public/common/content_switches.h"
 #include "content/public/common/gpu_feature_type.h"
 #endif  // defined(OS_CHROMEOS)
 
@@ -211,7 +212,7 @@ Shell::Shell(ShellDelegate* delegate)
   bool is_panel_fitting_disabled =
       (blacklisted_features & content::GPU_FEATURE_TYPE_PANEL_FITTING) ||
       CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kAshDisablePanelFitting);
+          ::switches::kDisablePanelFitting);
 
   output_configurator_->Init(
       !is_panel_fitting_disabled,
@@ -423,6 +424,10 @@ void Shell::Init() {
   env_filter_.reset(new views::corewm::CompoundEventFilter);
   AddPreTargetHandler(env_filter_.get());
 
+  // Env creates the compositor. Historically it seems to have been implicitly
+  // initialized first by the ActivationController, but now that FocusController
+  // no longer does this we need to do it explicitly.
+  aura::Env::GetInstance();
   if (views::corewm::UseFocusController()) {
     views::corewm::FocusController* focus_controller =
         new views::corewm::FocusController(new wm::AshFocusRules);

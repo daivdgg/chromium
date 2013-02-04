@@ -4,6 +4,7 @@
 
 #include "cc/picture_layer_tiling.h"
 
+#include "base/debug/trace_event.h"
 #include "cc/math_util.h"
 #include "ui/gfx/point_conversions.h"
 #include "ui/gfx/rect_conversions.h"
@@ -13,21 +14,21 @@
 namespace cc {
 
 scoped_ptr<PictureLayerTiling> PictureLayerTiling::Create(
-    float contents_scale,
-    gfx::Size tile_size) {
-  return make_scoped_ptr(new PictureLayerTiling(contents_scale, tile_size));
+    float contents_scale) {
+  return make_scoped_ptr(new PictureLayerTiling(contents_scale));
 }
 
 scoped_ptr<PictureLayerTiling> PictureLayerTiling::Clone() const {
   return make_scoped_ptr(new PictureLayerTiling(*this));
 }
 
-PictureLayerTiling::PictureLayerTiling(float contents_scale,
-                                       gfx::Size tile_size)
+PictureLayerTiling::PictureLayerTiling(float contents_scale)
     : client_(NULL),
       contents_scale_(contents_scale),
-      tiling_data_(tile_size, gfx::Size(), true),
-      resolution_(NON_IDEAL_RESOLUTION) {
+      tiling_data_(gfx::Size(), gfx::Size(), true),
+      resolution_(NON_IDEAL_RESOLUTION),
+      last_source_frame_number_(0),
+      last_impl_frame_time_(0) {
 }
 
 PictureLayerTiling::~PictureLayerTiling() {
@@ -38,9 +39,7 @@ void PictureLayerTiling::SetClient(PictureLayerTilingClient* client) {
 }
 
 gfx::Rect PictureLayerTiling::ContentRect() const {
-  gfx::Size content_bounds =
-      gfx::ToCeiledSize(gfx::ScaleSize(layer_bounds_, contents_scale_));
-  return gfx::Rect(gfx::Point(), content_bounds);
+  return gfx::Rect(tiling_data_.total_size());
 }
 
 gfx::SizeF PictureLayerTiling::ContentSizeF() const {
@@ -85,6 +84,14 @@ void PictureLayerTiling::SetLayerBounds(gfx::Size layer_bounds) {
   if (layer_bounds_.IsEmpty()) {
     tiles_.clear();
     return;
+  }
+
+  gfx::Size tile_size = client_->CalculateTileSize(
+      tiling_data_.max_texture_size(),
+      content_bounds);
+  if (tile_size != tiling_data_.max_texture_size()) {
+    tiling_data_.SetMaxTextureSize(tile_size);
+    tiles_.clear();
   }
 
   // Any tiles outside our new bounds are invalid and should be dropped.
@@ -190,22 +197,21 @@ PictureLayerTiling::Iterator::Iterator(const PictureLayerTiling* tiling,
     return;
 
   float dest_to_content_scale = tiling_->contents_scale_ / dest_scale;
-  dest_to_content_scale_x_ = dest_to_content_scale;
-  dest_to_content_scale_y_ = dest_to_content_scale;
+  // This is the maximum size that the dest rect can be, given the content size.
+  gfx::Size dest_content_size = gfx::ToCeiledSize(gfx::ScaleSize(
+      tiling_->ContentRect().size(),
+      1 / dest_to_content_scale,
+      1 / dest_to_content_scale));
 
-  // Do not draw last row/column of texels if they don't have enough
-  // rasterization coverage. i.e.: the ceiled content size does not equal the
-  // floored size.
-  gfx::SizeF content_size = tiling_->ContentSizeF();
-  gfx::Size content_size_ceil = gfx::ToCeiledSize(content_size);
-  gfx::Size content_size_floor = gfx::ToFlooredSize(content_size);
-
-  if (content_size_floor.width() != content_size_ceil.width())
-    dest_to_content_scale_x_ = dest_to_content_scale *
-        content_size_floor.width() / content_size_ceil.width();
-  if (content_size_floor.height() != content_size_ceil.height())
-    dest_to_content_scale_y_ = dest_to_content_scale *
-        content_size_floor.height() /content_size_ceil.height();
+  // The last row/column of texels may not have full rasterization coverage,
+  // which can happen if the ceiled content size does not equal the floored
+  // content size.  These texels will sample outside of the recording to
+  // generate their pixels.  Use the floored size here to ignore them.
+  gfx::Size content_size_floor = gfx::ToFlooredSize(tiling->ContentSizeF());
+  dest_to_content_scale_x_ = content_size_floor.width() /
+      static_cast<float>(dest_content_size.width());
+  dest_to_content_scale_y_ = content_size_floor.height() /
+      static_cast<float>(dest_content_size.height());
 
   gfx::Rect content_rect =
       gfx::ToEnclosingRect(gfx::ScaleRect(dest_rect_,
@@ -297,6 +303,12 @@ gfx::Rect PictureLayerTiling::Iterator::geometry_rect() const {
   return current_geometry_rect_;
 }
 
+gfx::Rect PictureLayerTiling::Iterator::full_tile_geometry_rect() const {
+  gfx::Rect rect = tiling_->tiling_data_.TileBoundsWithBorder(tile_i_, tile_j_);
+  rect.set_size(tiling_->tiling_data_.max_texture_size());
+  return rect;
+}
+
 gfx::RectF PictureLayerTiling::Iterator::texture_rect() const {
   gfx::PointF tex_origin =
       tiling_->tiling_data_.TileBoundsWithBorder(tile_i_, tile_j_).origin();
@@ -306,11 +318,7 @@ gfx::RectF PictureLayerTiling::Iterator::texture_rect() const {
   texture_rect.Scale(dest_to_content_scale_x_,
                      dest_to_content_scale_y_);
   texture_rect.Offset(-tex_origin.OffsetFromOrigin());
-
-  DCHECK_GE(texture_rect.x(), 0);
-  DCHECK_GE(texture_rect.y(), 0);
-  DCHECK_LE(texture_rect.right(), texture_size().width());
-  DCHECK_LE(texture_rect.bottom(), texture_size().height());
+  texture_rect.Intersect(tiling_->ContentRect());
 
   return texture_rect;
 }
@@ -323,14 +331,43 @@ void PictureLayerTiling::UpdateTilePriorities(
     WhichTree tree,
     const gfx::Size& device_viewport,
     const gfx::RectF viewport_in_layer_space,
+    gfx::Size last_layer_bounds,
+    gfx::Size current_layer_bounds,
+    gfx::Size last_layer_content_bounds,
+    gfx::Size current_layer_content_bounds,
     float last_layer_contents_scale,
     float current_layer_contents_scale,
     const gfx::Transform& last_screen_transform,
     const gfx::Transform& current_screen_transform,
-    double time_delta) {
-  gfx::Rect content_rect = ContentRect();
-  if (content_rect.IsEmpty())
+    int current_source_frame_number,
+    double current_frame_time) {
+  TRACE_EVENT0("cc", "PictureLayerTiling::UpdateTilePriorities");
+  if (ContentRect().IsEmpty())
     return;
+
+  bool first_update_in_new_source_frame =
+      current_source_frame_number != last_source_frame_number_;
+
+  bool first_update_in_new_impl_frame =
+      current_frame_time != last_impl_frame_time_;
+
+  // In pending tree, this is always called. We update priorities:
+  // - Immediately after a commit (first_update_in_new_source_frame).
+  // - On animation ticks after the first frame in the tree
+  //   (first_update_in_new_impl_frame).
+  // In active tree, this is only called during draw. We update priorities:
+  // - On draw if properties were not already computed by the pending tree
+  //   and activated for the frame (first_update_in_new_impl_frame).
+  if (!first_update_in_new_impl_frame && !first_update_in_new_source_frame)
+    return;
+
+  double time_delta = 0;
+  if (last_impl_frame_time_ != 0 &&
+      last_layer_bounds == current_layer_bounds &&
+      last_layer_content_bounds == current_layer_content_bounds &&
+      last_layer_contents_scale == current_layer_contents_scale) {
+    time_delta = current_frame_time - last_impl_frame_time_;
+  }
 
   gfx::Rect viewport_in_content_space =
       gfx::ToEnclosingRect(gfx::ScaleRect(viewport_in_layer_space,
@@ -394,12 +431,12 @@ void PictureLayerTiling::UpdateTilePriorities(
           last_scale,
           last_scale) + last_offset;
 
-      float time_to_visible_in_seconds =
-          TilePriority::TimeForBoundsToIntersect(
-              last_screen_rect, current_screen_rect, time_delta, view_rect);
       float distance_to_visible_in_pixels =
           TilePriority::manhattanDistance(current_screen_rect, view_rect);
 
+      float time_to_visible_in_seconds =
+          TilePriority::TimeForBoundsToIntersect(
+              last_screen_rect, current_screen_rect, time_delta, view_rect);
       TilePriority priority(
           resolution_,
           time_to_visible_in_seconds,
@@ -431,11 +468,12 @@ void PictureLayerTiling::UpdateTilePriorities(
       gfx::RectF last_screen_rect  = MathUtil::mapClippedRect(
           last_screen_transform, last_layer_content_rect);
 
+      float distance_to_visible_in_pixels =
+          TilePriority::manhattanDistance(current_screen_rect, view_rect);
+
       float time_to_visible_in_seconds =
           TilePriority::TimeForBoundsToIntersect(
               last_screen_rect, current_screen_rect, time_delta, view_rect);
-      float distance_to_visible_in_pixels =
-          TilePriority::manhattanDistance(current_screen_rect, view_rect);
 
       TilePriority priority(
           resolution_,
@@ -444,6 +482,9 @@ void PictureLayerTiling::UpdateTilePriorities(
       tile->set_priority(tree, priority);
     }
   }
+
+  last_source_frame_number_ = current_source_frame_number;
+  last_impl_frame_time_ = current_frame_time;
 }
 
 void PictureLayerTiling::DidBecomeActive() {

@@ -1166,7 +1166,7 @@ string16 LauncherView::GetAccessibleName(const views::View* view) {
           l10n_util::GetStringUTF16(IDS_AURA_APP_LIST_TITLE);
 
     case TYPE_BROWSER_SHORTCUT:
-      return l10n_util::GetStringUTF16(IDS_AURA_NEW_TAB);
+      return Shell::GetInstance()->delegate()->GetProductName();
   }
   return string16();
 }
@@ -1241,7 +1241,7 @@ void LauncherView::ButtonPressed(views::Button* sender,
       case TYPE_APP_PANEL:
       case TYPE_APP_SHORTCUT:
       case TYPE_PLATFORM_APP:
-        delegate_->ItemClicked(model_->items()[view_index], event.flags());
+        delegate_->ItemClicked(model_->items()[view_index], event);
         break;
       case TYPE_APP_LIST:
         Shell::GetInstance()->ToggleAppList(GetWidget()->GetNativeView());
@@ -1266,7 +1266,7 @@ bool LauncherView::ShowListMenuForView(const LauncherItem& item,
   if (!menu_model.get() || menu_model->GetItemCount() <= 1)
     return false;
 
-  ShowMenu(menu_model.get(), source, false);
+  ShowMenu(menu_model.get(), source, gfx::Point(), false);
   return true;
 }
 
@@ -1291,11 +1291,12 @@ void LauncherView::ShowContextMenuForView(views::View* source,
       &context_menu_id_,
       view_index == -1 ? 0 : model_->items()[view_index].id);
 
-  ShowMenu(menu_model.get(), source, true);
+  ShowMenu(menu_model.get(), source, point, true);
 }
 
 void LauncherView::ShowMenu(ui::MenuModel* menu_model,
                             views::View* source,
+                            const gfx::Point& click_point,
                             bool context_menu) {
   launcher_menu_runner_.reset();
   scoped_ptr<views::MenuModelAdapter> menu_model_adapter;
@@ -1310,26 +1311,28 @@ void LauncherView::ShowMenu(ui::MenuModel* menu_model,
   // Determine the menu alignment dependent on the shelf.
   views::MenuItemView::AnchorPosition menu_alignment =
       views::MenuItemView::TOPLEFT;
+  gfx::Rect anchor_point = gfx::Rect(click_point, gfx::Size());
 
-  ash::ShelfAlignment align = RootWindowController::ForLauncher(
-      GetWidget()->GetNativeView())->shelf()->GetAlignment();
-
-  switch (align) {
-    case ash::SHELF_ALIGNMENT_BOTTOM:
-      menu_alignment = views::MenuItemView::BUBBLE_ABOVE;
-      break;
-    case ash::SHELF_ALIGNMENT_LEFT:
-      menu_alignment = views::MenuItemView::BUBBLE_RIGHT;
-      break;
-    case ash::SHELF_ALIGNMENT_RIGHT:
-      menu_alignment = views::MenuItemView::BUBBLE_LEFT;
-      break;
-    case ash::SHELF_ALIGNMENT_TOP:
-      menu_alignment = views::MenuItemView::BUBBLE_BELOW;
-      break;
+  if (!context_menu) {
+    // Application lists use a bubble.
+    ash::ShelfAlignment align = RootWindowController::ForLauncher(
+        GetWidget()->GetNativeView())->shelf()->GetAlignment();
+    anchor_point = source->GetBoundsInScreen();
+    switch (align) {
+      case ash::SHELF_ALIGNMENT_BOTTOM:
+        menu_alignment = views::MenuItemView::BUBBLE_ABOVE;
+        break;
+      case ash::SHELF_ALIGNMENT_LEFT:
+        menu_alignment = views::MenuItemView::BUBBLE_RIGHT;
+        break;
+      case ash::SHELF_ALIGNMENT_RIGHT:
+        menu_alignment = views::MenuItemView::BUBBLE_LEFT;
+        break;
+      case ash::SHELF_ALIGNMENT_TOP:
+        menu_alignment = views::MenuItemView::BUBBLE_BELOW;
+        break;
+    }
   }
-  const gfx::Rect anchor_point = source->GetBoundsInScreen();
-
   // NOTE: if you convert to HAS_MNEMONICS be sure and update menu building
   // code.
   if (launcher_menu_runner_->RunMenuAt(

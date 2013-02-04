@@ -54,6 +54,7 @@ void DummyDriveService::GetAccountMetadata(
 void DummyDriveService::GetAppList(const GetAppListCallback& callback) {}
 
 void DummyDriveService::DeleteResource(const std::string& resource_id,
+                                       const std::string& etag,
                                        const EntryActionCallback& callback) {}
 
 void DummyDriveService::DownloadFile(
@@ -74,7 +75,7 @@ void DummyDriveService::RenameResource(const std::string& resource_id,
 
 void DummyDriveService::AddResourceToDirectory(
     const std::string& parent_resource_id,
-    const GURL& edit_url,
+    const std::string& resource_id,
     const EntryActionCallback& callback) {}
 
 void DummyDriveService::RemoveResourceFromDirectory(

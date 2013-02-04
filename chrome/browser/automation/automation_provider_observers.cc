@@ -54,6 +54,7 @@
 #include "chrome/browser/sessions/tab_restore_service.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_iterator.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/find_bar/find_notification_details.h"
@@ -68,6 +69,7 @@
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/content_settings_types.h"
 #include "chrome/common/extensions/extension.h"
+#include "chrome/common/extensions/manifest.h"
 #include "chrome/common/view_type.h"
 #include "content/public/browser/dom_operation_notification_details.h"
 #include "content/public/browser/navigation_controller.h"
@@ -630,9 +632,9 @@ void ExtensionReadyNotificationObserver::Observe(
       const extensions::Extension* loaded_extension =
           content::Details<const extensions::Extension>(details).ptr();
       // Only track an internal or unpacked extension load.
-      extensions::Extension::Location location = loaded_extension->location();
-      if (location != extensions::Extension::INTERNAL &&
-          location != extensions::Extension::LOAD)
+      extensions::Manifest::Location location = loaded_extension->location();
+      if (location != extensions::Manifest::INTERNAL &&
+          location != extensions::Manifest::LOAD)
         return;
       extension_ = loaded_extension;
       if (!DidExtensionViewsStopLoading(manager_))
@@ -1875,7 +1877,7 @@ std::vector<DictionaryValue*>* GetAppInfoFromExtensions(
       DictionaryValue* app_info = new DictionaryValue();
       AppLauncherHandler::CreateAppInfo(*ext, NULL, ext_service, app_info);
       app_info->SetBoolean("is_component_extension",
-          (*ext)->location() == extensions::Extension::COMPONENT);
+          (*ext)->location() == extensions::Manifest::COMPONENT);
 
       // Convert the launch_type integer into a more descriptive string.
       int launch_type;
@@ -2320,10 +2322,8 @@ AllViewsStoppedLoadingObserver::AllViewsStoppedLoadingObserver(
   registrar_.Add(this,
                  content::NOTIFICATION_LOAD_STOP,
                  content::NotificationService::AllSources());
-  for (BrowserList::const_iterator iter = BrowserList::begin();
-       iter != BrowserList::end();
-       ++iter) {
-    Browser* browser = *iter;
+  for (chrome::BrowserIterator it; !it.done(); it.Next()) {
+    Browser* browser = *it;
     for (int i = 0; i < browser->tab_strip_model()->count(); ++i) {
       WebContents* web_contents =
           browser->tab_strip_model()->GetWebContentsAt(i);

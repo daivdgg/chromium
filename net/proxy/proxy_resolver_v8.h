@@ -10,6 +10,10 @@
 #include "net/base/net_export.h"
 #include "net/proxy/proxy_resolver.h"
 
+namespace v8 {
+class Isolate;
+}  // namespace v8
+
 namespace net {
 
 // Implementation of ProxyResolver that uses V8 to evaluate PAC scripts.
@@ -45,8 +49,6 @@ class NET_EXPORT_PRIVATE ProxyResolverV8 : public ProxyResolver {
 
     JSBindings() {}
 
-    virtual ~JSBindings() {}
-
     // Handler for "dnsResolve()", "dnsResolveEx()", "myIpAddress()",
     // "myIpAddressEx()". Returns true on success and fills |*output| with the
     // result.
@@ -60,6 +62,9 @@ class NET_EXPORT_PRIVATE ProxyResolverV8 : public ProxyResolver {
     // Handler for when an error is encountered. |line_number| may be -1
     // if a line number is not applicable to this error.
     virtual void OnError(int line_number, const string16& error) = 0;
+
+   protected:
+    virtual ~JSBindings() {}
   };
 
   // Constructs a ProxyResolverV8.
@@ -84,7 +89,14 @@ class NET_EXPORT_PRIVATE ProxyResolverV8 : public ProxyResolver {
       const scoped_refptr<ProxyResolverScriptData>& script_data,
       const net::CompletionCallback& /*callback*/) OVERRIDE;
 
+  // Remember the default Isolate, must be called from the main thread. This
+  // hack can be removed when the "default Isolate" concept is gone.
+  static void RememberDefaultIsolate();
+  static v8::Isolate* GetDefaultIsolate();
+
  private:
+  static v8::Isolate* g_default_isolate_;
+
   // Context holds the Javascript state for the most recently loaded PAC
   // script. It corresponds with the data from the last call to
   // SetPacScript().

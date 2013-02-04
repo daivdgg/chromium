@@ -15,11 +15,8 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_type.h"
 
+class SkBitmap;
 struct ViewHostMsg_FrameNavigate_Params;
-
-namespace skia {
-class PlatformBitmap;
-}
 
 namespace content {
 class NavigationEntryImpl;
@@ -325,17 +322,20 @@ class CONTENT_EXPORT NavigationControllerImpl
   // The callback invoked when taking the screenshot of the page is complete.
   // This sets the screenshot on the navigation entry.
   void OnScreenshotTaken(int unique_id,
-                         skia::PlatformBitmap* bitmap,
-                         bool success);
+                         bool success,
+                         const SkBitmap& bitmap);
 
-  // Removes the screenshot for the entry (and updates the count as
-  // appropriate).
-  void ClearScreenshot(NavigationEntryImpl* entry);
+  // Removes the screenshot for the entry, returning true if the entry had a
+  // screenshot.
+  bool ClearScreenshot(NavigationEntryImpl* entry);
 
   // The screenshots in the NavigationEntryImpls can accumulate and consume a
   // large amount of memory. This function makes sure that the memory
   // consumption is within a certain limit.
   void PurgeScreenshotsIfNecessary();
+
+  // Returns the number of entries with screenshots.
+  int GetScreenshotCount() const;
 
   // ---------------------------------------------------------------------------
 
@@ -410,10 +410,6 @@ class CONTENT_EXPORT NavigationControllerImpl
   // A callback that gets called before taking the screenshot of the page. This
   // is used only for testing.
   base::Callback<void(RenderViewHost*)> take_screenshot_callback_;
-
-  // Keeps track of the number of the number of NavigationEntryImpls that have
-  // screenshots.
-  int screenshot_count_;
 
   // Used to smooth out timestamps from |get_timestamp_callback_|.
   // Without this, whenever there is a run of redirects or

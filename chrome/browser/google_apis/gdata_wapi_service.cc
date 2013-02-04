@@ -18,8 +18,8 @@
 #include "chrome/browser/google_apis/gdata_wapi_url_generator.h"
 #include "chrome/browser/google_apis/operation_runner.h"
 #include "chrome/browser/google_apis/time_util.h"
-#include "chrome/common/net/url_util.h"
 #include "content/public/browser/browser_thread.h"
+#include "net/base/url_util.h"
 
 using content::BrowserThread;
 
@@ -312,6 +312,7 @@ void GDataWapiService::DownloadFile(
 
 void GDataWapiService::DeleteResource(
     const std::string& resource_id,
+    const std::string& etag,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -321,7 +322,8 @@ void GDataWapiService::DeleteResource(
                                   url_request_context_getter_,
                                   url_generator_,
                                   callback,
-                                  resource_id));
+                                  resource_id,
+                                  etag));
 }
 
 void GDataWapiService::AddNewDirectory(
@@ -376,7 +378,7 @@ void GDataWapiService::RenameResource(
 
 void GDataWapiService::AddResourceToDirectory(
     const std::string& parent_resource_id,
-    const GURL& edit_url,
+    const std::string& resource_id,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -387,7 +389,7 @@ void GDataWapiService::AddResourceToDirectory(
                                           url_generator_,
                                           callback,
                                           parent_resource_id,
-                                          edit_url));
+                                          resource_id));
 }
 
 void GDataWapiService::RemoveResourceFromDirectory(

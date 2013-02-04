@@ -151,8 +151,6 @@ const char kChromeUIFaviconHost[] = "favicon";
 const char kChromeUIFeedbackHost[] = "feedback";
 const char kChromeUIFlagsHost[] = "flags";
 const char kChromeUIFlashHost[] = "flash";
-const char kChromeUIGpuHost[] = "gpu";
-const char kChromeUIGpuInternalsHost[] = "gpu-internals";
 const char kChromeUIHangHost[] = "hang";
 const char kChromeUIHelpFrameHost[] = "help-frame";
 const char kChromeUIHelpHost[] = "help";
@@ -164,12 +162,12 @@ const char kChromeUIIPCHost[] = "ipc";
 const char kChromeUIKeyboardHost[] = "keyboard";
 const char kChromeUIKillHost[] = "kill";
 const char kChromeUILocalOmniboxPopupHost[] = "local-omnibox-popup";
-const char kChromeUIMediaInternalsHost[] = "media-internals";
 const char kChromeUIMemoryHost[] = "memory";
 const char kChromeUIMemoryInternalsHost[] = "memory-internals";
 const char kChromeUIMemoryRedirectHost[] = "memory-redirect";
 const char kChromeUIMetroFlowHost[] = "make-metro";
 const char kChromeUINaClHost[] = "nacl";
+const char kChromeUINetExportHost[] = "net-export";
 const char kChromeUINetInternalsHost[] = "net-internals";
 const char kChromeUINewTabHost[] = "newtab";
 const char kChromeUIOmniboxHost[] = "omnibox";
@@ -197,7 +195,6 @@ const char kChromeUITermsHost[] = "terms";
 const char kChromeUIThemeHost[] = "theme";
 const char kChromeUIThumbnailHost[] = "thumb";
 const char kChromeUITouchIconHost[] = "touch-icon";
-const char kChromeUITracingHost[] = "tracing";
 const char kChromeUIUberFrameHost[] = "uber-frame";
 const char kChromeUIUberHost[] = "chrome";
 const char kChromeUIUserActionsHost[] = "user-actions";
@@ -510,6 +507,8 @@ const int kNumberOfChromeDebugURLs =
     static_cast<int>(arraysize(kChromeDebugURLs));
 
 const char kExtensionResourceScheme[] = "chrome-extension-resource";
+
+const char kChromeSearchScheme[] = "chrome-search";
 
 // Google SafeSearch query parameters.
 const char kSafeSearchSafeParameter[] = "safe=active";

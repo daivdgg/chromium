@@ -57,6 +57,7 @@
 #include "content/browser/in_process_webkit/indexed_db_context_impl.h"
 #include "content/browser/in_process_webkit/indexed_db_dispatcher_host.h"
 #include "content/browser/loader/resource_message_filter.h"
+#include "content/browser/media/media_internals.h"
 #include "content/browser/mime_registry_message_filter.h"
 #include "content/browser/plugin_service_impl.h"
 #include "content/browser/profiler_message_filter.h"
@@ -84,7 +85,7 @@
 #include "content/browser/storage_partition_impl.h"
 #include "content/browser/speech/input_tag_speech_dispatcher_host.h"
 #include "content/browser/speech/speech_recognition_dispatcher_host.h"
-#include "content/browser/trace_message_filter.h"
+#include "content/browser/tracing/trace_message_filter.h"
 #include "content/browser/webui/web_ui_controller_factory_registry.h"
 #include "content/browser/worker_host/worker_storage_partition.h"
 #include "content/browser/worker_host/worker_message_filter.h"
@@ -481,8 +482,7 @@ bool RenderProcessHostImpl::Init() {
 
 void RenderProcessHostImpl::CreateMessageFilters() {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
-  MediaObserver* media_observer =
-      GetContentClient()->browser()->GetMediaObserver();
+  MediaInternals* media_internals = MediaInternals::GetInstance();;
   // Add BrowserPluginMessageFilter to ensure it gets the first stab at messages
   // from guests.
   if (IsGuest()) {
@@ -504,7 +504,7 @@ void RenderProcessHostImpl::CreateMessageFilters() {
           GetBrowserContext(),
           GetBrowserContext()->GetRequestContextForRenderProcess(GetID()),
           widget_helper_,
-          media_observer,
+          media_internals,
           storage_partition_impl_->GetDOMStorageContext()));
   channel_->AddFilter(render_message_filter);
   BrowserContext* browser_context = GetBrowserContext();
@@ -525,7 +525,7 @@ void RenderProcessHostImpl::CreateMessageFilters() {
                                                  media_stream_manager));
   channel_->AddFilter(new AudioRendererHost(
       GetID(), audio_manager, BrowserMainLoop::GetAudioMirroringManager(),
-      media_observer));
+      media_internals));
   channel_->AddFilter(new VideoCaptureHost());
   channel_->AddFilter(new AppCacheDispatcherHost(
       storage_partition_impl_->GetAppCacheService(),
@@ -758,6 +758,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kDisableSpeechInput,
 #if defined(OS_ANDROID)
     switches::kEnableWebAudio,
+    switches::kEnableWebRTC,
 #else
     switches::kDisableWebAudio,
 #endif
@@ -767,9 +768,8 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kEnableAccessibilityLogging,
     switches::kEnableBrowserPluginCompositing,
     switches::kEnableBrowserPluginForAllViewTypes,
-    switches::kEnableCssTransformPinch,
     switches::kEnableDCHECK,
-    switches::kEnableEncryptedMedia,
+    switches::kDisableEncryptedMedia,
     switches::kEnableExperimentalWebKitFeatures,
     switches::kEnableFixedLayout,
     switches::kEnableDeferredImageDecoding,
@@ -1160,8 +1160,6 @@ void RenderProcessHostImpl::Cleanup() {
         NOTIFICATION_RENDERER_PROCESS_TERMINATED,
         Source<RenderProcessHost>(this),
         NotificationService::NoDetails());
-
-    GetContentClient()->browser()->RenderProcessHostDeleted(this);
 
     MessageLoop::current()->DeleteSoon(FROM_HERE, this);
     deleting_soon_ = true;

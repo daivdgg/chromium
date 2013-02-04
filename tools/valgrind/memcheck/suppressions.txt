@@ -6101,7 +6101,7 @@
    Memcheck:Leak
    fun:_Znw*
    fun:_ZN4dbus8Response14FromMethodCallEPNS_10MethodCallE
-   fun:_ZN8chromeos4ibus20IBusPanelServiceImpl*
+   fun:_ZN8chromeos20IBusPanelServiceImpl*
 }
 {
    bug_163922
@@ -6212,13 +6212,6 @@
    fun:_ZN11dom_storage14DomStorageAreaC1ERK4GURLRK8FilePathPNS_20DomStorageTaskRunnerE
    fun:_ZN11dom_storage19DomStorageNamespace24DeleteLocalStorageOriginERK4GURL
    fun:_ZN11dom_storage17DomStorageContext18DeleteLocalStorageERK4GURL
-}
-{
-   bug_166584
-   Memcheck:Uninitialized
-   fun:_ZN7testing8internal11CmpHelperEQIjjEENS_15AssertionResultEPKcS4_RKT_RKT0_
-   fun:_ZN7testing8internal8EqHelperILb0EE7CompareIjjEENS_15AssertionResultEPKcS6_RKT_RKT0_
-   fun:_ZN39SkBitmapOperationsTest_RotateImage_Test8TestBodyEv
 }
 {
    bug_166709
@@ -6496,23 +6489,6 @@
    fun:_ZN9TestShell10initializeEv
 }
 {
-   bug_172282
-   Memcheck:Leak
-   fun:_Znw*
-   fun:_ZN4base8internal20PostTaskAndReplyImpl16PostTaskAndReplyERKN15tracked_objects8LocationERKNS_8CallbackIFvvEEESA_
-   fun:_ZN4base10TaskRunner16PostTaskAndReplyERKN15tracked_objects8LocationERKNS_8CallbackIFvvEEES9_
-   fun:_ZN4base26PostTaskAndReplyWithResultIbbEEbPNS_10TaskRunnerERKN15tracked_objects8LocationERKNS_8CallbackIFT_vEEERKNS7_IFvT0_EEE
-   fun:_ZN5drive10DriveCache17RequestInitializeERKN4base8CallbackIFvbEEE
-   fun:_ZN5drive18DriveSystemService10InitializeEv
-   fun:_ZNK5drive25DriveSystemServiceFactory23BuildServiceInstanceForEP7Profile
-   fun:_ZN26ProfileKeyedServiceFactory20GetServiceForProfileEP7Profileb
-   fun:_ZN5drive25DriveSystemServiceFactory31GetForProfileRegardlessOfStatesEP7Profile
-   fun:_ZN5drive25DriveSystemServiceFactory13GetForProfileEP7Profile
-   fun:_ZN5drive20DriveDownloadHandler13GetForProfileEP7Profile
-   fun:_ZN29ChromeDownloadManagerDelegate30CheckVisitedReferrerBeforeDoneEiRKN4base8CallbackIFvRK8FilePathN7content12DownloadItem17TargetDispositionENS5_18DownloadDangerTypeES4_EEES8_b
-   fun:_ZN29ChromeDownloadManagerDelegate20CheckDownloadUrlDoneEiRKN4base8CallbackIFvRK8FilePathN7content12DownloadItem17TargetDispositionENS5_18DownloadDangerTypeES4_EEEN13safe_browsing25DownloadProtectionService19DownloadCheckResultE
-}
-{
    bug_172695
    Memcheck:Leak
    fun:_Znw*
@@ -6581,4 +6557,11 @@
    fun:_ZN7WebCore21GraphicsLayerChromium10setFiltersERKNS_16FilterOperationsE
    fun:_ZN7WebCore18RenderLayerBacking13updateFiltersEPKNS_11RenderStyleE
    fun:_ZN7WebCore18RenderLayerBacking*GraphicsLayer*
+}
+{
+   bug_173356
+   Memcheck:Overlap
+   fun:memcpy
+   fun:_ZN3gpu5gles2*Immediate4InitE*
+   fun:_ZN3gpu5gles2*GLES2ImplementationTest_*_Test8TestBodyEv
 }

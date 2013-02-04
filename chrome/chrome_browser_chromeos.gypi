@@ -57,11 +57,7 @@
         '../ppapi/ppapi_internal.gyp:ppapi_ipc',  # For PpapiMsg_LoadPlugin
         '../printing/printing.gyp:printing',
         '../skia/skia.gyp:skia',
-        '../sync/protocol/sync_proto.gyp:sync_proto',
-        # TODO(akalin): Depend only on sync_api from sync.
-        '../sync/sync.gyp:sync_api',
-        '../sync/sync.gyp:sync_internal_api',
-        '../sync/sync.gyp:sync_notifier',
+        '../sync/sync.gyp:sync',
         '../third_party/adobe/flash/flash_player.gyp:flapper_version_h',
         '../third_party/bzip2/bzip2.gyp:bzip2',
         '../third_party/cacheinvalidation/cacheinvalidation.gyp:cacheinvalidation',
@@ -104,7 +100,7 @@
         ],
       },
       'export_dependent_settings': [
-        '../sync/sync.gyp:sync_notifier',
+        '../sync/sync.gyp:sync',
       ],
       'sources': [
         # All .cc, .h, .m, and .mm files unde browser/chromeos, except for tests
@@ -252,6 +248,8 @@
         'browser/chromeos/drive/file_write_helper.h',
         'browser/chromeos/drive/resource_entry_conversion.cc',
         'browser/chromeos/drive/resource_entry_conversion.h',
+        'browser/chromeos/drive/search_metadata.cc',
+        'browser/chromeos/drive/search_metadata.h',
         'browser/chromeos/drive/stale_cache_files_remover.cc',
         'browser/chromeos/drive/stale_cache_files_remover.h',
         'browser/chromeos/enrollment_dialog_view.cc',
@@ -318,8 +316,6 @@
         'browser/chromeos/input_method/input_method_engine_ibus.h',
         'browser/chromeos/input_method/ibus_keymap.cc',
         'browser/chromeos/input_method/ibus_keymap.h',
-        'browser/chromeos/input_method/ibus_ui_controller.cc',
-        'browser/chromeos/input_method/ibus_ui_controller.h',
         'browser/chromeos/input_method/input_method_config.cc',
         'browser/chromeos/input_method/input_method_config.h',
         'browser/chromeos/input_method/input_method_configuration.cc',
@@ -582,6 +578,8 @@
         'browser/chromeos/proxy_config_service_impl.h',
         'browser/chromeos/proxy_cros_settings_parser.cc',
         'browser/chromeos/proxy_cros_settings_parser.h',
+        'browser/chromeos/screensaver/screensaver_controller.cc',
+        'browser/chromeos/screensaver/screensaver_controller.h',
         'browser/chromeos/settings/cros_settings.cc',
         'browser/chromeos/settings/cros_settings.h',
         'browser/chromeos/settings/cros_settings_names.cc',
@@ -646,6 +644,8 @@
         'browser/chromeos/system_logs/network_event_log_source.h',
         'browser/chromeos/system_logs/system_logs_fetcher.cc',
         'browser/chromeos/system_logs/system_logs_fetcher.h',
+        'browser/chromeos/system_logs/touch_log_source.cc',
+        'browser/chromeos/system_logs/touch_log_source.h',
         'browser/chromeos/ui/idle_logout_dialog_view.cc',
         'browser/chromeos/ui/idle_logout_dialog_view.h',
         'browser/chromeos/upgrade_detector_chromeos.cc',

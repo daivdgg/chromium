@@ -107,6 +107,9 @@
         # Android build system, value 1).
         'android_build_type%': 0,
 
+        # Sets whether chrome is built for google tv device.
+        'google_tv%': 0,
+
         'conditions': [
           # Set default value of toolkit_views based on OS.
           ['OS=="win" or chromeos==1 or use_aura==1', {
@@ -151,6 +154,13 @@
           }, {
             'use_default_render_theme%': 0,
           }],
+
+          ['OS!="android" and OS!="ios"', {
+            # Enable Web Intents support in WebKit.
+            'enable_web_intents%': '1',
+          }, {
+            'enable_web_intents%': '0',
+          }],
         ],
       },
 
@@ -167,9 +177,11 @@
       'enable_hidpi%': '<(enable_hidpi)',
       'enable_touch_ui%': '<(enable_touch_ui)',
       'android_build_type%': '<(android_build_type)',
+      'google_tv%': '<(google_tv)',
       'enable_app_list%': '<(enable_app_list)',
       'enable_message_center%': '<(enable_message_center)',
       'use_default_render_theme%': '<(use_default_render_theme)',
+      'enable_web_intents%': '<(enable_web_intents)',
       'buildtype%': '<(buildtype)',
 
       # We used to provide a variable for changing how libraries were built.
@@ -299,9 +311,6 @@
 
       # Whether one-click signin is enabled or not.
       'enable_one_click_signin%': 0,
-
-      # Enable Web Intents support in WebKit.
-      'enable_web_intents%': 1,
 
       # Enable Chrome browser extensions
       'enable_extensions%': 1,
@@ -540,7 +549,7 @@
           'enable_plugin_installation%': 1,
         }],
 
-        ['OS=="android" or OS=="ios"', {
+        ['(OS=="android" and google_tv!=1) or OS=="ios"', {
           'enable_plugins%': 0,
         }, {
           'enable_plugins%': 1,
@@ -614,6 +623,10 @@
           # incorrect results when passed to pkg-config
           'sysroot%': '<!(cd <(DEPTH) && pwd -P)/arm-sysroot',
         }], # OS=="linux" and target_arch=="arm" and chromeos==0
+
+        ['target_arch=="mipsel"', {
+          'sysroot': '<!(cd <(DEPTH) && pwd -P)/native_client/toolchain/linux_mips-trusted/sysroot',
+        }],
       ],
 
       # Set this to 1 to use the Google-internal file containing
@@ -706,7 +719,6 @@
     'order_profiling%': '<(order_profiling)',
     'order_text_section%': '<(order_text_section)',
     'enable_extensions%': '<(enable_extensions)',
-    'enable_web_intents%': '<(enable_web_intents)',
     'enable_web_intents_tag%': '<(enable_web_intents_tag)',
     'enable_plugin_installation%': '<(enable_plugin_installation)',
     'enable_plugins%': '<(enable_plugins)',
@@ -732,9 +744,11 @@
     'use_libjpeg_turbo%': '<(use_libjpeg_turbo)',
     'use_system_libjpeg%': '<(use_system_libjpeg)',
     'android_build_type%': '<(android_build_type)',
+    'google_tv%': '<(google_tv)',
     'enable_app_list%': '<(enable_app_list)',
     'enable_message_center%': '<(enable_message_center)',
     'use_default_render_theme%': '<(use_default_render_theme)',
+    'enable_web_intents%': '<(enable_web_intents)',
     'enable_settings_app%': '<(enable_settings_app)',
     'use_official_google_api_keys%': '<(use_official_google_api_keys)',
     'google_api_key%': '<(google_api_key)',
@@ -1031,6 +1045,16 @@
           }, {
             'gcc_version%': 0,
           }],
+          ['target_arch=="mipsel"', {
+            'werror%': '',
+            'disable_nacl%': 1,
+            'linux_use_gold_binary%': 0,
+            'linux_use_gold_flags%': 0,
+            'nacl_untrusted_build%': 0,
+            'linux_use_tcmalloc%': 0,
+            'linux_breakpad%': 0,
+            'sysroot%': '<(sysroot)',
+          }],
           # All Chrome builds have breakpad symbols, but only process the
           # symbols from official builds.
           ['(branding=="Chrome" and buildtype=="Official")', {
@@ -1145,7 +1169,6 @@
         'safe_browsing%': 2,
         'configuration_policy%': 0,
         'input_speech%': 0,
-        'enable_web_intents%': 0,
         'enable_automation%': 0,
         'java_bridge%': 1,
         'build_ffmpegsumo%': 0,
@@ -1296,8 +1319,9 @@
         'use_cups%': 0,
       }],
 
-      # Native Client glibc toolchain is enabled by default except on arm.
-      ['target_arch=="arm"', {
+      # Native Client glibc toolchain is enabled
+      # by default except on arm and mips.
+      ['target_arch=="arm" or target_arch=="mipsel"', {
         'disable_glibc%': 1,
       }, {
         'disable_glibc%': 0,
@@ -1691,6 +1715,9 @@
       }],
       ['chromeos==1', {
         'defines': ['OS_CHROMEOS=1'],
+      }],
+      ['google_tv==1', {
+        'defines': ['GOOGLE_TV=1'],
       }],
       ['use_xi2_mt!=0', {
         'defines': ['USE_XI2_MT=<(use_xi2_mt)'],
@@ -2375,15 +2402,22 @@
   'conditions': [
     ['os_posix==1', {
       'target_defaults': {
-        'cflags': [
-          # TODO(phajdan.jr): Use -fstack-protector-strong when our gcc
-          # supports it.
-          '-fstack-protector',
-          '--param=ssp-buffer-size=4',
-        ],
         'ldflags': [
           '-Wl,-z,now',
           '-Wl,-z,relro',
+        ],
+      },
+    }],
+    ['os_posix==1 and chromeos==0', {
+      # Chrome OS enables -fstack-protector-strong via its build wrapper,
+      # and we want to avoid overriding this, so stack-protector is only
+      # enabled when not building on Chrome OS.
+      # TODO(phajdan.jr): Use -fstack-protector-strong when our gcc
+      # supports it.
+      'target_defaults': {
+        'cflags': [
+          '-fstack-protector',
+          '--param=ssp-buffer-size=4',
         ],
       },
     }],
@@ -3935,6 +3969,16 @@
         ['CC.host', '<!(/bin/echo -n ${ANDROID_GOMA_WRAPPER} <!(which gcc))'],
         ['CXX.host', '<!(/bin/echo -n ${ANDROID_GOMA_WRAPPER} <!(which g++))'],
         ['LINK.host', '<!(/bin/echo -n ${ANDROID_GOMA_WRAPPER} <!(which g++))'],
+      ],
+    }],
+    ['target_arch=="mipsel"', {
+      'make_global_settings': [
+        ['CC', '<(sysroot)/../bin/mipsel-linux-gnu-gcc'],
+        ['CXX', '<(sysroot)/../bin/mipsel-linux-gnu-g++'],
+        ['LINK', '$(CXX)'],
+        ['CC.host', '<!(which gcc)'],
+        ['CXX.host', '<!(which g++)'],
+        ['LINK.host', '<!(which g++)'],
       ],
     }],
   ],

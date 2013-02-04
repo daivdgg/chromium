@@ -10,9 +10,9 @@
 #include "chrome/browser/google_apis/gdata_wapi_parser.h"
 #include "chrome/browser/google_apis/gdata_wapi_url_generator.h"
 #include "chrome/browser/google_apis/time_util.h"
-#include "chrome/common/net/url_util.h"
 #include "content/public/browser/browser_thread.h"
 #include "net/base/escape.h"
+#include "net/base/url_util.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_util.h"
 #include "third_party/libxml/chromium/libxml_utils.h"
@@ -249,10 +249,12 @@ DeleteResourceOperation::DeleteResourceOperation(
     net::URLRequestContextGetter* url_request_context_getter,
     const GDataWapiUrlGenerator& url_generator,
     const EntryActionCallback& callback,
-    const std::string& resource_id)
+    const std::string& resource_id,
+    const std::string& etag)
     : EntryActionOperation(registry, url_request_context_getter, callback),
       url_generator_(url_generator),
-      resource_id_(resource_id) {
+      resource_id_(resource_id),
+      etag_(etag) {
   DCHECK(!callback.is_null());
 }
 
@@ -269,7 +271,10 @@ URLFetcher::RequestType DeleteResourceOperation::GetRequestType() const {
 std::vector<std::string>
 DeleteResourceOperation::GetExtraRequestHeaders() const {
   std::vector<std::string> headers;
-  headers.push_back(kIfMatchAllHeader);
+  if (etag_.empty())
+    headers.push_back(kIfMatchAllHeader);
+  else
+    headers.push_back(StringPrintf(kIfMatchHeaderFormat, etag_.c_str()));
   return headers;
 }
 
@@ -479,11 +484,11 @@ AddResourceToDirectoryOperation::AddResourceToDirectoryOperation(
     const GDataWapiUrlGenerator& url_generator,
     const EntryActionCallback& callback,
     const std::string& parent_resource_id,
-    const GURL& edit_url)
+    const std::string& resource_id)
     : EntryActionOperation(registry, url_request_context_getter, callback),
       url_generator_(url_generator),
       parent_resource_id_(parent_resource_id),
-      edit_url_(edit_url) {
+      resource_id_(resource_id) {
   DCHECK(!callback.is_null());
 }
 
@@ -506,7 +511,8 @@ bool AddResourceToDirectoryOperation::GetContentData(
   xml_writer.StartElement("entry");
   xml_writer.AddAttribute("xmlns", "http://www.w3.org/2005/Atom");
 
-  xml_writer.WriteElement("id", edit_url_.spec());
+  xml_writer.WriteElement(
+      "id", url_generator_.GenerateEditUrlWithoutParams(resource_id_).spec());
 
   xml_writer.EndElement();  // Ends "entry" element.
   xml_writer.StopWriting();
@@ -565,7 +571,7 @@ InitiateUploadOperation::InitiateUploadOperation(
                             params.drive_file_path),
       callback_(callback),
       params_(params),
-      initiate_upload_url_(chrome_common_net::AppendOrReplaceQueryParameter(
+      initiate_upload_url_(net::AppendOrReplaceQueryParameter(
           params.upload_location,
           kUploadParamConvertKey,
           kUploadParamConvertValue)) {

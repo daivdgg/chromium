@@ -15,8 +15,9 @@
 namespace policy {
 
 PolicyServiceImpl::PolicyChangeInfo::PolicyChangeInfo(
-    const PolicyBundle::PolicyNamespace& policy_namespace,
-    const PolicyMap& previous, const PolicyMap& current)
+    const PolicyNamespace& policy_namespace,
+    const PolicyMap& previous,
+    const PolicyMap& current)
     : policy_namespace_(policy_namespace) {
   previous_.CopyFrom(previous);
   current_.CopyFrom(current);
@@ -29,12 +30,16 @@ typedef PolicyServiceImpl::Providers::const_iterator Iterator;
 
 PolicyServiceImpl::PolicyServiceImpl(const Providers& providers)
     : ALLOW_THIS_IN_INITIALIZER_LIST(weak_ptr_factory_(this)) {
-  initialization_complete_ = true;
+  for (int domain = 0; domain < POLICY_DOMAIN_SIZE; ++domain)
+    initialization_complete_[domain] = true;
   providers_ = providers;
   for (Iterator it = providers.begin(); it != providers.end(); ++it) {
     ConfigurationPolicyProvider* provider = *it;
     provider->AddObserver(this);
-    initialization_complete_ &= provider->IsInitializationComplete();
+    for (int domain = 0; domain < POLICY_DOMAIN_SIZE; ++domain) {
+      initialization_complete_[domain] &=
+          provider->IsInitializationComplete(static_cast<PolicyDomain>(domain));
+    }
   }
   // There are no observers yet, but calls to GetPolicies() should already get
   // the processed policy values.
@@ -69,14 +74,25 @@ void PolicyServiceImpl::RemoveObserver(PolicyDomain domain,
   }
 }
 
+void PolicyServiceImpl::RegisterPolicyNamespace(const PolicyNamespace& ns) {
+  for (Iterator it = providers_.begin(); it != providers_.end(); ++it)
+    (*it)->RegisterPolicyNamespace(ns);
+}
+
+void PolicyServiceImpl::UnregisterPolicyNamespace(const PolicyNamespace& ns) {
+  for (Iterator it = providers_.begin(); it != providers_.end(); ++it)
+    (*it)->UnregisterPolicyNamespace(ns);
+}
+
 const PolicyMap& PolicyServiceImpl::GetPolicies(
     PolicyDomain domain,
     const std::string& component_id) const {
   return policy_bundle_.Get(domain, component_id);
 }
 
-bool PolicyServiceImpl::IsInitializationComplete() const {
-  return initialization_complete_;
+bool PolicyServiceImpl::IsInitializationComplete(PolicyDomain domain) const {
+  DCHECK(domain >= 0 && domain < POLICY_DOMAIN_SIZE);
+  return initialization_complete_[domain];
 }
 
 void PolicyServiceImpl::RefreshPolicies(const base::Closure& callback) {
@@ -103,7 +119,7 @@ void PolicyServiceImpl::OnUpdatePolicy(ConfigurationPolicyProvider* provider) {
 }
 
 void PolicyServiceImpl::NotifyNamespaceUpdated(
-    const PolicyBundle::PolicyNamespace& ns,
+    const PolicyNamespace& ns,
     const PolicyMap& previous,
     const PolicyMap& current) {
   // If running a unit test that hasn't setup a MessageLoop, don't send any
@@ -190,21 +206,28 @@ void PolicyServiceImpl::MergeAndTriggerUpdates() {
 }
 
 void PolicyServiceImpl::CheckInitializationComplete() {
-  // Check if all providers became initialized just now, if they weren't before.
-  if (!initialization_complete_) {
-    initialization_complete_ = true;
+  // Check if all the providers just became initialized for each domain; if so,
+  // notify that domain's observers.
+  for (int domain = 0; domain < POLICY_DOMAIN_SIZE; ++domain) {
+    if (initialization_complete_[domain])
+      continue;
+
+    PolicyDomain policy_domain = static_cast<PolicyDomain>(domain);
+
+    bool all_complete = true;
     for (Iterator it = providers_.begin(); it != providers_.end(); ++it) {
-      if (!(*it)->IsInitializationComplete()) {
-        initialization_complete_ = false;
+      if (!(*it)->IsInitializationComplete(policy_domain)) {
+        all_complete = false;
         break;
       }
     }
-    if (initialization_complete_) {
-      for (ObserverMap::iterator iter = observers_.begin();
-           iter != observers_.end(); ++iter) {
+    if (all_complete) {
+      initialization_complete_[domain] = true;
+      ObserverMap::iterator iter = observers_.find(policy_domain);
+      if (iter != observers_.end()) {
         FOR_EACH_OBSERVER(PolicyService::Observer,
                           *iter->second,
-                          OnPolicyServiceInitialized());
+                          OnPolicyServiceInitialized(policy_domain));
       }
     }
   }

@@ -15,7 +15,6 @@
 
 #include "base/bind.h"
 #include "base/lazy_instance.h"
-#include "base/string_tokenizer.h"
 #include "base/command_line.h"
 #include "base/debug/trace_event.h"
 #include "base/logging.h"
@@ -63,6 +62,12 @@ void ClearSharedContextsIfInShareSet(
       return;
     }
   }
+}
+
+size_t ClampUint64ToSizeT(uint64 value) {
+  value = std::min(value,
+                   static_cast<uint64>(std::numeric_limits<size_t>::max()));
+  return static_cast<size_t>(value);
 }
 
 const int32 kCommandBufferSize = 1024 * 1024;
@@ -1457,11 +1462,11 @@ void WebGraphicsContext3DCommandBufferImpl::OnMemoryAllocationChanged(
   // Convert the gpu structure to the WebKit structure.
   WebGraphicsMemoryAllocation web_allocation;
   web_allocation.bytesLimitWhenVisible =
-      allocation.bytes_limit_when_visible;
+      ClampUint64ToSizeT(allocation.bytes_limit_when_visible);
   web_allocation.priorityCutoffWhenVisible =
       WebkitPriorityCutoff(allocation.priority_cutoff_when_visible);
   web_allocation.bytesLimitWhenNotVisible =
-      allocation.bytes_limit_when_not_visible;
+      ClampUint64ToSizeT(allocation.bytes_limit_when_not_visible);
   web_allocation.priorityCutoffWhenNotVisible =
       WebkitPriorityCutoff(allocation.priority_cutoff_when_not_visible);
   web_allocation.haveBackbufferWhenNotVisible =
@@ -1472,7 +1477,7 @@ void WebGraphicsContext3DCommandBufferImpl::OnMemoryAllocationChanged(
   // Populate deprecated WebKit fields. These may be removed when references to
   // them in WebKit are removed.
   web_allocation.gpuResourceSizeInBytes =
-      allocation.bytes_limit_when_visible;
+      ClampUint64ToSizeT(allocation.bytes_limit_when_visible);
   web_allocation.suggestHaveBackbuffer =
       allocation.have_backbuffer_when_not_visible;
 

@@ -16,7 +16,6 @@ const char kBlobScheme[] = "blob";
 // There are security implications associated with introducing new schemes.
 const char kChromeDevToolsScheme[] = "chrome-devtools";
 const char kChromeInternalScheme[] = "chrome-internal";
-const char kChromeSearchScheme[] = "chrome-search";
 const char kChromeUIScheme[] = "chrome";
 const char kDataScheme[] = "data";
 const char kFileScheme[] = "file";
@@ -37,10 +36,13 @@ const char kChromeUIAppCacheInternalsHost[] = "appcache-internals";
 const char kChromeUIBlobInternalsHost[] = "blob-internals";
 const char kChromeUIBrowserCrashHost[] = "inducebrowsercrashforrealz";
 const char kChromeUIDevToolsHost[] = "devtools";
+const char kChromeUIGpuHost[] = "gpu";
 const char kChromeUIHistogramHost[] = "histograms";
+const char kChromeUIMediaInternalsHost[] = "media-internals";
 const char kChromeUINetworkViewCacheHost[] = "view-http-cache";
 const char kChromeUIResourcesHost[] = "resources";
 const char kChromeUITcmallocHost[] = "tcmalloc";
+const char kChromeUITracingHost[] = "tracing";
 const char kChromeUIWebRTCInternalsHost[] = "webrtc-internals";
 
 const char kChromeUICrashURL[] = "chrome://crash";

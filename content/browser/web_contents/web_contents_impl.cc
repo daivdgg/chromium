@@ -55,7 +55,7 @@
 #include "content/public/browser/download_manager.h"
 #include "content/public/browser/download_url_parameters.h"
 #include "content/public/browser/invalidate_type.h"
-#include "content/public/browser/javascript_dialogs.h"
+#include "content/public/browser/javascript_dialog_manager.h"
 #include "content/public/browser/load_from_memory_cache_details.h"
 #include "content/public/browser/load_notification_details.h"
 #include "content/public/browser/navigation_details.h"
@@ -312,7 +312,7 @@ WebContentsImpl::WebContentsImpl(
       capturing_contents_(false),
       is_being_destroyed_(false),
       notify_disconnection_(false),
-      dialog_creator_(NULL),
+      dialog_manager_(NULL),
       is_showing_before_unload_dialog_(false),
       opener_web_ui_type_(WebUI::kNoWebUI),
       closed_by_user_gesture_(false),
@@ -334,8 +334,8 @@ WebContentsImpl::~WebContentsImpl() {
   created_widgets_.clear();
 
   // Clear out any JavaScript state.
-  if (dialog_creator_)
-    dialog_creator_->ResetJavaScriptState(this);
+  if (dialog_manager_)
+    dialog_manager_->ResetJavaScriptState(this);
 
   if (color_chooser_)
     color_chooser_->End();
@@ -497,9 +497,13 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
   prefs.accelerated_compositing_enabled =
       GpuProcessHost::gpu_enabled() &&
       !command_line.HasSwitch(switches::kDisableAcceleratedCompositing);
+#if defined(OS_WIN) && defined(ENABLE_HIDPI)
+  prefs.force_compositing_mode = true;
+#else
   prefs.force_compositing_mode =
       content::IsForceCompositingModeEnabled() &&
       !command_line.HasSwitch(switches::kDisableForceCompositingMode);
+#endif
   prefs.fixed_position_compositing_enabled =
       command_line.HasSwitch(switches::kEnableCompositingForFixedPosition);
   prefs.accelerated_2d_canvas_enabled =
@@ -532,6 +536,8 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
       command_line.HasSwitch(switches::kEnableExperimentalWebKitFeatures);
   prefs.css_grid_layout_enabled =
       command_line.HasSwitch(switches::kEnableExperimentalWebKitFeatures);
+  prefs.record_rendering_stats =
+      command_line.HasSwitch(switches::kEnableGpuBenchmarking);
 
   bool touch_device_present = false;
 #if defined(USE_AURA) && defined(USE_X11)
@@ -621,6 +627,10 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
 
   prefs.is_online = !net::NetworkChangeNotifier::IsOffline();
 
+#if defined(OS_WIN) && defined(ENABLE_HIDPI)
+  prefs.accelerated_compositing_enabled = true;
+  prefs.accelerated_2d_canvas_enabled = true;
+#else
   // Force accelerated compositing and 2d canvas off for chrome: and about:
   // pages (unless it's specifically allowed).
   if ((url.SchemeIs(chrome::kChromeUIScheme) ||
@@ -630,6 +640,7 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
     prefs.accelerated_compositing_enabled = false;
     prefs.accelerated_2d_canvas_enabled = false;
   }
+#endif
 
   if (url.SchemeIs(chrome::kChromeDevToolsScheme))
     prefs.show_fps_counter = false;
@@ -647,21 +658,8 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
     prefs.max_untiled_layer_height =
         GetSwitchValueAsInt(command_line, switches::kMaxUntiledLayerHeight, 1);
 
-  // TODO(scottmg): Probably Native is wrong: http://crbug.com/133312
-  if (gfx::Screen::GetNativeScreen()->IsDIPEnabled()) {
-    // Only apply when using DIP coordinate system as this setting interferes
-    // with fixed layout mode.
-    // TODO(danakj): Fixed layout mode is going away, so turn this on always.
-    prefs.apply_default_device_scale_factor_in_compositor = true;
-  }
-
-  prefs.apply_page_scale_factor_in_compositor =
-      command_line.HasSwitch(switches::kEnablePinch);
-
-  if (command_line.HasSwitch(switches::kEnableCssTransformPinch)) {
-    prefs.apply_default_device_scale_factor_in_compositor = false;
-    prefs.apply_page_scale_factor_in_compositor = false;
-  }
+  prefs.apply_default_device_scale_factor_in_compositor = true;
+  prefs.apply_page_scale_factor_in_compositor = true;
 
   prefs.per_tile_painting_enabled =
       command_line.HasSwitch(cc::switches::kEnablePerTilePainting);
@@ -719,10 +717,12 @@ bool WebContentsImpl::OnMessageReceived(RenderViewHost* render_view_host,
   bool handled = true;
   bool message_is_ok = true;
   IPC_BEGIN_MESSAGE_MAP_EX(WebContentsImpl, message, message_is_ok)
+#if defined(ENABLE_WEB_INTENTS)
     IPC_MESSAGE_HANDLER(IntentsHostMsg_RegisterIntentService,
                         OnRegisterIntentService)
     IPC_MESSAGE_HANDLER(IntentsHostMsg_WebIntentDispatch,
                         OnWebIntentDispatch)
+#endif
     IPC_MESSAGE_HANDLER(ViewHostMsg_DidLoadResourceFromMemoryCache,
                         OnDidLoadResourceFromMemoryCache)
     IPC_MESSAGE_HANDLER(ViewHostMsg_DidDisplayInsecureContent,
@@ -1995,6 +1995,7 @@ void WebContentsImpl::SetFocusToLocationBar(bool select_all) {
     delegate_->SetFocusToLocationBar(select_all);
 }
 
+#if defined(ENABLE_WEB_INTENTS)
 void WebContentsImpl::OnRegisterIntentService(
     const webkit_glue::WebIntentServiceData& data,
     bool user_gesture) {
@@ -2012,6 +2013,7 @@ void WebContentsImpl::OnWebIntentDispatch(
       new WebIntentsDispatcherImpl(this, intent, intent_id);
   delegate_->WebIntentDispatch(this, intents_dispatcher);
 }
+#endif
 
 void WebContentsImpl::DidStartProvisionalLoadForFrame(
     RenderViewHost* render_view_host,
@@ -2521,9 +2523,9 @@ void WebContentsImpl::DidNavigateAnyFramePostCommit(
   // If we navigate off the page, reset JavaScript state. This does nothing
   // to prevent a malicious script from spamming messages, since the script
   // could just reload the page to stop blocking.
-  if (dialog_creator_ && !details.is_in_page) {
-    dialog_creator_->ResetJavaScriptState(this);
-    dialog_creator_ = NULL;
+  if (dialog_manager_ && !details.is_in_page) {
+    dialog_manager_->ResetJavaScriptState(this);
+    dialog_manager_ = NULL;
   }
 
   // Notify observers about navigation.
@@ -2739,7 +2741,8 @@ void WebContentsImpl::DidNavigate(
     // RenderViewHostManager::DidNavigateMainFrame, because that can change
     // WebContents::GetRenderViewHost to return the new host, instead of the one
     // that may have just been swapped out.
-    controller_.TakeScreenshot();
+    if (delegate_ && delegate_->CanOverscrollContent())
+      controller_.TakeScreenshot();
 
     render_manager_.DidNavigateMainFrame(rvh);
   }
@@ -3124,13 +3127,13 @@ void WebContentsImpl::RunJavaScriptMessage(
       ShowingInterstitialPage() ||
       !delegate_ ||
       delegate_->ShouldSuppressDialogs() ||
-      !delegate_->GetJavaScriptDialogCreator();
+      !delegate_->GetJavaScriptDialogManager();
 
   if (!suppress_this_message) {
     std::string accept_lang = GetContentClient()->browser()->
       GetAcceptLangs(GetBrowserContext());
-    dialog_creator_ = delegate_->GetJavaScriptDialogCreator();
-    dialog_creator_->RunJavaScriptDialog(
+    dialog_manager_ = delegate_->GetJavaScriptDialogManager();
+    dialog_manager_->RunJavaScriptDialog(
         this,
         frame_url.GetOrigin(),
         accept_lang,
@@ -3165,7 +3168,7 @@ void WebContentsImpl::RunBeforeUnloadConfirm(RenderViewHost* rvh,
       rvhi->is_swapped_out() ||
       !delegate_ ||
       delegate_->ShouldSuppressDialogs() ||
-      !delegate_->GetJavaScriptDialogCreator();
+      !delegate_->GetJavaScriptDialogManager();
   if (suppress_this_message) {
     // The reply must be sent to the RVH that sent the request.
     rvhi->JavaScriptDialogClosed(reply_msg, true, string16());
@@ -3173,8 +3176,8 @@ void WebContentsImpl::RunBeforeUnloadConfirm(RenderViewHost* rvh,
   }
 
   is_showing_before_unload_dialog_ = true;
-  dialog_creator_ = delegate_->GetJavaScriptDialogCreator();
-  dialog_creator_->RunBeforeUnloadDialog(
+  dialog_manager_ = delegate_->GetJavaScriptDialogManager();
+  dialog_manager_->RunBeforeUnloadDialog(
       this, message, is_reload,
       base::Bind(&WebContentsImpl::OnDialogClosed, base::Unretained(this), rvh,
                  reply_msg));

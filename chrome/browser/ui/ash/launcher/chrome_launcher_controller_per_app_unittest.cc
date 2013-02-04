@@ -33,6 +33,7 @@
 #include "ui/base/models/menu_model.h"
 
 using extensions::Extension;
+using extensions::Manifest;
 
 namespace {
 const int kExpectedAppIndex = 1;
@@ -60,22 +61,22 @@ class ChromeLauncherControllerPerAppTest : public BrowserWithTestWindowTest {
         CommandLine::ForCurrentProcess(), FilePath(), false);
 
     std::string error;
-    extension1_ = Extension::Create(FilePath(), Extension::LOAD, manifest,
+    extension1_ = Extension::Create(FilePath(), Manifest::LOAD, manifest,
                                     Extension::NO_FLAGS,
                                     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                                     &error);
-    extension2_ = Extension::Create(FilePath(), Extension::LOAD, manifest,
+    extension2_ = Extension::Create(FilePath(), Manifest::LOAD, manifest,
                                     Extension::NO_FLAGS,
                                     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
                                     &error);
     // Fake gmail extension.
-    extension3_ = Extension::Create(FilePath(), Extension::LOAD, manifest,
+    extension3_ = Extension::Create(FilePath(), Manifest::LOAD, manifest,
                                     Extension::NO_FLAGS,
                                     gmail_app_id,
                                     &error);
 
     // Fake search extension.
-    extension4_ = Extension::Create(FilePath(), Extension::LOAD, manifest,
+    extension4_ = Extension::Create(FilePath(), Manifest::LOAD, manifest,
                                     Extension::NO_FLAGS,
                                     "coobgpohoikkiipiblmjeljniedjpjpf",
                                     &error);
@@ -284,9 +285,7 @@ void CheckMenuCreation(ChromeLauncherControllerPerApp* controller,
                        const ash::LauncherItem& item,
                        size_t expected_items,
                        string16 title[]) {
-  scoped_ptr<ChromeLauncherAppMenuItems>
-      app_list(controller->GetApplicationList(item));
-  ChromeLauncherAppMenuItems items(app_list.get());
+  ChromeLauncherAppMenuItems items = controller->GetApplicationList(item);
   // There should be one item in there: The title.
   EXPECT_EQ(expected_items + 1, items.size());
   EXPECT_FALSE(items[0]->IsEnabled());

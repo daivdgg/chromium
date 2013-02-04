@@ -18,7 +18,7 @@ const float kResetThreshold = 0.7f;
 // Layout pixel buffer around the visible layer rect to record.  Any base
 // picture that intersects the visible layer rect expanded by this distance
 // will be recorded.
-const int kPixelDistanceToRecord = 5000;
+const int kPixelDistanceToRecord = 8000;
 }
 
 namespace cc {
@@ -33,7 +33,7 @@ void PicturePile::Update(
     ContentLayerClient* painter,
     const Region& invalidation,
     gfx::Rect visible_layer_rect,
-    RenderingStats& stats) {
+    RenderingStats* stats) {
   gfx::Rect interest_rect = visible_layer_rect;
   interest_rect.Inset(
       -kPixelDistanceToRecord,

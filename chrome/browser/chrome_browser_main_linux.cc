@@ -4,11 +4,14 @@
 
 #include "chrome/browser/chrome_browser_main_linux.h"
 
+#include "base/message_loop_proxy.h"
 #include "chrome/browser/system_monitor/media_transfer_protocol_device_observer_linux.h"
+#include "chrome/common/chrome_switches.h"
 #include "device/media_transfer_protocol/media_transfer_protocol_manager.h"
 
 #if !defined(OS_CHROMEOS)
 #include "chrome/browser/system_monitor/removable_device_notifications_linux.h"
+#include "content/public/browser/browser_thread.h"
 #endif
 
 #if defined(USE_LINUX_BREAKPAD)
@@ -18,15 +21,12 @@
 #include "base/linux_util.h"
 #include "chrome/app/breakpad_linux.h"
 #include "chrome/browser/prefs/pref_service.h"
-#include "chrome/common/chrome_switches.h"
 #include "chrome/common/env_vars.h"
 #include "chrome/common/pref_names.h"
-#include "content/public/browser/browser_thread.h"
 
 #if defined(OS_CHROMEOS)
 #include "chrome/browser/chromeos/settings/cros_settings.h"
 #include "chrome/browser/chromeos/settings/cros_settings_names.h"
-#include "chrome/common/chrome_switches.h"
 #include "chrome/common/chrome_version_info.h"
 #endif
 
@@ -109,11 +109,11 @@ bool IsCrashReportingEnabled(const PrefService* local_state) {
 ChromeBrowserMainPartsLinux::ChromeBrowserMainPartsLinux(
     const content::MainFunctionParams& parameters)
     : ChromeBrowserMainPartsPosix(parameters),
-      did_pre_profile_init_(false) {
+      initialized_media_transfer_protocol_manager_(false) {
 }
 
 ChromeBrowserMainPartsLinux::~ChromeBrowserMainPartsLinux() {
-  if (did_pre_profile_init_)
+  if (initialized_media_transfer_protocol_manager_)
     device::MediaTransferProtocolManager::Shutdown();
 }
 
@@ -138,16 +138,24 @@ void ChromeBrowserMainPartsLinux::PreProfileInit() {
   removable_device_notifications_linux_->Init();
 #endif
 
-  device::MediaTransferProtocolManager::Initialize();
-
-  did_pre_profile_init_ = true;
+  if (!CommandLine::ForCurrentProcess()->HasSwitch(switches::kTestType)) {
+    scoped_refptr<base::MessageLoopProxy> loop_proxy;
+#if !defined(OS_CHROMEOS)
+    loop_proxy = content::BrowserThread::GetMessageLoopProxyForThread(
+        content::BrowserThread::FILE);
+#endif
+    device::MediaTransferProtocolManager::Initialize(loop_proxy);
+    initialized_media_transfer_protocol_manager_ = true;
+  }
 
   ChromeBrowserMainPartsPosix::PreProfileInit();
 }
 
 void ChromeBrowserMainPartsLinux::PostProfileInit() {
-  media_transfer_protocol_device_observer_.reset(
-      new chrome::MediaTransferProtocolDeviceObserverLinux());
+  if (!CommandLine::ForCurrentProcess()->HasSwitch(switches::kTestType)) {
+    media_transfer_protocol_device_observer_.reset(
+        new chrome::MediaTransferProtocolDeviceObserverLinux());
+  }
 
   ChromeBrowserMainPartsPosix::PostProfileInit();
 }

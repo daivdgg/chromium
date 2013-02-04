@@ -111,6 +111,7 @@ void ReparentAllWindows(aura::RootWindow* src, aura::RootWindow* dst) {
   // Set of windows to move.
   const int kContainerIdsToMove[] = {
     internal::kShellWindowId_DefaultContainer,
+    internal::kShellWindowId_PanelContainer,
     internal::kShellWindowId_AlwaysOnTopContainer,
     internal::kShellWindowId_SystemModalContainer,
     internal::kShellWindowId_LockSystemModalContainer,
@@ -296,9 +297,8 @@ void RootWindowController::InitForPrimaryDisplay() {
 
   workspace_controller()->SetShelf(shelf_);
 
-  // TODO(oshima): Disable panels on non primary display for now.
-  // crbug.com/166195.
-  if (root_window_ == Shell::GetPrimaryRootWindow()) {
+  if (Shell::IsLauncherPerDisplayEnabled() ||
+      root_window_ == Shell::GetPrimaryRootWindow()) {
     // Create Panel layout manager
     aura::Window* panel_container = GetContainer(
         internal::kShellWindowId_PanelContainer);
@@ -487,6 +487,8 @@ void RootWindowController::ShowContextMenu(
   DCHECK(Shell::GetInstance()->delegate());
   scoped_ptr<ui::MenuModel> menu_model(
       Shell::GetInstance()->delegate()->CreateContextMenu(target));
+  if (!menu_model.get())
+    return;
 
   views::MenuModelAdapter menu_model_adapter(menu_model.get());
   views::MenuRunner menu_runner(menu_model_adapter.CreateMenu());

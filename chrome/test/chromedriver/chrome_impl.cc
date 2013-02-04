@@ -22,6 +22,7 @@
 #include "chrome/test/chromedriver/net/sync_websocket_impl.h"
 #include "chrome/test/chromedriver/net/url_request_context_getter.h"
 #include "chrome/test/chromedriver/status.h"
+#include "chrome/test/chromedriver/ui_events.h"
 #include "googleurl/src/gurl.h"
 
 namespace {
@@ -83,6 +84,21 @@ bool IsNotPendingNavigation(NavigationTracker* tracker,
   return !tracker->IsPendingNavigation(frame_id);
 }
 
+const char* GetAsString(KeyEventType type) {
+  switch (type) {
+    case kKeyDownEventType:
+      return "keyDown";
+    case kKeyUpEventType:
+      return "keyUp";
+    case kRawKeyDownEventType:
+      return "rawKeyDown";
+    case kCharEventType:
+      return "char";
+    default:
+      return "";
+  }
+}
+
 }  // namespace
 
 ChromeImpl::ChromeImpl(base::ProcessHandle process,
@@ -94,7 +110,6 @@ ChromeImpl::ChromeImpl(base::ProcessHandle process,
       context_getter_(context_getter),
       port_(port),
       socket_factory_(socket_factory),
-      dom_tracker_(new DomTracker()),
       frame_tracker_(new FrameTracker()),
       navigation_tracker_(new NavigationTracker()) {
   if (user_data_dir->IsValid()) {
@@ -120,23 +135,20 @@ Status ChromeImpl::Init() {
     return Status(kUnknownError, "unable to discover open pages");
   client_.reset(new DevToolsClientImpl(
       socket_factory_, debugger_urls.front()));
+  dom_tracker_.reset(new DomTracker(client_.get()));
+  Status status = dom_tracker_->Init();
+  if (status.IsError())
+    return status;
+  status = frame_tracker_->Init(client_.get());
+  if (status.IsError())
+    return status;
+  status = navigation_tracker_->Init(client_.get());
+  if (status.IsError())
+    return status;
   client_->AddListener(dom_tracker_.get());
   client_->AddListener(frame_tracker_.get());
   client_->AddListener(navigation_tracker_.get());
-
-  // Perform necessary configuration of the DevTools client.
-  // Fetch the root document node so that Inspector will push DOM node
-  // information to the client.
-  base::DictionaryValue params;
-  Status status = client_->SendCommand("DOM.getDocument", params);
-  if (status.IsError())
-    return status;
-  // Enable page domain notifications to allow tracking navigation state.
-  status = client_->SendCommand("Page.enable", params);
-  if (status.IsError())
-    return status;
-  // Enable runtime events to allow tracking execution context creation.
-  return client_->SendCommand("Runtime.enable", params);
+  return Status(kOk);
 }
 
 Status ChromeImpl::Load(const std::string& url) {
@@ -209,6 +221,29 @@ Status ChromeImpl::DispatchMouseEvents(const std::list<MouseEvent>& events) {
     params.SetString("button", GetAsString(it->button));
     params.SetInteger("clickCount", it->click_count);
     Status status = client_->SendCommand("Input.dispatchMouseEvent", params);
+    if (status.IsError())
+      return status;
+  }
+  return Status(kOk);
+}
+
+Status ChromeImpl::DispatchKeyEvents(const std::list<KeyEvent>& events) {
+  for (std::list<KeyEvent>::const_iterator it = events.begin();
+       it != events.end(); ++it) {
+    base::DictionaryValue params;
+    params.SetString("type", GetAsString(it->type));
+    if (it->modifiers & kNumLockKeyModifierMask) {
+      params.SetBoolean("isKeypad", true);
+      params.SetInteger("modifiers",
+                        it->modifiers & ~kNumLockKeyModifierMask);
+    } else {
+      params.SetInteger("modifiers", it->modifiers);
+    }
+    params.SetString("text", it->modified_text);
+    params.SetString("unmodifiedText", it->unmodified_text);
+    params.SetInteger("nativeVirtualKeyCode", it->key_code);
+    params.SetInteger("windowsVirtualKeyCode", it->key_code);
+    Status status = client_->SendCommand("Input.dispatchKeyEvent", params);
     if (status.IsError())
       return status;
   }

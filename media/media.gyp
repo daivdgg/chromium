@@ -67,10 +67,6 @@
         'audio/audio_input_device.h',
         'audio/audio_input_ipc.cc',
         'audio/audio_input_ipc.h',
-        # TODO(dalecurtis): Temporarily disabled while switching pipeline to use
-        # float, http://crbug.com/114700
-        # 'audio/audio_output_mixer.cc',
-        # 'audio/audio_output_mixer.h',
         'audio/audio_input_stream_impl.cc',
         'audio/audio_input_stream_impl.h',
         'audio/audio_io.h',
@@ -186,6 +182,8 @@
         'base/audio_decoder_config.h',
         'base/audio_fifo.cc',
         'base/audio_fifo.h',
+        'base/audio_hardware_config.cc',
+        'base/audio_hardware_config.h',
         'base/audio_pull_fifo.cc',
         'base/audio_pull_fifo.h',
         'base/audio_renderer.cc',
@@ -346,6 +344,8 @@
         'video/capture/screen/mouse_cursor_shape.h',
         'video/capture/screen/screen_capture_data.cc',
         'video/capture/screen/screen_capture_data.h',
+        'video/capture/screen/screen_capture_device.cc',
+        'video/capture/screen/screen_capture_device.h',
         'video/capture/screen/screen_capture_frame.cc',
         'video/capture/screen/screen_capture_frame.h',
         'video/capture/screen/screen_capture_frame_queue.cc',
@@ -360,7 +360,6 @@
         'video/capture/screen/screen_capturer_win.cc',
         'video/capture/screen/shared_buffer.cc',
         'video/capture/screen/shared_buffer.h',
-        'video/capture/screen/shared_buffer_factory.h',
         'video/capture/screen/win/desktop.cc',
         'video/capture/screen/win/desktop.h',
         'video/capture/screen/win/scoped_thread_desktop.cc',
@@ -770,6 +769,7 @@
         'base/audio_bus_unittest.cc',
         'base/audio_converter_unittest.cc',
         'base/audio_fifo_unittest.cc',
+        'base/audio_hardware_config_unittest.cc',
         'base/audio_pull_fifo_unittest.cc',
         'base/audio_renderer_mixer_input_unittest.cc',
         'base/audio_renderer_mixer_unittest.cc',
@@ -825,6 +825,7 @@
         'video/capture/screen/differ_block_unittest.cc',
         'video/capture/screen/differ_unittest.cc',
         'video/capture/screen/shared_buffer_unittest.cc',
+        'video/capture/screen/screen_capture_device_unittest.cc',
         'video/capture/screen/screen_capturer_helper_unittest.cc',
         'video/capture/screen/screen_capturer_mac_unittest.cc',
         'video/capture/screen/screen_capturer_unittest.cc',
@@ -1040,9 +1041,9 @@
             'base/simd/convert_yuv_to_rgb_mmx.inc',
             'base/simd/convert_yuv_to_rgb_sse.asm',
             'base/simd/convert_yuv_to_rgb_x86.cc',
+            'base/simd/empty_register_state_mmx.asm',
             'base/simd/filter_yuv.h',
             'base/simd/filter_yuv_c.cc',
-            'base/simd/filter_yuv_mmx.cc',
             'base/simd/filter_yuv_sse2.cc',
             'base/simd/linear_scale_yuv_to_rgb_mmx.asm',
             'base/simd/linear_scale_yuv_to_rgb_mmx.inc',
@@ -1054,6 +1055,11 @@
             'base/simd/yuv_to_rgb_table.h',
           ],
           'conditions': [
+            [ 'OS!="win" or target_arch=="ia32" or MSVS_VERSION>="2012"', {
+              'sources': [
+                'base/simd/filter_yuv_mmx.cc',
+              ],
+            }],
             [ 'target_arch == "x64"', {
               # Source files optimized for X64 systems.
               'sources': [

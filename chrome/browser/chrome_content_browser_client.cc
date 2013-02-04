@@ -11,7 +11,7 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/path_service.h"
-#include "base/string_tokenizer.h"
+#include "base/strings/string_tokenizer.h"
 #include "base/utf_string_conversions.h"
 #include "chrome/app/breakpad_mac.h"
 #include "chrome/browser/browser_about_handler.h"
@@ -41,7 +41,7 @@
 #include "chrome/browser/google/google_util.h"
 #include "chrome/browser/instant/instant_service.h"
 #include "chrome/browser/instant/instant_service_factory.h"
-#include "chrome/browser/media/media_internals.h"
+#include "chrome/browser/media/media_capture_devices_dispatcher.h"
 #include "chrome/browser/nacl_host/nacl_process_host.h"
 #include "chrome/browser/net/chrome_net_log.h"
 #include "chrome/browser/notifications/desktop_notification_service.h"
@@ -71,6 +71,7 @@
 #include "chrome/browser/ssl/ssl_tab_helper.h"
 #include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/toolkit_extra_parts.h"
+#include "chrome/browser/ui/chrome_select_file_policy.h"
 #include "chrome/browser/ui/tab_contents/chrome_web_contents_view_delegate.h"
 #include "chrome/browser/ui/webui/chrome_web_ui_controller_factory.h"
 #include "chrome/browser/user_style_sheet_watcher.h"
@@ -165,6 +166,7 @@ using content::SiteInstance;
 using content::WebContents;
 using extensions::APIPermission;
 using extensions::Extension;
+using extensions::Manifest;
 using webkit_glue::WebPreferences;
 
 namespace {
@@ -718,18 +720,6 @@ void ChromeContentBrowserClient::RenderProcessHostCreated(
   host->Send(new ChromeViewMsg_SetContentSettingRules(rules));
 }
 
-void ChromeContentBrowserClient::RenderProcessHostDeleted(
-    content::RenderProcessHost* host) {
-  Profile* profile = Profile::FromBrowserContext(host->GetBrowserContext());
-  if (!profile)
-    return;
-
-  InstantService* instant_service =
-      InstantServiceFactory::GetForProfile(profile);
-  if (instant_service)
-    instant_service->RemoveInstantProcess(host->GetID());
-}
-
 GURL ChromeContentBrowserClient::GetEffectiveURL(
     content::BrowserContext* browser_context, const GURL& url) {
   Profile* profile = Profile::FromBrowserContext(browser_context);
@@ -795,7 +785,7 @@ bool ChromeContentBrowserClient::ShouldUseProcessPerSite(
   // permission, or that does not allow JavaScript access to the background
   // page, we want to give each instance its own process to improve
   // responsiveness.
-  if (extension->GetType() == Extension::TYPE_HOSTED_APP) {
+  if (extension->GetType() == Manifest::TYPE_HOSTED_APP) {
     if (!extension->HasAPIPermission(APIPermission::kBackground) ||
         !extension->allow_background_js_access()) {
       return false;
@@ -1452,7 +1442,7 @@ void ChromeContentBrowserClient::AddCertificate(
 }
 
 content::MediaObserver* ChromeContentBrowserClient::GetMediaObserver() {
-  return MediaInternals::GetInstance();
+  return MediaCaptureDevicesDispatcher::GetInstance();
 }
 
 void ChromeContentBrowserClient::RequestDesktopNotificationPermission(
@@ -1919,10 +1909,10 @@ bool ChromeContentBrowserClient::AllowPepperSocketAPI(
   if (allowed_list == "*") {
     // The wildcard allows socket API only for packaged and platform apps.
     return extension &&
-        (extension->GetType() == Extension::TYPE_LEGACY_PACKAGED_APP ||
-         extension->GetType() == Extension::TYPE_PLATFORM_APP);
+        (extension->GetType() == Manifest::TYPE_LEGACY_PACKAGED_APP ||
+         extension->GetType() == Manifest::TYPE_PLATFORM_APP);
   } else if (!allowed_list.empty()) {
-    StringTokenizer t(allowed_list, ",");
+    base::StringTokenizer t(allowed_list, ",");
     while (t.GetNext()) {
       if (t.token() == host)
         return true;
@@ -1945,6 +1935,11 @@ FilePath ChromeContentBrowserClient::GetHyphenDictionaryDirectory() {
   FilePath directory;
   PathService::Get(chrome::DIR_APP_DICTIONARIES, &directory);
   return directory.Append(FILE_PATH_LITERAL("Hyphen"));
+}
+
+ui::SelectFilePolicy* ChromeContentBrowserClient::CreateSelectFilePolicy(
+    WebContents* web_contents) {
+  return new ChromeSelectFilePolicy(web_contents);
 }
 
 #if defined(OS_POSIX) && !defined(OS_MACOSX)

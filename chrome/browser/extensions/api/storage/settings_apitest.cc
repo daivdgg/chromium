@@ -35,7 +35,9 @@ using settings_namespace::MANAGED;
 using settings_namespace::Namespace;
 using settings_namespace::SYNC;
 using settings_namespace::ToString;
+using testing::AnyNumber;
 using testing::Return;
+using testing::_;
 
 namespace {
 
@@ -88,8 +90,10 @@ class ExtensionSettingsApiTest : public ExtensionApiTest {
     ExtensionApiTest::SetUpInProcessBrowserTestFixture();
 
 #if defined(ENABLE_CONFIGURATION_POLICY)
-    EXPECT_CALL(policy_provider_, IsInitializationComplete())
+    EXPECT_CALL(policy_provider_, IsInitializationComplete(_))
         .WillRepeatedly(Return(true));
+    EXPECT_CALL(policy_provider_,
+                RegisterPolicyNamespace(_, _)).Times(AnyNumber());
     policy::BrowserPolicyConnector::SetPolicyProviderForTesting(
         &policy_provider_);
 #endif

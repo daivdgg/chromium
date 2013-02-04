@@ -21,14 +21,13 @@ CONTENT_EXPORT extern const char kAboutScheme[];
 CONTENT_EXPORT extern const char kBlobScheme[];
 CONTENT_EXPORT extern const char kChromeDevToolsScheme[];
 CONTENT_EXPORT extern const char kChromeInternalScheme[];
-CONTENT_EXPORT extern const char kChromeSearchScheme[];
 CONTENT_EXPORT extern const char kChromeUIScheme[];  // Used for WebUIs.
-CONTENT_EXPORT extern const char kCrosScheme[];      // Used for ChromeOS.
 CONTENT_EXPORT extern const char kDataScheme[];
 CONTENT_EXPORT extern const char kFileScheme[];
 CONTENT_EXPORT extern const char kFileSystemScheme[];
 CONTENT_EXPORT extern const char kFtpScheme[];
 CONTENT_EXPORT extern const char kGuestScheme[];
+CONTENT_EXPORT extern const char kChromeUIGpuHost[];
 CONTENT_EXPORT extern const char kHttpScheme[];
 CONTENT_EXPORT extern const char kHttpsScheme[];
 CONTENT_EXPORT extern const char kJavaScriptScheme[];
@@ -45,9 +44,11 @@ CONTENT_EXPORT extern const char kChromeUIBlobInternalsHost[];
 CONTENT_EXPORT extern const char kChromeUIBrowserCrashHost[];
 CONTENT_EXPORT extern const char kChromeUIDevToolsHost[];
 CONTENT_EXPORT extern const char kChromeUIHistogramHost[];
+CONTENT_EXPORT extern const char kChromeUIMediaInternalsHost[];
 CONTENT_EXPORT extern const char kChromeUINetworkViewCacheHost[];
 CONTENT_EXPORT extern const char kChromeUIResourcesHost[];
 CONTENT_EXPORT extern const char kChromeUITcmallocHost[];
+CONTENT_EXPORT extern const char kChromeUITracingHost[];
 CONTENT_EXPORT extern const char kChromeUIWebRTCInternalsHost[];
 
 // Full about URLs (including schemes).

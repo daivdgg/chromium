@@ -8,11 +8,11 @@ vars = {
   "sourceforge_url": "http://%(repo)s.svn.sourceforge.net/svnroot/%(repo)s",
   "webkit_trunk": "http://svn.webkit.org/repository/webkit/trunk",
   "nacl_trunk": "http://src.chromium.org/native_client/trunk",
-  "webkit_revision": "141286",
+  "webkit_revision": "141735",
   "chromium_git": "https://chromium.googlesource.com",
   "chromiumos_git": "https://chromium.googlesource.com/chromiumos",
   "swig_revision": "69281",
-  "nacl_revision": "10668",
+  "nacl_revision": "10691",
   # After changing nacl_revision, run 'glient sync' and check native_client/DEPS
   # to update other nacl_*_revision's.
   "nacl_tools_revision": "10001",  # native_client/DEPS: tools_rev
@@ -20,16 +20,16 @@ vars = {
 
   "libjingle_revision": "273",
   "libphonenumber_revision": "456",
-  "libvpx_revision": "179478",
+  "libvpx_revision": "180104",
   "lss_revision": "17",
 
   # These two FFmpeg variables must be updated together.  One is used for SVN
   # checkouts and the other for Git checkouts.
-  "ffmpeg_revision": "179499",
-  "ffmpeg_hash": "bb1bf0f1273ab1ad09e594afb1866a6008bbb234",
+  "ffmpeg_revision": "180199",
+  "ffmpeg_hash": "5ef9ec1c09371f72efecddfc4ba0be0a50870040",
 
   "sfntly_revision": "134",
-  "skia_revision": "7453",
+  "skia_revision": "7502",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling Skia
   # and V8 without interference from each other.
@@ -39,7 +39,7 @@ vars = {
   # and V8 without interference from each other.
   "webrtc_revision": "3426",
   "jsoncpp_revision": "248",
-  "nss_revision": "179335",
+  "nss_revision": "179928",
 }
 
 deps = {
@@ -62,7 +62,7 @@ deps = {
     (Var("googlecode_url") % "googlemock") + "/trunk@410",
 
   "src/third_party/angle":
-    (Var("googlecode_url") % "angleproject") + "/trunk@1735",
+    (Var("googlecode_url") % "angleproject") + "/trunk@1810",
 
   "src/third_party/trace-viewer":
     (Var("googlecode_url") % "trace-viewer") + "/trunk@204",
@@ -168,7 +168,7 @@ deps = {
     (Var("googlecode_url") % "bidichecker") + "/trunk/lib@4",
 
   "src/third_party/v8-i18n":
-    (Var("googlecode_url") % "v8-i18n") + "/trunk@160",
+    (Var("googlecode_url") % "v8-i18n") + "/trunk@163",
 
   # When roll to another webgl conformance tests revision, please goto
   # chrome/test/gpu and run generate_webgl_conformance_test_list.py.
@@ -326,7 +326,7 @@ deps = {
     "/trunk/deps/third_party/opus@173498",
 
   "src/third_party/accessibility-developer-tools":
-    Var("chromium_git") + "/external/accessibility-developer-tools.git@e2a7557c79da617d0c06d6e96ada803b8b4b3ece",
+    Var("chromium_git") + "/external/accessibility-developer-tools.git@ad5df9a5341d38778658c90e4aa241c4ebe4e8aa",
 
   "src/webkit/media/crypto/ppapi/cdm":
     "/trunk/deps/cdm@173055",
@@ -546,7 +546,7 @@ deps_os = {
     # For Linux and Chromium OS.
     "src/third_party/cros_system_api":
       Var("chromiumos_git") + "/platform/system_api.git" +
-      "@bbd9dbac2b17db57546ee234c0563e05b7763f4f",
+      "@f1fccbe00f2e161da74ccb2776ab9d961b15259d",
   },
   "android": {
     "src/third_party/android_tools":

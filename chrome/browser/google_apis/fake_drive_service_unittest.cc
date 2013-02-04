@@ -499,6 +499,7 @@ TEST_F(FakeDriveServiceTest, DeleteResource_ExistingFile) {
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.DeleteResource(
       "file:2_file_resource_id",
+      "",  // etag
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
   message_loop_.RunUntilIdle();
@@ -514,6 +515,7 @@ TEST_F(FakeDriveServiceTest, DeleteResource_NonexistingFile) {
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.DeleteResource(
       "file:nonexisting_resource_id",
+      "",  // etag
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
   message_loop_.RunUntilIdle();
@@ -528,6 +530,7 @@ TEST_F(FakeDriveServiceTest, DeleteResource_Offline) {
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.DeleteResource(
       "file:2_file_resource_id",
+      "",  // etag
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
   message_loop_.RunUntilIdle();
@@ -747,7 +750,6 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_FileInRootDirectory) {
   ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
 
   const std::string kResourceId = "file:2_file_resource_id";
-  const GURL kEditUrl("https://file1_link_self/file:2_file_resource_id");
   const std::string kNewParentResourceId = "folder:1_folder_resource_id";
 
   scoped_ptr<ResourceEntry> resource_entry = FindEntry(kResourceId);
@@ -760,7 +762,7 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_FileInRootDirectory) {
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.AddResourceToDirectory(
       kNewParentResourceId,
-      kEditUrl,
+      kResourceId,
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
   message_loop_.RunUntilIdle();
@@ -782,8 +784,6 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_FileInNonRootDirectory) {
   ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
 
   const std::string kResourceId = "file:subdirectory_file_1_id";
-  const GURL kEditUrl(
-      "https://dir1_file_link_self/file:subdirectory_file_1_id");
   const std::string kNewParentResourceId = "folder:2_folder_resource_id";
 
   scoped_ptr<ResourceEntry> resource_entry = FindEntry(kResourceId);
@@ -798,7 +798,7 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_FileInNonRootDirectory) {
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.AddResourceToDirectory(
       kNewParentResourceId,
-      kEditUrl,
+      kResourceId,
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
   message_loop_.RunUntilIdle();
@@ -819,13 +819,13 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_FileInNonRootDirectory) {
 TEST_F(FakeDriveServiceTest, AddResourceToDirectory_NonexistingFile) {
   ASSERT_TRUE(fake_service_.LoadResourceListForWapi("gdata/root_feed.json"));
 
-  const GURL kEditUrl("https://file1_link_self/file:nonexisting_file");
+  const std::string kResourceId = "file:nonexisting_file";
   const std::string kNewParentResourceId = "folder:1_folder_resource_id";
 
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.AddResourceToDirectory(
       kNewParentResourceId,
-      kEditUrl,
+      kResourceId,
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
   message_loop_.RunUntilIdle();
@@ -838,13 +838,12 @@ TEST_F(FakeDriveServiceTest, AddResourceToDirectory_Offline) {
   fake_service_.set_offline(true);
 
   const std::string kResourceId = "file:2_file_resource_id";
-  const GURL kEditUrl("https://file1_link_self/file:2_file_resource_id");
   const std::string kNewParentResourceId = "folder:1_folder_resource_id";
 
   GDataErrorCode error = GDATA_OTHER_ERROR;
   fake_service_.AddResourceToDirectory(
       kNewParentResourceId,
-      kEditUrl,
+      kResourceId,
       base::Bind(&test_util::CopyResultsFromEntryActionCallback,
                  &error));
   message_loop_.RunUntilIdle();

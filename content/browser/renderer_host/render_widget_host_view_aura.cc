@@ -136,11 +136,12 @@ bool CanRendererHandleEvent(const ui::MouseEvent* event) {
     return false;
 
 #if defined(OS_WIN)
-  // Renderer cannot handle WM_XBUTTON events.
+  // Renderer cannot handle WM_XBUTTON or NC events.
   switch (event->native_event().message) {
     case WM_XBUTTONDOWN:
     case WM_XBUTTONUP:
     case WM_XBUTTONDBLCLK:
+    case WM_NCMOUSEMOVE:
     case WM_NCXBUTTONDOWN:
     case WM_NCXBUTTONUP:
     case WM_NCXBUTTONDBLCLK:
@@ -710,31 +711,35 @@ BackingStore* RenderWidgetHostViewAura::AllocBackingStore(
 void RenderWidgetHostViewAura::CopyFromCompositingSurface(
     const gfx::Rect& src_subrect,
     const gfx::Size& dst_size,
-    const base::Callback<void(bool)>& callback,
-    skia::PlatformBitmap* output) {
-  base::ScopedClosureRunner scoped_callback_runner(base::Bind(callback, false));
+    const base::Callback<void(bool, const SkBitmap&)>& callback) {
+  base::ScopedClosureRunner scoped_callback_runner(
+      base::Bind(callback, false, SkBitmap()));
 
   if (!current_surface_)
     return;
 
   gfx::Size dst_size_in_pixel = ConvertSizeToPixel(this, dst_size);
-  if (!output->Allocate(
-      dst_size_in_pixel.width(), dst_size_in_pixel.height(), true))
+
+  SkBitmap output;
+  output.setConfig(SkBitmap::kARGB_8888_Config,
+                   dst_size_in_pixel.width(), dst_size_in_pixel.height());
+  if (!output.allocPixels())
     return;
+  output.setIsOpaque(true);
 
   ImageTransportFactory* factory = ImageTransportFactory::GetInstance();
   GLHelper* gl_helper = factory->GetGLHelper();
   if (!gl_helper)
     return;
 
-  unsigned char* addr = static_cast<unsigned char*>(
-      output->GetBitmap().getPixels());
+  unsigned char* addr = static_cast<unsigned char*>(output.getPixels());
   scoped_callback_runner.Release();
   // Wrap the callback with an internal handler so that we can inject our
   // own completion handlers (where we can try to free the frontbuffer).
   base::Callback<void(bool)> wrapper_callback = base::Bind(
       &RenderWidgetHostViewAura::CopyFromCompositingSurfaceFinished,
       AsWeakPtr(),
+      output,
       callback);
   ++pending_thumbnail_tasks_;
 
@@ -1011,9 +1016,10 @@ void RenderWidgetHostViewAura::SetSurfaceNotInUseByCompositor(
 
 void RenderWidgetHostViewAura::CopyFromCompositingSurfaceFinished(
     base::WeakPtr<RenderWidgetHostViewAura> render_widget_host_view,
-    const base::Callback<void(bool)>& callback,
+    const SkBitmap& bitmap,
+    const base::Callback<void(bool, const SkBitmap&)>& callback,
     bool result) {
-  callback.Run(result);
+  callback.Run(result, bitmap);
 
   if (!render_widget_host_view.get())
     return;
@@ -1478,16 +1484,12 @@ void RenderWidgetHostViewAura::OnKeyEvent(ui::KeyEvent* event) {
   } else {
     // We don't have to communicate with an input method here.
     if (!event->HasNativeEvent()) {
-      // Send a fabricated event, which is usually a VKEY_PROCESSKEY IME event.
-      // For keys like VK_BACK/VK_LEFT, etc we need to send the raw keycode to
-      // the renderer.
-      double now = ui::EventTimeForNow().InSecondsF();
       NativeWebKeyboardEvent webkit_event(
           event->type(),
-          false /* is_char */,
-          event->GetCharacter() ? event->GetCharacter() : event->key_code(),
+          event->is_char(),
+          event->is_char() ? event->GetCharacter() : event->key_code(),
           event->flags(),
-          now);
+          ui::EventTimeForNow().InSecondsF());
       host_->ForwardKeyboardEvent(webkit_event);
     } else {
       NativeWebKeyboardEvent webkit_event(event);
@@ -1876,7 +1878,8 @@ void RenderWidgetHostViewAura::UpdateCursorIfOverSelf() {
     return;
 
   gfx::NativeCursor cursor = current_cursor_.GetNativeCursor();
-  if (is_loading_)
+  // Do not show loading cursor when the cursor is currently hidden.
+  if (is_loading_ && cursor != ui::kCursorNone)
     cursor = ui::kCursorPointer;
 
   aura::client::CursorClient* cursor_client =

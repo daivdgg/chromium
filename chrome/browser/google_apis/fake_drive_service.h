@@ -88,6 +88,7 @@ class FakeDriveService : public DriveServiceInterface {
       const GetAccountMetadataCallback& callback) OVERRIDE;
   virtual void GetAppList(const GetAppListCallback& callback) OVERRIDE;
   virtual void DeleteResource(const std::string& resource_id,
+                              const std::string& etag,
                               const EntryActionCallback& callback) OVERRIDE;
   virtual void DownloadFile(
       const FilePath& virtual_path,
@@ -106,7 +107,7 @@ class FakeDriveService : public DriveServiceInterface {
                               const EntryActionCallback& callback) OVERRIDE;
   virtual void AddResourceToDirectory(
       const std::string& parent_resource_id,
-      const GURL& edit_url,
+      const std::string& resource_id,
       const EntryActionCallback& callback) OVERRIDE;
   virtual void RemoveResourceFromDirectory(
       const std::string& parent_resource_id,
@@ -128,10 +129,6 @@ class FakeDriveService : public DriveServiceInterface {
   // Returns a pointer to the entry that matches |resource_id|, or NULL if
   // not found.
   base::DictionaryValue* FindEntryByResourceId(const std::string& resource_id);
-
-  // Returns a pointer to the entry that matches |edit_url|, or NULL if not
-  // found.
-  base::DictionaryValue* FindEntryByEditUrl(const GURL& edit_url);
 
   // Returns a pointer to the entry that matches |content_url|, or NULL if
   // not found.

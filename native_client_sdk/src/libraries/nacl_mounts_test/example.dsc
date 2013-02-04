@@ -1,6 +1,6 @@
 {
   # TODO(binji): pnacl doesn't build right now because gtest doesn't build yet.
-  'TOOLS': ['newlib:x86', 'newlib:x64', 'glibc', 'win'],
+  'TOOLS': ['newlib', 'glibc', 'pnacl', 'win'],
 
   # Need to add ../../examples for common.js
   'SEARCH': ['.', '../../examples'],
@@ -17,6 +17,7 @@
         'module.cc',
         'mount_node_test.cc',
         'mount_html5fs_test.cc',
+        'mount_http_test.cc',
         'mount_test.cc',
         'path_test.cc',
         'pepper_interface_mock.cc',

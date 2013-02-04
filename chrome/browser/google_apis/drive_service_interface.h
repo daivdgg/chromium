@@ -154,9 +154,12 @@ class DriveServiceInterface {
   virtual void GetAppList(const GetAppListCallback& callback) = 0;
 
   // Deletes a resource identified by its |resource_id|.
+  // If |etag| is not empty and did not match, the deletion fails with
+  // HTTP_PRECONDITION error.
   // Upon completion, invokes |callback| with results on the calling thread.
   // |callback| must not be null.
   virtual void DeleteResource(const std::string& resource_id,
+                              const std::string& etag,
                               const EntryActionCallback& callback) = 0;
 
   // Makes a copy of a hosted document identified by its |resource_id|.
@@ -179,11 +182,11 @@ class DriveServiceInterface {
                               const EntryActionCallback& callback) = 0;
 
   // Adds a resource (document, file, or collection) identified by its
-  // |edit_url| to a collection represented by the |parent_resource_id|.
+  // |resource_id| to a collection represented by the |parent_resource_id|.
   // Upon completion, invokes |callback| with results on the calling thread.
   // |callback| must not be null.
   virtual void AddResourceToDirectory(const std::string& parent_resource_id,
-                                      const GURL& edit_url,
+                                      const std::string& resource_id,
                                       const EntryActionCallback& callback) = 0;
 
   // Removes a resource (document, file, collection) identified by its

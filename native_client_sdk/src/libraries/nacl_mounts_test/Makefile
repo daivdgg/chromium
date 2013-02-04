@@ -16,7 +16,7 @@
 # to override this, specify TOOLCHAIN=newlib|glibc or CONFIG=Debug|Release on
 # the make command-line or in this file prior to including common.mk.  The
 # toolchain we use by default will be the first valid one listed
-VALID_TOOLCHAINS:=newlib glibc win
+VALID_TOOLCHAINS:=newlib glibc pnacl win
 INCLUDES+=$(NACL_SDK_ROOT)/include/gtest/internal
 
 #
@@ -64,7 +64,7 @@ TARGET=nacl_mounts_test
 #
 SOURCES:=kernel_object_test.cc kernel_proxy_mock.cc kernel_proxy_test.cc
 SOURCES+=kernel_wrap_test.cc module.cc mount_node_test.cc
-SOURCES+=mount_html5fs_test.cc mount_test.cc path_test.cc
+SOURCES+=mount_html5fs_test.cc mount_http_test.cc mount_test.cc path_test.cc
 SOURCES+=pepper_interface_mock.cc
 
 #

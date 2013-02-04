@@ -22,9 +22,9 @@
 #include "chrome/browser/extensions/window_controller.h"
 #include "chrome/browser/file_select_helper.h"
 #include "chrome/browser/intents/web_intents_util.h"
-#include "chrome/browser/media/media_internals.h"
+#include "chrome/browser/media/media_capture_devices_dispatcher.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/app_modal_dialogs/javascript_dialog_creator.h"
+#include "chrome/browser/ui/app_modal_dialogs/javascript_dialog_manager.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
@@ -594,11 +594,11 @@ void ExtensionHost::RenderViewDeleted(RenderViewHost* render_view_host) {
     render_view_host_ = host_contents_->GetRenderViewHost();
 }
 
-content::JavaScriptDialogCreator* ExtensionHost::GetJavaScriptDialogCreator() {
-  if (!dialog_creator_.get()) {
-    dialog_creator_.reset(CreateJavaScriptDialogCreatorInstance(this));
+content::JavaScriptDialogManager* ExtensionHost::GetJavaScriptDialogManager() {
+  if (!dialog_manager_.get()) {
+    dialog_manager_.reset(CreateJavaScriptDialogManagerInstance(this));
   }
-  return dialog_creator_.get();
+  return dialog_manager_.get();
 }
 
 void ExtensionHost::RunFileChooser(WebContents* tab,
@@ -652,7 +652,7 @@ void ExtensionHost::RequestMediaAccessPermission(
     const content::MediaResponseCallback& callback) {
   // Get the preferred default devices for the request.
   content::MediaStreamDevices devices;
-  media::GetDefaultDevicesForProfile(
+  MediaCaptureDevicesDispatcher::GetInstance()->GetDefaultDevicesForProfile(
       profile_,
       content::IsAudioMediaType(request.audio_type),
       content::IsVideoMediaType(request.video_type),

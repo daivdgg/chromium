@@ -46,7 +46,7 @@ class DateTimeChooserAndroid;
 class DownloadItem;
 class InterstitialPageImpl;
 class JavaBridgeDispatcherHostManager;
-class JavaScriptDialogCreator;
+class JavaScriptDialogManager;
 class RenderViewHost;
 class RenderViewHostDelegateView;
 class RenderViewHostImpl;
@@ -511,10 +511,12 @@ class CONTENT_EXPORT WebContentsImpl
   void OnPpapiBrokerPermissionResult(int request_id, bool result);
 
   // IPC message handlers.
+#if defined(ENABLE_WEB_INTENTS)
   void OnRegisterIntentService(const webkit_glue::WebIntentServiceData& data,
                                bool user_gesture);
   void OnWebIntentDispatch(const webkit_glue::WebIntentData& intent,
                            int intent_id);
+#endif
   void OnDidLoadResourceFromMemoryCache(const GURL& url,
                                         const std::string& security_info,
                                         const std::string& http_request,
@@ -794,9 +796,9 @@ class CONTENT_EXPORT WebContentsImpl
   // once.
   bool notify_disconnection_;
 
-  // Pointer to the JavaScript dialog creator, lazily assigned. Used because the
+  // Pointer to the JavaScript dialog manager, lazily assigned. Used because the
   // delegate of this WebContentsImpl is nulled before its destructor is called.
-  JavaScriptDialogCreator* dialog_creator_;
+  JavaScriptDialogManager* dialog_manager_;
 
   // Set to true when there is an active "before unload" dialog.  When true,
   // we've forced the throbber to start in Navigate, and we need to remember to

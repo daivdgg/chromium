@@ -333,7 +333,7 @@ EVENT_TYPE(SUBMITTED_TO_RESOLVER_THREAD)
 // Socket (Shared by stream and datagram sockets)
 // ------------------------------------------------------------------------
 
-// Marks the begin/end of a socket (TCP/SOCKS/SSL/UDP).
+// Marks the begin/end of a socket (TCP/SOCKS/SSL/UDP/"SpdyProxyClientSocket").
 //
 // The BEGIN phase contains the following parameters:
 //
@@ -518,7 +518,9 @@ EVENT_TYPE(SSL_VERIFICATION_MERGED)
 //   }
 EVENT_TYPE(SSL_NSS_ERROR)
 
-// The specified number of bytes were sent on the socket.
+// The specified number of bytes were sent on the socket.  Depending on the
+// source of the event, may be logged either once the data is sent, or when it
+// is queued to be sent.
 // The following parameters are attached:
 //   {
 //     "byte_count": <Number of bytes that were just sent>,
@@ -1205,6 +1207,16 @@ EVENT_TYPE(SPDY_STREAM_UPDATE_RECV_WINDOW)
 EVENT_TYPE(SPDY_STREAM_ERROR)
 
 // ------------------------------------------------------------------------
+// SpdyProxyClientSocket
+// ------------------------------------------------------------------------
+
+EVENT_TYPE(SPDY_PROXY_CLIENT_SESSION)
+// Identifies the SPDY session a source is using.
+//   {
+//     "source_dependency":  <Source identifier for the underlying session>,
+//   }
+
+// ------------------------------------------------------------------------
 // HttpStreamParser
 // ------------------------------------------------------------------------
 
@@ -1572,7 +1584,9 @@ EVENT_TYPE(DOWNLOAD_URL_REQUEST)
 //                     |state_info.force_filename|
 //                     |suggested_filename_|
 //                     the filename specified in the final URL>,
-//     "danger_type": <NOT,FILE,URL,CONTENT,MAYBE_CONTENT>,
+//     "danger_type": <NOT_DANGEROUS, DANGEROUS_FILE, DANGEROUS_URL,
+//                     DANGEROUS_CONTENT, MAYBE_DANGEROUS_CONTENT,
+//                     UNCOMMON_CONTENT, USER_VALIDATED, DANGEROUS_HOST>,
 //     "start_offset": <Where to start writing (defaults to 0)>,
 //     "has_user_gesture": <Whether or not we think the user initiated
 //                          the download>
@@ -1586,7 +1600,7 @@ EVENT_TYPE(DOWNLOAD_ITEM_ACTIVE)
 // This event is created when a download item's danger type
 // has been modified.
 //   {
-//     "danger_type": <NOT,FILE,URL,CONTENT,MAYBE_CONTENT,USER_VALIDATED>,
+//     "danger_type": <The new danger type.  See above for possible values.>,
 //   }
 EVENT_TYPE(DOWNLOAD_ITEM_SAFETY_STATE_UPDATED)
 

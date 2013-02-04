@@ -9,6 +9,7 @@
 #include "base/stringprintf.h"
 #include "chrome/browser/download/download_shelf.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/signin/signin_manager.h"
 #include "chrome/browser/sync/profile_sync_service.h"
 #include "chrome/browser/sync/profile_sync_service_factory.h"
 #include "chrome/browser/ui/browser.h"
@@ -21,11 +22,11 @@
 #include "chrome/browser/ui/webui/signin/login_ui_service.h"
 #include "chrome/browser/ui/webui/signin/login_ui_service_factory.h"
 #include "chrome/browser/ui/webui/sync_promo/sync_promo_ui.h"
-#include "chrome/common/net/url_util.h"
 #include "chrome/common/url_constants.h"
 #include "content/public/browser/user_metrics.h"
 #include "google_apis/gaia/gaia_urls.h"
 #include "googleurl/src/gurl.h"
+#include "net/base/url_util.h"
 
 using content::UserMetricsAction;
 
@@ -181,12 +182,13 @@ void ShowSearchEngineSettings(Browser* browser) {
   ShowSettingsSubPage(browser, kSearchEnginesSubPage);
 }
 
-void ShowSyncSetup(Browser* browser, SyncPromoUI::Source source) {
+void ShowBrowserSignin(Browser* browser, SyncPromoUI::Source source) {
   Profile* original_profile = browser->profile()->GetOriginalProfile();
   ProfileSyncService* service =
       ProfileSyncServiceFactory::GetInstance()->GetForProfile(
           original_profile);
-  if (service->HasSyncSetupCompleted()) {
+  // If we're signed in, just show settings.
+  if (!service->signin()->GetAuthenticatedUsername().empty()) {
     ShowSettings(browser);
   } else {
     // If the browser's profile is an incognito profile, make sure to use
@@ -226,11 +228,9 @@ void ShowGaiaSignin(Browser* browser,
                     const std::string& service,
                     const GURL& continue_url) {
   GURL url(GaiaUrls::GetInstance()->service_login_url());
-  url = chrome_common_net::AppendQueryParameter(url, "service", service);
+  url = net::AppendQueryParameter(url, "service", service);
   if (continue_url.is_valid())
-    url = chrome_common_net::AppendQueryParameter(url,
-                                                  "continue",
-                                                  continue_url.spec());
+    url = net::AppendQueryParameter(url, "continue", continue_url.spec());
   NavigateToSingletonTab(browser, url);
 }
 

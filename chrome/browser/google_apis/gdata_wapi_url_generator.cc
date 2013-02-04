@@ -6,9 +6,9 @@
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
-#include "chrome/common/net/url_util.h"
 #include "googleurl/src/gurl.h"
 #include "net/base/escape.h"
+#include "net/base/url_util.h"
 
 namespace google_apis {
 namespace {
@@ -32,8 +32,9 @@ const char kContentURLFormat[] = "/feeds/default/private/full/%s/contents";
 const char kResourceURLForRemovalFormat[] =
     "/feeds/default/private/full/%s/contents/%s";
 
-// URL requesting single resource entry whose resource id is specified by "%s".
-const char kGetEditURLFormat[] = "/feeds/default/private/full/%s";
+// URL requesting single resource entry whose resource id is followed by this
+// prefix.
+const char kGetEditURLPrefix[] = "/feeds/default/private/full/";
 
 // Root resource list url.
 const char kResourceListRootURL[] = "/feeds/default/private/full";
@@ -66,17 +67,15 @@ const char GDataWapiUrlGenerator::kBaseUrlForProduction[] =
 
 // static
 GURL GDataWapiUrlGenerator::AddStandardUrlParams(const GURL& url) {
-  GURL result =
-      chrome_common_net::AppendOrReplaceQueryParameter(url, "v", "3");
-  result =
-      chrome_common_net::AppendOrReplaceQueryParameter(result, "alt", "json");
+  GURL result = net::AppendOrReplaceQueryParameter(url, "v", "3");
+  result = net::AppendOrReplaceQueryParameter(result, "alt", "json");
   return result;
 }
 
 // static
 GURL GDataWapiUrlGenerator::AddMetadataUrlParams(const GURL& url) {
   GURL result = AddStandardUrlParams(url);
-  result = chrome_common_net::AppendOrReplaceQueryParameter(
+  result = net::AppendOrReplaceQueryParameter(
       result, "include-installed-apps", "true");
   return result;
 }
@@ -88,27 +87,22 @@ GURL GDataWapiUrlGenerator::AddFeedUrlParams(
     int changestamp,
     const std::string& search_string) {
   GURL result = AddStandardUrlParams(url);
-  result = chrome_common_net::AppendOrReplaceQueryParameter(
-      result,
-      "showfolders",
-      "true");
-  result = chrome_common_net::AppendOrReplaceQueryParameter(
+  result = net::AppendOrReplaceQueryParameter(result, "showfolders", "true");
+  result = net::AppendOrReplaceQueryParameter(
       result,
       "max-results",
       base::StringPrintf("%d", num_items_to_fetch));
-  result = chrome_common_net::AppendOrReplaceQueryParameter(
+  result = net::AppendOrReplaceQueryParameter(
       result, "include-installed-apps", "true");
 
   if (changestamp) {
-    result = chrome_common_net::AppendQueryParameter(
-        result,
-        "start-index",
-        base::StringPrintf("%d", changestamp));
+    result = net::AppendQueryParameter(result,
+                                       "start-index",
+                                       base::StringPrintf("%d", changestamp));
   }
 
   if (!search_string.empty()) {
-    result = chrome_common_net::AppendOrReplaceQueryParameter(
-        result, "q", search_string);
+    result = net::AppendOrReplaceQueryParameter(result, "q", search_string);
   }
   return result;
 }
@@ -161,9 +155,7 @@ GURL GDataWapiUrlGenerator::GenerateEditUrl(
 
 GURL GDataWapiUrlGenerator::GenerateEditUrlWithoutParams(
     const std::string& resource_id) const {
-  return base_url_.Resolve(
-      base::StringPrintf(kGetEditURLFormat,
-                         net::EscapePath(resource_id).c_str()));
+  return base_url_.Resolve(kGetEditURLPrefix + net::EscapePath(resource_id));
 }
 
 GURL GDataWapiUrlGenerator::GenerateContentUrl(

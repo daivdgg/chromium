@@ -12,6 +12,7 @@
 #include "base/command_line.h"
 #include "base/string_number_conversions.h"
 #include "base/values.h"
+#include "chrome/browser/app_mode/app_mode_utils.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_system.h"
@@ -38,6 +39,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/common/chrome_notification_types.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/common/extensions/extension.h"
 #include "chrome/common/extensions/extension_resource.h"
 #include "chrome/common/pref_names.h"
@@ -100,7 +102,7 @@ class AppShortcutLauncherItemController : public LauncherItemController {
     // TODO: maybe should treat as unpin?
   }
 
-  virtual void Clicked() OVERRIDE {
+  virtual void Clicked(const ui::Event& event) OVERRIDE {
     Activate();
   }
 
@@ -114,8 +116,9 @@ class AppShortcutLauncherItemController : public LauncherItemController {
       const ash::LauncherItem& old_item) OVERRIDE {
   }
 
-  virtual ChromeLauncherAppMenuItems* GetApplicationList() OVERRIDE {
-    return new ChromeLauncherAppMenuItems;
+  virtual ChromeLauncherAppMenuItems GetApplicationList() OVERRIDE {
+    ChromeLauncherAppMenuItems items;
+    return items.Pass();
   }
 
   // Stores the optional refocus url pattern for this item.
@@ -469,10 +472,9 @@ void ChromeLauncherControllerPerBrowser::LaunchApp(const std::string& app_id,
     return;
   }
 
-  application_launch::OpenApplication(application_launch::LaunchParams(
-      GetProfileForNewWindows(),
-      extension,
-      event_flags));
+  chrome::OpenApplication(chrome::AppLaunchParams(GetProfileForNewWindows(),
+                                                  extension,
+                                                  event_flags));
 }
 
 void ChromeLauncherControllerPerBrowser::ActivateApp(const std::string& app_id,
@@ -658,6 +660,10 @@ bool ChromeLauncherControllerPerBrowser::CanPin() const {
 ash::ShelfAutoHideBehavior
     ChromeLauncherControllerPerBrowser::GetShelfAutoHideBehavior(
         aura::RootWindow* root_window) const {
+  // Don't show the shelf in the app mode.
+  if (chrome::IsRunningInAppMode())
+    return ash::SHELF_AUTO_HIDE_ALWAYS_HIDDEN;
+
   // See comment in |kShelfAlignment| as to why we consider two prefs.
   const std::string behavior_value(
       GetPrefForRootWindow(profile_->GetPrefs(),
@@ -805,9 +811,9 @@ void ChromeLauncherControllerPerBrowser::OnBrowserShortcutClicked(
 
 void ChromeLauncherControllerPerBrowser::ItemClicked(
     const ash::LauncherItem& item,
-    int event_flags) {
+    const ui::Event& event) {
   DCHECK(HasItemController(item.id));
-  id_to_item_controller_map_[item.id]->Clicked();
+  id_to_item_controller_map_[item.id]->Clicked(event);
 }
 
 int ChromeLauncherControllerPerBrowser::GetBrowserShortcutResourceId() {
@@ -1130,6 +1136,11 @@ void ChromeLauncherControllerPerBrowser::SetShelfAutoHideBehaviorPrefs(
     case ash::SHELF_AUTO_HIDE_BEHAVIOR_NEVER:
       value = ash::kShelfAutoHideBehaviorNever;
       break;
+    case ash::SHELF_AUTO_HIDE_ALWAYS_HIDDEN:
+      // This one should not be a valid preference option for now. We only want
+      // to completely hide it when we run app mode.
+      NOTREACHED();
+      return;
   }
 
   UpdatePerDisplayPref(

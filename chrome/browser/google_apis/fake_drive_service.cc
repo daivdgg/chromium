@@ -9,9 +9,9 @@
 #include "base/message_loop.h"
 #include "base/string_number_conversions.h"
 #include "base/string_split.h"
-#include "base/string_tokenizer.h"
 #include "base/string_util.h"
 #include "base/stringprintf.h"
+#include "base/strings/string_tokenizer.h"
 #include "base/utf_string_conversions.h"
 #include "chrome/browser/google_apis/drive_api_parser.h"
 #include "chrome/browser/google_apis/gdata_wapi_parser.h"
@@ -30,7 +30,7 @@ namespace {
 // - Limited attribute search.  Only "title:" is supported.
 bool EntryMatchWithQuery(const ResourceEntry& entry,
                          const std::string& query) {
-  StringTokenizer tokenizer(query, " ");
+  base::StringTokenizer tokenizer(query, " ");
   tokenizer.set_quote_chars("\"'");
   while (tokenizer.GetNext()) {
     std::string key, value;
@@ -38,7 +38,7 @@ bool EntryMatchWithQuery(const ResourceEntry& entry,
     if (token.find(':') == std::string::npos) {
       TrimString(token, "\"'", &value);
     } else {
-      StringTokenizer key_value(token, ":");
+      base::StringTokenizer key_value(token, ":");
       key_value.set_quote_chars("\"'");
       if (!key_value.GetNext())
         return false;
@@ -376,6 +376,7 @@ void FakeDriveService::GetAppList(const GetAppListCallback& callback) {
 
 void FakeDriveService::DeleteResource(
     const std::string& resource_id,
+    const std::string& etag,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -565,7 +566,7 @@ void FakeDriveService::RenameResource(
 
 void FakeDriveService::AddResourceToDirectory(
     const std::string& parent_resource_id,
-    const GURL& edit_url,
+    const std::string& resource_id,
     const EntryActionCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
@@ -576,7 +577,7 @@ void FakeDriveService::AddResourceToDirectory(
     return;
   }
 
-  base::DictionaryValue* entry = FindEntryByEditUrl(edit_url);
+  base::DictionaryValue* entry = FindEntryByResourceId(resource_id);
   if (entry) {
     base::ListValue* links = NULL;
     if (entry->GetList("link", &links)) {
@@ -796,39 +797,6 @@ base::DictionaryValue* FakeDriveService::FindEntryByResourceId(
           entry->GetString("gd$resourceId.$t", &current_resource_id) &&
           resource_id == current_resource_id) {
         return entry;
-      }
-    }
-  }
-
-  return NULL;
-}
-
-base::DictionaryValue* FakeDriveService::FindEntryByEditUrl(
-    const GURL& edit_url) {
-  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
-
-  base::DictionaryValue* resource_list_dict = NULL;
-  base::ListValue* entries = NULL;
-  // Go through entries and return the one that matches |edit_url|.
-  if (resource_list_value_->GetAsDictionary(&resource_list_dict) &&
-      resource_list_dict->GetList("entry", &entries)) {
-    for (size_t i = 0; i < entries->GetSize(); ++i) {
-      base::DictionaryValue* entry = NULL;
-      base::ListValue* links = NULL;
-      if (entries->GetDictionary(i, &entry) &&
-          entry->GetList("link", &links)) {
-        for (size_t j = 0; j < links->GetSize(); ++j) {
-          base::DictionaryValue* link = NULL;
-          std::string rel;
-          std::string href;
-          if (links->GetDictionary(j, &link) &&
-              link->GetString("rel", &rel) &&
-              link->GetString("href", &href) &&
-              rel == "edit" &&
-              GURL(href) == edit_url) {
-            return entry;
-          }
-        }
       }
     }
   }

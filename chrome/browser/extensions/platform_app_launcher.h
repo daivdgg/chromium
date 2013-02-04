@@ -8,8 +8,11 @@
 #include <string>
 
 class CommandLine;
-class FilePath;
 class Profile;
+
+namespace base {
+class FilePath;
+}
 
 namespace content {
 class WebContents;
@@ -27,21 +30,22 @@ class Extension;
 void LaunchPlatformApp(Profile* profile,
                        const Extension* extension,
                        const CommandLine* command_line,
-                       const FilePath& current_directory);
+                       const base::FilePath& current_directory);
 
 // Launches the platform app |extension| with the contents of |file_path|
 // available through the launch data.
 void LaunchPlatformAppWithPath(Profile* profile,
                                const Extension* extension,
-                               const FilePath& file_path);
+                               const base::FilePath& file_path);
 
 // Launches the platform app |extension| with the contents of |file_path|
 // available through the launch data.
 void LaunchPlatformAppWithFileHandler(Profile* profile,
                                       const Extension* extension,
                                       const std::string& handler_id,
-                                      const FilePath& file_path);
+                                      const base::FilePath& file_path);
 
+#if defined(ENABLE_WEB_INTENTS)
 // Launches the platform app |extension| with the supplied web intent. Creates
 // appropriate launch data for the |web_intent_data| field present. |extension|
 // and |profile| must not be NULL.
@@ -50,6 +54,7 @@ void LaunchPlatformAppWithWebIntent(
     const Extension* extension,
     content::WebIntentsDispatcher* intents_dispatcher,
     content::WebContents* source);
+#endif
 
 }  // namespace extensions
 

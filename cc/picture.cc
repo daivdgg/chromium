@@ -50,7 +50,7 @@ scoped_refptr<Picture> Picture::Clone() const {
 }
 
 void Picture::Record(ContentLayerClient* painter,
-                     RenderingStats& stats) {
+                     RenderingStats* stats) {
   TRACE_EVENT2("cc", "Picture::Record",
                "width", layer_rect_.width(), "height", layer_rect_.height());
 
@@ -80,11 +80,15 @@ void Picture::Record(ContentLayerClient* painter,
   canvas->drawRect(layer_skrect, paint);
 
   gfx::RectF opaque_layer_rect;
-  base::TimeTicks beginPaintTime = base::TimeTicks::Now();
+  base::TimeTicks begin_paint_time;
+  if (stats)
+    begin_paint_time = base::TimeTicks::Now();
   painter->paintContents(canvas, layer_rect_, opaque_layer_rect);
-  stats.totalPaintTime += base::TimeTicks::Now() - beginPaintTime;
-  stats.totalPixelsPainted += layer_rect_.width() *
-                              layer_rect_.height();
+  if (stats) {
+    stats->totalPaintTime += base::TimeTicks::Now() - begin_paint_time;
+    stats->totalPixelsPainted +=
+        layer_rect_.width() * layer_rect_.height();
+  }
 
   canvas->restore();
   picture_->endRecording();
@@ -106,6 +110,10 @@ void Picture::Raster(
   canvas->translate(layer_rect_.x(), layer_rect_.y());
   canvas->drawPicture(*picture_);
   canvas->restore();
+}
+
+bool Picture::IsCheapInRect(const gfx::Rect& layer_rect) {
+  return false;
 }
 
 void Picture::GatherPixelRefs(const gfx::Rect& layer_rect,

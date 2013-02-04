@@ -199,7 +199,8 @@ class DeleteResourceOperation : public EntryActionOperation {
       net::URLRequestContextGetter* url_request_context_getter,
       const GDataWapiUrlGenerator& url_generator,
       const EntryActionCallback& callback,
-      const std::string& resource_id);
+      const std::string& resource_id,
+      const std::string& etag);
   virtual ~DeleteResourceOperation();
 
  protected:
@@ -211,6 +212,7 @@ class DeleteResourceOperation : public EntryActionOperation {
  private:
   const GDataWapiUrlGenerator url_generator_;
   const std::string resource_id_;
+  const std::string etag_;
 
   DISALLOW_COPY_AND_ASSIGN(DeleteResourceOperation);
 };
@@ -354,7 +356,7 @@ class AddResourceToDirectoryOperation : public EntryActionOperation {
       const GDataWapiUrlGenerator& url_generator,
       const EntryActionCallback& callback,
       const std::string& parent_resource_id,
-      const GURL& edit_url);
+      const std::string& resource_id);
   virtual ~AddResourceToDirectoryOperation();
 
  protected:
@@ -367,7 +369,7 @@ class AddResourceToDirectoryOperation : public EntryActionOperation {
  private:
   const GDataWapiUrlGenerator url_generator_;
   const std::string parent_resource_id_;
-  const GURL edit_url_;
+  const std::string resource_id_;
 
   DISALLOW_COPY_AND_ASSIGN(AddResourceToDirectoryOperation);
 };

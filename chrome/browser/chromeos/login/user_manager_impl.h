@@ -24,7 +24,6 @@
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/notification_registrar.h"
 
-class FilePath;
 class PrefService;
 class ProfileSyncService;
 
@@ -168,6 +167,9 @@ class UserManagerImpl
   // Updates the display name for public account |username| from policy settings
   // associated with that username.
   void UpdatePublicAccountDisplayName(const std::string& username);
+
+  // Notifies the UI about a change to the user list.
+  void NotifyUserListChanged();
 
   // Interface to the signed settings store.
   CrosSettings* cros_settings_;

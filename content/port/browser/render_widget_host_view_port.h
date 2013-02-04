@@ -17,6 +17,7 @@
 #include "ui/base/range/range.h"
 #include "ui/surface/transport_dib.h"
 
+class SkBitmap;
 class WebCursor;
 
 struct AccessibilityHostMsg_NotificationParams;
@@ -30,15 +31,9 @@ struct WebPluginGeometry;
 }
 }
 
-#if defined(OS_POSIX) || defined(USE_AURA)
 namespace WebKit {
 struct WebScreenInfo;
 }
-#endif
-
-namespace skia {
-class PlatformBitmap;
-};
 
 namespace content {
 class BackingStore;
@@ -166,8 +161,7 @@ class CONTENT_EXPORT RenderWidgetHostViewPort : public RenderWidgetHostView {
   virtual void CopyFromCompositingSurface(
       const gfx::Rect& src_subrect,
       const gfx::Size& dst_size,
-      const base::Callback<void(bool)>& callback,
-      skia::PlatformBitmap* output) = 0;
+      const base::Callback<void(bool, const SkBitmap&)>& callback) = 0;
 
   // Called when accelerated compositing state changes.
   virtual void OnAcceleratedCompositingStateChange() = 0;
@@ -254,11 +248,9 @@ class CONTENT_EXPORT RenderWidgetHostViewPort : public RenderWidgetHostView {
   virtual void WillWmDestroy() = 0;
 #endif
 
-#if defined(OS_POSIX) || defined(USE_AURA)
   static void GetDefaultScreenInfo(
       WebKit::WebScreenInfo* results);
   virtual void GetScreenInfo(WebKit::WebScreenInfo* results) = 0;
-#endif
 
   // Gets the bounds of the window, in screen coordinates.
   virtual gfx::Rect GetBoundsInRootWindow() = 0;

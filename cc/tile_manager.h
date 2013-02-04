@@ -12,6 +12,7 @@
 #include "base/hash_tables.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/values.h"
+#include "cc/memory_history.h"
 #include "cc/rendering_stats.h"
 #include "cc/resource_pool.h"
 #include "cc/tile_priority.h"
@@ -93,7 +94,8 @@ class CC_EXPORT TileManager {
  public:
   TileManager(TileManagerClient* client,
               ResourceProvider *resource_provider,
-              size_t num_raster_threads);
+              size_t num_raster_threads,
+              bool record_rendering_stats);
   virtual ~TileManager();
 
   const GlobalStateThatImpactsTilePriority& GlobalState() const {
@@ -111,19 +113,30 @@ class CC_EXPORT TileManager {
   void GetRenderingStats(RenderingStats* stats);
   bool HasPendingWorkScheduled(WhichTree tree) const;
 
+  const MemoryHistory::Entry& memory_stats_from_last_assign() const { return memory_stats_from_last_assign_; }
+
  protected:
   // Methods called by Tile
   friend class Tile;
   void RegisterTile(Tile* tile);
   void UnregisterTile(Tile* tile);
   void WillModifyTilePriority(
-      Tile* tile, WhichTree tree, const TilePriority& new_priority);
+      Tile* tile, WhichTree tree, const TilePriority& new_priority) {
+    // TODO(nduca): Do something smarter if reprioritization turns out to be
+    // costly.
+    ScheduleManageTiles();
+  }
 
  private:
   void SortTiles();
   void AssignGpuMemoryToTiles();
   void FreeResourcesForTile(Tile* tile);
-  void ScheduleManageTiles();
+  void ScheduleManageTiles() {
+    if (manage_tiles_pending_)
+      return;
+    client_->ScheduleManageTiles();
+    manage_tiles_pending_ = true;
+  }
   void DispatchMoreTasks();
   void GatherPixelRefsForTile(Tile* tile);
   void DispatchImageDecodeTasksForTile(Tile* tile);
@@ -143,6 +156,14 @@ class CC_EXPORT TileManager {
                         TileManagerBin bin,
                         WhichTree tree);
   scoped_ptr<Value> GetMemoryRequirementsAsValue() const;
+
+  static void RunRasterTask(uint8* buffer,
+                            const gfx::Rect& rect,
+                            float contents_scale,
+                            PicturePileImpl* picture_pile,
+                            RenderingStats* stats);
+  static void RunImageDecodeTask(skia::LazyPixelRef* pixel_ref,
+                                 RenderingStats* stats);
 
   TileManagerClient* client_;
   scoped_ptr<ResourcePool> resource_pool_;
@@ -168,7 +189,9 @@ class CC_EXPORT TileManager {
   TileQueue tiles_with_pending_set_pixels_;
   size_t bytes_pending_set_pixels_;
   bool ever_exceeded_memory_budget_;
+  MemoryHistory::Entry memory_stats_from_last_assign_;
 
+  bool record_rendering_stats_;
   RenderingStats rendering_stats_;
 
   int raster_state_count_[NUM_STATES][NUM_TREES][NUM_BINS];

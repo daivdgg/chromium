@@ -14,6 +14,7 @@
 #include "base/at_exit.h"
 #include "base/bind.h"
 #include "base/command_line.h"
+#include "base/cpu.h"
 #include "base/debug/trace_event.h"
 #include "base/file_path.h"
 #include "base/file_util.h"
@@ -40,6 +41,11 @@
 #include "chrome/browser/browser_process_impl.h"
 #include "chrome/browser/browser_shutdown.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
+#include "chrome/browser/component_updater/component_updater_service.h"
+#include "chrome/browser/component_updater/flash_component_installer.h"
+#include "chrome/browser/component_updater/pnacl/pnacl_component_installer.h"
+#include "chrome/browser/component_updater/recovery_component_installer.h"
+#include "chrome/browser/component_updater/swiftshader_component_installer.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/extensions/extension_protocols.h"
 #include "chrome/browser/extensions/extension_service.h"
@@ -60,6 +66,7 @@
 #include "chrome/browser/metrics/variations/variations_service.h"
 #include "chrome/browser/nacl_host/nacl_process_host.h"
 #include "chrome/browser/net/chrome_net_log.h"
+#include "chrome/browser/net/crl_set_fetcher.h"
 #include "chrome/browser/notifications/desktop_notification_service.h"
 #include "chrome/browser/notifications/desktop_notification_service_factory.h"
 #include "chrome/browser/page_cycler/page_cycler.h"
@@ -85,6 +92,7 @@
 #include "chrome/browser/service/service_process_control.h"
 #include "chrome/browser/shell_integration.h"
 #include "chrome/browser/translate/translate_manager.h"
+#include "chrome/browser/ui/app_list/app_list_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/startup/default_browser_prompt.h"
@@ -201,6 +209,13 @@ using content::BrowserThread;
 
 namespace {
 
+void LogIntelMicroArchitecture() {
+  base::CPU cpu;
+  base::CPU::IntelMicroArchitecture arch = cpu.GetIntelMicroArchitecture();
+  UMA_HISTOGRAM_ENUMERATION("Platform.IntelMaxMicroArchitecture", arch,
+      base::CPU::MAX_INTEL_MICRO_ARCHITECTURE);
+}
+
 // This function provides some ways to test crash and assertion handling
 // behavior of the program.
 void HandleTestParameters(const CommandLine& command_line) {
@@ -315,13 +330,32 @@ PrefService* InitializeLocalState(
   return local_state;
 }
 
+// Returns the path that contains the profile that should be loaded
+// on process startup.
+FilePath GetStartupProfilePath(const FilePath& user_data_dir,
+                               const CommandLine& command_line) {
+  if (command_line.HasSwitch(switches::kProfileDirectory)) {
+    return user_data_dir.Append(
+        command_line.GetSwitchValuePath(switches::kProfileDirectory));
+  }
+
+#if defined(ENABLE_APP_LIST)
+  // If we are showing the app list then chrome isn't shown so load the app
+  // list's profile rather than chrome's.
+  if (command_line.HasSwitch(switches::kShowAppList))
+    return chrome::GetAppListProfilePath(user_data_dir);
+#endif
+
+  return g_browser_process->profile_manager()->GetLastUsedProfileDir(
+      user_data_dir);
+}
+
 // Initializes the profile, possibly doing some user prompting to pick a
 // fallback profile. Returns the newly created profile, or NULL if startup
 // should not continue.
 Profile* CreateProfile(const content::MainFunctionParams& parameters,
                        const FilePath& user_data_dir,
                        const CommandLine& parsed_command_line) {
-  Profile* profile;
   if (ProfileManager::IsMultipleProfilesEnabled() &&
       parsed_command_line.HasSwitch(switches::kProfileDirectory)) {
     g_browser_process->local_state()->SetString(prefs::kProfileLastUsed,
@@ -333,13 +367,17 @@ Profile* CreateProfile(const content::MainFunctionParams& parameters,
     ListValue* profile_list = update.Get();
     profile_list->Clear();
   }
+
+  Profile* profile = NULL;
 #if defined(OS_CHROMEOS)
   // TODO(ivankr): http://crbug.com/83792
   profile = g_browser_process->profile_manager()->GetDefaultProfile(
       user_data_dir);
 #else
-  profile = g_browser_process->profile_manager()->GetLastUsedProfile(
-      user_data_dir);
+  FilePath profile_path =
+      GetStartupProfilePath(user_data_dir, parsed_command_line);
+  profile = g_browser_process->profile_manager()->GetProfile(
+      profile_path);
 #endif
   if (profile)
     return profile;
@@ -405,6 +443,28 @@ void RecordDefaultBrowserUMAStat() {
                             ShellIntegration::NUM_DEFAULT_STATES);
 }
 
+void RegisterComponentsForUpdate(const CommandLine& command_line) {
+  ComponentUpdateService* cus = g_browser_process->component_updater();
+  if (!cus)
+    return;
+  // Registration can be before of after cus->Start() so it is ok to post
+  // a task to the UI thread to do registration once you done the necessary
+  // file IO to know you existing component version.
+  RegisterRecoveryComponent(cus, g_browser_process->local_state());
+  RegisterPepperFlashComponent(cus);
+  RegisterSwiftShaderComponent(cus);
+
+  // CRLSetFetcher attempts to load a CRL set from either the local disk or
+  // network.
+  if (!command_line.HasSwitch(switches::kDisableCRLSets))
+    g_browser_process->crl_set_fetcher()->StartInitialLoad(cus);
+
+  if (command_line.HasSwitch(switches::kEnablePnacl))
+    RegisterPnaclComponent(cus);
+
+  cus->Start();
+}
+
 bool ProcessSingletonNotificationCallback(const CommandLine& command_line,
                                           const FilePath& current_directory) {
   // Drop the request if the browser process is already in shutdown path.
@@ -434,8 +494,13 @@ bool ProcessSingletonNotificationCallback(const CommandLine& command_line,
     return true;
   }
 
+  FilePath user_data_dir =
+      g_browser_process->profile_manager()->user_data_dir();
+  FilePath startup_profile_dir =
+      GetStartupProfilePath(user_data_dir, command_line);
+
   StartupBrowserCreator::ProcessCommandLineAlreadyRunning(
-      command_line, current_directory);
+      command_line, current_directory, startup_profile_dir);
   return true;
 }
 
@@ -1001,6 +1066,10 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
   StartMetricsRecording();
 #endif
 
+#if defined(ARCH_CPU_X86_FAMILY)
+  LogIntelMicroArchitecture();
+#endif  // defined(ARCH_CPU_X86_FAMILY)
+
   // Create watchdog thread after creating all other threads because it will
   // watch the other threads and they must be running.
   browser_process_->watchdog_thread();
@@ -1423,6 +1492,9 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
   std::vector<Profile*> last_opened_profiles =
       g_browser_process->profile_manager()->GetLastOpenedProfiles();
 #endif
+
+  if (!parsed_command_line().HasSwitch(switches::kDisableComponentUpdate))
+    RegisterComponentsForUpdate(parsed_command_line());
 
   if (browser_creator_->Start(parsed_command_line(), FilePath(),
                               profile_, last_opened_profiles, &result_code)) {

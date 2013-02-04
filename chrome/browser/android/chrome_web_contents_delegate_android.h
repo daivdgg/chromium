@@ -51,8 +51,8 @@ class ChromeWebContentsDelegateAndroid
                                    int version,
                                    const std::vector<gfx::RectF>& rects,
                                    const gfx::RectF& active_rect) OVERRIDE;
-  virtual content::JavaScriptDialogCreator*
-  GetJavaScriptDialogCreator() OVERRIDE;
+  virtual content::JavaScriptDialogManager*
+  GetJavaScriptDialogManager() OVERRIDE;
   virtual bool CanDownload(content::RenderViewHost* source,
                            int request_id,
                            const std::string& request_method) OVERRIDE;
@@ -61,6 +61,10 @@ class ChromeWebContentsDelegateAndroid
   virtual void DidNavigateToPendingEntry(content::WebContents* source) OVERRIDE;
   virtual void DidNavigateMainFramePostCommit(
       content::WebContents* source) OVERRIDE;
+  virtual void RequestMediaAccessPermission(
+      content::WebContents* web_contents,
+      const content::MediaStreamRequest& request,
+      const content::MediaResponseCallback& callback) OVERRIDE;
 
  private:
   // NotificationObserver implementation.

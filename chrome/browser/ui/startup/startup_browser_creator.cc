@@ -28,16 +28,10 @@
 #include "chrome/browser/automation/chrome_frame_automation_provider.h"
 #include "chrome/browser/automation/testing_automation_provider.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/component_updater/component_updater_service.h"
-#include "chrome/browser/component_updater/flash_component_installer.h"
-#include "chrome/browser/component_updater/pnacl/pnacl_component_installer.h"
-#include "chrome/browser/component_updater/recovery_component_installer.h"
-#include "chrome/browser/component_updater/swiftshader_component_installer.h"
 #include "chrome/browser/custom_handlers/protocol_handler_registry.h"
 #include "chrome/browser/extensions/startup_helper.h"
 #include "chrome/browser/first_run/first_run.h"
 #include "chrome/browser/google/google_util.h"
-#include "chrome/browser/net/crl_set_fetcher.h"
 #include "chrome/browser/net/url_fixer_upper.h"
 #include "chrome/browser/notifications/desktop_notification_service.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
@@ -89,25 +83,6 @@ using content::BrowserThread;
 using content::ChildProcessSecurityPolicy;
 
 namespace {
-
-void RegisterComponentsForUpdate(const CommandLine& command_line) {
-  ComponentUpdateService* cus = g_browser_process->component_updater();
-  if (!cus)
-    return;
-  // Registration can be before of after cus->Start() so it is ok to post
-  // a task to the UI thread to do registration once you done the necessary
-  // file IO to know you existing component version.
-  RegisterRecoveryComponent(cus, g_browser_process->local_state());
-  RegisterPepperFlashComponent(cus);
-  RegisterSwiftShaderComponent(cus);
-
-  // CRLSetFetcher attempts to load a CRL set from either the local disk or
-  // network.
-  if (!command_line.HasSwitch(switches::kDisableCRLSets))
-    g_browser_process->crl_set_fetcher()->StartInitialLoad(cus);
-
-  cus->Start();
-}
 
 // Keeps track on which profiles have been launched.
 class ProfileLaunchObserver : public content::NotificationObserver {
@@ -457,8 +432,6 @@ bool StartupBrowserCreator::ProcessCmdLineImpl(
   if (process_startup) {
     if (command_line.HasSwitch(switches::kDisablePromptOnRepost))
       content::NavigationController::DisablePromptOnRepost();
-    if (!command_line.HasSwitch(switches::kDisableComponentUpdate))
-    RegisterComponentsForUpdate(command_line);
   }
 
   bool silent_launch = false;
@@ -667,37 +640,33 @@ bool StartupBrowserCreator::CreateAutomationProvider(
 
 // static
 void StartupBrowserCreator::ProcessCommandLineOnProfileCreated(
-    const CommandLine& cmd_line,
+    const CommandLine& command_line,
     const FilePath& cur_dir,
     Profile* profile,
     Profile::CreateStatus status) {
   if (status == Profile::CREATE_STATUS_INITIALIZED)
-    ProcessCmdLineImpl(cmd_line, cur_dir, false, profile, Profiles(), NULL,
+    ProcessCmdLineImpl(command_line, cur_dir, false, profile, Profiles(), NULL,
                        NULL);
 }
 
 // static
 void StartupBrowserCreator::ProcessCommandLineAlreadyRunning(
-    const CommandLine& cmd_line,
-    const FilePath& cur_dir) {
-  if (cmd_line.HasSwitch(switches::kProfileDirectory)) {
-    ProfileManager* profile_manager = g_browser_process->profile_manager();
-    FilePath path = cmd_line.GetSwitchValuePath(switches::kProfileDirectory);
-    path = profile_manager->user_data_dir().Append(path);
-    profile_manager->CreateProfileAsync(path,
+    const CommandLine& command_line,
+    const FilePath& cur_dir,
+    const FilePath& profile_path) {
+  ProfileManager* profile_manager = g_browser_process->profile_manager();
+  Profile* profile = profile_manager->GetProfileByPath(profile_path);
+
+  // The profile isn't loaded yet and so needs to be loaded asynchronously.
+  if (!profile) {
+    profile_manager->CreateProfileAsync(profile_path,
         base::Bind(&StartupBrowserCreator::ProcessCommandLineOnProfileCreated,
-                   cmd_line, cur_dir), string16(), string16(), false);
+                   command_line, cur_dir), string16(), string16(), false);
     return;
   }
 
-  Profile* profile = ProfileManager::GetLastUsedProfile();
-  if (!profile) {
-    // We should only be able to get here if the profile already exists and
-    // has been created.
-    NOTREACHED();
-    return;
-  }
-  ProcessCmdLineImpl(cmd_line, cur_dir, false, profile, Profiles(), NULL, NULL);
+  ProcessCmdLineImpl(command_line, cur_dir, false, profile, Profiles(), NULL,
+                     NULL);
 }
 
 // static

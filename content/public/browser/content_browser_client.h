@@ -23,8 +23,11 @@
 #endif
 
 class CommandLine;
-class FilePath;
 class GURL;
+
+namespace base {
+class FilePath;
+}
 
 namespace webkit_glue {
 struct WebPreferences;
@@ -47,6 +50,10 @@ class SSLInfo;
 class URLRequest;
 class URLRequestContext;
 class X509Certificate;
+}
+
+namespace ui {
+class SelectFilePolicy;
 }
 
 namespace content {
@@ -114,9 +121,6 @@ class CONTENT_EXPORT ContentBrowserClient {
   // the content layer adds its own BrowserMessageFilters, so that the
   // embedder's IPC filters have priority.
   virtual void RenderProcessHostCreated(RenderProcessHost* host) {}
-
-  // Notifies that a RenderProcessHost is about to be deleted.
-  virtual void RenderProcessHostDeleted(RenderProcessHost* host) {}
 
   // Notifies that a BrowserChildProcessHost has been created.
   virtual void BrowserChildProcessHostCreated(BrowserChildProcessHost* host) {}
@@ -443,6 +447,10 @@ class CONTENT_EXPORT ContentBrowserClient {
 
   // Returns the directory containing hyphenation dictionaries.
   virtual FilePath GetHyphenDictionaryDirectory();
+
+  // Returns an implementation of a file selecition policy. Can return NULL.
+  virtual ui::SelectFilePolicy* CreateSelectFilePolicy(
+      WebContents* web_contents);
 
 #if defined(OS_POSIX) && !defined(OS_MACOSX)
   // Populates |mappings| with all files that need to be mapped before launching

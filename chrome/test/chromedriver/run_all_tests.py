@@ -53,6 +53,18 @@ def _FindChromeBinary(path):
   return None
 
 
+def _FindChromedriverTests():
+  if util.IsWindows():
+    exe = 'chromedriver2_tests.exe'
+  else:
+    exe = 'chromedriver2_tests'
+  build_dir = chrome_paths.GetBuildDir([exe])
+  if build_dir is None:
+    return None
+  else:
+    return os.path.join(build_dir, exe)
+
+
 def Main():
   chromedriver_map = {
     'win': 'chromedriver2.dll',
@@ -100,6 +112,15 @@ def Main():
   code2 = util.RunCommand(cmd)
   if code2 != 0:
     print '@@@STEP_FAILURE@@@'
+
+  # Run chromedriver2_tests.
+  print '@@@BUILD_STEP chromedriver2_tests@@@'
+  chromedriver2_tests = _FindChromedriverTests()
+  if chromedriver2_tests is None:
+    print 'chromedriver2_tests not found'
+  else:
+    cmd = [chromedriver2_tests]
+    code3 = util.RunCommand(cmd)
 
   return code1 or code2
 

@@ -441,6 +441,7 @@ class CONTENT_EXPORT RenderViewImpl
                                      double load_progress);
   virtual bool isSmartInsertDeleteEnabled();
   virtual bool isSelectTrailingWhitespaceEnabled();
+  virtual void didCancelCompositionOnSelectionChange();
   virtual void didChangeSelection(bool is_selection_empty);
   virtual void didExecuteCommand(const WebKit::WebString& command_name);
   virtual bool handleCurrentKeyboardEvent();
@@ -1196,6 +1197,10 @@ class CONTENT_EXPORT RenderViewImpl
   // Update the target url and tell the browser that the target URL has changed.
   // If |url| is empty, show |fallback_url|.
   void UpdateTargetURL(const GURL& url, const GURL& fallback_url);
+
+  // Coordinate conversion -----------------------------------------------------
+
+  gfx::RectF ClientRectToPhysicalWindowRect(const gfx::RectF& rect) const;
 
   // ---------------------------------------------------------------------------
   // ADDING NEW FUNCTIONS? Please keep private functions alphabetized and put

@@ -148,8 +148,6 @@ extern const char kChromeUIFlagsHost[];
 extern const char kChromeUIFlashHost[];
 extern const char kChromeUIHelpFrameHost[];
 extern const char kChromeUIHelpHost[];
-extern const char kChromeUIGpuHost[];
-extern const char kChromeUIGpuInternalsHost[];
 extern const char kChromeUIHangHost[];
 extern const char kChromeUIHistoryHost[];
 extern const char kChromeUIHistoryFrameHost[];
@@ -159,12 +157,12 @@ extern const char kChromeUIIPCHost[];
 extern const char kChromeUIKeyboardHost[];
 extern const char kChromeUIKillHost[];
 extern const char kChromeUILocalOmniboxPopupHost[];
-extern const char kChromeUIMediaInternalsHost[];
 extern const char kChromeUIMemoryHost[];
 extern const char kChromeUIMemoryInternalsHost[];
 extern const char kChromeUIMemoryRedirectHost[];
 extern const char kChromeUIMetroFlowHost[];
 extern const char kChromeUINaClHost[];
+extern const char kChromeUINetExportHost[];
 extern const char kChromeUINetInternalsHost[];
 extern const char kChromeUINewTabHost[];
 extern const char kChromeUIOmniboxHost[];
@@ -192,7 +190,6 @@ extern const char kChromeUITermsHost[];
 extern const char kChromeUIThemeHost[];
 extern const char kChromeUIThumbnailHost[];
 extern const char kChromeUITouchIconHost[];
-extern const char kChromeUITracingHost[];
 extern const char kChromeUIUberFrameHost[];
 extern const char kChromeUIUberHost[];
 extern const char kChromeUIUserActionsHost[];
@@ -396,9 +393,7 @@ extern const char kSideloadWipeoutHelpURL[];
 #if defined(OS_CHROMEOS)
 // The URL for the "Learn more" link for natural scrolling on ChromeOS.
 extern const char kNaturalScrollHelpURL[];
-#endif
 
-#if defined(OS_CHROMEOS)
 // The URL for the Learn More page about enterprise enrolled devices.
 extern const char kLearnMoreEnterpriseURL[];
 #endif
@@ -410,11 +405,12 @@ extern const int kNumberOfChromeDebugURLs;
 // Canonical schemes you can use as input to GURL.SchemeIs().
 extern const char kExtensionResourceScheme[];
 
-#if defined(OS_CHROMEOS)
-extern const char kDriveScheme[];
-#endif
+extern const char kChromeSearchScheme[];
 
 #if defined(OS_CHROMEOS)
+extern const char kCrosScheme[];
+extern const char kDriveScheme[];
+
 // "Learn more" URL for the Cloud Print section under Options.
 extern const char kCloudPrintLearnMoreURL[];
 #endif

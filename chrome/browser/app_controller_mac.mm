@@ -778,8 +778,7 @@ void RecordLastRunAppBundlePath() {
                 << "NULL lastProfile detected -- not doing anything";
             break;
           }
-          enable = lastProfile->IsSyncAccessible() &&
-              ![self keyWindowIsModal];
+          enable = ![self keyWindowIsModal];
           [BrowserWindowController updateSigninItem:item
                                          shouldShow:enable
                                      currentProfile:lastProfile];
@@ -918,7 +917,7 @@ void RecordLastRunAppBundlePath() {
       break;
     case IDC_SHOW_SYNC_SETUP:
       if (Browser* browser = ActivateBrowser(lastProfile))
-        chrome::ShowSyncSetup(browser, SyncPromoUI::SOURCE_MENU);
+        chrome::ShowBrowserSignin(browser, SyncPromoUI::SOURCE_MENU);
       else
         chrome::OpenSyncSetupWindow(lastProfile, SyncPromoUI::SOURCE_MENU);
       break;
@@ -1167,10 +1166,8 @@ void RecordLastRunAppBundlePath() {
                << base::SysNSStringToUTF8(appId) << "'.";
     return;
   }
-  application_launch::LaunchParams params(profile, extension,
-                                          extension_misc::LAUNCH_NONE,
-                                          NEW_WINDOW);
-  application_launch::OpenApplication(params);
+  chrome::OpenApplication(chrome::AppLaunchParams(
+      profile, extension, extension_misc::LAUNCH_NONE, NEW_WINDOW));
 }
 
 // Apple Event handler that receives print event from service

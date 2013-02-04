@@ -174,6 +174,7 @@ class PlatformAppPathLauncher
     // TODO(benwells): remove this once we no longer support the "intents"
     // syntax in platform app manifests.
     if (!found_service) {
+#if defined(ENABLE_WEB_INTENTS)
       std::vector<webkit_glue::WebIntentServiceData> services =
           extensions::WebIntentsInfo::GetIntentsServices(extension_);
       for (size_t i = 0; i < services.size(); i++) {
@@ -184,6 +185,7 @@ class PlatformAppPathLauncher
           break;
         }
       }
+#endif
     }
 
     // If this app doesn't have an intent that supports the file, launch with
@@ -263,6 +265,7 @@ class PlatformAppPathLauncher
   DISALLOW_COPY_AND_ASSIGN(PlatformAppPathLauncher);
 };
 
+#if defined(ENABLE_WEB_INTENTS)
 // Class to handle launching of platform apps with WebIntent data.
 // An instance of this class is created for each launch. The lifetime of these
 // instances is managed by reference counted pointers. As long as an instance
@@ -369,6 +372,7 @@ class PlatformAppWebIntentLauncher
 
   DISALLOW_COPY_AND_ASSIGN(PlatformAppWebIntentLauncher);
 };
+#endif
 
 }  // namespace
 
@@ -406,6 +410,7 @@ void LaunchPlatformAppWithFileHandler(Profile* profile,
   launcher->LaunchWithHandler(handler_id);
 }
 
+#if defined(ENABLE_WEB_INTENTS)
 void LaunchPlatformAppWithWebIntent(
     Profile* profile,
     const Extension* extension,
@@ -416,5 +421,6 @@ void LaunchPlatformAppWithWebIntent(
           profile, extension, intents_dispatcher, source);
   launcher->Launch();
 }
+#endif
 
 }  // namespace extensions

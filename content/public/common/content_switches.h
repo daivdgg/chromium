@@ -82,6 +82,7 @@ CONTENT_EXPORT extern const char kDisableSpeechInput[];
 extern const char kSpeechRecognitionWebserviceKey[];
 #if defined(OS_ANDROID)
 CONTENT_EXPORT extern const char kEnableWebAudio[];
+CONTENT_EXPORT extern const char kEnableWebRTC[];
 #else
 CONTENT_EXPORT extern const char kDisableWebAudio[];
 #endif
@@ -111,7 +112,6 @@ extern const char kDisableWebMediaPlayerMS[];
 CONTENT_EXPORT extern const char kUseFakeDeviceForMediaStream[];
 extern const char kEnableMonitorProfile[];
 extern const char kEnablePinch[];
-extern const char kEnableCssTransformPinch[];
 extern const char kEnablePreparsedJsCaching[];
 CONTENT_EXPORT extern const char kEnablePrivilegedWebGLExtensions[];
 extern const char kEnablePruneGpuCommandBuffers[];
@@ -225,6 +225,10 @@ extern const char kMediaPlayerInRenderProcess[];
 extern const char kDisableMediaHistoryLogging[];
 extern const char kNetworkCountryIso[];
 extern const char kEnableWebViewSynchronousAPIs[];
+#endif
+
+#if defined(OS_CHROMEOS)
+CONTENT_EXPORT extern const char kDisablePanelFitting[];
 #endif
 
 #if defined(OS_POSIX)

@@ -29,6 +29,7 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/api/infobars/infobar_service.h"
 #include "chrome/browser/api/infobars/simple_alert_infobar_delegate.h"
+#include "chrome/browser/app_mode/app_mode_utils.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/browser/background/background_contents_service.h"
 #include "chrome/browser/background/background_contents_service_factory.h"
@@ -87,7 +88,7 @@
 #include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
-#include "chrome/browser/ui/app_modal_dialogs/javascript_dialog_creator.h"
+#include "chrome/browser/ui/app_modal_dialogs/javascript_dialog_manager.h"
 #include "chrome/browser/ui/blocked_content/blocked_content_tab_helper.h"
 #include "chrome/browser/ui/bookmarks/bookmark_tab_helper.h"
 #include "chrome/browser/ui/browser_command_controller.h"
@@ -96,6 +97,7 @@
 #include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_instant_controller.h"
+#include "chrome/browser/ui/browser_iterator.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_tab_contents.h"
@@ -715,16 +717,15 @@ Browser::DownloadClosePreventionType Browser::OkToCloseWithInProgressDownloads(
   // profile, that are relevant for the ok-to-close decision.
   int profile_window_count = 0;
   int total_window_count = 0;
-  for (BrowserList::const_iterator iter = BrowserList::begin();
-       iter != BrowserList::end(); ++iter) {
+  for (chrome::BrowserIterator it; !it.done(); it.Next()) {
     // Don't count this browser window or any other in the process of closing.
-    Browser* const browser = *iter;
+    Browser* const browser = *it;
     // Window closing may be delayed, and windows that are in the process of
     // closing don't count against our totals.
     if (browser == this || browser->IsAttemptingToCloseBrowser())
       continue;
 
-    if ((*iter)->profile() == profile())
+    if (it->profile() == profile())
       profile_window_count++;
     total_window_count++;
   }
@@ -1160,7 +1161,7 @@ void Browser::TabStripEmpty() {
 
 bool Browser::CanOverscrollContent() const {
 #if defined(USE_AURA)
-  return true;
+  return !is_app() && !is_devtools() && is_type_tabbed();
 #else
   return false;
 #endif
@@ -1526,8 +1527,8 @@ void Browser::DidNavigateToPendingEntry(WebContents* web_contents) {
     UpdateBookmarkBarState(BOOKMARK_BAR_STATE_CHANGE_TAB_STATE);
 }
 
-content::JavaScriptDialogCreator* Browser::GetJavaScriptDialogCreator() {
-  return GetJavaScriptDialogCreatorInstance();
+content::JavaScriptDialogManager* Browser::GetJavaScriptDialogManager() {
+  return GetJavaScriptDialogManagerInstance();
 }
 
 content::ColorChooser* Browser::OpenColorChooser(WebContents* web_contents,
@@ -1589,6 +1590,7 @@ void Browser::RegisterProtocolHandler(WebContents* web_contents,
       web_contents, protocol, url, title, user_gesture, window());
 }
 
+#if defined(ENABLE_WEB_INTENTS)
 void Browser::RegisterIntentHandler(
     WebContents* web_contents,
     const webkit_glue::WebIntentServiceData& data,
@@ -1652,6 +1654,7 @@ void Browser::WebIntentDispatch(
       intents_dispatcher->GetIntent().action,
       intents_dispatcher->GetIntent().type);
 }
+#endif
 
 void Browser::UpdatePreferredSize(WebContents* source,
                                   const gfx::Size& pref_size) {
@@ -2071,9 +2074,10 @@ void Browser::RemoveScheduledUpdatesFor(WebContents* contents) {
 // Browser, Getters for UI (private):
 
 StatusBubble* Browser::GetStatusBubble() {
-  // In kiosk mode, we want to always hide the status bubble.
-  if (CommandLine::ForCurrentProcess()->HasSwitch(switches::kKioskMode))
+  // In kiosk and exclusive app mode, we want to always hide the status bubble.
+  if (chrome::IsRunningInAppMode())
     return NULL;
+
   return window_ ? window_->GetStatusBubble() : NULL;
 }
 

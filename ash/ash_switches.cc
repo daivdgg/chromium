@@ -45,9 +45,6 @@ const char kAshDisableDisplayChangeLimiter[] =
 // Disables boot animation v2, go back to v1.
 const char kAshDisableBootAnimation2[] = "ash-disable-boot-animation2";
 
-// Disables panel fitting (used for mirror mode).
-const char kAshDisablePanelFitting[] = "ash-disable-panel-fitting";
-
 // Enable advanced gestures (e.g. for window management).
 const char kAshEnableAdvancedGestures[] = "ash-enable-advanced-gestures";
 
@@ -63,8 +60,8 @@ const char kAshEnableWorkspaceScrubbing[] = "ash-enable-workspace-scrubbing";
 const char kAshEnableMemoryMonitor[] = "ash-enable-memory-monitor";
 #endif
 
-// Enable the per application grouping version of the launcher.
-const char kAshEnablePerAppLauncher[] = "ash-enable-per-app-launcher";
+// Disable the per application grouping version of the launcher.
+const char kAshDisablePerAppLauncher[] = "ash-disable-per-app-launcher";
 
 // Enables the Oak tree viewer.
 const char kAshEnableOak[] = "ash-enable-oak";
@@ -99,6 +96,12 @@ const char kAuraLegacyPowerButton[] = "aura-legacy-power-button";
 
 // Avoid drawing drop shadows under windows.
 const char kAuraNoShadows[] = "aura-no-shadows";
+
+// Overrides all displays' orientation. The value should be one of 0
+// (normal), 1 (90 degrees clockwise), 2 (180 degrees) or 3 (270
+// degrees clockwise).
+const char kAshOverrideDisplayOrientation[] =
+    "ash-override-display-orientation";
 
 }  // namespace switches
 }  // namespace ash

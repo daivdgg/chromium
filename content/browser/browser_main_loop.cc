@@ -12,6 +12,7 @@
 #include "base/message_loop.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram.h"
+#include "base/pending_task.h"
 #include "base/run_loop.h"
 #include "base/string_number_conversions.h"
 #include "base/threading/thread_restrictions.h"
@@ -30,7 +31,7 @@
 #include "content/browser/renderer_host/media/audio_mirroring_manager.h"
 #include "content/browser/renderer_host/media/media_stream_manager.h"
 #include "content/browser/speech/speech_recognition_manager_impl.h"
-#include "content/browser/trace_controller_impl.h"
+#include "content/browser/tracing/trace_controller_impl.h"
 #include "content/browser/webui/content_web_ui_controller_factory.h"
 #include "content/browser/webui/url_data_manager.h"
 #include "content/public/browser/browser_main_parts.h"
@@ -96,6 +97,10 @@
 
 #if defined(USE_X11)
 #include <X11/Xlib.h>
+#endif
+
+#if !defined(OS_IOS)
+#include "webkit/glue/webkit_glue.h"
 #endif
 
 // One of the linux specific headers defines this as a macro.
@@ -225,6 +230,25 @@ class BrowserShutdownImpl {
 void ImmediateShutdownAndExitProcess() {
   BrowserShutdownImpl::ImmediateShutdownAndExitProcess();
 }
+
+// For measuring memory usage after each task. Behind a command line flag.
+class BrowserMainLoop::MemoryObserver : public MessageLoop::TaskObserver {
+ public:
+  MemoryObserver() {}
+  virtual ~MemoryObserver() {}
+
+  virtual void WillProcessTask(const base::PendingTask& pending_task) OVERRIDE {
+  }
+
+  virtual void DidProcessTask(const base::PendingTask& pending_task) OVERRIDE {
+#if !defined(OS_IOS)
+    HISTOGRAM_MEMORY_KB("Memory.BrowserUsed", webkit_glue::MemoryUsageKB());
+#endif
+  }
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MemoryObserver);
+};
+
 
 // static
 media::AudioManager* BrowserMainLoop::GetAudioManager() {
@@ -374,6 +398,11 @@ void BrowserMainLoop::MainMessageLoopStart() {
           switches::kMediaPlayerInRenderProcess)));
   DataFetcherImplAndroid::Init(base::android::AttachCurrentThread());
 #endif
+
+  if (parsed_command_line_.HasSwitch(switches::kMemoryMetrics)) {
+    memory_observer_.reset(new MemoryObserver());
+    main_message_loop_->AddTaskObserver(memory_observer_.get());
+  }
 }
 
 void BrowserMainLoop::CreateThreads() {

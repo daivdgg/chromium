@@ -12,6 +12,7 @@
 #include "ash/wm/window_util.h"
 #include "base/bind.h"
 #include "base/command_line.h"
+#include "chrome/browser/app_mode/app_mode_utils.h"
 #include "chrome/browser/chromeos/accessibility/magnification_manager.h"
 #include "chrome/browser/chromeos/login/screen_locker.h"
 #include "chrome/browser/extensions/api/terminal/terminal_extension_helper.h"
@@ -41,9 +42,11 @@
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/user_metrics.h"
 #include "content/public/browser/web_contents.h"
+#include "grit/chromium_strings.h"
 #include "grit/generated_resources.h"
 #include "ui/aura/client/user_action_client.h"
 #include "ui/aura/window.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if defined(OS_CHROMEOS)
 #include "ash/keyboard_overlay/keyboard_overlay_view.h"
@@ -413,7 +416,8 @@ app_list::AppListViewDelegate*
   DCHECK(ash::Shell::HasInstance());
   // Shell will own the created delegate, and the delegate will own
   // the controller.
-  return new AppListViewDelegate(new AppListControllerDelegateAsh());
+  Profile* profile = ProfileManager::GetDefaultProfileOrOffTheRecord();
+  return new AppListViewDelegate(new AppListControllerDelegateAsh(), profile);
 }
 
 ash::LauncherDelegate* ChromeShellDelegate::CreateLauncherDelegate(
@@ -584,11 +588,19 @@ double ChromeShellDelegate::GetSavedScreenMagnifierScale() {
 
 ui::MenuModel* ChromeShellDelegate::CreateContextMenu(aura::RootWindow* root) {
   DCHECK(launcher_delegate_);
+  // Don't show context menu for exclusive app runtime mode.
+  if (chrome::IsRunningInAppMode())
+    return NULL;
+
   return new LauncherContextMenu(launcher_delegate_, root);
 }
 
 ash::RootWindowHostFactory* ChromeShellDelegate::CreateRootWindowHostFactory() {
   return ash::RootWindowHostFactory::Create();
+}
+
+string16 ChromeShellDelegate::GetProductName() const {
+  return l10n_util::GetStringUTF16(IDS_PRODUCT_NAME);
 }
 
 void ChromeShellDelegate::Observe(int type,

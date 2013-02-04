@@ -9,6 +9,7 @@
 #include "base/json/json_reader.h"
 #include "base/message_loop.h"
 #include "base/path_service.h"
+#include "base/pending_task.h"
 #include "base/string_util.h"
 #include "base/stringprintf.h"
 #include "base/threading/sequenced_worker_pool.h"
@@ -29,8 +30,9 @@ class TaskObserver : public MessageLoop::TaskObserver {
   virtual ~TaskObserver() {}
 
   // MessageLoop::TaskObserver overrides.
-  virtual void WillProcessTask(base::TimeTicks time_posted) {}
-  virtual void DidProcessTask(base::TimeTicks time_posted) {
+  virtual void WillProcessTask(const base::PendingTask& pending_task) OVERRIDE {
+  }
+  virtual void DidProcessTask(const base::PendingTask& pending_task) OVERRIDE {
     posted_ = true;
   }
 
@@ -85,6 +87,12 @@ scoped_ptr<base::Value> LoadJSONFile(const std::string& relative_path) {
 void CopyResultsFromEntryActionCallback(GDataErrorCode* error_out,
                                         GDataErrorCode error_in) {
   *error_out = error_in;
+}
+
+void CopyResultFromEntryActionCallbackAndQuit(GDataErrorCode* error_out,
+                                              GDataErrorCode error_in) {
+  *error_out = error_in;
+  MessageLoop::current()->Quit();
 }
 
 void CopyResultsFromGetDataCallback(GDataErrorCode* error_out,

@@ -28,6 +28,7 @@ namespace {
 const int kBufferSize = 4096;
 const int kUploadProgressTimerInterval = 100;
 bool g_interception_enabled = false;
+bool g_ignore_certificate_requests = false;
 
 }  // namespace
 
@@ -572,6 +573,19 @@ void URLFetcherCore::OnResponseStarted(URLRequest* request) {
   ReadResponse();
 }
 
+void URLFetcherCore::OnCertificateRequested(
+    URLRequest* request,
+    SSLCertRequestInfo* cert_request_info) {
+  DCHECK_EQ(request, request_.get());
+  DCHECK(network_task_runner_->BelongsToCurrentThread());
+
+  if (g_ignore_certificate_requests) {
+    request->ContinueWithCertificate(NULL);
+  } else {
+    request->Cancel();
+  }
+}
+
 void URLFetcherCore::OnReadCompleted(URLRequest* request,
                                      int bytes_read) {
   DCHECK(request == request_);
@@ -635,6 +649,10 @@ int URLFetcherCore::GetNumFetcherCores() {
 
 void URLFetcherCore::SetEnableInterceptionForTests(bool enabled) {
   g_interception_enabled = enabled;
+}
+
+void URLFetcherCore::SetIgnoreCertificateRequests(bool ignored) {
+  g_ignore_certificate_requests = ignored;
 }
 
 URLFetcherCore::~URLFetcherCore() {
@@ -715,10 +733,12 @@ void URLFetcherCore::StartURLRequest() {
 
     case URLFetcher::POST:
     case URLFetcher::PUT:
+    case URLFetcher::PATCH:
       DCHECK(!upload_content_type_.empty());
 
       request_->set_method(
-          request_type_ == URLFetcher::POST ? "POST" : "PUT");
+          request_type_ == URLFetcher::POST ? "POST" :
+          request_type_ == URLFetcher::PUT ? "PUT" : "PATCH");
       extra_request_headers_.SetHeader(HttpRequestHeaders::kContentType,
                                        upload_content_type_);
       if (upload_content_)

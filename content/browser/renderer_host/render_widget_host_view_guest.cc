@@ -95,6 +95,9 @@ void RenderWidgetHostViewGuest::SetTooltipText(const string16& tooltip_text) {
 void RenderWidgetHostViewGuest::AcceleratedSurfaceBuffersSwapped(
     const GpuHostMsg_AcceleratedSurfaceBuffersSwapped_Params& params,
     int gpu_host_id) {
+  // If accelerated surface buffers are getting swapped then we're not using
+  // the software path.
+  guest_->clear_damage_buffer();
   guest_->SendMessageToEmbedder(
       new BrowserPluginMsg_BuffersSwapped(
           guest_->embedder_routing_id(),
@@ -205,8 +208,8 @@ BackingStore* RenderWidgetHostViewGuest::AllocBackingStore(
 void RenderWidgetHostViewGuest::CopyFromCompositingSurface(
     const gfx::Rect& src_subrect,
     const gfx::Size& /* dst_size */,
-    const base::Callback<void(bool)>& callback,
-    skia::PlatformBitmap* output) {
+    const base::Callback<void(bool, const SkBitmap&)>& callback) {
+  callback.Run(false, SkBitmap());
 }
 
 void RenderWidgetHostViewGuest::AcceleratedSurfaceSuspend() {
@@ -362,9 +365,7 @@ void RenderWidgetHostViewGuest::WillWmDestroy() {
 }
 #endif
 
-#if defined(OS_POSIX) || defined(USE_AURA)
 void RenderWidgetHostViewGuest::GetScreenInfo(WebKit::WebScreenInfo* results) {
 }
-#endif  // defined(OS_POSIX) || defined(USE_AURA)
 
 }  // namespace content

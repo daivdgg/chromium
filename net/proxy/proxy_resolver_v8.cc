@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#define V8_DISABLE_DEPRECATIONS 1
-
 #include "net/proxy/proxy_resolver_v8.h"
 
 #include <algorithm>
@@ -12,8 +10,8 @@
 #include "base/basictypes.h"
 #include "base/compiler_specific.h"
 #include "base/logging.h"
-#include "base/string_tokenizer.h"
 #include "base/string_util.h"
+#include "base/strings/string_tokenizer.h"
 #include "base/synchronization/lock.h"
 #include "base/utf_string_conversions.h"
 #include "googleurl/src/gurl.h"
@@ -275,7 +273,7 @@ bool SortIpAddressList(const std::string& ip_address_list,
   // Split-up IP addresses and store them in a vector.
   std::vector<IPAddress> ip_vector;
   IPAddressNumber ip_num;
-  StringTokenizer str_tok(cleaned_ip_address_list, ";");
+  base::StringTokenizer str_tok(cleaned_ip_address_list, ";");
   while (str_tok.GetNext()) {
     if (!ParseIPLiteralToNumber(str_tok.token(), &ip_num))
       return false;
@@ -334,21 +332,17 @@ bool IsInNetEx(const std::string& ip_address, const std::string& ip_prefix) {
 
 class ProxyResolverV8::Context {
  public:
-  explicit Context(ProxyResolverV8* parent)
-      : parent_(parent) {
+  Context(ProxyResolverV8* parent, v8::Isolate* isolate)
+      : parent_(parent),
+        isolate_(isolate) {
+    DCHECK(isolate);
   }
 
   ~Context() {
-    v8::Locker locked;
+    v8::Locker locked(isolate_);
 
-    v8_this_.Dispose();
-    v8_context_.Dispose();
-
-    // Run the V8 garbage collector. We do this to be sure the
-    // ExternalStringResource objects we allocated get properly disposed.
-    // Otherwise when running the unit-tests they may get leaked.
-    // See crbug.com/48145.
-    PurgeMemory();
+    v8_this_.Dispose(isolate_);
+    v8_context_.Dispose(isolate_);
   }
 
   JSBindings* js_bindings() {
@@ -356,7 +350,7 @@ class ProxyResolverV8::Context {
   }
 
   int ResolveProxy(const GURL& query_url, ProxyInfo* results) {
-    v8::Locker locked;
+    v8::Locker locked(isolate_);
     v8::HandleScope scope;
 
     v8::Context::Scope function_scope(v8_context_);
@@ -407,10 +401,11 @@ class ProxyResolverV8::Context {
   }
 
   int InitV8(const scoped_refptr<ProxyResolverScriptData>& pac_script) {
-    v8::Locker locked;
+    v8::Locker locked(isolate_);
     v8::HandleScope scope;
 
-    v8_this_ = v8::Persistent<v8::External>::New(v8::External::New(this));
+    v8_this_ = v8::Persistent<v8::External>::New(isolate_,
+                                                 v8::External::New(this));
     v8::Local<v8::ObjectTemplate> global_template = v8::ObjectTemplate::New();
 
     // Attach the javascript bindings.
@@ -485,7 +480,7 @@ class ProxyResolverV8::Context {
   }
 
   void PurgeMemory() {
-    v8::Locker locked;
+    v8::Locker locked(isolate_);
     v8::V8::LowMemoryNotification();
   }
 
@@ -675,6 +670,7 @@ class ProxyResolverV8::Context {
 
   mutable base::Lock lock_;
   ProxyResolverV8* parent_;
+  v8::Isolate* isolate_;
   v8::Persistent<v8::External> v8_this_;
   v8::Persistent<v8::Context> v8_context_;
 };
@@ -735,11 +731,30 @@ int ProxyResolverV8::SetPacScript(
     return ERR_PAC_SCRIPT_FAILED;
 
   // Try parsing the PAC script.
-  scoped_ptr<Context> context(new Context(this));
+  scoped_ptr<Context> context(new Context(this, GetDefaultIsolate()));
   int rv = context->InitV8(script_data);
   if (rv == OK)
     context_.reset(context.release());
   return rv;
 }
+
+// static
+void ProxyResolverV8::RememberDefaultIsolate() {
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  DCHECK(isolate)
+      << "ProxyResolverV8::RememberDefaultIsolate called on wrong thread";
+  DCHECK(g_default_isolate_ == NULL || g_default_isolate_ == isolate)
+      << "Default Isolate can not be changed";
+  g_default_isolate_ = isolate;
+}
+
+// static
+v8::Isolate* ProxyResolverV8::GetDefaultIsolate() {
+  DCHECK(g_default_isolate_)
+      << "Must call ProxyResolverV8::RememberDefaultIsolate() first";
+  return g_default_isolate_;
+}
+
+v8::Isolate* ProxyResolverV8::g_default_isolate_ = NULL;
 
 }  // namespace net

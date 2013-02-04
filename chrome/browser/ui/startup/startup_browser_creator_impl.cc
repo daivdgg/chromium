@@ -14,7 +14,6 @@
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/environment.h"
-#include "base/event_recorder.h"
 #include "base/lazy_instance.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/metrics/histogram.h"
@@ -336,9 +335,9 @@ bool StartupBrowserCreatorImpl::Launch(Profile* profile,
     base::StatisticsRecorder::set_dump_on_exit(true);
 
 #if defined(ENABLE_APP_LIST)
-  chrome::InitAppList();
+  chrome::InitAppList(profile);
   if (command_line_.HasSwitch(switches::kShowAppList)) {
-    chrome::ShowAppList();
+    chrome::ShowAppList(profile);
     return true;
   }
 #endif
@@ -370,23 +369,6 @@ bool StartupBrowserCreatorImpl::Launch(Profile* profile,
       KeystoneInfoBar::PromotionInfoBar(profile);
     }
 #endif
-  }
-
-  // If we're recording or playing back, startup the EventRecorder now
-  // unless otherwise specified.
-  if (!command_line_.HasSwitch(switches::kNoEvents)) {
-    FilePath script_path;
-    PathService::Get(chrome::FILE_RECORDED_SCRIPT, &script_path);
-
-    bool record_mode = command_line_.HasSwitch(switches::kRecordMode);
-    bool playback_mode = command_line_.HasSwitch(switches::kPlaybackMode);
-
-    if (record_mode && chrome::kRecordModeEnabled)
-      base::EventRecorder::current()->StartRecording(script_path);
-    // Do not enter Playback mode if PageCycler is running; Playback mode does
-    // not work correctly.
-    if (playback_mode && !command_line_.HasSwitch(switches::kVisitURLs))
-      base::EventRecorder::current()->StartPlayback(script_path);
   }
 
 #if defined(OS_WIN)
@@ -458,9 +440,8 @@ bool StartupBrowserCreatorImpl::OpenApplicationTab(Profile* profile) {
 
   RecordCmdLineAppHistogram();
 
-  WebContents* app_tab = application_launch::OpenApplication(
-      application_launch::LaunchParams(profile, extension,
-          extension_misc::LAUNCH_TAB, NEW_FOREGROUND_TAB));
+  WebContents* app_tab = chrome::OpenApplication(chrome::AppLaunchParams(
+      profile, extension, extension_misc::LAUNCH_TAB, NEW_FOREGROUND_TAB));
   return (app_tab != NULL);
 }
 
@@ -494,12 +475,11 @@ bool StartupBrowserCreatorImpl::OpenApplicationWindow(
 
     RecordCmdLineAppHistogram();
 
-    application_launch::LaunchParams params(profile, extension,
-                                            launch_container, NEW_WINDOW);
+    chrome::AppLaunchParams params(profile, extension,
+                                   launch_container, NEW_WINDOW);
     params.command_line = &command_line_;
     params.current_directory = cur_dir_;
-    WebContents* tab_in_app_window = application_launch::OpenApplication(
-        params);
+    WebContents* tab_in_app_window = chrome::OpenApplication(params);
 
     if (out_app_contents)
       *out_app_contents = tab_in_app_window;
@@ -532,10 +512,9 @@ bool StartupBrowserCreatorImpl::OpenApplicationWindow(
       gfx::Rect override_bounds;
       ExtractOptionalAppWindowSize(&override_bounds);
 
-      WebContents* app_tab = application_launch::OpenAppShortcutWindow(
-          profile,
-          url,
-          override_bounds);
+      WebContents* app_tab = chrome::OpenAppShortcutWindow(profile,
+                                                           url,
+                                                           override_bounds);
 
       if (out_app_contents)
         *out_app_contents = app_tab;

@@ -102,6 +102,7 @@ class ExtensionInstallDialogView : public views::DialogDelegateView,
 
  private:
   // views::DialogDelegateView:
+  virtual int GetDialogButtons() const OVERRIDE;
   virtual string16 GetDialogButtonLabel(ui::DialogButton button) const OVERRIDE;
   virtual int GetDefaultDialogButton() const OVERRIDE;
   virtual bool Cancel() OVERRIDE;
@@ -228,7 +229,7 @@ void ShowExtensionInstallDialogImpl(
   DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
 #if defined(OS_WIN)
   if (BrowserDistribution::GetDistribution()->AppHostIsSupported() &&
-      prompt.extension()->is_platform_app()) {
+      prompt.extension() && prompt.extension()->is_platform_app()) {
     content::BrowserThread::PostTask(
         content::BrowserThread::FILE,
         FROM_HERE,
@@ -526,6 +527,14 @@ ExtensionInstallDialogView::~ExtensionInstallDialogView() {}
 
 void ExtensionInstallDialogView::SizeToContents() {
   GetWidget()->SetSize(GetWidget()->non_client_view()->GetPreferredSize());
+}
+
+int ExtensionInstallDialogView::GetDialogButtons() const {
+  int buttons = prompt_.GetDialogButtons();
+  // Simply having just an OK button is *not* supported. See comment on function
+  // GetDialogButtons in dialog_delegate.h for reasons.
+  DCHECK_GT(buttons & ui::DIALOG_BUTTON_CANCEL, 0);
+  return buttons;
 }
 
 string16 ExtensionInstallDialogView::GetDialogButtonLabel(

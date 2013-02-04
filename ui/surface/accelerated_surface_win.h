@@ -54,6 +54,9 @@ class SURFACE_EXPORT AcceleratedPresenter
   // Indicates that the presenter has become invisible.
   void WasHidden();
 
+  // Called when the Windows session is locked or unlocked.
+  void SetIsSessionLocked(bool locked);
+
   // Schedule the presenter to release its reference to the shared surface.
   void ReleaseSurface();
 
@@ -61,8 +64,7 @@ class SURFACE_EXPORT AcceleratedPresenter
   void Present(HDC dc);
   void AsyncCopyTo(const gfx::Rect& src_subrect,
                    const gfx::Size& dst_size,
-                   void* buf,
-                   const base::Callback<void(bool)>& callback);
+                   const base::Callback<void(bool, const SkBitmap&)>& callback);
   void Invalidate();
 
 #if defined(USE_AURA)
@@ -88,12 +90,11 @@ class SURFACE_EXPORT AcceleratedPresenter
   void DoCopyToAndAcknowledge(
       const gfx::Rect& src_subrect,
       const gfx::Size& dst_size,
-      void* buf,
       scoped_refptr<base::SingleThreadTaskRunner> callback_runner,
-      const base::Callback<void(bool)>& callback);
+      const base::Callback<void(bool, const SkBitmap&)>& callback);
   bool DoCopyTo(const gfx::Rect& src_subrect,
                 const gfx::Size& dst_size,
-                void* buf);
+                SkBitmap* bitmap);
 
   void PresentWithGDI(HDC dc);
   gfx::Size GetWindowSize();
@@ -143,6 +144,9 @@ class SURFACE_EXPORT AcceleratedPresenter
   // with GDI.
   bool do_present_with_GDI_;
 
+  // Set to true when the Windows session is locked.
+  bool is_session_locked_;
+
   // These are used to detect when the window is resizing. For some reason,
   // presenting with D3D while the window resizes causes those parts not
   // drawn with D3D (e.g. with GDI) to flicker visible / invisible.
@@ -168,8 +172,7 @@ class SURFACE_EXPORT AcceleratedSurface {
   // |4 * dst_size.width() * dst_size.height()| bytes.
   void AsyncCopyTo(const gfx::Rect& src_subrect,
                    const gfx::Size& dst_size,
-                   void* buf,
-                   const base::Callback<void(bool)>& callback);
+                   const base::Callback<void(bool, const SkBitmap&)>& callback);
 
   // Temporarily release resources until a new surface is asynchronously
   // presented. Present will not be able to represent the last surface after
@@ -178,6 +181,9 @@ class SURFACE_EXPORT AcceleratedSurface {
 
   // Indicates that the surface has become invisible.
   void WasHidden();
+
+  // Called when the Windows session in locked or unlocked.
+  void SetIsSessionLocked(bool locked);
 
  private:
   const scoped_refptr<AcceleratedPresenter> presenter_;

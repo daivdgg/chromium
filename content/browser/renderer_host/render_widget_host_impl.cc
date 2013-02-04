@@ -572,8 +572,7 @@ void RenderWidgetHostImpl::SetIsLoading(bool is_loading) {
 void RenderWidgetHostImpl::CopyFromBackingStore(
     const gfx::Rect& src_subrect,
     const gfx::Size& accelerated_dst_size,
-    const base::Callback<void(bool)>& callback,
-    skia::PlatformBitmap* output) {
+    const base::Callback<void(bool, const SkBitmap&)>& callback) {
   if (view_ && is_accelerated_compositing_active_) {
     TRACE_EVENT0("browser",
         "RenderWidgetHostImpl::CopyFromBackingStore::FromCompositingSurface");
@@ -581,14 +580,13 @@ void RenderWidgetHostImpl::CopyFromBackingStore(
         gfx::Rect(view_->GetViewBounds().size()) : src_subrect;
     view_->CopyFromCompositingSurface(copy_rect,
                                       accelerated_dst_size,
-                                      callback,
-                                      output);
+                                      callback);
     return;
   }
 
   BackingStore* backing_store = GetBackingStore(false);
   if (!backing_store) {
-    callback.Run(false);
+    callback.Run(false, SkBitmap());
     return;
   }
 
@@ -598,8 +596,9 @@ void RenderWidgetHostImpl::CopyFromBackingStore(
       gfx::Rect(backing_store->size()) : src_subrect;
   // When the result size is equal to the backing store size, copy from the
   // backing store directly to the output canvas.
-  bool result = backing_store->CopyFromBackingStore(copy_rect, output);
-  callback.Run(result);
+  skia::PlatformBitmap output;
+  bool result = backing_store->CopyFromBackingStore(copy_rect, &output);
+  callback.Run(result, output.GetBitmap());
 }
 
 #if defined(TOOLKIT_GTK)
@@ -1372,16 +1371,11 @@ bool RenderWidgetHostImpl::IsInOverscrollGesture() const {
 }
 
 void RenderWidgetHostImpl::GetWebScreenInfo(WebKit::WebScreenInfo* result) {
-#if defined(OS_POSIX) || defined(USE_AURA)
   if (GetView()) {
     static_cast<RenderWidgetHostViewPort*>(GetView())->GetScreenInfo(result);
   } else {
     RenderWidgetHostViewPort::GetDefaultScreenInfo(result);
   }
-#else
-  *result = WebKit::WebScreenInfoFactory::screenInfo(
-      gfx::NativeViewFromId(GetNativeViewId()));
-#endif
 }
 
 void RenderWidgetHostImpl::Destroy() {
@@ -1539,18 +1533,13 @@ void RenderWidgetHostImpl::OnCompositorSurfaceBuffersSwapped(
 void RenderWidgetHostImpl::OnSwapCompositorFrame(
     const cc::CompositorFrame& frame) {
 #if defined(OS_ANDROID)
-  gfx::Vector2dF scroll_offset = ScaleVector2d(
-      frame.metadata.root_scroll_offset, frame.metadata.page_scale_factor);
-  gfx::SizeF content_size = ScaleSize(
-      frame.metadata.root_layer_size, frame.metadata.page_scale_factor);
-
   if (view_) {
     view_->UpdateFrameInfo(
-        gfx::ToRoundedVector2d(scroll_offset),
+        gfx::ToRoundedVector2d(frame.metadata.root_scroll_offset),
         frame.metadata.page_scale_factor,
         frame.metadata.min_page_scale_factor,
         frame.metadata.max_page_scale_factor,
-        gfx::ToCeiledSize(content_size),
+        gfx::ToCeiledSize(frame.metadata.root_layer_size),
         frame.metadata.location_bar_offset,
         frame.metadata.location_bar_content_translation);
   }

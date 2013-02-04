@@ -114,8 +114,6 @@
         <include name="IDR_GAIA_LOGIN_HTML" file="sync\resources\gaia_login.html" flattenhtml="true" type="BINDATA" />
       </if>
       <include name="IDR_HELP_JS" file="resources\help\help.js" flattenhtml="true" type="BINDATA" />
-      <include name="IDR_GPU_INTERNALS_HTML" file="resources\gpu_internals\gpu_internals.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
-      <include name="IDR_GPU_INTERNALS_JS" file="resources\gpu_internals\gpu_internals.js" flattenhtml="true" type="BINDATA" />
       <include name="IDR_HISTORY_HTML" file="resources\history\history.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
       <include name="IDR_HISTORY_JS" file="resources\history\history.js" flattenhtml="true" type="BINDATA" />
       <include name="IDR_INSPECT_CSS" file="resources\inspect\inspect.css" flattenhtml="true" type="BINDATA" />
@@ -124,8 +122,8 @@
       <include name="IDR_INSTANT_CSS" file="resources\instant\instant.css" flattenhtml="true" type="BINDATA" />
       <include name="IDR_INSTANT_HTML" file="resources\instant\instant.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
       <include name="IDR_INSTANT_JS" file="resources\instant\instant.js" flattenhtml="true" type="BINDATA" />
-      <include name="IDR_MEDIA_INTERNALS_HTML" file="resources\media_internals.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
-      <include name="IDR_MEDIA_INTERNALS_JS" file="resources\media_internals\media_internals.js" flattenhtml="true" type="BINDATA" />
+      <include name="IDR_NET_EXPORT_HTML" file="resources\net_export\net_export.html" flattenhtml="true" type="BINDATA" />
+      <include name="IDR_NET_EXPORT_JS" file="resources\net_export\net_export.js" flattenhtml="true" type="BINDATA" />
       <if expr="not pp_ifdef('android')">
         <include name="IDR_PERFORMANCE_MONITOR_CHART_CSS" file="resources\performance_monitor\chart.css" flattenhtml="true" type="BINDATA" />
         <include name="IDR_PERFORMANCE_MONITOR_CHART_JS" file="resources\performance_monitor\chart.js" type="BINDATA" />
@@ -213,8 +211,6 @@
         <include name="IDR_SUGGESTIONS_INTERNALS_JS" file="resources\suggestions_internals\suggestions_internals.js" type="BINDATA" />
         <include name="IDR_SUGGESTIONS_PAGE_CSS" file="resources\ntp4\suggestions_page.css" type="BINDATA" />
         <include name="IDR_SUGGESTIONS_PAGE_JS" file="resources\ntp4\suggestions_page.js" type="BINDATA" />
-        <include name="IDR_TRACING_HTML" file="..\..\third_party\trace-viewer\src\about_tracing.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
-        <include name="IDR_TRACING_JS" file="..\..\third_party\trace-viewer\src\about_tracing.js" flattenhtml="true" type="BINDATA" />
       </if>
       <include name="IDR_TRANSLATE_JS" file="resources\translate.js" type="BINDATA" />
       <include name="IDR_FEEDBACK_HTML" file="resources\feedback.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />

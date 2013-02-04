@@ -19,7 +19,6 @@ extern const char kDefaultAppsInstalled[];
 extern const char kHomePageIsNewTabPage[];
 extern const char kHomePage[];
 extern const char kHomePageChanged[];
-extern const char kIsGooglePlusUser[];
 extern const char kManagedModeWhitelist[];
 extern const char kManagedModeBlacklist[];
 extern const char kSessionExitedCleanly[];
@@ -265,6 +264,7 @@ extern const char kLanguageRemapCapsLockKeyTo[];
 extern const char kLanguageRemapSearchKeyTo[];
 extern const char kLanguageRemapControlKeyTo[];
 extern const char kLanguageRemapAltKeyTo[];
+extern const char kLanguageRemapDiamondKeyTo[];
 extern const char kLanguageXkbAutoRepeatEnabled[];
 extern const char kLanguageXkbAutoRepeatDelay[];
 extern const char kLanguageXkbAutoRepeatInterval[];
@@ -312,6 +312,7 @@ extern const char kEnableAutoSpellCorrect[];
 extern const char kSavingBrowserHistoryDisabled[];
 extern const char kForceSafeSearch[];
 extern const char kDeleteTimePeriod[];
+extern const char kLastClearBrowsingDataTime[];
 #if defined(TOOLKIT_GTK)
 extern const char kUsesSystemTheme[];
 #endif
@@ -820,6 +821,10 @@ extern const char kLastPolicyStatisticsUpdate[];
 #if defined(OS_CHROMEOS)
 extern const char kRLZBrand[];
 extern const char kRLZDisabled[];
+#endif
+
+#if defined(ENABLE_APP_LIST)
+extern const char kAppListProfile[];
 #endif
 
 }  // namespace prefs

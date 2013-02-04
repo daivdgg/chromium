@@ -64,8 +64,6 @@ class ChromeContentBrowserClient : public content::ContentBrowserClient {
       content::WebContents* embedder_web_contents) OVERRIDE;
   virtual void RenderProcessHostCreated(
       content::RenderProcessHost* host) OVERRIDE;
-  virtual void RenderProcessHostDeleted(
-      content::RenderProcessHost* host) OVERRIDE;
   virtual bool ShouldUseProcessPerSite(content::BrowserContext* browser_context,
                                        const GURL& effective_url) OVERRIDE;
   virtual GURL GetEffectiveURL(content::BrowserContext* browser_context,
@@ -210,6 +208,8 @@ class ChromeContentBrowserClient : public content::ContentBrowserClient {
       const GURL& url,
       const content::SocketPermissionRequest& params) OVERRIDE;
   virtual FilePath GetHyphenDictionaryDirectory() OVERRIDE;
+  virtual ui::SelectFilePolicy* CreateSelectFilePolicy(
+      content::WebContents* web_contents) OVERRIDE;
 
 #if defined(OS_POSIX) && !defined(OS_MACOSX)
   virtual void GetAdditionalMappedFilesForChildProcess(

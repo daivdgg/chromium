@@ -112,7 +112,6 @@ int newtab_button_h_offset() {
   static int value = -1;
   if (value == -1) {
     switch (ui::GetDisplayLayout()) {
-      case ui::LAYOUT_ASH:
       case ui::LAYOUT_DESKTOP:
         value = -11;
         break;
@@ -132,7 +131,6 @@ int newtab_button_v_offset() {
   static int value = -1;
   if (value == -1) {
     switch (ui::GetDisplayLayout()) {
-      case ui::LAYOUT_ASH:
       case ui::LAYOUT_DESKTOP:
         value = 7;
         break;
@@ -153,7 +151,6 @@ int tab_h_offset() {
   static int value = -1;
   if (value == -1) {
     switch (ui::GetDisplayLayout()) {
-      case ui::LAYOUT_ASH:
       case ui::LAYOUT_DESKTOP:
         value = -26;
         break;
@@ -175,7 +172,6 @@ int newtab_button_asset_width() {
   static int value = -1;
   if (value == -1) {
     switch (ui::GetDisplayLayout()) {
-      case ui::LAYOUT_ASH:
       case ui::LAYOUT_DESKTOP:
         value = 34;
         break;
@@ -193,7 +189,6 @@ int newtab_button_asset_height() {
   static int value = -1;
   if (value == -1) {
     switch (ui::GetDisplayLayout()) {
-      case ui::LAYOUT_ASH:
       case ui::LAYOUT_DESKTOP:
         value = 18;
         break;
@@ -212,7 +207,6 @@ int stacked_tab_left_clip() {
   static int value = -1;
   if (value == -1) {
     switch (ui::GetDisplayLayout()) {
-      case ui::LAYOUT_ASH:
       case ui::LAYOUT_DESKTOP:
         value = 20;
         break;
@@ -231,7 +225,6 @@ int stacked_tab_right_clip() {
   static int value = -1;
   if (value == -1) {
     switch (ui::GetDisplayLayout()) {
-      case ui::LAYOUT_ASH:
       case ui::LAYOUT_DESKTOP:
         value = 20;
         break;
@@ -2276,7 +2269,8 @@ void TabStrip::SetDropIndex(int tab_data_index, bool drop_before) {
                                         &is_beneath);
 
   if (!drop_info_.get()) {
-    drop_info_.reset(new DropInfo(tab_data_index, drop_before, !is_beneath));
+    drop_info_.reset(
+        new DropInfo(tab_data_index, drop_before, !is_beneath, GetWidget()));
   } else {
     drop_info_->drop_index = tab_data_index;
     drop_info_->drop_before = drop_before;
@@ -2310,7 +2304,10 @@ gfx::ImageSkia* TabStrip::GetDropArrowImage(bool is_down) {
 
 // TabStrip::DropInfo ----------------------------------------------------------
 
-TabStrip::DropInfo::DropInfo(int drop_index, bool drop_before, bool point_down)
+TabStrip::DropInfo::DropInfo(int drop_index,
+                             bool drop_before,
+                             bool point_down,
+                             views::Widget* context)
     : drop_index(drop_index),
       drop_before(drop_before),
       point_down(point_down) {
@@ -2324,6 +2321,7 @@ TabStrip::DropInfo::DropInfo(int drop_index, bool drop_before, bool point_down)
   params.accept_events = false;
   params.can_activate = false;
   params.bounds = gfx::Rect(drop_indicator_width, drop_indicator_height);
+  params.context = context->GetNativeView();
   arrow_window->Init(params);
   arrow_window->SetContentsView(arrow_view);
 }

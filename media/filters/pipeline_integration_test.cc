@@ -854,4 +854,23 @@ TEST_F(PipelineIntegrationTest, BasicPlayback_AudioOnly_Opus_WebM) {
   ASSERT_TRUE(WaitUntilOnEnded());
 }
 
+// Verify that VP9 video in WebM containers can be played back.
+// Disabled since it might crash or corrupt heap, see http://crbug.com/173333
+TEST_F(PipelineIntegrationTest, DISABLED_BasicPlayback_VideoOnly_VP9_WebM) {
+  ASSERT_TRUE(Start(GetTestDataFilePath("bear-vp9.webm"),
+                    PIPELINE_OK));
+  Play();
+  ASSERT_TRUE(WaitUntilOnEnded());
+}
+
+// Verify that VP9 video and Opus audio in the same WebM container can be played
+// back.
+// Disabled since it might crash or corrupt heap, see http://crbug.com/173333
+TEST_F(PipelineIntegrationTest, DISABLED_BasicPlayback_VP9_Opus_WebM) {
+  ASSERT_TRUE(Start(GetTestDataFilePath("bear-vp9-opus.webm"),
+                    PIPELINE_OK));
+  Play();
+  ASSERT_TRUE(WaitUntilOnEnded());
+}
+
 }  // namespace media

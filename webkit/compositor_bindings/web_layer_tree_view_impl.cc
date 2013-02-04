@@ -53,16 +53,17 @@ bool WebLayerTreeViewImpl::initialize(const WebLayerTreeView::Settings& webSetti
     settings.initialDebugState.showPlatformLayerTree = webSettings.showPlatformLayerTree;
     settings.initialDebugState.showDebugBorders = webSettings.showDebugBorders;
     settings.implSidePainting = CommandLine::ForCurrentProcess()->HasSwitch(cc::switches::kEnableImplSidePainting);
+    settings.recordRenderingStats = webSettings.recordRenderingStats;
 
     settings.calculateTopControlsPosition = CommandLine::ForCurrentProcess()->HasSwitch(switches::kEnableTopControlsPositionCalculation);
     if (CommandLine::ForCurrentProcess()->HasSwitch(switches::kTopControlsHeight)) {
         std::string controls_height_str =
             CommandLine::ForCurrentProcess()->GetSwitchValueASCII(switches::kTopControlsHeight);
-        int controls_height;
-        if (base::StringToInt(controls_height_str, &controls_height) && controls_height > 0)
-            settings.topControlsHeightPx = controls_height;
+        double controls_height;
+        if (base::StringToDouble(controls_height_str, &controls_height) && controls_height > 0)
+            settings.topControlsHeight = controls_height;
     }
-    if (settings.calculateTopControlsPosition && (settings.topControlsHeightPx <= 0 || !settings.compositorFrameMessage)) {
+    if (settings.calculateTopControlsPosition && (settings.topControlsHeight <= 0 || !settings.compositorFrameMessage)) {
         DCHECK(false) << "Top controls repositioning enabled without valid height or compositorFrameMessage set.";
         settings.calculateTopControlsPosition = false;
     }

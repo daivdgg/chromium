@@ -235,11 +235,11 @@ bool ExtensionApiTest::RunExtensionTestImpl(const char* extension_name,
       ui_test_utils::NavigateToURL(browser(), url);
 
   } else if (launch_platform_app) {
-    application_launch::LaunchParams params(browser()->profile(), extension,
-                                            extension_misc::LAUNCH_NONE,
-                                            NEW_WINDOW);
+    chrome::AppLaunchParams params(browser()->profile(), extension,
+                                   extension_misc::LAUNCH_NONE,
+                                   NEW_WINDOW);
     params.command_line = CommandLine::ForCurrentProcess();
-    application_launch::OpenApplication(params);
+    chrome::OpenApplication(params);
   }
 
   if (!catcher.GetNextResult()) {
@@ -260,7 +260,7 @@ const extensions::Extension* ExtensionApiTest::GetSingleLoadedExtension() {
        it != service->extensions()->end(); ++it) {
     // Ignore any component extensions. They are automatically loaded into all
     // profiles and aren't the extension we're looking for here.
-    if ((*it)->location() == extensions::Extension::COMPONENT)
+    if ((*it)->location() == extensions::Manifest::COMPONENT)
       continue;
 
     if (extension != NULL) {

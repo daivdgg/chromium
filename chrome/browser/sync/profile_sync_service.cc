@@ -542,7 +542,7 @@ void ProfileSyncService::EmitInvalidationForTest(
 
   const syncer::ObjectIdInvalidationMap& invalidation_map =
       ObjectIdSetToInvalidationMap(notify_ids, payload);
-  OnIncomingInvalidation(invalidation_map, syncer::REMOTE_INVALIDATION);
+  OnIncomingInvalidation(invalidation_map);
 }
 
 void ProfileSyncService::Shutdown() {
@@ -631,13 +631,6 @@ void ProfileSyncService::DisableForUser() {
   invalidator_storage_.Clear();
   ClearUnrecoverableError();
   ShutdownImpl(true);
-
-  // TODO(atwilson): Don't call SignOut() on *any* platform - move this into
-  // the UI layer if needed (sync activity should never result in the user
-  // being logged out of all chrome services).
-  if (!auto_start_enabled_ && !signin_->GetAuthenticatedUsername().empty())
-    signin_->SignOut();
-
   NotifyObservers();
 }
 
@@ -752,10 +745,8 @@ void ProfileSyncService::OnInvalidatorStateChange(
 }
 
 void ProfileSyncService::OnIncomingInvalidation(
-    const syncer::ObjectIdInvalidationMap& invalidation_map,
-    syncer::IncomingInvalidationSource source) {
-  invalidator_registrar_->DispatchInvalidationsToHandlers(invalidation_map,
-                                                          source);
+    const syncer::ObjectIdInvalidationMap& invalidation_map) {
+  invalidator_registrar_->DispatchInvalidationsToHandlers(invalidation_map);
 }
 
 void ProfileSyncService::OnBackendInitialized(
@@ -931,6 +922,12 @@ void ProfileSyncService::OnExperimentsChanged(
                                       true);
   }
 
+  if (experiments.full_history_sync) {
+    about_flags::SetExperimentEnabled(g_browser_process->local_state(),
+                                      syncer::kFullHistorySyncFlag,
+                                      true);
+  }
+
   current_experiments_ = experiments;
 }
 
@@ -938,10 +935,12 @@ void ProfileSyncService::UpdateAuthErrorState(const AuthError& error) {
   is_auth_in_progress_ = false;
   last_auth_error_ = error;
 
-  // Fan the notification out to interested UI-thread components.
-  NotifyObservers();
+  // Fan the notification out to interested UI-thread components. Notify the
+  // SigninGlobalError first so it reflects the latest auth state before we
+  // notify observers.
   if (signin())
     signin()->signin_global_error()->AuthStatusChanged();
+  NotifyObservers();
 }
 
 namespace {

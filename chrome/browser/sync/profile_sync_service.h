@@ -278,8 +278,7 @@ class ProfileSyncService : public ProfileSyncServiceBase,
   virtual void OnInvalidatorStateChange(
       syncer::InvalidatorState state) OVERRIDE;
   virtual void OnIncomingInvalidation(
-      const syncer::ObjectIdInvalidationMap& invalidation_map,
-      syncer::IncomingInvalidationSource source) OVERRIDE;
+      const syncer::ObjectIdInvalidationMap& invalidation_map) OVERRIDE;
 
   // SyncFrontend implementation.
   virtual void OnBackendInitialized(
@@ -405,7 +404,7 @@ class ProfileSyncService : public ProfileSyncServiceBase,
 
   // Returns whether sync is managed, i.e. controlled by configuration
   // management. If so, the user is not allowed to configure sync.
-  bool IsManaged() const;
+  virtual bool IsManaged() const;
 
   // SigninGlobalError::AuthStatusProvider implementation.
   virtual GoogleServiceAuthError GetAuthStatus() const OVERRIDE;

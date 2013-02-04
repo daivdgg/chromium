@@ -256,6 +256,14 @@ class ChromeTests:
   def TestChromeOS(self):
     return self.SimpleTest("chromeos", "chromeos_unittests")
 
+  def TestComponents(self):
+    # Skip on TSan/Win bots as it fails on a TCMalloc assertion!
+    # See http://crbug.com/99036
+    if common.IsWindows() and (self._options.valgrind_tool == "tsan"):
+      logging.warning("components_unittests are disabled for TSan on Windows.")
+      return 0;
+    return self.SimpleTest("components", "components_unittests")
+
   def TestCompositor(self):
     return self.SimpleTest("compositor", "compositor_unittests")
 
@@ -506,6 +514,7 @@ class ChromeTests:
     "base": TestBase,            "base_unittests": TestBase,
     "browser": TestBrowser,      "browser_tests": TestBrowser,
     "chromeos": TestChromeOS,    "chromeos_unittests": TestChromeOS,
+    "components": TestComponents,"components_unittests": TestComponents,
     "compositor": TestCompositor,"compositor_unittests": TestCompositor,
     "content": TestContent,      "content_unittests": TestContent,
     "content_browsertests": TestContentBrowser,

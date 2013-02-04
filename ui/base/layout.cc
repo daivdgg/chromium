@@ -119,7 +119,7 @@ std::vector<ScaleFactor>& GetSupportedScaleFactorsInternal() {
     if (base::mac::IsOSLionOrLater())
       supported_scale_factors->push_back(SCALE_FACTOR_200P);
 #elif defined(OS_WIN) && defined(ENABLE_HIDPI)
-    if (base::win::IsMetroProcess() && base::win::IsTouchEnabled()) {
+    if (base::win::IsMetroProcess() && ui::IsTouchDevicePresent()) {
       supported_scale_factors->push_back(SCALE_FACTOR_140P);
       supported_scale_factors->push_back(SCALE_FACTOR_180P);
     }
@@ -136,19 +136,12 @@ std::vector<ScaleFactor>& GetSupportedScaleFactorsInternal() {
 
 }  // namespace
 
-// Note that this function should be extended to select
-// LAYOUT_TOUCH when appropriate on more platforms than just
-// Windows.
 DisplayLayout GetDisplayLayout() {
-#if defined(USE_ASH)
-  return LAYOUT_ASH;
-#elif defined(OS_WIN)
+#if defined(OS_WIN)
   if (UseTouchOptimizedUI())
     return LAYOUT_TOUCH;
-  return LAYOUT_DESKTOP;
-#else
-  return LAYOUT_DESKTOP;
 #endif
+  return LAYOUT_DESKTOP;
 }
 
 ScaleFactor GetScaleFactorFromScale(float scale) {
@@ -201,6 +194,16 @@ void SetSupportedScaleFactors(
   std::sort(supported_scale_factors.begin(),
             supported_scale_factors.end(),
             ScaleFactorComparator);
+}
+
+ScopedSetSupportedScaleFactors::ScopedSetSupportedScaleFactors(
+    const std::vector<ui::ScaleFactor>& new_scale_factors)
+    : original_scale_factors_(GetSupportedScaleFactors()) {
+  SetSupportedScaleFactors(new_scale_factors);
+}
+
+ScopedSetSupportedScaleFactors::~ScopedSetSupportedScaleFactors() {
+  SetSupportedScaleFactors(original_scale_factors_);
 }
 
 }  // namespace test

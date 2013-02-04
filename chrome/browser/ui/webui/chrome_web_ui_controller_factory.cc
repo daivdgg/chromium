@@ -27,13 +27,11 @@
 #include "chrome/browser/ui/webui/feedback_ui.h"
 #include "chrome/browser/ui/webui/flags_ui.h"
 #include "chrome/browser/ui/webui/flash_ui.h"
-#include "chrome/browser/ui/webui/gpu_internals_ui.h"
 #include "chrome/browser/ui/webui/help/help_ui.h"
 #include "chrome/browser/ui/webui/history_ui.h"
 #include "chrome/browser/ui/webui/inspect_ui.h"
 #include "chrome/browser/ui/webui/instant_ui.h"
 #include "chrome/browser/ui/webui/local_omnibox_popup/local_omnibox_popup_ui.h"
-#include "chrome/browser/ui/webui/media/media_internals_ui.h"
 #include "chrome/browser/ui/webui/memory_internals/memory_internals_ui.h"
 #include "chrome/browser/ui/webui/net_internals/net_internals_ui.h"
 #include "chrome/browser/ui/webui/ntp/new_tab_ui.h"
@@ -47,7 +45,6 @@
 #include "chrome/browser/ui/webui/quota_internals_ui.h"
 #include "chrome/browser/ui/webui/signin_internals_ui.h"
 #include "chrome/browser/ui/webui/sync_internals_ui.h"
-#include "chrome/browser/ui/webui/tracing_ui.h"
 #include "chrome/browser/ui/webui/user_actions/user_actions_ui.h"
 #include "chrome/browser/ui/webui/version_ui.h"
 #include "chrome/common/chrome_switches.h"
@@ -76,6 +73,10 @@
 #else
 #include "chrome/browser/ui/webui/suggestions_internals/suggestions_internals_ui.h"
 #include "chrome/browser/ui/webui/uber/uber_ui.h"
+#endif
+
+#if defined(OS_ANDROID) || defined(OS_IOS)
+#include "chrome/browser/ui/webui/net_export_ui.h"
 #endif
 
 #if defined(OS_CHROMEOS)
@@ -200,16 +201,12 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<ConstrainedWebDialogUI>;
   if (url.host() == chrome::kChromeUIFlagsHost)
     return &NewWebUI<FlagsUI>;
-  if (url.host() == chrome::kChromeUIGpuInternalsHost)
-    return &NewWebUI<GpuInternalsUI>;
   if (url.host() == chrome::kChromeUIHistoryFrameHost)
     return &NewWebUI<HistoryUI>;
   if (url.host() == chrome::kChromeUIInstantHost)
     return &NewWebUI<InstantUI>;
   if (url.host() == chrome::kChromeUILocalOmniboxPopupHost)
     return &NewWebUI<LocalOmniboxPopupUI>;
-  if (url.host() == chrome::kChromeUIMediaInternalsHost)
-    return &NewWebUI<MediaInternalsUI>;
   if (url.host() == chrome::kChromeUIMemoryInternalsHost &&
       CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kEnableMemoryInternalsUI)) {
@@ -218,6 +215,10 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
 #if !defined(DISABLE_NACL)
   if (url.host() == chrome::kChromeUINaClHost)
     return &NewWebUI<NaClUI>;
+#endif
+#if defined(OS_ANDROID) || defined(OS_IOS)
+  if (url.host() == chrome::kChromeUINetExportHost)
+    return &NewWebUI<NetExportUI>;
 #endif
   if (url.host() == chrome::kChromeUINetInternalsHost)
     return &NewWebUI<NetInternalsUI>;
@@ -283,8 +284,6 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<options::OptionsUI>;
   if (url.host() == chrome::kChromeUISuggestionsInternalsHost)
     return &NewWebUI<SuggestionsInternalsUI>;
-  if (url.host() == chrome::kChromeUITracingHost)
-    return &NewWebUI<TracingUI>;
   // Uber frame is not used on Android.
   if (url.host() == chrome::kChromeUIUberFrameHost)
     return &NewWebUI<UberFrameUI>;

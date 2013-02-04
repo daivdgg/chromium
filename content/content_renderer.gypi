@@ -114,8 +114,6 @@
     'renderer/load_progress_tracker.h',
     'renderer/media/audio_device_factory.cc',
     'renderer/media/audio_device_factory.h',
-    'renderer/media/audio_hardware.cc',
-    'renderer/media/audio_hardware.h',
     'renderer/media/audio_input_message_filter.cc',
     'renderer/media/audio_input_message_filter.h',
     'renderer/media/audio_message_filter.cc',
@@ -324,6 +322,12 @@
     ['OS=="android"', {
       'dependencies': [
         '../third_party/libphonenumber/libphonenumber.gyp:libphonenumber',
+      ],
+    }],
+    ['enable_web_intents==0', {
+      'sources!': [
+        'renderer/web_intents_host.cc',
+        'renderer/web_intents_host.h',
       ],
     }],
     # TODO(jrg): remove the OS=="android" section?

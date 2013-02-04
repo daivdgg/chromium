@@ -10,6 +10,7 @@
 #include "base/callback.h"
 #include "base/format_macros.h"
 #include "base/memory/scoped_ptr.h"
+#include "base/message_loop.h"
 #include "base/observer_list.h"
 #include "base/stringprintf.h"
 #include "base/threading/platform_thread.h"
@@ -28,7 +29,12 @@
 
 namespace chromeos {
 
+// Maximum amount of time that the power manager will wait for Chrome to
+// say that it's ready for the system to be suspended, in milliseconds.
 const int kSuspendDelayTimeoutMs = 5000;
+
+// Human-readable description of Chrome's suspend delay.
+const char kSuspendDelayDescription[] = "chrome";
 
 // The PowerManagerClient implementation used in production.
 class PowerManagerClientImpl : public PowerManagerClient {
@@ -125,6 +131,7 @@ class PowerManagerClientImpl : public PowerManagerClient {
     base::TimeDelta timeout =
         base::TimeDelta::FromMilliseconds(kSuspendDelayTimeoutMs);
     protobuf_request.set_timeout(timeout.ToInternalValue());
+    protobuf_request.set_description(kSuspendDelayDescription);
 
     if (!writer.AppendProtoAsArrayOfBytes(protobuf_request)) {
       LOG(ERROR) << "Error constructing message for "
@@ -800,7 +807,15 @@ class PowerManagerClientStubImpl : public PowerManagerClient {
     callback.Run(0);
   }
 
-  virtual void RequestIdleNotification(int64 threshold) OVERRIDE {}
+  virtual void RequestIdleNotification(int64 threshold) OVERRIDE {
+    MessageLoop::current()->PostDelayedTask(
+        FROM_HERE,
+        base::Bind(&PowerManagerClientStubImpl::TriggerIdleNotify,
+                   base::Unretained(this),
+                   threshold),
+        base::TimeDelta::FromMilliseconds(threshold));
+  }
+
   virtual void NotifyUserActivity(
       const base::TimeTicks& last_activity_time) OVERRIDE {}
   virtual void NotifyVideoActivity(
@@ -861,6 +876,10 @@ class PowerManagerClientStubImpl : public PowerManagerClient {
     int brightness_level = static_cast<int>(brightness_);
     FOR_EACH_OBSERVER(Observer, observers_,
                       BrightnessChanged(brightness_level, user_initiated));
+  }
+
+  void TriggerIdleNotify(int64 threshold) {
+    FOR_EACH_OBSERVER(Observer, observers_, IdleNotify(threshold));
   }
 
   bool discharging_;

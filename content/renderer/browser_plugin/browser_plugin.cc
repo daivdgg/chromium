@@ -183,50 +183,50 @@ bool BrowserPlugin::GetAutoSizeAttribute() const {
 }
 
 int BrowserPlugin::GetMaxHeightAttribute() const {
-  int maxHeight;
+  int max_height;
   base::StringToInt(GetDOMAttributeValue(browser_plugin::kAttributeMaxHeight),
-                    &maxHeight);
-  return maxHeight;
+                    &max_height);
+  return max_height;
 }
 
 int BrowserPlugin::GetMaxWidthAttribute() const {
-  int maxWidth;
+  int max_width;
   base::StringToInt(GetDOMAttributeValue(browser_plugin::kAttributeMaxWidth),
-                    &maxWidth);
-  return maxWidth;
+                    &max_width);
+  return max_width;
 }
 
 int BrowserPlugin::GetMinHeightAttribute() const {
-  int minHeight;
+  int min_height;
   base::StringToInt(GetDOMAttributeValue(browser_plugin::kAttributeMinHeight),
-                    &minHeight);
-  return minHeight;
+                    &min_height);
+  return min_height;
 }
 
 int BrowserPlugin::GetMinWidthAttribute() const {
-  int minWidth;
+  int min_width;
   base::StringToInt(GetDOMAttributeValue(browser_plugin::kAttributeMinWidth),
-                    &minWidth);
-  return minWidth;
+                    &min_width);
+  return min_width;
 }
 
 int BrowserPlugin::GetAdjustedMaxHeight() const {
-  int maxHeight = GetMaxHeightAttribute();
-  return (maxHeight == 0) ? height() : maxHeight;
+  int max_height = GetMaxHeightAttribute();
+  return max_height ? max_height : height();
 }
 
 int BrowserPlugin::GetAdjustedMaxWidth() const {
-  int maxWidth = GetMaxWidthAttribute();
-  return (maxWidth == 0) ? width() : maxWidth;
+  int max_width = GetMaxWidthAttribute();
+  return max_width ? max_width : width();
 }
 
 int BrowserPlugin::GetAdjustedMinHeight() const {
-  // For autosize, minHeight should not be bigger than maxHeight.
+  // For autosize, minheight should not be bigger than maxheight.
   return std::min(GetMinHeightAttribute(), GetAdjustedMaxHeight());
 }
 
 int BrowserPlugin::GetAdjustedMinWidth() const {
-  // For autosize, minWidth should not be bigger than maxWidth.
+  // For autosize, minwidth should not be bigger than maxwidth.
   return std::min(GetMinWidthAttribute(), GetAdjustedMaxWidth());
 }
 
@@ -334,7 +334,7 @@ void BrowserPlugin::SizeChangedDueToAutoSize(const gfx::Size& old_view_size) {
 // static
 bool BrowserPlugin::UsesDamageBuffer(
     const BrowserPluginMsg_UpdateRect_Params& params) {
-  return params.damage_buffer_sequence_id != 0;
+  return params.damage_buffer_sequence_id != 0 || params.needs_ack;
 }
 
 bool BrowserPlugin::UsesPendingDamageBuffer(
@@ -535,7 +535,7 @@ void BrowserPlugin::OnUpdateRect(
   bool auto_size = GetAutoSizeAttribute();
   // We receive a resize ACK in regular mode, but not in autosize.
   // In SW, |resize_ack_received_| is reset in SwapDamageBuffers().
-  // in HW mode, we need to do it here so we can continue sending
+  // In HW mode, we need to do it here so we can continue sending
   // resize messages when needed.
   if (params.is_resize_ack ||
       (!params.needs_ack && (auto_size || auto_size_ack_pending_)))
@@ -630,6 +630,7 @@ void BrowserPlugin::OnUpdateRect(
                                         params.copy_rects,
                                         current_damage_buffer_->memory());
   }
+
   // Invalidate the container.
   // If the BrowserPlugin is scheduled to be deleted, then container_ will be
   // NULL so we shouldn't attempt to access it.
@@ -838,15 +839,33 @@ void BrowserPlugin::EnableCompositing(bool enable) {
   if (compositing_enabled_ == enable)
     return;
 
-  if (enable && !compositing_helper_) {
-    compositing_helper_ = new BrowserPluginCompositingHelper(
-        container_,
-        browser_plugin_manager(),
-        render_view_routing_id_);
-  }
-
-  compositing_helper_->EnableCompositing(enable);
   compositing_enabled_ = enable;
+  if (enable) {
+    // No need to keep the backing store and damage buffer around if we're now
+    // compositing.
+    backing_store_.reset();
+    current_damage_buffer_.reset();
+    if (!compositing_helper_) {
+      compositing_helper_ = new BrowserPluginCompositingHelper(
+          container_,
+          browser_plugin_manager(),
+          render_view_routing_id_);
+    }
+  } else {
+    // We're switching back to the software path. We create a new damage
+    // buffer that can accommodate the current size of the container.
+    BrowserPluginHostMsg_ResizeGuest_Params params;
+    PopulateResizeGuestParameters(&params, gfx::Size(width(), height()));
+    // Request a full repaint from the guest even if its size is not actually
+    // changing.
+    params.repaint = true;
+    resize_ack_received_ = false;
+    browser_plugin_manager()->Send(new BrowserPluginHostMsg_ResizeGuest(
+        render_view_routing_id_,
+        instance_id_,
+        params));
+  }
+  compositing_helper_->EnableCompositing(enable);
 }
 
 void BrowserPlugin::destroy() {

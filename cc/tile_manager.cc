@@ -14,6 +14,7 @@
 #include "cc/raster_worker_pool.h"
 #include "cc/resource_pool.h"
 #include "cc/tile.h"
+#include "third_party/skia/include/core/SkDevice.h"
 
 namespace cc {
 
@@ -34,7 +35,7 @@ const int kMaxPendingUploadBytes = 100 * 1024 * 1024;
 
 // Determine bin based on three categories of tiles: things we need now,
 // things we need soon, and eventually.
-TileManagerBin BinFromTilePriority(const TilePriority& prio) {
+inline TileManagerBin BinFromTilePriority(const TilePriority& prio) {
   if (!prio.is_live)
     return NEVER_BIN;
 
@@ -113,17 +114,16 @@ ManagedTileState::~ManagedTileState() {
 TileManager::TileManager(
     TileManagerClient* client,
     ResourceProvider* resource_provider,
-    size_t num_raster_threads)
+    size_t num_raster_threads,
+    bool record_rendering_stats)
     : client_(client),
       resource_pool_(ResourcePool::Create(resource_provider)),
-      raster_worker_pool_(RasterWorkerPool::Create(num_raster_threads)),
+      raster_worker_pool_(RasterWorkerPool::Create(num_raster_threads, record_rendering_stats)),
       manage_tiles_pending_(false),
       manage_tiles_call_count_(0),
       bytes_pending_set_pixels_(0),
-      ever_exceeded_memory_budget_(false) {
-  bool worker_pool_is_running = raster_worker_pool_->Start();
-  CHECK(worker_pool_is_running);
-
+      ever_exceeded_memory_budget_(false),
+      record_rendering_stats_(record_rendering_stats) {
   for (int i = 0; i < NUM_STATES; ++i) {
     for (int j = 0; j < NUM_TREES; ++j) {
       for (int k = 0; k < NUM_BINS; ++k)
@@ -188,20 +188,6 @@ void TileManager::UnregisterTile(Tile* tile) {
     }
   }
   DCHECK(false) << "Could not find tile version.";
-}
-
-void TileManager::WillModifyTilePriority(
-    Tile* tile, WhichTree tree, const TilePriority& new_priority) {
-  // TODO(nduca): Do something smarter if reprioritization turns out to be
-  // costly.
-  ScheduleManageTiles();
-}
-
-void TileManager::ScheduleManageTiles() {
-  if (manage_tiles_pending_)
-    return;
-  client_->ScheduleManageTiles();
-  manage_tiles_pending_ = true;
 }
 
 class BinComparator {
@@ -400,6 +386,7 @@ scoped_ptr<base::Value> TileManager::GetMemoryRequirementsAsValue() const {
 }
 
 void TileManager::GetRenderingStats(RenderingStats* stats) {
+  CHECK(record_rendering_stats_);
   raster_worker_pool_->GetRenderingStats(stats);
   stats->totalDeferredImageCacheHitCount =
       rendering_stats_.totalDeferredImageCacheHitCount;
@@ -465,8 +452,9 @@ void TileManager::AssignGpuMemoryToTiles() {
       DidTileRasterStateChange(tile, IDLE_STATE);
   }
 
-  size_t bytes_left = global_state_.memory_limit_in_bytes - unreleasable_bytes;
+  size_t bytes_allocatable = global_state_.memory_limit_in_bytes - unreleasable_bytes;
   size_t bytes_that_exceeded_memory_budget = 0;
+  size_t bytes_left = bytes_allocatable;
   for (TileVector::iterator it = tiles_.begin(); it != tiles_.end(); ++it) {
     Tile* tile = *it;
     size_t tile_bytes = tile->bytes_consumed_if_allocated();
@@ -494,14 +482,17 @@ void TileManager::AssignGpuMemoryToTiles() {
     }
   }
 
-  if (bytes_that_exceeded_memory_budget)
-    ever_exceeded_memory_budget_ = true;
-
+  ever_exceeded_memory_budget_ |= bytes_that_exceeded_memory_budget > 0;
   if (ever_exceeded_memory_budget_) {
       TRACE_COUNTER_ID2("cc", "over_memory_budget", this,
                         "budget", global_state_.memory_limit_in_bytes,
                         "over", bytes_that_exceeded_memory_budget);
   }
+  memory_stats_from_last_assign_.bytes_allocated =
+      bytes_allocatable - bytes_left;
+  memory_stats_from_last_assign_.bytes_unreleasable = unreleasable_bytes;
+  memory_stats_from_last_assign_.bytes_over =
+      bytes_that_exceeded_memory_budget;
 
   // Reverse two tiles_that_need_* vectors such that pop_back gets
   // the highest priority tile.
@@ -564,15 +555,19 @@ void TileManager::GatherPixelRefsForTile(Tile* tile) {
   TRACE_EVENT0("cc", "TileManager::GatherPixelRefsForTile");
   ManagedTileState& managed_state = tile->managed_state();
   if (managed_state.need_to_gather_pixel_refs) {
-    base::TimeTicks gather_begin_time = base::TimeTicks::Now();
+    base::TimeTicks gather_begin_time;
+    if (record_rendering_stats_)
+      gather_begin_time = base::TimeTicks::Now();
     tile->picture_pile()->GatherPixelRefs(
         tile->content_rect_,
         tile->contents_scale_,
         managed_state.pending_pixel_refs);
-    rendering_stats_.totalImageGatheringCount++;
-    rendering_stats_.totalImageGatheringTime +=
-        base::TimeTicks::Now() - gather_begin_time;
     managed_state.need_to_gather_pixel_refs = false;
+    if (record_rendering_stats_) {
+      rendering_stats_.totalImageGatheringCount++;
+      rendering_stats_.totalImageGatheringTime +=
+          base::TimeTicks::Now() - gather_begin_time;
+    }
   }
 }
 
@@ -608,8 +603,8 @@ void TileManager::DispatchOneImageDecodeTask(
       pending_decode_tasks_.find(pixel_ref_id));
   pending_decode_tasks_[pixel_ref_id] = pixel_ref;
 
-  raster_worker_pool_->PostImageDecodeTaskAndReply(
-      pixel_ref,
+  raster_worker_pool_->PostTaskAndReply(
+      base::Bind(&TileManager::RunImageDecodeTask, pixel_ref),
       base::Bind(&TileManager::OnImageDecodeTaskCompleted,
                  base::Unretained(this),
                  tile,
@@ -654,9 +649,11 @@ void TileManager::DispatchOneRasterTask(scoped_refptr<Tile> tile) {
 
   raster_worker_pool_->PostRasterTaskAndReply(
       tile->picture_pile(),
-      resource_pool_->resource_provider()->mapPixelBuffer(resource_id),
-      tile->content_rect_,
-      tile->contents_scale(),
+      base::Bind(&TileManager::RunRasterTask,
+                 resource_pool_->resource_provider()->mapPixelBuffer(
+                     resource_id),
+                 tile->content_rect_,
+                 tile->contents_scale()),
       base::Bind(&TileManager::OnRasterTaskCompleted,
                  base::Unretained(this),
                  tile,
@@ -749,6 +746,38 @@ void TileManager::DidTileBinChange(Tile* tile,
   ++raster_state_count_[mts.raster_state][tree][bin];
 
   mts.tree_bin[tree] = bin;
+}
+
+// static
+void TileManager::RunRasterTask(uint8* buffer,
+                                const gfx::Rect& rect,
+                                float contents_scale,
+                                PicturePileImpl* picture_pile,
+                                RenderingStats* stats) {
+  TRACE_EVENT0("cc", "TileManager::RunRasterTask");
+  DCHECK(picture_pile);
+  DCHECK(buffer);
+  SkBitmap bitmap;
+  bitmap.setConfig(SkBitmap::kARGB_8888_Config, rect.width(), rect.height());
+  bitmap.setPixels(buffer);
+  SkDevice device(bitmap);
+  SkCanvas canvas(&device);
+  picture_pile->Raster(&canvas, rect, contents_scale, stats);
+}
+
+// static
+void TileManager::RunImageDecodeTask(skia::LazyPixelRef* pixel_ref,
+                                     RenderingStats* stats) {
+  TRACE_EVENT0("cc", "TileManager::RunImageDecodeTask");
+  base::TimeTicks decode_begin_time;
+  if (stats)
+    decode_begin_time = base::TimeTicks::Now();
+  pixel_ref->Decode();
+  if (stats) {
+    stats->totalDeferredImageDecodeCount++;
+    stats->totalDeferredImageDecodeTime +=
+        base::TimeTicks::Now() - decode_begin_time;
+  }
 }
 
 }  // namespace cc

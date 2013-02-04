@@ -14,7 +14,7 @@
       'common',
       'browser',
       '../content/content.gyp:content_app',
-      '../sync/sync.gyp:sync_core',
+      '../sync/sync.gyp:sync',
     ],
     'allocator_target': '../base/allocator/allocator.gyp:allocator',
     'grit_out_dir': '<(SHARED_INTERMEDIATE_DIR)/chrome',
@@ -236,6 +236,8 @@
                ],
             }],
           ],
+          # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
+          'msvs_disabled_warnings': [ 4267, ],
         },
         {
           'target_name': 'plugin',
@@ -285,6 +287,8 @@
               ],
             }],
           ],
+          # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
+          'msvs_disabled_warnings': [ 4267, ],
         },
         {
           'target_name': 'service',
@@ -385,7 +389,7 @@
           'dependencies': [
             'test_support_common',
             '../skia/skia.gyp:skia',
-            '../sync/sync.gyp:sync_core',
+            '../sync/sync.gyp:sync',
           ],
           'include_dirs': [
              '..',

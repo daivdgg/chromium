@@ -30,9 +30,6 @@ const char kHomePage[] = "homepage";
 // Did the user change the home page after install?
 const char kHomePageChanged[] = "homepage_changed";
 
-// Does this user have a Google+ Profile?
-const char kIsGooglePlusUser[] = "is_google_plus_user";
-
 // List of pages that are manually approved.
 const char kManagedModeWhitelist[] = "profile.managed.whitelist";
 // List of pages that are manually blocked.
@@ -724,6 +721,8 @@ const char kLanguageRemapAltKeyTo[] =
     "settings.language.xkb_remap_alt_key_to";
 const char kLanguageRemapCapsLockKeyTo[] =
     "settings.language.remap_caps_lock_key_to";
+const char kLanguageRemapDiamondKeyTo[] =
+    "settings.language.remap_diamond_key_to";
 
 // A boolean pref which determines whether key repeat is enabled.
 const char kLanguageXkbAutoRepeatEnabled[] =
@@ -850,6 +849,8 @@ const char kDeleteHostedAppsData[] = "browser.clear_data.hosted_apps_data";
 const char kDeauthorizeContentLicenses[] =
     "browser.clear_data.content_licenses";
 const char kDeleteTimePeriod[] = "browser.clear_data.time_period";
+const char kLastClearBrowsingDataTime[] =
+    "browser.last_clear_browsing_data_time";
 
 // Boolean pref to define the default values for using spellchecker.
 const char kEnableContinuousSpellcheck[] = "browser.enable_spellchecking";
@@ -2229,6 +2230,12 @@ const char kLastPolicyStatisticsUpdate[] = "policy.last_statistics_update";
 const char kRLZBrand[] = "rlz.brand";
 // Whether RLZ pings are disabled.
 const char kRLZDisabled[] = "rlz.disabled";
+#endif
+
+#if defined(ENABLE_APP_LIST)
+// The directory in user data dir that contains the profile to be used with the
+// app launcher.
+extern const char kAppListProfile[] = "app_list.profile";
 #endif
 
 }  // namespace prefs

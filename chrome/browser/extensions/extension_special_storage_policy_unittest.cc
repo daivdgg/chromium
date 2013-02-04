@@ -10,6 +10,7 @@
 #include "chrome/common/content_settings_types.h"
 #include "chrome/common/extensions/extension.h"
 #include "chrome/common/extensions/extension_manifest_constants.h"
+#include "chrome/common/extensions/manifest.h"
 #include "chrome/common/extensions/manifest_handler.h"
 #include "chrome/common/extensions/web_intents_handler.h"
 #include "chrome/test/base/testing_profile.h"
@@ -18,6 +19,7 @@
 
 using content::BrowserThread;
 using extensions::Extension;
+using extensions::Manifest;
 
 namespace keys = extension_manifest_keys;
 
@@ -25,8 +27,10 @@ class ExtensionSpecialStoragePolicyTest : public testing::Test {
  public:
   virtual void SetUp() {
     policy_ = new ExtensionSpecialStoragePolicy(NULL);
+#if defined(ENABLE_WEB_INTENTS)
     extensions::ManifestHandler::Register(keys::kIntents,
                                           new extensions::WebIntentsHandler);
+#endif
   }
 
  protected:
@@ -46,7 +50,8 @@ class ExtensionSpecialStoragePolicyTest : public testing::Test {
     manifest.Set(keys::kWebURLs, list);
     std::string error;
     scoped_refptr<Extension> protected_app = Extension::Create(
-        path, Extension::INVALID, manifest, Extension::NO_FLAGS, &error);
+        path, Manifest::INVALID_LOCATION, manifest,
+        Extension::NO_FLAGS, &error);
     EXPECT_TRUE(protected_app.get()) << error;
     return protected_app;
   }
@@ -70,7 +75,8 @@ class ExtensionSpecialStoragePolicyTest : public testing::Test {
     manifest.Set(keys::kWebURLs, list);
     std::string error;
     scoped_refptr<Extension> unlimited_app = Extension::Create(
-        path, Extension::INVALID, manifest, Extension::NO_FLAGS, &error);
+        path, Manifest::INVALID_LOCATION, manifest,
+        Extension::NO_FLAGS, &error);
     EXPECT_TRUE(unlimited_app.get()) << error;
     return unlimited_app;
   }
@@ -96,7 +102,7 @@ class ExtensionSpecialStoragePolicyTest : public testing::Test {
     manifest.Set(keys::kPermissions, list);
     std::string error;
     scoped_refptr<Extension> component_app = Extension::Create(
-        path, Extension::COMPONENT, manifest, Extension::NO_FLAGS, &error);
+        path, Manifest::COMPONENT, manifest, Extension::NO_FLAGS, &error);
     EXPECT_TRUE(component_app.get()) << error;
     return component_app;
   }
@@ -121,11 +127,13 @@ class ExtensionSpecialStoragePolicyTest : public testing::Test {
     manifest.Set(keys::kPermissions, list);
     std::string error;
     scoped_refptr<Extension> handler_app = Extension::Create(
-        path, Extension::INVALID, manifest, Extension::NO_FLAGS, &error);
+        path, Manifest::INVALID_LOCATION, manifest,
+        Extension::NO_FLAGS, &error);
     EXPECT_TRUE(handler_app.get()) << error;
     return handler_app;
   }
 
+#if defined(ENABLE_WEB_INTENTS)
   scoped_refptr<Extension> CreateWebIntentViewApp() {
 #if defined(OS_WIN)
     FilePath path(FILE_PATH_LITERAL("c:\\bar"));
@@ -154,10 +162,12 @@ class ExtensionSpecialStoragePolicyTest : public testing::Test {
 
     std::string error;
     scoped_refptr<Extension> intent_app = Extension::Create(
-        path, Extension::INVALID, manifest, Extension::NO_FLAGS, &error);
+        path, Manifest::INVALID_LOCATION, manifest,
+        Extension::NO_FLAGS, &error);
     EXPECT_TRUE(intent_app.get()) << error;
     return intent_app;
   }
+#endif
 
   // Verifies that the set of extensions protecting |url| is *exactly* equal to
   // |expected_extensions|. Pass in an empty set to verify that an origin is not
@@ -281,6 +291,7 @@ TEST_F(ExtensionSpecialStoragePolicyTest, OverlappingApps) {
 }
 
 TEST_F(ExtensionSpecialStoragePolicyTest, WebIntentViewApp) {
+#if defined(ENABLE_WEB_INTENTS)
   scoped_refptr<Extension> intent_app(CreateWebIntentViewApp());
 
   policy_->GrantRightsForExtension(intent_app);
@@ -288,6 +299,7 @@ TEST_F(ExtensionSpecialStoragePolicyTest, WebIntentViewApp) {
 
   policy_->RevokeRightsForExtension(intent_app);
   EXPECT_FALSE(policy_->IsFileHandler(intent_app->id()));
+#endif
 }
 
 TEST_F(ExtensionSpecialStoragePolicyTest, HasSessionOnlyOrigins) {

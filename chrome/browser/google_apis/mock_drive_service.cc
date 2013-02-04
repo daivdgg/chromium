@@ -29,7 +29,7 @@ MockDriveService::MockDriveService() {
       .WillByDefault(Invoke(this, &MockDriveService::GetResourceListStub));
   ON_CALL(*this, GetAccountMetadata(_))
       .WillByDefault(Invoke(this, &MockDriveService::GetAccountMetadataStub));
-  ON_CALL(*this, DeleteResource(_, _))
+  ON_CALL(*this, DeleteResource(_, _, _))
       .WillByDefault(Invoke(this, &MockDriveService::DeleteResourceStub));
   ON_CALL(*this, CopyHostedDocument(_, _, _))
       .WillByDefault(Invoke(this, &MockDriveService::CopyHostedDocumentStub));
@@ -97,6 +97,7 @@ void MockDriveService::GetAccountMetadataStub(
 
 void MockDriveService::DeleteResourceStub(
     const std::string& resource_id,
+    const std::string& etag,
     const EntryActionCallback& callback) {
   base::MessageLoopProxy::current()->PostTask(
       FROM_HERE,
@@ -126,7 +127,7 @@ void MockDriveService::RenameResourceStub(
 
 void MockDriveService::AddResourceToDirectoryStub(
     const std::string& parent_resource_id,
-    const GURL& edit_url,
+    const std::string& resource_id,
     const EntryActionCallback& callback) {
   base::MessageLoopProxy::current()->PostTask(
       FROM_HERE,

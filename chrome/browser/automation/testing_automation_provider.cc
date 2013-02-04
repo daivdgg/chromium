@@ -92,6 +92,7 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_instant_controller.h"
+#include "chrome/browser/ui/browser_iterator.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -187,6 +188,7 @@ using content::WebContents;
 using extensions::Extension;
 using extensions::ExtensionActionManager;
 using extensions::ExtensionList;
+using extensions::Manifest;
 
 namespace {
 
@@ -2257,9 +2259,8 @@ void TestingAutomationProvider::GetBrowserInfo(
   // item per window.
   ListValue* windows = new ListValue;
   int windex = 0;
-  for (BrowserList::const_iterator it = BrowserList::begin();
-       it != BrowserList::end();
-       ++it, ++windex) {
+
+  for (chrome::BrowserIterator it; !it.done(); it.Next(), ++windex) {
     DictionaryValue* browser_item = new DictionaryValue;
     Browser* browser = *it;
     browser_item->SetInteger("index", windex);
@@ -3704,14 +3705,14 @@ void TestingAutomationProvider::GetExtensionsInfo(DictionaryValue* args,
     extension_value->Set("effective_host_permissions",
                          GetHostPermissions(extension, true));
     extension_value->Set("api_permissions", GetAPIPermissions(extension));
-    Extension::Location location = extension->location();
+    Manifest::Location location = extension->location();
     extension_value->SetBoolean("is_component",
-                                location == Extension::COMPONENT);
+                                location == Manifest::COMPONENT);
     extension_value->SetBoolean("is_internal",
-                                location == Extension::INTERNAL);
+                                location == Manifest::INTERNAL);
     extension_value->SetBoolean("is_user_installed",
-        location == Extension::INTERNAL ||
-        location == Extension::LOAD);
+        location == Manifest::INTERNAL ||
+        location == Manifest::LOAD);
     extension_value->SetBoolean("is_enabled", service->IsExtensionEnabled(id));
     extension_value->SetBoolean("allowed_in_incognito",
                                 service->IsIncognitoEnabled(id));
@@ -4648,12 +4649,11 @@ void TestingAutomationProvider::LaunchApp(
     return;
   }
 
-  application_launch::LaunchParams launch_params(
-      profile(), extension, CURRENT_TAB);
+  chrome::AppLaunchParams launch_params(profile(), extension, CURRENT_TAB);
   // This observer will delete itself.
   new AppLaunchObserver(&old_contents->GetController(), this, reply_message,
                         launch_params.container);
-  application_launch::OpenApplication(launch_params);
+  chrome::OpenApplication(launch_params);
 }
 
 // Sample JSON input: { "command": "SetAppLaunchType",
@@ -4970,10 +4970,10 @@ void TestingAutomationProvider::GetIndicesFromTab(
             tab_tracker_->GetResource(id_or_handle)->GetWebContents());
     id = session_tab_helper->session_id().id();
   }
-  BrowserList::const_iterator iter = BrowserList::begin();
+  chrome::BrowserIterator it;
   int browser_index = 0;
-  for (; iter != BrowserList::end(); ++iter, ++browser_index) {
-    Browser* browser = *iter;
+  for (; !it.done(); it.Next(), ++browser_index) {
+    Browser* browser = *it;
     for (int tab_index = 0;
          tab_index < browser->tab_strip_model()->count();
          ++tab_index) {
@@ -5620,9 +5620,8 @@ void TestingAutomationProvider::SetCookieInBrowserContext(
 void TestingAutomationProvider::GetTabIds(
     DictionaryValue* args, IPC::Message* reply_message) {
   ListValue* id_list = new ListValue();
-  BrowserList::const_iterator iter = BrowserList::begin();
-  for (; iter != BrowserList::end(); ++iter) {
-    Browser* browser = *iter;
+  for (chrome::BrowserIterator it; !it.done(); it.Next()) {
+    Browser* browser = *it;
     for (int i = 0; i < browser->tab_strip_model()->count(); ++i) {
       int id = SessionTabHelper::FromWebContents(
           browser->tab_strip_model()->GetWebContentsAt(i))->session_id().id();
@@ -5639,9 +5638,8 @@ void TestingAutomationProvider::GetViews(
   ListValue* view_list = new ListValue();
   printing::PrintPreviewDialogController* preview_controller =
       printing::PrintPreviewDialogController::GetInstance();
-  BrowserList::const_iterator browser_iter = BrowserList::begin();
-  for (; browser_iter != BrowserList::end(); ++browser_iter) {
-    Browser* browser = *browser_iter;
+  for (chrome::BrowserIterator it; !it.done(); it.Next()) {
+    Browser* browser = *it;
     for (int i = 0; i < browser->tab_strip_model()->count(); ++i) {
       WebContents* contents = browser->tab_strip_model()->GetWebContentsAt(i);
       DictionaryValue* dict = new DictionaryValue();
@@ -5692,9 +5690,8 @@ void TestingAutomationProvider::IsTabIdValid(
     return;
   }
   bool is_valid = false;
-  BrowserList::const_iterator iter = BrowserList::begin();
-  for (; iter != BrowserList::end(); ++iter) {
-    Browser* browser = *iter;
+  for (chrome::BrowserIterator it; !it.done(); it.Next()) {
+    Browser* browser = *it;
     for (int i = 0; i < browser->tab_strip_model()->count(); ++i) {
       WebContents* tab = browser->tab_strip_model()->GetWebContentsAt(i);
       SessionTabHelper* session_tab_helper =

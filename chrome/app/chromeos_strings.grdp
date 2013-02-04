@@ -2050,6 +2050,10 @@ Press any key to continue exploring.
            desc="The label for 'Customize modifier keys' overlay">
     Caps Lock
   </message>
+  <message name="IDS_OPTIONS_SETTINGS_LANGUAGES_KEY_DIAMOND_KEY_LABEL"
+           desc="The label for 'Customize modifier keys' overlay">
+    Diamond
+  </message>
   <message name="IDS_OPTIONS_SETTINGS_LANGUAGES_KEY_SEARCH"
            desc="The dropdown list item for 'Customize modifier keys' overlay">
     Search
@@ -2497,20 +2501,23 @@ Battery full
   </message>
 
   <!-- Captive Portal state strings for ChromeOS -->
-  <message name="IDS_CHROMEOS_CAPTIVE_PORTAL_STATE_UNKNOWN" desc="Captive Portal state in about:network: Unknown">
-    Unknown state
+  <message name="IDS_CHROMEOS_CAPTIVE_PORTAL_STATUS_UNKNOWN" desc="Captive Portal status in about:network: Unknown">
+    Unknown
   </message>
-  <message name="IDS_CHROMEOS_CAPTIVE_PORTAL_STATE_OFFLINE" desc="Captive Portal state in about:network: Offline">
-    Offline state
+  <message name="IDS_CHROMEOS_CAPTIVE_PORTAL_STATUS_OFFLINE" desc="Captive Portal status in about:network: Offline">
+    Offline
   </message>
-  <message name="IDS_CHROMEOS_CAPTIVE_PORTAL_STATE_ONLINE" desc="Captive Portal state in about:network: Online">
-    Online state
+  <message name="IDS_CHROMEOS_CAPTIVE_PORTAL_STATUS_ONLINE" desc="Captive Portal status in about:network: Online">
+    Online
   </message>
-  <message name="IDS_CHROMEOS_CAPTIVE_PORTAL_STATE_PORTAL" desc="Captive Portal state in about:network: Portal">
-    Portal state
+  <message name="IDS_CHROMEOS_CAPTIVE_PORTAL_STATUS_PORTAL" desc="Captive Portal status in about:network: Portal">
+    Portal
   </message>
-  <message name="IDS_CHROMEOS_CAPTIVE_PORTAL_STATE_UNRECOGNIZED" desc="Captive Portal state in about:network: Unrecognized">
-    Unrecognized state
+  <message name="IDS_CHROMEOS_CAPTIVE_PORTAL_STATUS_PROXY_AUTH_REQUIRED" desc="Proxy authentication required for the active network">
+    Proxy authentication required
+  </message>
+  <message name="IDS_CHROMEOS_CAPTIVE_PORTAL_STATUS_UNRECOGNIZED" desc="Captive Portal status in about:network: Unrecognized">
+    Unrecognized
   </message>
 
   <!-- Network error strings for ChromeOS -->
@@ -2766,8 +2773,8 @@ Battery full
   <message name="IDS_KEYBOARD_OVERLAY_BOOKMARK_CURRENT_PAGE" desc="The text in the keyboard overlay to explain the shortcut.">
     Bookmark current page
   </message>
-  <message name="IDS_KEYBOARD_OVERLAY_BOOKMARK_MANAGER" desc="The text in the keyboard overlay to explain the shortcut (open the Bookmark Manager).">
-    Bookmark Manager
+  <message name="IDS_KEYBOARD_OVERLAY_BOOKMARK_MANAGER" desc="The text in the keyboard overlay to explain the shortcut (open the bookmark manager).">
+    Bookmark manager
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_CENTER_WINDOW" desc="The text in the keyboard overlay to explain the shortcut (center the window).">
     Center window
@@ -2800,7 +2807,7 @@ Battery full
     Delete word
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_DEVELOPER_TOOLS" desc="The text in the keyboard overlay to explain the shortcut.">
-    Developer Tools
+    Developer tools
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_DOCK_WINDOW_LEFT" desc="The text in the keyboard overlay to explain the shortcut (dock the window to the left).">
     Dock window left
@@ -2809,7 +2816,7 @@ Battery full
     Dock window right
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_DOM_INSPECTOR" desc="The text in the keyboard overlay to explain the shortcut.">
-    DOM Inspector
+    DOM inspector
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_DOWNLOADS" desc="The text in the keyboard overlay to explain the shortcut.">
     Downloads
@@ -2872,7 +2879,7 @@ Battery full
     Input Unicode characters
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_JAVASCRIPT_CONSOLE" desc="The text in the keyboard overlay to explain the shortcut.">
-    JavaScript Console
+    JavaScript console
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_LOCK_SCREEN" desc="The text in the keyboard overlay to explain the shortcut (lock the screen).">
     Lock screen
@@ -2913,17 +2920,17 @@ Battery full
   <message name="IDS_KEYBOARD_OVERLAY_NEXT_WORD" desc="The text in the keyboard overlay to explain the shortcut (move the text cursor to the end of the next word).">
     Next word
   </message>
+  <message name="IDS_KEYBOARD_OVERLAY_OPEN" desc="The text in the keyboard overlay to explain the shortcut (open a file).">
+    Open
+  </message>
   <message name="IDS_KEYBOARD_OVERLAY_OPEN_ADDRESS_IN_NEW_TAB" desc="The text in the keyboard overlay to explain the shortcut.">
     Open address in new tab
   </message>
-  <message name="IDS_KEYBOARD_OVERLAY_OPEN_DIALOG" desc="The text in the keyboard overlay to explain the shortcut (open a dialog to select file).">
-    Open dialog
-  </message>
   <message name="IDS_KEYBOARD_OVERLAY_PAGE_DOWN" desc="The text in the keyboard overlay to explain the shortcut.">
-    Page Down
+    Page down
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_PAGE_UP" desc="The text in the keyboard overlay to explain the shortcut.">
-    Page Up
+    Page up
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_PASTE" desc="The text in the keyboard overlay to explain the shortcut.">
     Paste
@@ -2955,7 +2962,7 @@ Battery full
   <message name="IDS_KEYBOARD_OVERLAY_RESET_ZOOM" desc="The text in the keyboard overlay to explain the shortcut.">
     Reset zoom
   </message>
-  <message name="IDS_KEYBOARD_OVERLAY_SAVE" desc="The text in the keyboard overlay to explain the shortcut.">
+  <message name="IDS_KEYBOARD_OVERLAY_SAVE" desc="The text in the keyboard overlay to explain the shortcut (save page as a file).">
     Save
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_SCREENSHOT_REGION" desc="The text in the keyboard overlay to explain the shortcut (take a screenshot of the selected region).">
@@ -2986,7 +2993,7 @@ Battery full
     Take screenshot
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_TASK_MANAGER" desc="The text in the keyboard overlay to explain the shortcut.">
-    Task Manager
+    Task manager
   </message>
   <message name="IDS_KEYBOARD_OVERLAY_TOGGLE_BOOKMARK_BAR" desc="The text in the keyboard overlay to explain the shortcut.">
     Toggle bookmark bar
@@ -3428,8 +3435,8 @@ Battery full
   <message name="IDS_LOGIN_ERROR_OWNER_REQUIRED" desc="Couldn't sign in because the machine is in policy safe mode and needs owner login">
     Login has been resticted to the owner account only. Please reboot and sign in with the owner account. The machine will auto reboot in 30 seconds.
   </message>
-  <message name="IDS_LOGIN_ERROR_OWNER_KEY_LOST" desc="Couldn't sign in because the owner key has been lost">
-    Sign-in has been canceled because some of the device settings have been corrupted.
+  <message name="IDS_LOGIN_ERROR_OWNER_KEY_LOST" desc="Couldn't sign in because the owner key has been lost, device settings corruption or incorrect local time.">
+    Login failed, please connect to the internet and try again.
   </message>
   <message name="IDS_LOGIN_ERROR_TPM_FAILURE" desc="Couldn't sign in because of the critical TPM error.">
     Oops, something went wrong with signing in.
@@ -3441,7 +3448,7 @@ Battery full
     Enter as Guest
   </message>
   <message name="IDS_LOGIN_PROXY_ERROR_MESSAGE" desc="An offline message shown when a proxy error has appeared.">
-    The sign-in page failed to load using the current proxy settings. Please <ph name="LINK_START">$1<ex>&gt;a&lt;</ex></ph>try to sign in again<ph name="LINK_END">$2<ex>&gt;/a&lt;</ex></ph> or use different proxy settings.
+    The sign-in page failed to load using the current proxy settings. Please <ph name="GAIA_RELOAD_LINK_START">$1<ex>&gt;a&lt;</ex></ph>try to sign in again<ph name="GAIA_RELOAD_LINK_END">$2<ex>&gt;/a&lt;</ex></ph> or use different <ph name="PROXY_SETTINGS_LINK_START">$3<ex>&gt;a&lt;</ex></ph>proxy settings<ph name="PROXY_SETTINGS_LINK_END">$4<ex>&gt;/a&lt;</ex></ph>.
   </message>
   <message name="IDS_LOGIN_CAPTIVE_PORTAL_WINDOW_TITLE" desc="Title of the window which is opened to sign in to the captive portal.">
     To use the network <ph name="NETWORK_ID">$1<ex>Adelaide Airport Wireless</ex></ph>, first complete your connection to the Internet below.

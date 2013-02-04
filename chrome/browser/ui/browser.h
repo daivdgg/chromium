@@ -588,8 +588,8 @@ class Browser : public TabStripModelObserver,
       content::WebContents* web_contents) OVERRIDE;
   virtual void DidNavigateToPendingEntry(
       content::WebContents* web_contents) OVERRIDE;
-  virtual content::JavaScriptDialogCreator*
-      GetJavaScriptDialogCreator() OVERRIDE;
+  virtual content::JavaScriptDialogManager*
+      GetJavaScriptDialogManager() OVERRIDE;
   virtual content::ColorChooser* OpenColorChooser(
       content::WebContents* web_contents,
       int color_chooser_id,
@@ -611,6 +611,7 @@ class Browser : public TabStripModelObserver,
                                        const GURL& url,
                                        const string16& title,
                                        bool user_gesture) OVERRIDE;
+#if defined(ENABLE_WEB_INTENTS)
   virtual void RegisterIntentHandler(
       content::WebContents* web_contents,
       const webkit_glue::WebIntentServiceData& data,
@@ -618,6 +619,7 @@ class Browser : public TabStripModelObserver,
   virtual void WebIntentDispatch(
       content::WebContents* web_contents,
       content::WebIntentsDispatcher* intents_dispatcher) OVERRIDE;
+#endif
   virtual void UpdatePreferredSize(content::WebContents* source,
                                    const gfx::Size& pref_size) OVERRIDE;
   virtual void ResizeDueToAutoResize(content::WebContents* source,

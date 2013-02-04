@@ -17,7 +17,9 @@
 #include "chrome/browser/profiles/profile_keyed_service_factory.h"
 #include "sync/notifier/invalidation_handler.h"
 
+namespace base {
 class FilePath;
+}
 
 namespace google_apis {
 class DriveServiceInterface;
@@ -50,7 +52,7 @@ class DriveSystemService : public ProfileKeyedService,
   // Pass NULL or the empty value when not interested.
   DriveSystemService(Profile* profile,
                      google_apis::DriveServiceInterface* test_drive_service,
-                     const FilePath& test_cache_root,
+                     const base::FilePath& test_cache_root,
                      DriveFileSystemInterface* test_file_system);
   virtual ~DriveSystemService();
 
@@ -87,8 +89,7 @@ class DriveSystemService : public ProfileKeyedService,
   virtual void OnInvalidatorStateChange(
       syncer::InvalidatorState state) OVERRIDE;
   virtual void OnIncomingInvalidation(
-      const syncer::ObjectIdInvalidationMap& invalidation_map,
-      syncer::IncomingInvalidationSource source) OVERRIDE;
+      const syncer::ObjectIdInvalidationMap& invalidation_map) OVERRIDE;
 
  private:
   // Used to destroy DriveCache with scoped_ptr_malloc_free.

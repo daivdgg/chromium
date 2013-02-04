@@ -21,10 +21,10 @@
 #include "ui/gfx/native_widget_types.h"
 #include "ui/gfx/rect_f.h"
 
-class FilePath;
 class GURL;
 
 namespace base {
+class FilePath;
 class ListValue;
 }
 
@@ -32,7 +32,7 @@ namespace content {
 class BrowserContext;
 class ColorChooser;
 class DownloadItem;
-class JavaScriptDialogCreator;
+class JavaScriptDialogManager;
 class RenderViewHost;
 class WebContents;
 class WebContentsImpl;
@@ -315,9 +315,9 @@ class CONTENT_EXPORT WebContentsDelegate {
   // been committed.
   virtual void DidNavigateToPendingEntry(WebContents* source) {}
 
-  // Returns a pointer to a service to create JavaScript dialogs. May return
+  // Returns a pointer to a service to manage JavaScript dialogs. May return
   // NULL in which case dialogs aren't shown.
-  virtual JavaScriptDialogCreator* GetJavaScriptDialogCreator();
+  virtual JavaScriptDialogManager* GetJavaScriptDialogManager();
 
   // Called when color chooser should open. Returns the opened color chooser.
   // Ownership of the returned pointer is transferred to the caller.
@@ -336,7 +336,7 @@ class CONTENT_EXPORT WebContentsDelegate {
   // directory.
   virtual void EnumerateDirectory(WebContents* web_contents,
                                   int request_id,
-                                  const FilePath& path) {}
+                                  const base::FilePath& path) {}
 
   // Called when the renderer puts a tab into or out of fullscreen mode.
   virtual void ToggleFullscreenModeForTab(WebContents* web_contents,
@@ -429,7 +429,7 @@ class CONTENT_EXPORT WebContentsDelegate {
   virtual bool RequestPpapiBrokerPermission(
       WebContents* web_contents,
       const GURL& url,
-      const FilePath& plugin_path,
+      const base::FilePath& plugin_path,
       const base::Callback<void(bool)>& callback);
 
  protected:

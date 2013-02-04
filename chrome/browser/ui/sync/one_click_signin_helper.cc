@@ -40,6 +40,7 @@
 #include "chrome/browser/ui/sync/one_click_signin_histogram.h"
 #include "chrome/browser/ui/sync/one_click_signin_infobar_delegate.h"
 #include "chrome/browser/ui/sync/one_click_signin_sync_starter.h"
+#include "chrome/common/one_click_signin_messages.h"
 #include "chrome/common/chrome_notification_types.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/chrome_version_info.h"
@@ -59,6 +60,8 @@
 #include "grit/chromium_strings.h"
 #include "grit/generated_resources.h"
 #include "grit/theme_resources.h"
+#include "ipc/ipc_message_macros.h"
+#include "net/base/url_util.h"
 #include "net/cookies/cookie_monster.h"
 #include "net/url_request/url_request.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -136,7 +139,7 @@ void ClearPendingEmailOnIOThread(content::ResourceContext* context) {
 // "service" is also checked to make sure its "chromiumsync".
 SyncPromoUI::Source GetSigninSource(const GURL& url, GURL* continue_url) {
   std::string value;
-  chrome_common_net::GetValueForKeyInQuery(url, "service", &value);
+  net::GetValueForKeyInQuery(url, "service", &value);
   bool possibly_an_explicit_signin = value == "chromiumsync";
 
   // Find the final continue URL for this sign in.  In some cases, Gaia can
@@ -390,9 +393,6 @@ bool OneClickSigninHelper::CanOffer(content::WebContents* web_contents,
   if (!profile)
     return false;
 
-  if (!profile->IsSyncAccessible())
-    return false;
-
   if (can_offer_for == CAN_OFFER_FOR_INTERSTITAL_ONLY &&
       !profile->GetPrefs()->GetBoolean(prefs::kReverseAutologinEnabled))
     return false;
@@ -497,9 +497,6 @@ OneClickSigninHelper::Offer OneClickSigninHelper::CanOfferOnIOThreadImpl(
   // Check for incognito before other parts of the io_data, since those
   // members may not be initalized.
   if (io_data->is_incognito())
-    return DONT_OFFER;
-
-  if (!browser_sync::SyncPrefs::IsSyncAccessibleOnIOThread(io_data))
     return DONT_OFFER;
 
   if (!io_data->reverse_autologin_enabled()->GetValue())
@@ -758,16 +755,29 @@ void OneClickSigninHelper::CleanTransientState() {
                  base::Unretained(profile->GetResourceContext())));
 }
 
-void OneClickSigninHelper::DidNavigateAnyFrame(
-    const content::LoadCommittedDetails& details,
-    const content::FrameNavigateParams& params) {
+bool OneClickSigninHelper::OnMessageReceived(const IPC::Message& message) {
+  bool handled = true;
+  IPC_BEGIN_MESSAGE_MAP(OneClickSigninHelper, message)
+    IPC_MESSAGE_HANDLER(OneClickSigninHostMsg_FormSubmitted, OnFormSubmitted)
+    IPC_MESSAGE_UNHANDLED(handled = false)
+  IPC_END_MESSAGE_MAP()
+
+  return handled;
+}
+
+bool OneClickSigninHelper::OnFormSubmitted(const content::PasswordForm& form) {
+  // |password_| used to be set in DidNavigateAnyFrame, this is too late because
+  // it is not executed until the end of redirect chains and password may
+  // get lost if one of the redirects requires context swap.
+
   // We only need to scrape the password for Gaia logins.
-  const content::PasswordForm& form = params.password_form;
   if (form.origin.is_valid() &&
       gaia::IsGaiaSignonRealm(GURL(form.signon_realm))) {
     VLOG(1) << "OneClickSigninHelper::DidNavigateAnyFrame: got password";
-    password_ = UTF16ToUTF8(params.password_form.password_value);
+    password_ = UTF16ToUTF8(form.password_value);
   }
+
+  return true;
 }
 
 void OneClickSigninHelper::DidStopLoading(
@@ -902,11 +912,13 @@ void OneClickSigninHelper::DidStopLoading(
       break;
   }
 
-  // If this explicit sign in is not from settings page, show the NTP after
-  // sign in completes.  In the case of the settings page, it will get closed
-  // by SyncSetupHandler.
+  // If this explicit sign in is not from settings page/webostre, show the NTP
+  // after sign in completes.  In the case of the settings page, it will get
+  // closed by SyncSetupHandler. In the case of webstore, it will redirect back
+  // to webstore.
   if (auto_accept_ == AUTO_ACCEPT_EXPLICIT &&
-      source_ != SyncPromoUI::SOURCE_SETTINGS) {
+      source_ != SyncPromoUI::SOURCE_SETTINGS &&
+      source_ != SyncPromoUI::SOURCE_WEBSTORE_INSTALL) {
     signin_tracker_.reset(new SigninTracker(profile, this));
   }
 

@@ -17,14 +17,12 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBCursor.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBDatabase.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBMetadata.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebIDBTransaction.h"
 
 #define IPC_MESSAGE_START IndexedDBMsgStart
 
 // Argument structures used in messages
 
 IPC_ENUM_TRAITS(WebKit::WebIDBCursor::Direction)
-IPC_ENUM_TRAITS(WebKit::WebIDBTransaction::TaskType)
 IPC_ENUM_TRAITS(WebKit::WebIDBDatabase::PutMode)
 IPC_ENUM_TRAITS(WebKit::WebIDBDatabase::TaskType)
 
@@ -195,34 +193,6 @@ IPC_STRUCT_BEGIN(IndexedDBHostMsg_DatabaseDeleteRange_Params)
   IPC_STRUCT_MEMBER(content::IndexedDBKeyRange, key_range)
 IPC_STRUCT_END()
 
-// Used to open both cursors and object cursors in IndexedDB.
-IPC_STRUCT_BEGIN(IndexedDBHostMsg_IndexOpenCursor_Params)
-  // The response should have these ids.
-  IPC_STRUCT_MEMBER(int32, ipc_thread_id)
-  IPC_STRUCT_MEMBER(int32, ipc_response_id)
-  // The serialized key range.
-  IPC_STRUCT_MEMBER(content::IndexedDBKeyRange, key_range)
-  // The direction of this cursor.
-  IPC_STRUCT_MEMBER(int32, direction)
-  // The index the index belongs to.
-  IPC_STRUCT_MEMBER(int32, ipc_index_id)
-  // The transaction this request belongs to.
-  IPC_STRUCT_MEMBER(int, ipc_transaction_id)
-IPC_STRUCT_END()
-
-// Used for counting values within an index IndexedDB.
-IPC_STRUCT_BEGIN(IndexedDBHostMsg_IndexCount_Params)
-  // The response should have these ids.
-  IPC_STRUCT_MEMBER(int32, ipc_thread_id)
-  IPC_STRUCT_MEMBER(int32, ipc_response_id)
-  // The serialized key range.
-  IPC_STRUCT_MEMBER(content::IndexedDBKeyRange, key_range)
-  // The index the index belongs to.
-  IPC_STRUCT_MEMBER(int32, ipc_index_id)
-  // The transaction this request belongs to.
-  IPC_STRUCT_MEMBER(int, ipc_transaction_id)
-IPC_STRUCT_END()
-
 IPC_STRUCT_BEGIN(IndexedDBHostMsg_DatabaseSetIndexKeys_Params)
   // The IPC id of the database.
   IPC_STRUCT_MEMBER(int32, ipc_database_id)
@@ -259,41 +229,6 @@ IPC_STRUCT_BEGIN(IndexedDBHostMsg_DatabaseCreateIndex_Params)
   IPC_STRUCT_MEMBER(bool, multi_entry)
 IPC_STRUCT_END()
 
-// Used to create an index.
-IPC_STRUCT_BEGIN(IndexedDBHostMsg_ObjectStoreCreateIndex_Params)
-  // The storage id of the index.
-  IPC_STRUCT_MEMBER(int64, id)
-  // The name of the index.
-  IPC_STRUCT_MEMBER(string16, name)
-  // The keyPath of the index.
-  IPC_STRUCT_MEMBER(content::IndexedDBKeyPath, key_path)
-  // Whether the index created has unique keys.
-  IPC_STRUCT_MEMBER(bool, unique)
-  // Whether the index created produces keys for each array entry.
-  IPC_STRUCT_MEMBER(bool, multi_entry)
-  // The transaction this is associated with.
-  IPC_STRUCT_MEMBER(int32, ipc_transaction_id)
-  // The object store the index belongs to.
-  IPC_STRUCT_MEMBER(int32, ipc_object_store_id)
-IPC_STRUCT_END()
-
-// Used to open an IndexedDB cursor.
-IPC_STRUCT_BEGIN(IndexedDBHostMsg_ObjectStoreOpenCursor_Params)
-  // The response should have these ids.
-  IPC_STRUCT_MEMBER(int32, ipc_thread_id)
-  IPC_STRUCT_MEMBER(int32, ipc_response_id)
-  // The serialized key range.
-  IPC_STRUCT_MEMBER(content::IndexedDBKeyRange, key_range)
-  // The direction of this cursor.
-  IPC_STRUCT_MEMBER(WebKit::WebIDBCursor::Direction, direction)
-  // The priority of this cursor.
-  IPC_STRUCT_MEMBER(WebKit::WebIDBTransaction::TaskType, task_type)
-  // The object store the cursor belongs to.
-  IPC_STRUCT_MEMBER(int32, ipc_object_store_id)
-  // The transaction this request belongs to.
-  IPC_STRUCT_MEMBER(int, ipc_transaction_id)
-IPC_STRUCT_END()
-
 IPC_STRUCT_BEGIN(IndexedDBMsg_CallbacksSuccessIDBCursor_Params)
   IPC_STRUCT_MEMBER(int32, ipc_thread_id)
   IPC_STRUCT_MEMBER(int32, ipc_response_id)
@@ -319,19 +254,6 @@ IPC_STRUCT_BEGIN(IndexedDBMsg_CallbacksSuccessCursorPrefetch_Params)
   IPC_STRUCT_MEMBER(std::vector<content::IndexedDBKey>, keys)
   IPC_STRUCT_MEMBER(std::vector<content::IndexedDBKey>, primary_keys)
   IPC_STRUCT_MEMBER(std::vector<content::SerializedScriptValue>, values)
-IPC_STRUCT_END()
-
-// Used to count within an IndexedDB object store.
-IPC_STRUCT_BEGIN(IndexedDBHostMsg_ObjectStoreCount_Params)
-  // The response should have these ids.
-  IPC_STRUCT_MEMBER(int32, ipc_thread_id)
-  IPC_STRUCT_MEMBER(int32, ipc_response_id)
-  // The serialized key range.
-  IPC_STRUCT_MEMBER(content::IndexedDBKeyRange, key_range)
-  // The object store the cursor belongs to.
-  IPC_STRUCT_MEMBER(int32, ipc_object_store_id)
-  // The transaction this request belongs to.
-  IPC_STRUCT_MEMBER(int, ipc_transaction_id)
 IPC_STRUCT_END()
 
 // metadata payload for WebIDBMetadata
@@ -380,10 +302,6 @@ IPC_MESSAGE_CONTROL1(IndexedDBMsg_CallbacksSuccessCursorAdvance,
 IPC_MESSAGE_CONTROL1(IndexedDBMsg_CallbacksSuccessCursorPrefetch,
                      IndexedDBMsg_CallbacksSuccessCursorPrefetch_Params)
 
-IPC_MESSAGE_CONTROL3(IndexedDBMsg_CallbacksSuccessIDBDatabaseOld,
-                     int32 /* ipc_thread_id */,
-                     int32 /* ipc_response_id */,
-                     int32 /* ipc_database_id */)
 IPC_MESSAGE_CONTROL4(IndexedDBMsg_CallbacksSuccessIDBDatabase,
                      int32 /* ipc_thread_id */,
                      int32 /* ipc_response_id */,
@@ -426,27 +344,12 @@ IPC_MESSAGE_CONTROL3(IndexedDBMsg_CallbacksIntBlocked,
                      int32 /* ipc_thread_id */,
                      int32 /* ipc_response_id */,
                      int64 /* existing_version */)
-IPC_MESSAGE_CONTROL4(IndexedDBMsg_CallbacksUpgradeNeededOld,
-                     int32, /* ipc_thread_id */
-                     int32, /* ipc_response_id */
-                     int32, /* ipc_database_id */
-                     int64) /* old_version */
 IPC_MESSAGE_CONTROL5(IndexedDBMsg_CallbacksUpgradeNeeded,
                      int32, /* ipc_thread_id */
                      int32, /* ipc_response_id */
                      int32, /* ipc_database_id */
                      int64, /* old_version */
                      IndexedDBDatabaseMetadata) /* metadata */
-
-// IDBTransactionCallback message handlers.
-IPC_MESSAGE_CONTROL4(IndexedDBMsg_TransactionCallbacksAbort,
-                     int32 /* ipc_thread_id */,
-                     int32 /* ipc_transaction_id */,
-                     int /* code */,
-                     string16 /* message */)
-IPC_MESSAGE_CONTROL2(IndexedDBMsg_TransactionCallbacksComplete,
-                     int32 /* ipc_thread_id */,
-                     int32 /* ipc_transaction_id */)
 
 // IDBDatabaseCallback message handlers
 IPC_MESSAGE_CONTROL2(IndexedDBMsg_DatabaseCallbacksForcedClose,
@@ -462,7 +365,6 @@ IPC_MESSAGE_CONTROL4(IndexedDBMsg_DatabaseCallbacksIntVersionChange,
                      int32, /* ipc_database_id */
                      int64, /* old_version */
                      int64) /* new_version */
-// IDBTransactionCallback message handlers.
 IPC_MESSAGE_CONTROL5(IndexedDBMsg_DatabaseCallbacksAbort,
                      int32, /* ipc_thread_id */
                      int32, /* ipc_database_id */
@@ -521,11 +423,6 @@ IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_FactoryOpen,
 IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_FactoryDeleteDatabase,
                      IndexedDBHostMsg_FactoryDeleteDatabase_Params)
 
-// WebIDBDatabase::metadata() message.
-IPC_SYNC_MESSAGE_CONTROL1_1(IndexedDBHostMsg_DatabaseMetadata,
-                            int32, /* ipc_database_id */
-                            IndexedDBDatabaseMetadata /* metadata */)
-
 // WebIDBDatabase::createObjectStore() message.
 IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_DatabaseCreateObjectStore,
                      IndexedDBHostMsg_DatabaseCreateObjectStore_Params)
@@ -537,16 +434,6 @@ IPC_MESSAGE_CONTROL3(IndexedDBHostMsg_DatabaseDeleteObjectStore,
                      int64) /* object_store_id */
 
 // WebIDBDatabase::createTransaction() message.
-// TODO: make this message async.
-IPC_SYNC_MESSAGE_CONTROL5_1(IndexedDBHostMsg_DatabaseCreateTransactionOld,
-                            int32, /* ipc_thread_id */
-                            int32, /* ipc_database_id */
-                            int64, /* transaction_id */
-                            std::vector<int64>, /* object_stores */
-                            int32, /* mode */
-                            int32) /* ipc_transaction_id */
-
-
 IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_DatabaseCreateTransaction,
                      IndexedDBHostMsg_DatabaseCreateTransaction_Params)
 
@@ -618,51 +505,7 @@ IPC_MESSAGE_CONTROL2(IndexedDBHostMsg_DatabaseCommit,
                      int32, /* ipc_database_id */
                      int64) /* transaction_id */
 
-// WebIDBIndex::openObjectCursor() message.
-IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_IndexOpenObjectCursor,
-                     IndexedDBHostMsg_IndexOpenCursor_Params)
-
-// WebIDBIndex::openKeyCursor() message.
-IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_IndexOpenKeyCursor,
-                     IndexedDBHostMsg_IndexOpenCursor_Params)
-
-// WebIDBIndex::count() message.
-IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_IndexCount,
-                     IndexedDBHostMsg_IndexCount_Params)
-
-// WebIDBIndex::getObject() message.
-IPC_MESSAGE_CONTROL5(IndexedDBHostMsg_IndexGetObject,
-                     int32, /* ipc_index_id */
-                     int32, /* ipc_thread_id */
-                     int32, /* ipc_response_id */
-                     content::IndexedDBKeyRange, /* key */
-                     int32) /* ipc_transaction_id */
-
-// WebIDBIndex::getKey() message.
-IPC_MESSAGE_CONTROL5(IndexedDBHostMsg_IndexGetKey,
-                     int32, /* ipc_index_id */
-                     int32, /* ipc_thread_id */
-                     int32, /* ipc_response_id */
-                     content::IndexedDBKeyRange, /* key */
-                     int32) /* ipc_transaction_id */
-
-// WebIDBIndex::~WebIDBIndex() message.
-IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_IndexDestroyed,
-                     int32) /* ipc_index_id */
-
-
 // WebIDBDatabase::~WebIDBCursor() message.
 IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_CursorDestroyed,
                      int32 /* ipc_cursor_id */)
 
-// WebIDBTransaction::commit() message.
-IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_TransactionCommit,
-                     int32 /* ipc_transaction_id */)
-
-// WebIDBTransaction::abort() message.
-IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_TransactionAbort,
-                     int32 /* ipc_transaction_id */)
-
-// WebIDBTransaction::~WebIDBTransaction() message.
-IPC_MESSAGE_CONTROL1(IndexedDBHostMsg_TransactionDestroyed,
-                     int32 /* ipc_transaction_id */)

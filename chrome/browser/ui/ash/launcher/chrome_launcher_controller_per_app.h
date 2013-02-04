@@ -236,7 +236,7 @@ class ChromeLauncherControllerPerApp : public ash::LauncherModelObserver,
   // ash::LauncherDelegate overrides:
   virtual void OnBrowserShortcutClicked(int event_flags) OVERRIDE;
   virtual void ItemClicked(const ash::LauncherItem& item,
-                           int event_flags) OVERRIDE;
+                           const ui::Event& event) OVERRIDE;
   virtual int GetBrowserShortcutResourceId() OVERRIDE;
   virtual string16 GetTitle(const ash::LauncherItem& item) OVERRIDE;
   virtual ui::MenuModel* CreateContextMenu(
@@ -277,8 +277,7 @@ class ChromeLauncherControllerPerApp : public ash::LauncherModelObserver,
                            const gfx::ImageSkia& image) OVERRIDE;
 
   // Get the list of all running incarnations of this item.
-  ChromeLauncherAppMenuItems* GetApplicationList(
-      const ash::LauncherItem& item);
+  ChromeLauncherAppMenuItems GetApplicationList(const ash::LauncherItem& item);
 
   // Get the list of all tabs which belong to a certain application type.
   std::vector<content::WebContents*> GetV1ApplicationsFromAppId(
@@ -371,7 +370,7 @@ class ChromeLauncherControllerPerApp : public ash::LauncherModelObserver,
   // Returns the list of all browsers runing.
   // TODO(skuhne): Move to wherever the BrowserLauncherItemController
   // functionality moves to.
-  ChromeLauncherAppMenuItems* GetBrowserApplicationList();
+  ChromeLauncherAppMenuItems GetBrowserApplicationList();
 
   ash::LauncherModel* model_;
 

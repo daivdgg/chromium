@@ -430,6 +430,16 @@
             ['exclude', '^\\.\\./plugins/npapi/webplugin_delegate_impl_aura'],
           ],
         }],
+        ['enable_web_intents==0', {
+          'sources!': [
+            'web_intent_data.cc',
+            'web_intent_data.h',
+            'web_intent_reply_data.cc',
+            'web_intent_reply_data.h',
+            'web_intent_service_data.cc',
+            'web_intent_service_data.h',
+          ],
+        }],
         ['OS!="mac"', {
           'sources/': [['exclude', '_mac\\.(cc|mm)$']],
           'sources!': [
@@ -463,7 +473,8 @@
           'sources!': [
             'plugins/plugin_stubs.cc',
           ],
-          'msvs_disabled_warnings': [ 4800 ],
+          # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
+          'msvs_disabled_warnings': [ 4800, 4267 ],
           'conditions': [
             ['inside_chromium_build==1 and component=="shared_library"', {
               'dependencies': [

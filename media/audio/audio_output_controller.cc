@@ -10,6 +10,7 @@
 #include "base/threading/platform_thread.h"
 #include "base/time.h"
 #include "build/build_config.h"
+#include "media/audio/audio_util.h"
 #include "media/audio/shared_memory_util.h"
 
 using base::Time;
@@ -282,7 +283,6 @@ int AudioOutputController::OnMoreIOData(AudioBus* source,
 }
 
 void AudioOutputController::WaitTillDataReady() {
-#if defined(OS_WIN) || defined(OS_MACOSX)
   base::Time start = base::Time::Now();
   // Wait for up to 1.5 seconds for DataReady().  1.5 seconds was chosen because
   // it's larger than the playback time of the WaveOut buffer size using the
@@ -293,10 +293,6 @@ void AudioOutputController::WaitTillDataReady() {
          ((base::Time::Now() - start) < max_wait)) {
     base::PlatformThread::YieldCurrentThread();
   }
-#else
-  // WaitTillDataReady() is deprecated and should not be used.
-  CHECK(false);
-#endif
 }
 
 void AudioOutputController::OnError(AudioOutputStream* stream, int code) {
@@ -327,6 +323,10 @@ void AudioOutputController::DoStopCloseAndClearStream() {
 
 void AudioOutputController::OnDeviceChange() {
   DCHECK(message_loop_->BelongsToCurrentThread());
+
+  // TODO(dalecurtis): Notify the renderer side that a device change has
+  // occurred.  Currently querying the hardware information here will lead to
+  // crashes on OSX.  See http://crbug.com/158170.
 
   // Recreate the stream (DoCreate() will first shut down an existing stream).
   // Exit if we ran into an error.

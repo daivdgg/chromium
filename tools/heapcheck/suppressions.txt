@@ -222,7 +222,7 @@
    fun:cc::ProgramBindingBase::init
    fun:ProgramBinding
    ...
-   fun:cc::SingleThreadProxy::commitAndComposite	
+   fun:cc::SingleThreadProxy::commitAndComposite
    fun:cc::SingleThreadProxy::compositeImmediately
 }
 {
@@ -234,8 +234,8 @@
    fun:cc::ProgramBindingBase::link
    fun:cc::ProgramBinding::initialize
    ...
-   fun:cc::GLRenderer::drawQuad	
-   fun:cc::DirectRenderer::drawRenderPass	
+   fun:cc::GLRenderer::drawQuad
+   fun:cc::DirectRenderer::drawRenderPass
    fun:cc::DirectRenderer::drawFrame
 }
 
@@ -510,48 +510,6 @@
    fun:ProfileManagerTest_CreateAndUseTwoProfiles_Test::TestBody
 }
 {
-   bug_47188_a
-   Heapcheck:Leak
-   fun:net::SingleThreadedProxyResolver::GetProxyForURL
-   fun:net::::IOThread::Init
-   fun:base::Thread::ThreadMain
-   fun:ThreadFunc
-   fun:start_thread
-}
-{
-   bug_47188_b
-   Heapcheck:Leak
-   fun:__gnu_cxx::new_allocator::allocate
-   fun:std::string::_Rep::_S_create
-   fun:std::string::_Rep::_M_clone
-   fun:std::string::reserve
-   fun:*InitCanonical
-   fun:GURL
-   fun:net::::IOThread::Init
-   fun:base::Thread::ThreadMain
-   fun:ThreadFunc
-   fun:start_thread
-}
-{
-   bug_47188_c
-   Heapcheck:Leak
-   ...
-   fun:net::SingleThreadedProxyResolver::Job::DoQuery
-   fun:*DispatchToMethod
-   fun:RunnableMethod::Run
-   fun:MessageLoop::RunTask
-   fun:MessageLoop::DeferOrRunPendingTask
-   fun:MessageLoop::DoWork
-   fun:base::MessagePumpDefault::Run
-   fun:MessageLoop::RunInternal
-   fun:MessageLoop::RunHandler
-   fun:MessageLoop::Run
-   fun:base::Thread::Run
-   fun:base::Thread::ThreadMain
-   fun:ThreadFunc
-   fun:start_thread
-}
-{
    bug_49300_a
    Heapcheck:Leak
    fun:disk_cache::StorageBlock::AllocateData
@@ -667,7 +625,7 @@
    fun:IPC::ChannelProxy::Context::OnAddFilter
 }
 {
-   bug_67378
+   bug_67378_a
    Heapcheck:Leak
    ...
    fun:net::::ProxyResolverV8WithMockBindings::SetPacScriptFromDisk
@@ -677,6 +635,20 @@
    Heapcheck:Leak
    ...
    fun:net::::LoadScriptData
+}
+{
+   bug_67378_c
+   Heapcheck:Leak
+   fun:net::::ASCIILiteralToV8String
+   fun:net::ProxyResolverV8::Context::InitV8
+   fun:net::ProxyResolverV8::SetPacScript
+}
+{
+   bug_67378_d
+   Heapcheck:Leak
+   fun:net::::ScriptDataToV8String
+   fun:net::ProxyResolverV8::Context::InitV8
+   fun:net::ProxyResolverV8::SetPacScript
 }
 {
    bug_68304
@@ -1601,7 +1573,7 @@
    Heapcheck:Leak
    ...
    fun:dbus::Response::FromMethodCall
-   fun:chromeos::ibus::IBusPanelServiceImpl::*Properties
+   fun:chromeos::IBusPanelServiceImpl::*Properties
 }
 {
    bug_163111_b
@@ -1618,16 +1590,16 @@
    ...
    fun:dbus::MessageWriter::AppendBasic
    fun:dbus::MessageWriter::AppendString
-   fun:chromeos::ibus::IBusObjectWriter::AddAttachment
-   fun:chromeos::ibus::AppendIBusLookupTable
-   fun:chromeos::ibus::IBusPanelServiceTest_UpdateLookupTableTest_Test::TestBody
+   fun:chromeos::IBusObjectWriter::AddAttachment
+   fun:chromeos::AppendIBusLookupTable
+   fun:chromeos::IBusPanelServiceTest_UpdateLookupTableTest_Test::TestBody
 }
 {
    bug_163111_d
    Heapcheck:Leak
    ...
    fun:dbus::Response::FromMethodCall
-   fun:chromeos::ibus::IBusPanelServiceImpl::UpdateProperty
+   fun:chromeos::IBusPanelServiceImpl::UpdateProperty
 }
 {
    bug_164185
@@ -1779,12 +1751,6 @@
    fun:ManagedUserServiceTest_ExtensionManagementPolicyProvider_Test::TestBody
 }
 {
-   bug_171571
-   Heapcheck:Leak
-   ...
-   fun:GeolocationPermissionContextTests_PermissionForFileScheme_Test::TestBody
-}
-{
    bug_171571_a
    Heapcheck:Leak
    fun:std::basic_string::_Rep::_S_create
@@ -1837,4 +1803,11 @@
    Heapcheck:Leak
    ...
    fun:chromeos::MagnificationManagerTest_MagnificationObserver_Test::TestBody
+}
+{
+   bug_173597
+   Heapcheck:Leak
+   fun:FcConfigEvaluate
+   fun:gfx::RenderTextLinux::EnsureLayout
+   fun:gfx::RenderTextTest_PangoAttributes_Test::TestBody
 }

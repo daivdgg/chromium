@@ -22,7 +22,7 @@ cr.define('options', function() {
     __proto__: options.OptionsPage.prototype,
 
     // State variables.
-    syncSetupCompleted: false,
+    signedIn: false,
 
     /**
      * Keeps track of whether |onShowHomeButtonChanged_| has been called. See
@@ -80,7 +80,7 @@ cr.define('options', function() {
       this.updateSyncState_(loadTimeData.getValue('syncData'));
 
       $('start-stop-sync').onclick = function(event) {
-        if (self.syncSetupCompleted)
+        if (self.signedIn)
           SyncSetupOverlay.showStopSyncingUI();
         else if (cr.isChromeOS)
           SyncSetupOverlay.showSetupUIWithoutLogin();
@@ -180,6 +180,12 @@ cr.define('options', function() {
         $('profiles-create').onclick = function(event) {
           ManageProfileOverlay.showCreateDialog();
         };
+        if (OptionsPage.isSettingsApp()) {
+          $('profiles-app-list-switch').onclick = function(event) {
+            var selectedProfile = self.getSelectedProfileItem_();
+            chrome.send('switchAppListProfile', [selectedProfile.filePath]);
+          };
+        }
         $('profiles-manage').onclick = function(event) {
           ManageProfileOverlay.showManageDialog();
         };
@@ -664,16 +670,17 @@ cr.define('options', function() {
       }
 
       $('sync-section').hidden = false;
-      this.syncSetupCompleted = syncData.setupCompleted;
-      $('customize-sync').hidden = !syncData.setupCompleted;
+      this.signedIn = syncData.signedIn;
+      // Display the "setup sync" button if we're signed in and sync is not
+      // managed.
+      $('customize-sync').hidden = !(syncData.signedIn && !syncData.managed);
 
       var startStopButton = $('start-stop-sync');
-      startStopButton.disabled = syncData.managed ||
-          syncData.setupInProgress;
+      startStopButton.disabled = syncData.setupInProgress;
       startStopButton.hidden =
           syncData.setupCompleted && cr.isChromeOS;
       startStopButton.textContent =
-          syncData.setupCompleted ?
+          syncData.signedIn ?
               loadTimeData.getString('syncButtonTextStop') :
           syncData.setupInProgress ?
               loadTimeData.getString('syncButtonTextInProgress') :
@@ -918,6 +925,10 @@ cr.define('options', function() {
       else
         $('profiles-manage').title = '';
       $('profiles-delete').disabled = !hasSelection && !hasSingleProfile;
+      if (OptionsPage.isSettingsApp()) {
+        $('profiles-app-list-switch').disabled = !hasSelection ||
+            selectedProfile.isCurrentProfile;
+      }
       var importData = $('import-data');
       if (importData) {
         importData.disabled = $('import-data').disabled = hasSelection &&
@@ -939,6 +950,8 @@ cr.define('options', function() {
       $('profiles-delete').textContent = hasSingleProfile ?
           loadTimeData.getString('profilesDeleteSingle') :
           loadTimeData.getString('profilesDelete');
+      if (OptionsPage.isSettingsApp())
+        $('profiles-app-list-switch').hidden = hasSingleProfile;
     },
 
     /**

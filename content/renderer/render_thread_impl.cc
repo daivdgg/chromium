@@ -55,7 +55,6 @@
 #include "content/renderer/gpu/compositor_thread.h"
 #include "content/renderer/gpu/compositor_output_surface.h"
 #include "content/renderer/gpu/gpu_benchmarking_extension.h"
-#include "content/renderer/media/audio_hardware.h"
 #include "content/renderer/media/audio_input_message_filter.h"
 #include "content/renderer/media/audio_message_filter.h"
 #include "content/renderer/media/audio_renderer_mixer_manager.h"
@@ -73,6 +72,7 @@
 #include "ipc/ipc_channel_handle.h"
 #include "ipc/ipc_forwarding_message_filter.h"
 #include "ipc/ipc_platform_file.h"
+#include "media/base/audio_hardware_config.h"
 #include "media/base/media.h"
 #include "media/base/media_switches.h"
 #include "net/base/net_errors.h"
@@ -657,14 +657,21 @@ void RenderThreadImpl::EnsureWebKitInitialized() {
   WebRuntimeFeatures::enableMediaPlayer(
       media::IsMediaLibraryInitialized());
 
+#if defined(OS_ANDROID)
+  WebKit::WebRuntimeFeatures::enableMediaStream(
+      command_line.HasSwitch(switches::kEnableWebRTC));
+  WebKit::WebRuntimeFeatures::enablePeerConnection(
+      command_line.HasSwitch(switches::kEnableWebRTC));
+#else
   WebKit::WebRuntimeFeatures::enableMediaStream(true);
   WebKit::WebRuntimeFeatures::enablePeerConnection(true);
+#endif
 
   WebKit::WebRuntimeFeatures::enableFullScreenAPI(
       !command_line.HasSwitch(switches::kDisableFullScreen));
 
   WebKit::WebRuntimeFeatures::enableEncryptedMedia(
-      command_line.HasSwitch(switches::kEnableEncryptedMedia));
+      !command_line.HasSwitch(switches::kDisableEncryptedMedia));
 
 #if defined(OS_ANDROID)
   WebRuntimeFeatures::enableWebAudio(
@@ -897,11 +904,30 @@ RenderThreadImpl::GetGpuVDAContext3D() {
 AudioRendererMixerManager* RenderThreadImpl::GetAudioRendererMixerManager() {
   if (!audio_renderer_mixer_manager_.get()) {
     audio_renderer_mixer_manager_.reset(new AudioRendererMixerManager(
-        GetAudioOutputSampleRate(),
-        GetAudioOutputBufferSize()));
+        GetAudioHardwareConfig()));
   }
 
   return audio_renderer_mixer_manager_.get();
+}
+
+media::AudioHardwareConfig* RenderThreadImpl::GetAudioHardwareConfig() {
+  if (!audio_hardware_config_) {
+    int output_buffer_size;
+    int output_sample_rate;
+    int input_sample_rate;
+    media::ChannelLayout input_channel_layout;
+
+    Send(new ViewHostMsg_GetAudioHardwareConfig(
+        &output_buffer_size, &output_sample_rate,
+        &input_sample_rate, &input_channel_layout));
+
+    audio_hardware_config_.reset(new media::AudioHardwareConfig(
+        output_buffer_size, output_sample_rate, input_sample_rate,
+        input_channel_layout));
+    audio_message_filter_->SetAudioHardwareConfig(audio_hardware_config_.get());
+  }
+
+  return audio_hardware_config_.get();
 }
 
 #if defined(OS_WIN)
@@ -1096,6 +1122,12 @@ GpuChannelHost* RenderThreadImpl::EstablishGpuChannelSync(
 
 WebKit::WebMediaStreamCenter* RenderThreadImpl::CreateMediaStreamCenter(
     WebKit::WebMediaStreamCenterClient* client) {
+#if defined(OS_ANDROID)
+  if (!CommandLine::ForCurrentProcess()->HasSwitch(
+      switches::kEnableWebRTC))
+    return NULL;
+#endif
+
 #if defined(ENABLE_WEBRTC)
   if (!media_stream_center_)
     media_stream_center_ = new MediaStreamCenter(

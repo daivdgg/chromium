@@ -22,6 +22,7 @@
 #include "content/browser/download/download_stats.h"
 #include "content/browser/gpu/gpu_data_manager_impl.h"
 #include "content/browser/loader/resource_dispatcher_host_impl.h"
+#include "content/browser/media/media_internals.h"
 #include "content/browser/plugin_process_host.h"
 #include "content/browser/plugin_service_impl.h"
 #include "content/browser/ppapi_plugin_process_host.h"
@@ -37,7 +38,6 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/download_save_info.h"
-#include "content/public/browser/media_observer.h"
 #include "content/public/browser/plugin_service_filter.h"
 #include "content/public/browser/resource_context.h"
 #include "content/public/browser/user_metrics.h"
@@ -307,7 +307,7 @@ RenderMessageFilter::RenderMessageFilter(
     BrowserContext* browser_context,
     net::URLRequestContextGetter* request_context,
     RenderWidgetHelper* render_widget_helper,
-    MediaObserver* media_observer,
+    MediaInternals* media_internals,
     DOMStorageContextImpl* dom_storage_context)
     : resource_dispatcher_host_(ResourceDispatcherHostImpl::Get()),
       plugin_service_(plugin_service),
@@ -319,7 +319,7 @@ RenderMessageFilter::RenderMessageFilter(
       dom_storage_context_(dom_storage_context),
       render_process_id_(render_process_id),
       cpu_usage_(0),
-      media_observer_(media_observer) {
+      media_internals_(media_internals) {
   DCHECK(request_context_);
 
   render_widget_helper_->Init(render_process_id_, resource_dispatcher_host_);
@@ -417,14 +417,8 @@ bool RenderMessageFilter::OnMessageReceived(const IPC::Message& message,
     IPC_MESSAGE_HANDLER_DELAY_REPLY(ViewHostMsg_Keygen, OnKeygen)
     IPC_MESSAGE_HANDLER(ViewHostMsg_AsyncOpenFile, OnAsyncOpenFile)
     IPC_MESSAGE_HANDLER(ViewHostMsg_GetCPUUsage, OnGetCPUUsage)
-    IPC_MESSAGE_HANDLER(ViewHostMsg_GetHardwareBufferSize,
-                        OnGetHardwareBufferSize)
-    IPC_MESSAGE_HANDLER(ViewHostMsg_GetHardwareInputSampleRate,
-                        OnGetHardwareInputSampleRate)
-    IPC_MESSAGE_HANDLER(ViewHostMsg_GetHardwareSampleRate,
-                        OnGetHardwareSampleRate)
-    IPC_MESSAGE_HANDLER(ViewHostMsg_GetHardwareInputChannelLayout,
-                        OnGetHardwareInputChannelLayout)
+    IPC_MESSAGE_HANDLER(ViewHostMsg_GetAudioHardwareConfig,
+                        OnGetAudioHardwareConfig)
     IPC_MESSAGE_HANDLER(ViewHostMsg_GetMonitorColorProfile,
                         OnGetMonitorColorProfile)
     IPC_MESSAGE_HANDLER(ViewHostMsg_MediaLogEvent, OnMediaLogEvent)
@@ -663,7 +657,7 @@ void RenderMessageFilter::GetPluginsCallback(
   for (size_t i = 0; i < all_plugins.size(); ++i) {
     // Copy because the filter can mutate.
     webkit::WebPluginInfo plugin(all_plugins[i]);
-    if (!filter || filter->ShouldUsePlugin(child_process_id,
+    if (!filter || filter->IsPluginEnabled(child_process_id,
                                            routing_id,
                                            resource_context_,
                                            GURL(),
@@ -710,8 +704,10 @@ void RenderMessageFilter::OnOpenChannelToPepperPlugin(
     const FilePath& path,
     IPC::Message* reply_msg) {
   plugin_service_->OpenChannelToPpapiPlugin(
-      path, profile_data_directory_, new OpenChannelToPpapiPluginCallback(
-          this, resource_context_, reply_msg));
+      render_process_id_,
+      path,
+      profile_data_directory_,
+      new OpenChannelToPpapiPluginCallback(this, resource_context_, reply_msg));
 }
 
 void RenderMessageFilter::OnDidCreateOutOfProcessPepperInstance(
@@ -761,7 +757,9 @@ void RenderMessageFilter::OnOpenChannelToPpapiBroker(int routing_id,
                                                      int request_id,
                                                      const FilePath& path) {
   plugin_service_->OpenChannelToPpapiBroker(
-      path, new OpenChannelToPpapiBrokerCallback(this, routing_id, request_id));
+      render_process_id_,
+      path,
+      new OpenChannelToPpapiBrokerCallback(this, routing_id, request_id));
 }
 
 void RenderMessageFilter::OnGenerateRoutingID(int* route_id) {
@@ -778,24 +776,16 @@ void RenderMessageFilter::OnGetCPUUsage(int* cpu_usage) {
   *cpu_usage = cpu_usage_;
 }
 
-void RenderMessageFilter::OnGetHardwareBufferSize(uint32* buffer_size) {
-  *buffer_size = static_cast<uint32>(media::GetAudioHardwareBufferSize());
-}
+void RenderMessageFilter::OnGetAudioHardwareConfig(
+    int* output_buffer_size, int* output_sample_rate, int* input_sample_rate,
+    media::ChannelLayout* input_channel_layout) {
+  *output_buffer_size = media::GetAudioHardwareBufferSize();
+  *output_sample_rate = media::GetAudioHardwareSampleRate();
 
-void RenderMessageFilter::OnGetHardwareInputSampleRate(int* sample_rate) {
   // TODO(henrika): add support for all available input devices.
-  *sample_rate = media::GetAudioInputHardwareSampleRate(
+  *input_sample_rate = media::GetAudioInputHardwareSampleRate(
       media::AudioManagerBase::kDefaultDeviceId);
-}
-
-void RenderMessageFilter::OnGetHardwareSampleRate(int* sample_rate) {
-  *sample_rate = media::GetAudioHardwareSampleRate();
-}
-
-void RenderMessageFilter::OnGetHardwareInputChannelLayout(
-    media::ChannelLayout* layout) {
-  // TODO(henrika): add support for all available input devices.
-  *layout = media::GetAudioInputHardwareChannelLayout(
+  *input_channel_layout = media::GetAudioInputHardwareChannelLayout(
       media::AudioManagerBase::kDefaultDeviceId);
 }
 
@@ -1002,8 +992,8 @@ void RenderMessageFilter::AsyncOpenFileOnFileThread(const FilePath& path,
 }
 
 void RenderMessageFilter::OnMediaLogEvent(const media::MediaLogEvent& event) {
-  if (media_observer_)
-    media_observer_->OnMediaEvent(render_process_id_, event);
+  if (media_internals_)
+    media_internals_->OnMediaEvent(render_process_id_, event);
 }
 
 void RenderMessageFilter::CheckPolicyForCookies(

@@ -158,11 +158,13 @@ Commands.formatCommand = {
           chrome.fileBrowserPrivate.formatDevice.bind(null, url));
     }
   },
-  canExecute: function(event, rootsList) {
-    var enabled = (CommandUtil.getCommandRootType(event, rootsList) ==
-                   RootType.REMOVABLE);
-    event.canExecute = enabled;
-    event.command.setHidden(!enabled);
+  canExecute: function(event, rootsList, fileManager, directoryModel) {
+    var root = CommandUtil.getCommandRoot(event, rootsList);
+    var removable = root &&
+                    PathUtil.getRootType(root.fullPath) == RootType.REMOVABLE;
+    var isReadOnly = root && directoryModel.isPathReadOnly(root.fullPath);
+    event.canExecute = removable && !isReadOnly;
+    event.command.setHidden(!removable);
   }
 };
 
@@ -208,8 +210,8 @@ Commands.deleteFileCommand = {
   canExecute: function(event, fileManager) {
     var selection = fileManager.getSelection();
     event.canExecute = !fileManager.isOnReadonlyDirectory() &&
-                  selection &&
-                  selection.totalCount > 0;
+                       selection &&
+                       selection.totalCount > 0;
   }
 };
 
@@ -352,6 +354,7 @@ Commands.togglePinnedCommand = {
     }
 
     chrome.fileBrowserPrivate.pinDriveFile([entry.toURL()], pin, callback);
+    event.command.checked = pin;
   },
   canExecute: function(event, fileManager) {
     var entry = CommandUtil.getSingleEntry(event, fileManager);
@@ -373,16 +376,17 @@ Commands.togglePinnedCommand = {
  * Creates zip file for current selection.
  */
 Commands.zipSelectionCommand = {
-  execute: function(event, fileManager) {
-    var dirEntry = fileManager.directoryModel_.getCurrentDirEntry();
+  execute: function(event, fileManager, directoryModel) {
+    var dirEntry = directoryModel.getCurrentDirEntry();
     var selectionEntries = fileManager.getSelection().entries;
     fileManager.copyManager_.zipSelection(dirEntry, fileManager.isOnDrive(),
                                           selectionEntries);
   },
   canExecute: function(event, fileManager) {
     var selection = fileManager.getSelection();
-    event.canExecute = !fileManager.isOnDrive() && selection &&
-        selection.totalCount > 0;
+    event.canExecute = !fileManager.isOnReadonlyDirectory() &&
+        !fileManager.isOnDrive() &&
+        selection && selection.totalCount > 0;
   }
 };
 

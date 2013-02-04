@@ -16,7 +16,7 @@
 #include "base/android/jni_helper.h"
 #include "base/memory/scoped_ptr.h"
 #include "content/public/browser/android/compositor.h"
-#include "content/public/browser/javascript_dialogs.h"
+#include "content/public/browser/javascript_dialog_manager.h"
 #include "skia/ext/refptr.h"
 #include "third_party/skia/include/core/SkPicture.h"
 
@@ -86,7 +86,7 @@ class AwContents : public FindHelper::Listener,
 
   // |handler| is an instance of
   // org.chromium.android_webview.AwHttpAuthHandler.
-  void onReceivedHttpAuthRequest(const base::android::JavaRef<jobject>& handler,
+  void OnReceivedHttpAuthRequest(const base::android::JavaRef<jobject>& handler,
                                  const std::string& host,
                                  const std::string& realm);
 

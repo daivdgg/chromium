@@ -70,6 +70,10 @@
 #include "net/ocsp/nss_ocsp.h"
 #endif
 
+#if !defined(OS_IOS)
+#include "net/proxy/proxy_resolver_v8.h"
+#endif
+
 #if defined(OS_CHROMEOS)
 #include "chrome/browser/chromeos/proxy_config_service_impl.h"
 #endif  // defined(OS_CHROMEOS)
@@ -350,7 +354,9 @@ IOThread::Globals::Globals()
       ignore_certificate_errors(false),
       http_pipelining_enabled(false),
       testing_fixed_http_port(0),
-      testing_fixed_https_port(0) {}
+      testing_fixed_https_port(0),
+      enable_user_alternate_protocol_ports(false) {
+}
 
 IOThread::Globals::~Globals() {}
 
@@ -367,6 +373,9 @@ IOThread::IOThread(
       sdch_manager_(NULL),
       is_spdy_disabled_by_policy_(false),
       ALLOW_THIS_IN_INITIALIZER_LIST(weak_factory_(this)) {
+#if !defined(OS_IOS)
+  net::ProxyResolverV8::RememberDefaultIsolate();
+#endif
   // We call RegisterPrefs() here (instead of inside browser_prefs.cc) to make
   // sure that everything is initialized in the right order.
   //
@@ -526,7 +535,10 @@ void IOThread::Init() {
   if (command_line.HasSwitch(switches::kUseSpdyOverQuic)) {
     globals_->use_spdy_over_quic.set(true);
   }
-
+  if (command_line.HasSwitch(
+          switches::kEnableUserAlternateProtocolPorts)) {
+    globals_->enable_user_alternate_protocol_ports = true;
+  }
   InitializeNetworkOptions(command_line);
 
   net::HttpNetworkSession::Params session_params;
@@ -640,6 +652,8 @@ void IOThread::InitializeNetworkOptions(const CommandLine& command_line) {
     globals_->max_spdy_concurrent_streams_limit.set(
         GetSwitchValueAsInt(command_line, switches::kMaxSpdyConcurrentStreams));
   }
+  if (command_line.HasSwitch(switches::kIgnoreUrlFetcherCertRequests))
+    net::URLFetcher::SetIgnoreCertificateRequests(true);
 
   bool used_spdy_switch = false;
   if (command_line.HasSwitch(switches::kUseSpdy)) {
@@ -832,6 +846,8 @@ void IOThread::InitializeNetworkSessionParams(
   globals_->origin_port_to_force_quic_on.CopyToIfSet(
       &params->origin_port_to_force_quic_on);
   globals_->use_spdy_over_quic.CopyToIfSet(&params->use_spdy_over_quic);
+  params->enable_user_alternate_protocol_ports =
+      globals_->enable_user_alternate_protocol_ports;
 }
 
 net::SSLConfigService* IOThread::GetSSLConfigService() {

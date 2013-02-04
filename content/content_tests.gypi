@@ -298,6 +298,7 @@
         'browser/loader/resource_buffer_unittest.cc',
         'browser/loader/resource_dispatcher_host_unittest.cc',
         'browser/mach_broker_mac_unittest.cc',
+        'browser/media/media_internals_unittest.cc',
         'browser/media/webrtc_internals_unittest.cc',
         'browser/notification_service_impl_unittest.cc',
         'browser/plugin_loader_posix_unittest.cc',
@@ -335,7 +336,7 @@
         'browser/ssl/ssl_host_state_unittest.cc',
         'browser/storage_partition_impl_map_unittest.cc',
         'browser/system_message_window_win_unittest.cc',
-        'browser/trace_subscriber_stdio_unittest.cc',
+        'browser/tracing/trace_subscriber_stdio_unittest.cc',
         'browser/web_contents/navigation_controller_impl_unittest.cc',
         'browser/web_contents/navigation_entry_impl_unittest.cc',
         'browser/web_contents/render_view_host_manager_unittest.cc',
@@ -448,6 +449,7 @@
         '../webkit/fileapi/media/native_media_file_util_unittest.cc',
         '../webkit/fileapi/mock_file_change_observer.cc',
         '../webkit/fileapi/mock_file_change_observer.h',
+        '../webkit/fileapi/native_file_util_unittest.cc',
         '../webkit/fileapi/obfuscated_file_util_unittest.cc',
         '../webkit/fileapi/sandbox_mount_point_provider_unittest.cc',
         '../webkit/fileapi/syncable/canned_syncable_file_system.cc',
@@ -560,6 +562,12 @@
             '../third_party/webrtc/video_engine/video_engine.gyp:video_engine_core',
             '../third_party/webrtc/voice_engine/voice_engine.gyp:voice_engine_core',
           ]
+        }],
+        ['enable_web_intents==0', {
+          'sources!': [
+            'browser/intents/intent_injector_unittest.cc',
+            'browser/intents/internal_web_intents_dispatcher_unittest.cc',
+          ],
         }],
         # TODO(jrg): remove the OS=="android" section?
         # http://crbug.com/113172
@@ -746,6 +754,8 @@
             'renderer/render_widget_browsertest.cc',
             'renderer/renderer_accessibility_browsertest.cc',
             'renderer/web_intents_host_browsertest.cc',
+            'test/browser_test_message_pump_android.cc',
+            'test/browser_test_message_pump_android.h',
             'test/content_browser_test.h',
             'test/content_browser_test.cc',
             'test/content_browser_test_utils.cc',
@@ -855,6 +865,11 @@
             ['enable_webrtc==1', {
               'sources': [
                 'browser/media/webrtc_browsertest.cc',
+              ],
+            }],
+            ['enable_web_intents==0', {
+              'sources!': [
+                'renderer/web_intents_host_browsertest.cc',
               ],
             }],
             ['enable_plugins==0', {

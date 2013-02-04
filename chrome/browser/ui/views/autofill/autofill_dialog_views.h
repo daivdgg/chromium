@@ -64,6 +64,7 @@ class AutofillDialogViews : public AutofillDialogView,
   // AutofillDialogView implementation:
   virtual void Show() OVERRIDE;
   virtual void Hide() OVERRIDE;
+  virtual void UpdateAccountChooser() OVERRIDE;
   virtual void UpdateNotificationArea() OVERRIDE;
   virtual void UpdateSection(DialogSection section) OVERRIDE;
   virtual void GetUserInput(DialogSection section,
@@ -135,6 +136,25 @@ class AutofillDialogViews : public AutofillDialogView,
     bool invalid_;
 
     DISALLOW_COPY_AND_ASSIGN(DecoratedTextfield);
+  };
+
+  // An area for notifications. Some types of notifications point at stuff.
+  class NotificationArea : public views::View {
+   public:
+    NotificationArea();
+    virtual ~NotificationArea();
+
+    void SetNotification(const DialogNotification& notification);
+
+    // views::View implementation.
+    virtual std::string GetClassName() const OVERRIDE;
+    virtual void OnPaint(gfx::Canvas* canvas) OVERRIDE;
+
+   private:
+    views::Label* label_;
+    DialogNotification notification_;
+
+    DISALLOW_COPY_AND_ASSIGN(NotificationArea);
   };
 
   typedef std::map<const DetailInput*, DecoratedTextfield*> TextfieldMap;
@@ -301,7 +321,7 @@ class AutofillDialogViews : public AutofillDialogView,
   DetailGroupMap detail_groups_;
 
   // Somewhere to show notification messages about errors, warnings, or promos.
-  views::Label* notification_label_;
+  NotificationArea* notification_area_;
 
   // The checkbox that controls whether to use the billing details for shipping
   // as well.

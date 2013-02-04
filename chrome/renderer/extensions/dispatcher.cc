@@ -14,6 +14,7 @@
 #include "chrome/common/extensions/api/extension_api.h"
 #include "chrome/common/extensions/extension.h"
 #include "chrome/common/extensions/extension_messages.h"
+#include "chrome/common/extensions/manifest.h"
 #include "chrome/common/extensions/permissions/permission_set.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/common/view_type.h"
@@ -90,7 +91,8 @@ static const char kOnSuspendCanceledEvent[] = "runtime.onSuspendCanceled";
 
 class ChromeHiddenNativeHandler : public NativeHandler {
  public:
-  ChromeHiddenNativeHandler() {
+  explicit ChromeHiddenNativeHandler(v8::Isolate* isolate)
+      : NativeHandler(isolate) {
     RouteFunction("GetChromeHidden",
         base::Bind(&ChromeHiddenNativeHandler::GetChromeHidden,
                    base::Unretained(this)));
@@ -103,7 +105,8 @@ class ChromeHiddenNativeHandler : public NativeHandler {
 
 class PrintNativeHandler : public NativeHandler {
  public:
-  PrintNativeHandler() {
+  explicit PrintNativeHandler(v8::Isolate* isolate)
+      : NativeHandler(isolate) {
     RouteFunction("Print",
         base::Bind(&PrintNativeHandler::Print,
                    base::Unretained(this)));
@@ -237,7 +240,8 @@ class ProcessInfoNativeHandler : public ChromeV8Extension {
 
 class LoggingNativeHandler : public NativeHandler {
  public:
-  LoggingNativeHandler() {
+  explicit LoggingNativeHandler(v8::Isolate* isolate)
+      : NativeHandler(isolate) {
     RouteFunction("DCHECK",
         base::Bind(&LoggingNativeHandler::Dcheck,
                    base::Unretained(this)));
@@ -763,18 +767,19 @@ void Dispatcher::DidCreateScriptContext(
 
   RegisterNativeHandlers(module_system.get(), context);
 
+  v8::Isolate* isolate = v8_context->GetIsolate();
   module_system->RegisterNativeHandler("chrome_hidden",
-      scoped_ptr<NativeHandler>(new ChromeHiddenNativeHandler()));
+      scoped_ptr<NativeHandler>(new ChromeHiddenNativeHandler(isolate)));
   module_system->RegisterNativeHandler("print",
-      scoped_ptr<NativeHandler>(new PrintNativeHandler()));
+      scoped_ptr<NativeHandler>(new PrintNativeHandler(isolate)));
   module_system->RegisterNativeHandler("lazy_background_page",
       scoped_ptr<NativeHandler>(new LazyBackgroundPageNativeHandler(this)));
   module_system->RegisterNativeHandler("logging",
-      scoped_ptr<NativeHandler>(new LoggingNativeHandler()));
+      scoped_ptr<NativeHandler>(new LoggingNativeHandler(isolate)));
 
   int manifest_version = extension ? extension->manifest_version() : 1;
   bool send_request_disabled =
-      (extension && extension->location() == Extension::LOAD &&
+      (extension && extension->location() == Manifest::LOAD &&
        extension->has_lazy_background_page());
   module_system->RegisterNativeHandler("process",
       scoped_ptr<NativeHandler>(new ProcessInfoNativeHandler(

@@ -13,6 +13,7 @@
 #include "base/command_line.h"
 #include "base/string_number_conversions.h"
 #include "base/values.h"
+#include "chrome/browser/app_mode/app_mode_utils.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_system.h"
@@ -45,6 +46,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/common/chrome_notification_types.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/common/extensions/extension.h"
 #include "chrome/common/extensions/extension_resource.h"
 #include "chrome/common/pref_names.h"
@@ -427,10 +429,9 @@ void ChromeLauncherControllerPerApp::LaunchApp(const std::string& app_id,
     return;
   }
 
-  application_launch::OpenApplication(application_launch::LaunchParams(
-      GetProfileForNewWindows(),
-      extension,
-      event_flags));
+  chrome::OpenApplication(chrome::AppLaunchParams(GetProfileForNewWindows(),
+                                                  extension,
+                                                  event_flags));
 }
 
 void ChromeLauncherControllerPerApp::ActivateApp(const std::string& app_id,
@@ -631,6 +632,10 @@ Profile* ChromeLauncherControllerPerApp::profile() {
 ash::ShelfAutoHideBehavior
     ChromeLauncherControllerPerApp::GetShelfAutoHideBehavior(
         aura::RootWindow* root_window) const {
+  // Don't show the shelf in app mode.
+  if (chrome::IsRunningInAppMode())
+    return ash::SHELF_AUTO_HIDE_ALWAYS_HIDDEN;
+
   // See comment in |kShelfAlignment| as to why we consider two prefs.
   const std::string behavior_value(
       GetPrefForRootWindow(profile_->GetPrefs(),
@@ -781,9 +786,9 @@ void ChromeLauncherControllerPerApp::OnBrowserShortcutClicked(
 }
 
 void ChromeLauncherControllerPerApp::ItemClicked(const ash::LauncherItem& item,
-                                                 int event_flags) {
+                                                 const ui::Event& event) {
   DCHECK(HasItemController(item.id));
-  id_to_item_controller_map_[item.id]->Clicked();
+  id_to_item_controller_map_[item.id]->Clicked(event);
 }
 
 int ChromeLauncherControllerPerApp::GetBrowserShortcutResourceId() {
@@ -805,7 +810,7 @@ ui::MenuModel* ChromeLauncherControllerPerApp::CreateContextMenu(
 ui::MenuModel* ChromeLauncherControllerPerApp::CreateApplicationMenu(
     const ash::LauncherItem& item) {
   return new LauncherApplicationMenuItemModel(
-      scoped_ptr<ChromeLauncherAppMenuItems>(GetApplicationList(item)));
+      GetApplicationList(item));
 }
 
 ash::LauncherID ChromeLauncherControllerPerApp::GetIDByWindow(
@@ -957,7 +962,7 @@ void ChromeLauncherControllerPerApp::ExtensionEnableFlowAborted(
   extension_enable_flow_.reset();
 }
 
-ChromeLauncherAppMenuItems* ChromeLauncherControllerPerApp::GetApplicationList(
+ChromeLauncherAppMenuItems ChromeLauncherControllerPerApp::GetApplicationList(
     const ash::LauncherItem& item) {
   if (item.type == ash::TYPE_BROWSER_SHORTCUT)
     return GetBrowserApplicationList();
@@ -1202,6 +1207,11 @@ void ChromeLauncherControllerPerApp::SetShelfAutoHideBehaviorPrefs(
     case ash::SHELF_AUTO_HIDE_BEHAVIOR_NEVER:
       value = ash::kShelfAutoHideBehaviorNever;
       break;
+    case ash::SHELF_AUTO_HIDE_ALWAYS_HIDDEN:
+      // This one should not be a valid preference option for now. We only want
+      // to completely hide it when we run app mode.
+      NOTREACHED();
+      return;
   }
 
   UpdatePerDisplayPref(
@@ -1313,11 +1323,11 @@ ChromeLauncherControllerPerApp::GetV1ApplicationsFromController(
   return app_controller->GetRunningApplications();
 }
 
-ChromeLauncherAppMenuItems*
+ChromeLauncherAppMenuItems
 ChromeLauncherControllerPerApp::GetBrowserApplicationList() {
-  ChromeLauncherAppMenuItems* items = new ChromeLauncherAppMenuItems;
+  ChromeLauncherAppMenuItems items;
   // Add the application name to the menu.
-  items->push_back(new ChromeLauncherAppMenuItem(
+  items.push_back(new ChromeLauncherAppMenuItem(
       l10n_util::GetStringFUTF16(IDS_LAUNCHER_CHROME_BROWSER_NAME,
           l10n_util::GetStringUTF16(IDS_PRODUCT_NAME)), NULL));
   int index = 1;
@@ -1329,10 +1339,10 @@ ChromeLauncherControllerPerApp::GetBrowserApplicationList() {
     WebContents* web_contents =
         tab_strip->GetWebContentsAt(tab_strip->active_index());
     gfx::Image app_icon = GetAppListIcon(web_contents);
-    items->push_back(new ChromeLauncherAppMenuItemBrowser(
-                             web_contents->GetTitle(),
-                             app_icon.IsEmpty() ? NULL : &app_icon,
-                             browser));
+    items.push_back(new ChromeLauncherAppMenuItemBrowser(
+        web_contents->GetTitle(),
+        app_icon.IsEmpty() ? NULL : &app_icon,
+        browser));
   }
-  return items;
+  return items.Pass();
 }

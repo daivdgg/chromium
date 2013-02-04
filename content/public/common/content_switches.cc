@@ -218,6 +218,9 @@ const char kSpeechRecognitionWebserviceKey[] = "speech-service-key";
 #if defined(OS_ANDROID)
 // Enable web audio API.
 const char kEnableWebAudio[]                = "enable-webaudio";
+
+// WebRTC is disabled by default on Android.
+const char kEnableWebRTC[]                  = "enable-webrtc";
 #else
 // Disable web audio API.
 const char kDisableWebAudio[]               = "disable-webaudio";
@@ -318,9 +321,6 @@ const char kEnableMonitorProfile[]          = "enable-monitor-profile";
 
 // Enables compositor-accelerated touch-screen pinch gestures.
 const char kEnablePinch[]                   = "enable-pinch";
-
-// Enables Android-style touch-screen pinch gestures.
-const char kEnableCssTransformPinch[]       = "enable-css-transform-pinch";
 
 // Enable caching of pre-parsed JS script data.  See http://crbug.com/32407.
 const char kEnablePreparsedJsCaching[]      = "enable-preparsed-js-caching";
@@ -723,6 +723,11 @@ const char kNetworkCountryIso[] = "network-country-iso";
 
 // Set to enable compatibility with legacy WebView synchronous APIs.
 const char kEnableWebViewSynchronousAPIs[] = "enable-webview-synchronous-apis";
+#endif
+
+#if defined(OS_CHROMEOS)
+// Disables panel fitting (used for mirror mode).
+const char kDisablePanelFitting[]           = "disable-panel-fitting";
 #endif
 
 #if defined(OS_POSIX)

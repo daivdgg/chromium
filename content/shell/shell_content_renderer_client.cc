@@ -17,12 +17,10 @@
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebFrame.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebPluginParams.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebView.h"
-#include "third_party/WebKit/Tools/DumpRenderTree/chromium/TestRunner/public/WebTestPlugin.h"
 #include "third_party/WebKit/Tools/DumpRenderTree/chromium/TestRunner/public/WebTestProxy.h"
 #include "v8/include/v8.h"
 
 using WebKit::WebFrame;
-using WebTestRunner::WebTestPlugin;
 using WebTestRunner::WebTestProxyBase;
 
 namespace content {
@@ -58,6 +56,8 @@ void ShellContentRendererClient::RenderThreadStarted() {
 }
 
 void ShellContentRendererClient::RenderViewCreated(RenderView* render_view) {
+  if (!CommandLine::ForCurrentProcess()->HasSwitch(switches::kDumpRenderTree))
+    return;
   WebKitTestRunner* test_runner = new WebKitTestRunner(render_view);
   if (!ShellRenderProcessObserver::GetInstance()->test_delegate()) {
     ShellRenderProcessObserver::GetInstance()->SetMainWindow(render_view,
@@ -77,13 +77,6 @@ bool ShellContentRendererClient::OverrideCreatePlugin(
     // Returning true here disables the plugin.
     return !CommandLine::ForCurrentProcess()->HasSwitch(
         switches::kEnableBrowserPluginForAllViewTypes);
-  }
-  if (params.mimeType == WebTestPlugin::mimeType()) {
-    *plugin = WebTestPlugin::create(
-        frame,
-        params,
-        ShellRenderProcessObserver::GetInstance()->test_delegate());
-    return true;
   }
   return false;
 }
