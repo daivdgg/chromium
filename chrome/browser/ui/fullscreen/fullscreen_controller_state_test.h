@@ -146,6 +146,9 @@ class FullscreenControllerStateTest {
   State transition_table_[NUM_STATES][NUM_EVENTS];
 
   // Generated information about the transitions between states [from][to].
+  // View generated data with: out/Release/unit_tests
+  //     --gtest_filter="FullscreenController*DebugLogStateTables"
+  //     --gtest_also_run_disabled_tests
   StateTransitionInfo state_transitions_[NUM_STATES][NUM_STATES];
 
   // Log of operations reported on errors via GetAndClearDebugLog().
