@@ -19,6 +19,7 @@ using webkit_glue::WebIntentServiceData;
 
 namespace {
 
+#if defined(ENABLE_WEB_INTENTS)
 bool ExtractIntents(sql::Statement* s,
                     std::vector<WebIntentServiceData>* services) {
   DCHECK(s);
@@ -40,6 +41,7 @@ bool ExtractIntents(sql::Statement* s,
   }
   return s->Succeeded();
 }
+#endif  // defined(ENABLE_WEB_INTENTS)
 
 }  // namespace
 
@@ -155,6 +157,7 @@ bool WebIntentsTable::MigrateToVersion46AddSchemeColumn() {
   return true;
 }
 
+#if defined(ENABLE_WEB_INTENTS)
 bool WebIntentsTable::GetWebIntentServicesForAction(
     const string16& action,
     std::vector<WebIntentServiceData>* services) {
@@ -333,3 +336,5 @@ bool WebIntentsTable::RemoveServiceDefaults(const GURL& service_url) {
 
   return s.Run();
 }
+
+#endif  // defined(ENABLE_WEB_INTENTS)

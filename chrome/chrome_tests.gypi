@@ -120,6 +120,9 @@
           ],
         }],
         ['OS=="win"', {
+          'dependencies': [
+            'automated_ui_tests_exe_pdb_workaround',
+          ],
           'include_dirs': [
             '<(DEPTH)/third_party/wtl/include',
           ],
@@ -995,6 +998,7 @@
         'browser/chromeos/extensions/file_browser_resource_throttle_browsertest.cc',
         'browser/chromeos/extensions/info_private_apitest.cc',
         'browser/chromeos/extensions/input_method_apitest_chromeos.cc',
+        'browser/chromeos/extensions/networking_private_apitest.cc',
         'browser/chromeos/extensions/power/power_api_browsertest.cc',
         'browser/chromeos/extensions/wallpaper_private_apitest.cc',
         'browser/chromeos/kiosk_mode/mock_kiosk_mode_settings.cc',
@@ -1364,6 +1368,7 @@
         'browser/ui/webui/options/preferences_browsertest.h',
         'browser/ui/webui/options/search_engine_manager_browsertest.js',
         'browser/ui/webui/options/settings_format_browsertest.js',
+        'browser/ui/webui/policy_ui_browsertest.cc',
         'browser/ui/webui/print_preview/print_preview_ui_browsertest.cc',
         'browser/ui/webui/sync_setup_browsertest.js',
         'browser/ui/webui/web_ui_test_handler.cc',
@@ -1556,6 +1561,9 @@
           'sources/': [
             ['exclude', '^browser/policy/'],
           ],
+          'sources!': [
+            'browser/ui/webui/policy_ui_browsertest.cc',
+          ],
         }],
         ['input_speech==0', {
           'sources/': [
@@ -1634,6 +1642,7 @@
           ],
           'dependencies': [
             'app_host',
+            'browser_tests_exe_pdb_workaround',
             'chrome_version_resources',
             'security_tests',  # run time dependency
           ],
@@ -3010,6 +3019,40 @@
           'sources': [
             'sync_integration_tests.isolate',
           ],
+        },
+      ],
+    }],
+    ['OS=="win"', {
+      'targets' : [
+        {
+          # This target is only depended upon in Windows.
+          'target_name': 'automated_ui_tests_exe_pdb_workaround',
+          'type': 'static_library',
+          'sources': [ 'empty_pdb_workaround.cc' ],
+          'msvs_settings': {
+            'VCCLCompilerTool': {
+              # This *in the compile phase* must match the pdb name that's
+              # output by the final link. See empty_pdb_workaround.cc for
+              # more details.
+              'DebugInformationFormat': '3',
+              'ProgramDataBaseFileName': '<(PRODUCT_DIR)/automated_ui_tests.exe.pdb',
+            },
+          },
+        },
+        {
+          # This target is only depended upon in Windows.
+          'target_name': 'browser_tests_exe_pdb_workaround',
+          'type': 'static_library',
+          'sources': [ 'empty_pdb_workaround.cc' ],
+          'msvs_settings': {
+            'VCCLCompilerTool': {
+              # This *in the compile phase* must match the pdb name that's
+              # output by the final link. See empty_pdb_workaround.cc for
+              # more details.
+              'DebugInformationFormat': '3',
+              'ProgramDataBaseFileName': '<(PRODUCT_DIR)/browser_tests.exe.pdb',
+            },
+          },
         },
       ],
     }],

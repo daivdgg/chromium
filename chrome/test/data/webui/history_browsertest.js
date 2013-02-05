@@ -140,8 +140,10 @@ HistoryWebUITest.prototype = {
    */
   queryHistoryStub_: function(args) {
     var searchText = args[0];
-    var cursor = args[1];
-    var maxCount = args[2];
+    var offset = args[1];
+    var range = args[2];
+    var cursor = args[3];
+    var maxCount = args[4];
 
     var resultCount = Math.min(maxCount, this.fakeHistory_.length - cursor);
     var results = this.fakeHistory_.slice(cursor, cursor + resultCount);

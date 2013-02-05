@@ -409,8 +409,14 @@ void DriveAPIService::AddResourceToDirectory(
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
 
-  // TODO(kochi): Implement this.
-  NOTREACHED();
+  runner_->StartOperationWithRetry(
+      new drive::InsertResourceOperation(
+          operation_registry(),
+          url_request_context_getter_,
+          url_generator_,
+          parent_resource_id,
+          resource_id,
+          callback));
 }
 
 void DriveAPIService::RemoveResourceFromDirectory(
@@ -420,8 +426,14 @@ void DriveAPIService::RemoveResourceFromDirectory(
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
 
-  // TODO(kochi): Implement this.
-  NOTREACHED();
+  runner_->StartOperationWithRetry(
+      new drive::DeleteResourceOperation(
+          operation_registry(),
+          url_request_context_getter_,
+          url_generator_,
+          parent_resource_id,
+          resource_id,
+          callback));
 }
 
 void DriveAPIService::InitiateUpload(
@@ -465,6 +477,16 @@ bool DriveAPIService::HasRefreshToken() const {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
 
   return runner_->auth_service()->HasRefreshToken();
+}
+
+void DriveAPIService::ClearAccessToken() {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
+  return runner_->auth_service()->ClearAccessToken();
+}
+
+void DriveAPIService::ClearRefreshToken() {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
+  return runner_->auth_service()->ClearRefreshToken();
 }
 
 OperationRegistry* DriveAPIService::operation_registry() const {

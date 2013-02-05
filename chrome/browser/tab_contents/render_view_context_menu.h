@@ -103,6 +103,8 @@ struct WebPluginAction;
 //
 class RenderViewContextMenuProxy {
  public:
+  virtual ~RenderViewContextMenuProxy() { }
+
   // Add a menu item to a context menu.
   virtual void AddMenuItem(int command_id, const string16& title) = 0;
   virtual void AddCheckItem(int command_id, const string16& title) = 0;
@@ -218,6 +220,7 @@ class RenderViewContextMenu : public ui::SimpleMenuModel::Delegate,
   void AppendPageItems();
   void AppendFrameItems();
   void AppendCopyItem();
+  void AppendPrintItem();
   void AppendEditableItems();
   void AppendSearchProvider();
   void AppendAllExtensionItems();

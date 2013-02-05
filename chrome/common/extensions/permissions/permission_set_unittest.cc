@@ -721,6 +721,7 @@ TEST(PermissionsTest, PermissionMessages) {
   skip.insert(APIPermission::kMediaGalleriesPrivate);
   skip.insert(APIPermission::kMediaPlayerPrivate);
   skip.insert(APIPermission::kMetricsPrivate);
+  skip.insert(APIPermission::kNetworkingPrivate);
   skip.insert(APIPermission::kRtcPrivate);
   skip.insert(APIPermission::kSystemPrivate);
   skip.insert(APIPermission::kTerminalPrivate);
@@ -798,7 +799,7 @@ TEST(PermissionsTest, DefaultFunctionAccess) {
   scoped_refptr<PermissionSet> empty = new PermissionSet();
   for (size_t i = 0; i < ARRAYSIZE_UNSAFE(kTests); ++i) {
     EXPECT_EQ(kTests[i].expect_success,
-              empty->HasAccessToFunction(kTests[i].permission_name))
+              empty->HasAccessToFunction(kTests[i].permission_name, true))
                   << "Permission being tested: " << kTests[i].permission_name;
   }
 }

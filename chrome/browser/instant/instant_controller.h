@@ -176,6 +176,11 @@ class InstantController {
   // Invoked by InstantLoader when the instant page is about to navigate.
   void InstantLoaderAboutToNavigateMainFrame(const GURL& url);
 
+  // Invoked by InstantLoader when it's underlying RenderView is created.
+  // TODO(shishir): We assume that the WebContent's current RenderViewHost is
+  // the RenderViewHost being created which is not always true. Fix this.
+  void InstantLoaderRenderViewCreated();
+
   // Invoked by the InstantLoader when the instant page wants to navigate to
   // the speicfied URL.
   void NavigateToURL(const GURL& url, content::PageTransition transition);
@@ -204,7 +209,8 @@ class InstantController {
   // creating a new loader if necessary. In extended mode, will fallback to
   // using the kLocalOmniboxPopupURL as the Instant URL in case GetInstantURL()
   // returns false. Returns true if an Instant URL could be determined.
-  bool EnsureLoaderIsCurrent();
+  // For |ignore_blacklist| look at comments in |GetInstantURL|.
+  bool EnsureLoaderIsCurrent(bool ignore_blacklist);
 
   // Recreates the |loader_| with the input |instant_url|. The caller should
   // ensure that the |loader_| is not already on the stack since it is deleted
@@ -216,6 +222,11 @@ class InstantController {
   // omnibox doesn't have focus, and the preview isn't showing, the |loader_| is
   // deleted and recreated. Else the refresh is skipped.
   void OnStaleLoader();
+
+  // If the |loader_| being used is in fallback mode, it will be switched back
+  // to the remote loader if the loader is not showing and the omnibox does not
+  // have focus.
+  void MaybeSwitchToRemoteLoader();
 
   // If the active tab is an Instant search results page, sets |instant_tab_| to
   // point to it. Else, deletes any existing |instant_tab_|.
@@ -247,8 +258,12 @@ class InstantController {
   //   - If the Instant URL is specified by command line, returns it, else
   //   - If the default Instant URL is present returns it.
   //
+  // If |ignore_blacklist| is set to true, Instant URLs are not filtered through
+  // the blacklist.
+  //
   // Returns true if a valid Instant URL could be found that is not blacklisted.
   bool GetInstantURL(const content::WebContents* active_tab,
+                     bool ignore_blacklist,
                      std::string* instant_url) const;
 
   chrome::BrowserInstantController* const browser_;

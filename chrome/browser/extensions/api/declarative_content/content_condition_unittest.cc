@@ -10,7 +10,7 @@
 #include "base/test/values_test_util.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/api/declarative_content/content_constants.h"
-#include "chrome/common/extensions/matcher/url_matcher.h"
+#include "extensions/common/matcher/url_matcher.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -20,15 +20,10 @@ namespace {
 using testing::ElementsAre;
 using testing::HasSubstr;
 
-TEST(DeclarativeContentConditionTest, ErroneousCondition) {
+TEST(DeclarativeContentConditionTest, UnknownConditionName) {
   URLMatcher matcher;
-
   std::string error;
-  scoped_ptr<ContentCondition> result;
-
-  // Test unknown condition name passed.
-  error.clear();
-  result = ContentCondition::Create(
+  scoped_ptr<ContentCondition> result = ContentCondition::Create(
       matcher.condition_factory(),
       *base::test::ParseJson(
           "{\n"
@@ -39,13 +34,34 @@ TEST(DeclarativeContentConditionTest, ErroneousCondition) {
   EXPECT_THAT(error, HasSubstr("Unknown condition attribute"));
   EXPECT_FALSE(result);
 
-  // Test wrong datatype in pageUrl.
-  error.clear();
-  result = ContentCondition::Create(
+  EXPECT_TRUE(matcher.IsEmpty()) << "Errors shouldn't add URL conditions";
+}
+
+TEST(DeclarativeContentConditionTest, WrongPageUrlDatatype) {
+  URLMatcher matcher;
+  std::string error;
+  scoped_ptr<ContentCondition> result = ContentCondition::Create(
       matcher.condition_factory(),
       *base::test::ParseJson(
           "{\n"
           "  \"pageUrl\": [],\n"
+          "  \"instanceType\": \"declarativeContent.PageStateMatcher\",\n"
+          "}"),
+      &error);
+  EXPECT_THAT(error, HasSubstr("invalid type"));
+  EXPECT_FALSE(result);
+
+  EXPECT_TRUE(matcher.IsEmpty()) << "Errors shouldn't add URL conditions";
+}
+
+TEST(DeclarativeContentConditionTest, WrongCssDatatype) {
+  URLMatcher matcher;
+  std::string error;
+  scoped_ptr<ContentCondition> result = ContentCondition::Create(
+      matcher.condition_factory(),
+      *base::test::ParseJson(
+          "{\n"
+          "  \"css\": \"selector\",\n"
           "  \"instanceType\": \"declarativeContent.PageStateMatcher\",\n"
           "}"),
       &error);

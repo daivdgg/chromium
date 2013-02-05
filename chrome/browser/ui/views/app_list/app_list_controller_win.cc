@@ -329,7 +329,9 @@ void AppListControllerDelegateWin::LaunchApp(
   //                     browser; otherwise launch in chrome
   //   - v1 packaged apps : open in an app window
   //   - v2 packaged apps : launch normally
-  if (extension->is_hosted_app()) {
+  // Note: a special case, the ChromeApp, should always launch Chrome.
+  if (extension->is_hosted_app() &&
+      extension->id() != extension_misc::kChromeAppId) {
     content::BrowserThread::PostTask(
         content::BrowserThread::FILE,
         FROM_HERE,
@@ -337,12 +339,6 @@ void AppListControllerDelegateWin::LaunchApp(
                    extension->GetFullLaunchURL(),
                    extension->id(),
                    profile));
-    return;
-  }
-
-  if (extension->is_legacy_packaged_app()) {
-    chrome::OpenApplication(chrome::AppLaunchParams(
-        profile, extension, extension_misc::LAUNCH_WINDOW, NEW_FOREGROUND_TAB));
     return;
   }
 

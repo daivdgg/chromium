@@ -237,11 +237,6 @@ chrome.fileBrowserPrivate = {
         taskId, {entries: urlList.map(createEntry)});
   },
 
-  /**
-   * Event fired on mount and unmount operations.
-   */
-  onDiskChanged: new MockEventSource(),
-
   mountPoints_: [
     {
       mountPath: 'removable/disk1-usb',
@@ -423,7 +418,7 @@ chrome.fileBrowserPrivate = {
 
   onNetworkConnectionChanged: new MockEventSource(),
 
-  getNetworkConnectionState: function(callback) {
+  getDriveConnectionState: function(callback) {
     setTimeout(callback, 0, cloneShallow(
         chrome.fileBrowserPrivate.networkConnectionState_));
   },

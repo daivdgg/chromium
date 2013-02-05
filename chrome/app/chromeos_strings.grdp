@@ -327,6 +327,9 @@ Press any key to continue exploring.
   <message name="IDS_DISABLED_ADD_USER_TOOLTIP_ENTERPRISE" desc="Tooltip over disabled Add user button">
     The administrator of this device has disabled new users from being added
   </message>
+  <message name="IDS_APP_START_MESSAGE" desc="Message displayed while installing and/or launching web application in kiosk mode.">
+    Installing application...
+  </message>
   <message name="IDS_KIOSK_MODE_LOGIN_MESSAGE">
     Click to start
   </message>
@@ -429,6 +432,12 @@ Press any key to continue exploring.
   </message>
   <message name="IDS_CREATE_LOCALLY_MANAGED_USER_CREATE_PASSWORD_CONFIRM_HINT" desc="Text shown as a hint in the password confirmation field in locally managed user creation dialog.">
     Confirm password
+  </message>
+  <message name="IDS_CREATE_LOCALLY_MANAGED_USER_CREATE_SELECT_MANAGER_TEXT" desc="Text shown as a title for list of possible managers (existing accounts) for locally managed user.">
+    Choose the manager for this user
+  </message>
+  <message name="IDS_CREATE_LOCALLY_MANAGED_USER_CREATE_MANAGER_PASSWORD_HINT" desc="Text shown as a hint in the user password field when this user is selected as a manager for locally managed user.">
+    Manager's password
   </message>
   <message name="IDS_CREATE_LOCALLY_MANAGED_USER_CREATE_CONTINUE_BUTTON_TEXT" desc="Text shown on continue button in locally managed user creation dialog.">
     Continue

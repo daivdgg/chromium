@@ -269,7 +269,8 @@ void BookmarkExtensionBackground::Paint(gfx::Canvas* canvas,
   } else {
     DetachableToolbarView::PaintBackgroundAttachedMode(canvas, host_view_,
         browser_view_->OffsetPointForToolbarBackgroundImage(
-            gfx::Point(host_view_->GetMirroredX(), host_view_->y())));
+            gfx::Point(host_view_->GetMirroredX(), host_view_->y())),
+        browser_->host_desktop_type());
     if (host_view_->height() >= toolbar_overlap)
       DetachableToolbarView::PaintHorizontalBorder(canvas, host_view_);
   }
@@ -551,10 +552,7 @@ WebContents* BrowserView::GetActiveWebContents() const {
 }
 
 gfx::ImageSkia BrowserView::GetOTRAvatarIcon() const {
-  ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-  const gfx::ImageSkia* otr_avatar =
-      rb.GetNativeImageNamed(GetOTRIconResourceID()).ToImageSkia();
-  return *otr_avatar;
+  return *GetThemeProvider()->GetImageSkiaNamed(GetOTRIconResourceID());
 }
 
 bool BrowserView::IsPositionInWindowCaption(const gfx::Point& point) {
@@ -2094,6 +2092,8 @@ void BrowserView::UpdateDevToolsForContents(WebContents* web_contents) {
   if (devtools_window_ == new_devtools_window) {
     if (!new_devtools_window ||
         (new_devtools_window->dock_side() == devtools_dock_side_)) {
+      if (new_devtools_window)
+        UpdateDevToolsSplitPosition();
       return;
     }
   }
@@ -2163,12 +2163,13 @@ void BrowserView::HideDevToolsContainer() {
 }
 
 void BrowserView::UpdateDevToolsSplitPosition() {
+  int split_size = contents_split_->GetDividerSize();
   if (devtools_window_->dock_side() == DEVTOOLS_DOCK_SIDE_RIGHT) {
-    int split_offset = contents_split_->width() -
+    int split_offset = contents_split_->width() - (split_size / 2) -
         devtools_window_->GetWidth(contents_split_->width());
     contents_split_->set_divider_offset(split_offset);
   } else {
-    int split_offset = contents_split_->height() -
+    int split_offset = contents_split_->height() - (split_size / 2) -
         devtools_window_->GetHeight(contents_split_->height());
     contents_split_->set_divider_offset(split_offset);
   }

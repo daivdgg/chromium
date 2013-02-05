@@ -82,15 +82,16 @@ Visit.prototype.addDuplicateTimestamp = function(timestamp) {
  * Returns a dom structure for a browse page result or a search page result.
  * @param {Object} propertyBag A bag of configuration properties, false by
  * default:
- * <ul>
- * <li>isSearchResult: Whether or not the result is a search result.</li>
- * <li>addTitleFavicon: Whether or not the favicon should be added.</li>
- * </ul>
+ *  - isSearchResult: Whether or not the result is a search result.
+ *  - addTitleFavicon: Whether or not the favicon should be added.
+ *  - useMonthDate: Whether or not the full date should be inserted (used for
+ * monthly view).
  * @return {Node} A DOM node to represent the history entry or search result.
  */
 Visit.prototype.getResultDOM = function(propertyBag) {
   var isSearchResult = propertyBag.isSearchResult || false;
   var addTitleFavicon = propertyBag.addTitleFavicon || false;
+  var useMonthDate = propertyBag.useMonthDate || false;
   var node = createElementWithClassName('li', 'entry');
   var time = createElementWithClassName('div', 'time');
   var entryBox = createElementWithClassName('label', 'entry-box');
@@ -152,6 +153,9 @@ Visit.prototype.getResultDOM = function(propertyBag) {
                              this.snippet_,
                              this.model_.getSearchText());
     node.appendChild(snippet);
+  } else if (useMonthDate) {
+    // Show the day instead of the time.
+    time.appendChild(document.createTextNode(this.dateShort));
   } else {
     time.appendChild(document.createTextNode(this.dateTimeOfDay));
   }
@@ -316,6 +320,13 @@ function HistoryModel() {
 
 // HistoryModel, Public: ------------------------------------------------------
 
+/** @enum {number} */
+HistoryModel.Range = {
+  ALL_TIME: 0,
+  WEEK: 1,
+  MONTH: 2
+};
+
 /**
  * Sets our current view that is called when the history model changes.
  * @param {HistoryView} view The view to set our current view to.
@@ -351,11 +362,15 @@ HistoryModel.prototype.reload = function() {
   // Save user-visible state, clear the model, and restore the state.
   var search = this.searchText_;
   var page = this.requestedPage_;
+  var range = this.rangeInDays_;
+  var offset = this.offset_;
   var groupByDomain = this.groupByDomain_;
 
   this.clearModel_();
   this.searchText_ = search;
   this.requestedPage_ = page;
+  this.rangeInDays_ = range;
+  this.offset_ = offset;
   this.groupByDomain_ = groupByDomain;
   this.queryHistory_();
 };
@@ -388,6 +403,8 @@ HistoryModel.prototype.addResults = function(info, results) {
   this.inFlight_ = false;
   this.isQueryFinished_ = info.finished;
   this.queryCursor_ = info.cursor;
+  this.queryStartTime = info.queryStartTime;
+  this.queryEndTime = info.queryEndTime;
 
   // If the results are not for the current search term there's nothing more
   // to do.
@@ -454,6 +471,32 @@ HistoryModel.prototype.hasMoreResults = function() {
       !this.isQueryFinished_;
 };
 
+// Getter and setter for HistoryModel.rangeInDays_.
+Object.defineProperty(HistoryModel.prototype, 'rangeInDays', {
+  get: function() {
+    return this.rangeInDays_;
+  },
+  set: function(range) {
+    this.rangeInDays_ = range;
+  }
+});
+
+/**
+ * Getter and setter for HistoryModel.offset_. The offset moves the current
+ * query 'window' |range| days behind. As such for range set to WEEK an offset
+ * of 0 refers to the last 7 days, an offset of 1 refers to the 7 day period
+ * that ended 7 days ago, etc. For MONTH an offset of 0 refers to the current
+ * calendar month, 1 to the previous one, etc.
+ */
+Object.defineProperty(HistoryModel.prototype, 'offset', {
+  get: function() {
+    return this.offset_;
+  },
+  set: function(offset) {
+    this.offset_ = offset;
+  }
+});
+
 // HistoryModel, Private: -----------------------------------------------------
 
 /**
@@ -474,6 +517,12 @@ HistoryModel.prototype.clearModel_ = function() {
   // point. If the view requests a page that we don't have data for, we try
   // to fetch it and call back when we're done.
   this.requestedPage_ = 0;
+
+  // The range of history to view or search over.
+  this.rangeInDays_ = HistoryModel.Range.ALL_TIME;
+
+  // Skip |offset_| * weeks/months from the begining.
+  this.offset_ = 0;
 
   // Keeps track of whether or not there are more results available than are
   // currently held in |this.visits_|.
@@ -503,10 +552,12 @@ HistoryModel.prototype.updateSearch_ = function() {
   var doneLoading = this.isQueryFinished_ ||
                     this.canFillPage_(this.requestedPage_);
 
-  // Try to fetch more results if the results are not grouped by domain and
-  // the current page isn't full.
-  if (!doneLoading && !this.inFlight_)
+  // Try to fetch more results if more results can arrive and the page is not
+  // full.
+  if (this.rangeInDays_ == HistoryModel.Range.ALL_TIME &&
+      !doneLoading && !this.inFlight_) {
     this.queryHistory_();
+  }
 
   // Show the result or a message if no results were returned.
   this.view_.onModelReady();
@@ -517,10 +568,14 @@ HistoryModel.prototype.updateSearch_ = function() {
  * @private
  */
 HistoryModel.prototype.queryHistory_ = function() {
+  var max_results =
+      (this.rangeInDays_ == HistoryModel.Range.ALL_TIME) ? RESULTS_PER_PAGE : 0;
+
   $('loading-spinner').hidden = false;
   this.inFlight_ = true;
   chrome.send('queryHistory',
-      [this.searchText_, this.queryCursor_, RESULTS_PER_PAGE]);
+      [this.searchText_, this.offset_, this.rangeInDays_, this.queryCursor_,
+       max_results]);
 };
 
 /**
@@ -549,6 +604,7 @@ HistoryModel.prototype.canFillPage_ = function(page) {
  */
 HistoryModel.prototype.setGroupByDomain = function(groupByDomain) {
   this.groupByDomain_ = groupByDomain;
+  this.offset_ = 0;
 };
 
 /**
@@ -598,8 +654,32 @@ function HistoryView(model) {
     self.setPage(self.pageIndex_ + 1);
   });
 
+  // Add handlers for the range options.
+  $('timeframe-filter').addEventListener('change', function(e) {
+    self.setRangeInDays(parseInt(e.target.value, 10));
+  });
+
   $('display-filter-sites').addEventListener('click', function(e) {
     self.setGroupByDomain($('display-filter-sites').checked);
+  });
+
+  $('range-previous').addEventListener('click', function(e) {
+    if (self.getRangeInDays() == HistoryModel.Range.ALL_TIME)
+      self.setPage(self.pageIndex_ + 1);
+    else
+      self.setOffset(self.getOffset() + 1);
+  });
+  $('range-next').addEventListener('click', function(e) {
+    if (self.getRangeInDays() == HistoryModel.Range.ALL_TIME)
+      self.setPage(self.pageIndex_ - 1);
+    else
+      self.setOffset(self.getOffset() - 1);
+  });
+  $('range-today').addEventListener('click', function(e) {
+    if (self.getRangeInDays() == HistoryModel.Range.ALL_TIME)
+      self.setPage(0);
+    else
+      self.setOffset(0);
   });
 }
 
@@ -614,7 +694,8 @@ HistoryView.prototype.setSearch = function(term, opt_page) {
   this.pageIndex_ = parseInt(opt_page || 0, 10);
   window.scrollTo(0, 0);
   this.model_.setSearchText(term, this.pageIndex_);
-  pageState.setUIState(term, this.pageIndex_, this.model_.getGroupByDomain());
+  pageState.setUIState(term, this.pageIndex_, this.model_.getGroupByDomain(),
+                       this.getRangeInDays(), this.getOffset());
 };
 
 /**
@@ -629,7 +710,9 @@ HistoryView.prototype.setGroupByDomain = function(groupedByDomain) {
   this.model_.reload();
   pageState.setUIState(this.model_.getSearchText(),
                        this.pageIndex_,
-                       this.model_.getGroupByDomain());
+                       this.model_.getGroupByDomain(),
+                       this.getRangeInDays(),
+                       this.getOffset());
 };
 
 /**
@@ -651,7 +734,9 @@ HistoryView.prototype.setPage = function(page) {
   this.model_.requestPage(page);
   pageState.setUIState(this.model_.getSearchText(),
                        this.pageIndex_,
-                       this.model_.getGroupByDomain());
+                       this.model_.getGroupByDomain(),
+                       this.getRangeInDays(),
+                       this.getOffset());
 };
 
 /**
@@ -659,6 +744,53 @@ HistoryView.prototype.setPage = function(page) {
  */
 HistoryView.prototype.getPage = function() {
   return this.pageIndex_;
+};
+
+/**
+ * Set the current range for grouped results.
+ * @param {string} range The number of days to which the range should be set.
+ */
+HistoryView.prototype.setRangeInDays = function(range) {
+  // Set the range, offset and reset the page
+  this.model_.rangeInDays = range;
+  this.model_.offset = 0;
+  this.pageIndex_ = 0;
+  this.model_.reload();
+  pageState.setUIState(this.model_.getSearchText(), this.pageIndex_,
+      this.model_.getGroupByDomain(), range, this.getOffset());
+};
+
+/**
+ * Get the current range in days.
+ * @return {number} Current range in days from the model.
+ */
+HistoryView.prototype.getRangeInDays = function() {
+  return this.model_.rangeInDays;
+};
+
+/**
+ * Set the current offset for grouped results.
+ * @param {number} offset Offset to set.
+ */
+HistoryView.prototype.setOffset = function(offset) {
+  // If there is another query already in flight wait for that to complete.
+  if (this.model_.inFlight_)
+    return;
+  this.model_.offset = offset;
+  this.model_.reload();
+  pageState.setUIState(this.model_.getSearchText(),
+                       this.pageIndex_,
+                       this.model_.getGroupByDomain(),
+                       this.getRangeInDays(),
+                       this.getOffset());
+};
+
+/**
+ * Get the current offset.
+ * @return {number} Current offset from the model.
+ */
+HistoryView.prototype.getOffset = function() {
+  return this.model_.offset;
 };
 
 /**
@@ -742,10 +874,45 @@ HistoryView.prototype.getGroupedVisitsDOM_ = function(
   resultsList.style.height = 0;
 
   // Add the results for each of the domain.
+  var isMonthGroupedResult = this.getRangeInDays() == HistoryModel.Range.MONTH;
   for (var j = 0, visit; visit = domainVisits[j]; j++) {
-    resultsList.appendChild(visit.getResultDOM({}));
+    resultsList.appendChild(visit.getResultDOM({
+      useMonthDate: isMonthGroupedResult
+    }));
     this.setVisitRendered_(visit);
   }
+};
+
+/**
+ * Enables or disables the time range buttons.
+ * @private
+ */
+HistoryView.prototype.updateRangeButtons_ = function() {
+  // The enabled state for the previous, today and next buttons.
+  var previousState = false;
+  var todayState = false;
+  var nextState = false;
+  var usePage = (this.getRangeInDays() == HistoryModel.Range.ALL_TIME);
+
+  // Use pagination for most recent visits, offset otherwise.
+  // TODO(sergiu): Maybe send just one variable in the future.
+  if (usePage) {
+    if (this.getPage() != 0) {
+      nextState = true;
+      todayState = true;
+    }
+    previousState = this.model_.hasMoreResults();
+  } else {
+    if (this.getOffset() != 0) {
+      nextState = true;
+      todayState = true;
+    }
+    previousState = !this.model_.isQueryFinished_;
+  }
+
+  $('range-previous').disabled = !previousState;
+  $('range-today').disabled = !todayState;
+  $('range-next').disabled = !nextState;
 };
 
 /**
@@ -778,7 +945,23 @@ HistoryView.prototype.groupVisitsByDomain_ = function(visits, results) {
 };
 
 /**
- * Adds the results grouped by days, grouping them if needed.
+ * Adds the results for a month.
+ * @param {Array} visits Visits returned by the query.
+ * @param {Element} parentElement Element to which to add the results to.
+ * @private
+ */
+HistoryView.prototype.addMonthResults_ = function(visits, parentElement) {
+  if (visits.length == 0)
+    return;
+
+  var monthResults = parentElement.appendChild(
+      createElementWithClassName('ol', 'month-results'));
+  this.groupVisitsByDomain_(visits, monthResults);
+};
+
+/**
+ * Adds the results for a certain day. This includes a title with the day of
+ * the results and the results themselves, grouped or not.
  * @param {Array} visits Visits returned by the query.
  * @param {Element} parentElement Element to which to add the results to.
  * @private
@@ -822,10 +1005,14 @@ HistoryView.prototype.addDayResults_ = function(visits, parentElement) {
  * @private
  */
 HistoryView.prototype.displayResults_ = function() {
-  var rangeStart = this.pageIndex_ * RESULTS_PER_PAGE;
-  var rangeEnd = rangeStart + RESULTS_PER_PAGE;
-  var results = this.model_.getNumberedRange(rangeStart, rangeEnd);
-
+  // Either show a page of results received for the all time results or all the
+  // received results for the weekly and monthly view.
+  var results = this.model_.visits_;
+  if (this.getRangeInDays() == HistoryModel.Range.ALL_TIME) {
+    var rangeStart = this.pageIndex_ * RESULTS_PER_PAGE;
+    var rangeEnd = rangeStart + RESULTS_PER_PAGE;
+    results = this.model_.getNumberedRange(rangeStart, rangeEnd);
+  }
   var searchText = this.model_.getSearchText();
   var groupByDomain = this.model_.getGroupByDomain();
 
@@ -856,29 +1043,49 @@ HistoryView.prototype.displayResults_ = function() {
     }
     this.resultDiv_.appendChild(searchResults);
   } else {
-    if (results.length == 0 && this.model_.isQueryFinished_) {
-      var noResults = document.createElement('div');
+    var resultsFragment = document.createDocumentFragment();
+
+    if (this.getRangeInDays() != HistoryModel.Range.ALL_TIME) {
+      // If this is a time range result add some text that shows what is the
+      // time range for the results the user is viewing.
+      var timeFrame = resultsFragment.appendChild(
+          createElementWithClassName('h2', 'timeframe'));
+      // TODO(sergiu): Figure the best way to show this for the first day of
+      // the month.
+      timeFrame.appendChild(document.createTextNode(loadTimeData.getStringF(
+          'historyinterval',
+          this.model_.queryStartTime,
+          this.model_.queryEndTime)));
+    }
+
+    if (results.length == 0 && !this.model_.inFlight_) {
+      var noResults = resultsFragment.appendChild(
+          document.createElement('div'));
       noResults.textContent = loadTimeData.getString('noresults');
-      this.resultDiv_.appendChild(noResults);
+      this.resultDiv_.appendChild(resultsFragment);
       this.updateNavBar_();
       return;
     }
 
-    var resultsFragment = document.createDocumentFragment();
+    if (this.getRangeInDays() == HistoryModel.Range.MONTH &&
+        groupByDomain) {
+      // Group everything together in the month view.
+      this.addMonthResults_(results, resultsFragment);
+    } else {
+      var dayStart = 0;
+      var dayEnd = 0;
+      // Go through all of the visits and process them in chunks of one day.
+      while (dayEnd < results.length) {
+        // Skip over the ones that are already rendered.
+        while (dayStart < results.length && results[dayStart].isRendered)
+          ++dayStart;
+        var dayEnd = dayStart + 1;
+        while (dayEnd < results.length && results[dayEnd].continued)
+          ++dayEnd;
 
-    var dayStart = 0;
-    var dayEnd = 0;
-    // Go through all of the visits and process them in chunks of one day.
-    while (dayEnd < results.length) {
-      // Skip over the ones that are already rendered.
-      while (dayStart < results.length && results[dayStart].isRendered)
-        ++dayStart;
-      var dayEnd = dayStart + 1;
-      while (dayEnd < results.length && results[dayEnd].continued)
-        ++dayEnd;
-
-      this.addDayResults_(
-          results.slice(dayStart, dayEnd), resultsFragment, groupByDomain);
+        this.addDayResults_(
+            results.slice(dayStart, dayEnd), resultsFragment, groupByDomain);
+      }
     }
 
     // Add all the days and their visits to the page.
@@ -892,9 +1099,12 @@ HistoryView.prototype.displayResults_ = function() {
  * @private
  */
 HistoryView.prototype.updateNavBar_ = function() {
+  this.updateRangeButtons_();
   $('newest-button').hidden = this.pageIndex_ == 0;
   $('newer-button').hidden = this.pageIndex_ == 0;
-  $('older-button').hidden = !this.model_.hasMoreResults();
+  $('older-button').hidden =
+      this.model_.rangeInDays_ != HistoryModel.Range.ALL_TIME ||
+      !this.model_.hasMoreResults();
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -922,13 +1132,17 @@ function PageState(model, view) {
   //     public model and view.
   this.checker_ = setInterval((function(state_obj) {
     var hashData = state_obj.getHashData();
+    var isGroupedByDomain = (hashData.g == 'true');
     if (hashData.q != state_obj.model.getSearchText()) {
       state_obj.view.setSearch(hashData.q, parseInt(hashData.p, 10));
     } else if (parseInt(hashData.p, 10) != state_obj.view.getPage()) {
       state_obj.view.setPage(hashData.p);
-    } else if ((hashData.g == 'true') !=
-               state_obj.view.model_.getGroupByDomain()) {
-      state_obj.view.setGroupByDomain(hashData.g);
+    } else if (isGroupedByDomain != state_obj.view.model_.getGroupByDomain()) {
+      state_obj.view.setGroupByDomain(isGroupedByDomain);
+    } else if (parseInt(hashData.r, 10) != state_obj.model.rangeInDays) {
+      state_obj.view.setRangeInDays(parseInt(hashData.r, 10));
+    } else if (parseInt(hashData.o, 10) != state_obj.model.offset) {
+      state_obj.view.setOffset(parseInt(hashData.o, 10));
     }
   }), 50, this);
 }
@@ -946,7 +1160,9 @@ PageState.prototype.getHashData = function() {
     e: 0,
     q: '',
     p: 0,
-    g: false
+    g: false,
+    r: 0,
+    o: 0
   };
 
   if (!window.location.hash)
@@ -970,19 +1186,18 @@ PageState.prototype.getHashData = function() {
  * @param {string} term The current search string.
  * @param {number} page The page currently being viewed.
  * @param {boolean} grouped Whether the results are grouped or not.
+ * @param {HistoryModel.Range} range The range to view or search over.
+ * @param {number} offset Set the begining of the query to the specific offset.
  */
-PageState.prototype.setUIState = function(term, page, grouped) {
+PageState.prototype.setUIState = function(term, page, grouped, range, offset) {
   // Make sure the form looks pretty.
   $('search-field').value = term;
-  if (grouped) {
-    $('display-filter-sites').checked = true;
-  } else {
-    $('display-filter-sites').checked = false;
-  }
+  $('display-filter-sites').checked = grouped;
   var hash = this.getHashData();
-  if (hash.q != term || hash.p != page || hash.g != grouped) {
+  if (hash.q != term || hash.p != page || hash.g != grouped ||
+      hash.r != range || hash.o != offset) {
     window.location.hash = PageState.getHashString(
-        term, page, grouped);
+        term, page, grouped, range, offset);
   }
 };
 
@@ -991,9 +1206,11 @@ PageState.prototype.setUIState = function(term, page, grouped) {
  * @param {string} term The current search string.
  * @param {number} page The page currently being viewed.
  * @param {boolean} grouped Whether the results are grouped or not.
+ * @param {HistoryModel.Range} range The range to view or search over.
+ * @param {number} offset Set the begining of the query to the specific offset.
  * @return {string} The string to be used in a hash.
  */
-PageState.getHashString = function(term, page, grouped) {
+PageState.getHashString = function(term, page, grouped, range, offset) {
   // Omit elements that are empty.
   var newHash = [];
 
@@ -1005,6 +1222,12 @@ PageState.getHashString = function(term, page, grouped) {
 
   if (grouped)
     newHash.push('g=' + grouped);
+
+  if (range)
+    newHash.push('r=' + range);
+
+  if (offset)
+    newHash.push('o=' + offset);
 
   return newHash.join('&');
 };

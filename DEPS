@@ -8,11 +8,11 @@ vars = {
   "sourceforge_url": "http://%(repo)s.svn.sourceforge.net/svnroot/%(repo)s",
   "webkit_trunk": "http://svn.webkit.org/repository/webkit/trunk",
   "nacl_trunk": "http://src.chromium.org/native_client/trunk",
-  "webkit_revision": "141735",
+  "webkit_revision": "141879",
   "chromium_git": "https://chromium.googlesource.com",
   "chromiumos_git": "https://chromium.googlesource.com/chromiumos",
   "swig_revision": "69281",
-  "nacl_revision": "10691",
+  "nacl_revision": "10703",
   # After changing nacl_revision, run 'glient sync' and check native_client/DEPS
   # to update other nacl_*_revision's.
   "nacl_tools_revision": "10001",  # native_client/DEPS: tools_rev
@@ -29,17 +29,17 @@ vars = {
   "ffmpeg_hash": "5ef9ec1c09371f72efecddfc4ba0be0a50870040",
 
   "sfntly_revision": "134",
-  "skia_revision": "7502",
+  "skia_revision": "7572",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling Skia
   # and V8 without interference from each other.
-  "v8_revision": "13563",
+  "v8_revision": "13588",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling WebRTC
   # and V8 without interference from each other.
   "webrtc_revision": "3426",
   "jsoncpp_revision": "248",
-  "nss_revision": "179928",
+  "nss_revision": "180499",
 }
 
 deps = {
@@ -62,7 +62,7 @@ deps = {
     (Var("googlecode_url") % "googlemock") + "/trunk@410",
 
   "src/third_party/angle":
-    (Var("googlecode_url") % "angleproject") + "/trunk@1810",
+    (Var("googlecode_url") % "angleproject") + "/branches/dx11proto@1822",
 
   "src/third_party/trace-viewer":
     (Var("googlecode_url") % "trace-viewer") + "/trunk@204",
@@ -100,13 +100,13 @@ deps = {
     (Var("googlecode_url") % "snappy") + "/trunk@63",
 
   "src/tools/grit":
-    (Var("googlecode_url") % "grit-i18n") + "/trunk@105",
+    (Var("googlecode_url") % "grit-i18n") + "/trunk@107",
 
   "src/tools/gyp":
-    (Var("googlecode_url") % "gyp") + "/trunk@1565",
+    (Var("googlecode_url") % "gyp") + "/trunk@1568",
 
   "src/tools/swarm_client":
-    "/trunk/tools/swarm_client@178819",
+    "/trunk/tools/swarm_client@180725",
 
   "src/v8":
     (Var("googlecode_url") % "v8") + "/trunk@" + Var("v8_revision"),

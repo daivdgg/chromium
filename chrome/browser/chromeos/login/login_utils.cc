@@ -83,6 +83,7 @@
 #include "google_apis/gaia/gaia_constants.h"
 #include "google_apis/gaia/gaia_urls.h"
 #include "googleurl/src/gurl.h"
+#include "gpu/command_buffer/service/gpu_switches.h"
 #include "media/base/media_switches.h"
 #include "net/base/network_change_notifier.h"
 #include "net/url_request/url_request_context.h"
@@ -729,6 +730,7 @@ std::string LoginUtilsImpl::GetOffTheRecordCommandLine(
       ::switches::kDisableForceCompositingMode,
       ::switches::kDisableGpuWatchdog,
       ::switches::kDisableLoginAnimations,
+      ::switches::kDisableNonuniformGpuMemPolicy,
       ::switches::kDisableOobeAnimation,
       ::switches::kDisablePanelFitting,
       ::switches::kDisableThreadedCompositing,
@@ -771,10 +773,10 @@ std::string LoginUtilsImpl::GetOffTheRecordCommandLine(
       ash::switches::kAshTouchHud,
       ash::switches::kAuraLegacyPowerButton,
       ash::switches::kAuraNoShadows,
+      ash::switches::kAshEnableNewNetworkStatusArea,
       cc::switches::kDisableThreadedAnimation,
       cc::switches::kEnablePartialSwap,
       chromeos::switches::kDbusStub,
-      chromeos::switches::kEnableNewNetworkHandlers,
       gfx::switches::kEnableBrowserTextSubpixelPositioning,
       gfx::switches::kEnableWebkitTextSubpixelPositioning,
       views::corewm::switches::kWindowAnimationsDisabled,

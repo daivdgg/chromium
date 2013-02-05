@@ -373,6 +373,8 @@ bool RenderMessageFilter::OnMessageReceived(const IPC::Message& message,
     IPC_MESSAGE_HANDLER(ViewHostMsg_PreCacheFontCharacters,
                         OnPreCacheFontCharacters)
 #endif
+    IPC_MESSAGE_HANDLER(ViewHostMsg_GetProcessMemorySizes,
+                        OnGetProcessMemorySizes)
     IPC_MESSAGE_HANDLER(ViewHostMsg_GenerateRoutingID, OnGenerateRoutingID)
     IPC_MESSAGE_HANDLER(ViewHostMsg_CreateWindow, OnCreateWindow)
     IPC_MESSAGE_HANDLER(ViewHostMsg_CreateWidget, OnCreateWidget)
@@ -496,6 +498,20 @@ void RenderMessageFilter::OnCreateFullscreenWidget(int opener_id,
                                                    int* surface_id) {
   render_widget_helper_->CreateNewFullscreenWidget(
       opener_id, route_id, surface_id);
+}
+
+void RenderMessageFilter::OnGetProcessMemorySizes(
+    size_t* private_bytes, size_t* shared_bytes) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::IO));
+  using base::ProcessMetrics;
+#if !defined(OS_MACOSX) || defined(OS_IOS)
+  scoped_ptr<ProcessMetrics> metrics(
+      ProcessMetrics::CreateProcessMetrics(peer_handle()));
+#else
+  scoped_ptr<ProcessMetrics> metrics(
+      ProcessMetrics::CreateProcessMetrics(peer_handle(), NULL));
+#endif
+  metrics->GetMemoryBytes(private_bytes, shared_bytes);
 }
 
 void RenderMessageFilter::OnSetCookie(const IPC::Message& message,
@@ -657,12 +673,12 @@ void RenderMessageFilter::GetPluginsCallback(
   for (size_t i = 0; i < all_plugins.size(); ++i) {
     // Copy because the filter can mutate.
     webkit::WebPluginInfo plugin(all_plugins[i]);
-    if (!filter || filter->IsPluginEnabled(child_process_id,
-                                           routing_id,
-                                           resource_context_,
-                                           GURL(),
-                                           GURL(),
-                                           &plugin)) {
+    if (!filter || filter->IsPluginAvailable(child_process_id,
+                                             routing_id,
+                                             resource_context_,
+                                             GURL(),
+                                             GURL(),
+                                             &plugin)) {
       plugins.push_back(plugin);
     }
   }

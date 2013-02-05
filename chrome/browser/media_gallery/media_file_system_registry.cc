@@ -79,7 +79,7 @@ bool IsMTPDeviceMediaOperationsEnabled() {
 }  // namespace
 
 MediaFileSystemInfo::MediaFileSystemInfo(const std::string& fs_name,
-                                         const FilePath& fs_path,
+                                         const base::FilePath& fs_path,
                                          const std::string& filesystem_id,
                                          MediaGalleryPrefId pref_id,
                                          uint64 transient_device_id,
@@ -96,19 +96,139 @@ MediaFileSystemInfo::MediaFileSystemInfo(const std::string& fs_name,
 
 MediaFileSystemInfo::MediaFileSystemInfo() {}
 
+// Tracks the liveness of multiple RenderProcessHosts that the caller is
+// interested in. Once all of the RPHs have closed or been terminated a call
+// back informs the caller.
+class RPHReferenceManager : public content::NotificationObserver {
+ public:
+  // |no_references_callback| is called when the last RenderViewHost reference
+  // goes away. RenderViewHost references are added through ReferenceFromRVH().
+  explicit RPHReferenceManager(const base::Closure& no_references_callback)
+      : no_references_callback_(no_references_callback) {
+  }
+
+  ~RPHReferenceManager() {
+    Reset();
+  }
+
+  // Remove all references, but don't call |no_references_callback|.
+  void Reset() {
+    STLDeleteValues(&refs_);
+  }
+
+  // Returns true if there are no references;
+  bool empty() const {
+    return refs_.empty();
+  }
+
+  // Adds a reference to the passed |rvh|. Calling this multiple times with
+  // the same |rvh| is a no-op.
+  void ReferenceFromRVH(const content::RenderViewHost* rvh) {
+    WebContents* contents = WebContents::FromRenderViewHost(rvh);
+    RenderProcessHost* rph = contents->GetRenderProcessHost();
+    RPHReferenceState* state = NULL;
+    if (!ContainsKey(refs_, rph)) {
+      state = new RPHReferenceState;
+      refs_[rph] = state;
+      state->registrar.Add(
+          this, content::NOTIFICATION_RENDERER_PROCESS_TERMINATED,
+          content::Source<RenderProcessHost>(rph));
+    } else {
+      state = refs_[rph];
+    }
+
+    if (state->web_contents_set.insert(contents).second) {
+      state->registrar.Add(this, content::NOTIFICATION_WEB_CONTENTS_DESTROYED,
+          content::Source<WebContents>(contents));
+      state->registrar.Add(this, content::NOTIFICATION_NAV_ENTRY_COMMITTED,
+          content::Source<NavigationController>(&contents->GetController()));
+    }
+  }
+
+ private:
+  struct RPHReferenceState {
+    content::NotificationRegistrar registrar;
+    std::set<const WebContents*> web_contents_set;
+  };
+  typedef std::map<const RenderProcessHost*, RPHReferenceState*> RPHRefCount;
+
+  // NotificationObserver implementation.
+  virtual void Observe(int type,
+                       const content::NotificationSource& source,
+                       const content::NotificationDetails& details) OVERRIDE {
+    switch (type) {
+      case content::NOTIFICATION_RENDERER_PROCESS_TERMINATED: {
+        OnRendererProcessTerminated(
+            content::Source<RenderProcessHost>(source).ptr());
+        break;
+      }
+      case content::NOTIFICATION_WEB_CONTENTS_DESTROYED: {
+        OnWebContentsDestroyedOrNavigated(
+            content::Source<WebContents>(source).ptr());
+        break;
+      }
+      case content::NOTIFICATION_NAV_ENTRY_COMMITTED: {
+        NavigationController* controller =
+            content::Source<NavigationController>(source).ptr();
+        WebContents* contents = controller->GetWebContents();
+        OnWebContentsDestroyedOrNavigated(contents);
+        break;
+      }
+      default: {
+        NOTREACHED();
+        break;
+      }
+    }
+  }
+
+  void OnRendererProcessTerminated(const RenderProcessHost* rph) {
+    RPHRefCount::iterator rph_info = refs_.find(rph);
+    DCHECK(rph_info != refs_.end());
+    delete rph_info->second;
+    refs_.erase(rph_info);
+    if (refs_.empty())
+      no_references_callback_.Run();
+  }
+
+  void OnWebContentsDestroyedOrNavigated(const WebContents* contents) {
+    RenderProcessHost* rph = contents->GetRenderProcessHost();
+    RPHRefCount::iterator rph_info = refs_.find(rph);
+    DCHECK(rph_info != refs_.end());
+
+    rph_info->second->registrar.Remove(
+        this, content::NOTIFICATION_WEB_CONTENTS_DESTROYED,
+        content::Source<WebContents>(contents));
+    rph_info->second->registrar.Remove(
+        this, content::NOTIFICATION_NAV_ENTRY_COMMITTED,
+        content::Source<NavigationController>(&contents->GetController()));
+
+    rph_info->second->web_contents_set.erase(contents);
+    if (rph_info->second->web_contents_set.empty())
+      OnRendererProcessTerminated(rph);
+  }
+
+  // A callback to call when the last RVH reference goes away.
+  base::Closure no_references_callback_;
+
+  // The set of render processes and web contents that may have references to
+  // the file system ids this instance manages.
+  RPHRefCount refs_;
+};
+
 // The main owner of this class is
 // |MediaFileSystemRegistry::extension_hosts_map_|, but a callback may
 // temporarily hold a reference.
 class ExtensionGalleriesHost
-    : public base::RefCountedThreadSafe<ExtensionGalleriesHost>,
-      public content::NotificationObserver {
+    : public base::RefCountedThreadSafe<ExtensionGalleriesHost> {
  public:
   // |no_references_callback| is called when the last RenderViewHost reference
   // goes away. RenderViewHost references are added through ReferenceFromRVH().
   ExtensionGalleriesHost(MediaFileSystemContext* file_system_context,
                          const base::Closure& no_references_callback)
       : file_system_context_(file_system_context),
-        no_references_callback_(no_references_callback) {
+        no_references_callback_(no_references_callback),
+        rph_refs_(base::Bind(&ExtensionGalleriesHost::CleanUp,
+                             base::Unretained(this))) {
   }
 
   // For each gallery in the list of permitted |galleries|, checks if the
@@ -173,44 +293,24 @@ class ExtensionGalleriesHost
 #endif
 
     if (pref_id_map_.empty()) {
-      rph_refs_.clear();
+      rph_refs_.Reset();
       CleanUp();
     }
   }
 
   // Indicate that the passed |rvh| will reference the file system ids created
-  // by this class.  It is safe to call this multiple times with the same RVH.
+  // by this class.
   void ReferenceFromRVH(const content::RenderViewHost* rvh) {
-    WebContents* contents = WebContents::FromRenderViewHost(rvh);
-    if (registrar_.IsRegistered(this,
-                                content::NOTIFICATION_WEB_CONTENTS_DESTROYED,
-                                content::Source<WebContents>(contents))) {
-      return;
-    }
-    registrar_.Add(this, content::NOTIFICATION_WEB_CONTENTS_DESTROYED,
-                   content::Source<WebContents>(contents));
-    registrar_.Add(
-        this, content::NOTIFICATION_NAV_ENTRY_COMMITTED,
-        content::Source<NavigationController>(&contents->GetController()));
-
-    RenderProcessHost* rph = contents->GetRenderProcessHost();
-    rph_refs_[rph].insert(contents);
-    if (rph_refs_[rph].size() == 1) {
-      registrar_.Add(this, content::NOTIFICATION_RENDERER_PROCESS_TERMINATED,
-                     content::Source<RenderProcessHost>(rph));
-    }
+    rph_refs_.ReferenceFromRVH(rvh);
   }
 
  private:
-  typedef std::map<MediaGalleryPrefId, MediaFileSystemInfo>
-      PrefIdFsInfoMap;
+  typedef std::map<MediaGalleryPrefId, MediaFileSystemInfo> PrefIdFsInfoMap;
 #if defined(SUPPORT_MTP_DEVICE_FILESYSTEM)
-  typedef std::map<MediaGalleryPrefId,
-                   scoped_refptr<ScopedMTPDeviceMapEntry> >
+  typedef std::map<MediaGalleryPrefId, scoped_refptr<ScopedMTPDeviceMapEntry> >
       MediaDeviceEntryReferencesMap;
 #endif
-  typedef std::map<const RenderProcessHost*, std::set<const WebContents*> >
-      RenderProcessHostRefCount;
+
 
   // Private destructor and friend declaration for ref counted implementation.
   friend class base::RefCountedThreadSafe<ExtensionGalleriesHost>;
@@ -222,35 +322,6 @@ class ExtensionGalleriesHost
 #if defined(SUPPORT_MTP_DEVICE_FILESYSTEM)
     DCHECK(media_device_map_references_.empty());
 #endif
-  }
-
-  // NotificationObserver implementation.
-  virtual void Observe(int type,
-                       const content::NotificationSource& source,
-                       const content::NotificationDetails& details) OVERRIDE {
-    switch (type) {
-      case content::NOTIFICATION_RENDERER_PROCESS_TERMINATED: {
-        OnRendererProcessTerminated(
-            content::Source<RenderProcessHost>(source).ptr());
-        break;
-      }
-      case content::NOTIFICATION_WEB_CONTENTS_DESTROYED: {
-        OnWebContentsDestroyedOrNavigated(
-            content::Source<WebContents>(source).ptr());
-        break;
-      }
-      case content::NOTIFICATION_NAV_ENTRY_COMMITTED: {
-        NavigationController* controller =
-            content::Source<NavigationController>(source).ptr();
-        WebContents* contents = controller->GetWebContents();
-        OnWebContentsDestroyedOrNavigated(contents);
-        break;
-      }
-      default: {
-        NOTREACHED();
-        break;
-      }
-    }
   }
 
   void GetMediaFileSystemsForAttachedDevices(
@@ -279,7 +350,7 @@ class ExtensionGalleriesHost
         continue;
       }
 
-      FilePath path = gallery_info.AbsolutePath();
+      base::FilePath path = gallery_info.AbsolutePath();
       if (!MediaStorageUtil::CanCreateFileSystem(device_id, path))
         continue;
 
@@ -318,7 +389,7 @@ class ExtensionGalleriesHost
     }
 
     if (result.size() == 0) {
-      rph_refs_.clear();
+      rph_refs_.Reset();
       CleanUp();
     } else {
       RevokeOldGalleries(new_galleries);
@@ -344,9 +415,9 @@ class ExtensionGalleriesHost
     string16 sanitized_name;
     string16 separators =
 #if defined(FILE_PATH_USES_WIN_SEPARATORS)
-        FilePath::kSeparators
+        base::FilePath::kSeparators
 #else
-        ASCIIToUTF16(FilePath::kSeparators)
+        ASCIIToUTF16(base::FilePath::kSeparators)
 #endif
         ;  // NOLINT
     ReplaceChars(name, separators.c_str(), ASCIIToUTF16("_"), &sanitized_name);
@@ -376,43 +447,6 @@ class ExtensionGalleriesHost
     return json_string;
   }
 
-  void OnRendererProcessTerminated(const RenderProcessHost* rph) {
-    RenderProcessHostRefCount::const_iterator rph_info = rph_refs_.find(rph);
-    DCHECK(rph_info != rph_refs_.end());
-    // We're going to remove everything from the set, so we make a copy
-    // before operating on it.
-    std::set<const WebContents*> closed_web_contents = rph_info->second;
-    DCHECK(!closed_web_contents.empty());
-
-    for (std::set<const WebContents*>::const_iterator it =
-             closed_web_contents.begin();
-         it != closed_web_contents.end();
-         ++it) {
-      OnWebContentsDestroyedOrNavigated(*it);
-    }
-  }
-
-  void OnWebContentsDestroyedOrNavigated(const WebContents* contents) {
-    registrar_.Remove(this, content::NOTIFICATION_WEB_CONTENTS_DESTROYED,
-                      content::Source<WebContents>(contents));
-    registrar_.Remove(
-        this, content::NOTIFICATION_NAV_ENTRY_COMMITTED,
-        content::Source<NavigationController>(&contents->GetController()));
-
-    RenderProcessHost* rph = contents->GetRenderProcessHost();
-    RenderProcessHostRefCount::iterator process_refs = rph_refs_.find(rph);
-    DCHECK(process_refs != rph_refs_.end());
-    process_refs->second.erase(contents);
-    if (process_refs->second.empty()) {
-      registrar_.Remove(this, content::NOTIFICATION_RENDERER_PROCESS_TERMINATED,
-                        content::Source<RenderProcessHost>(rph));
-      rph_refs_.erase(process_refs);
-    }
-
-    if (rph_refs_.empty())
-      CleanUp();
-  }
-
   void CleanUp() {
     DCHECK(rph_refs_.empty());
     for (PrefIdFsInfoMap::const_iterator it = pref_id_map_.begin();
@@ -425,8 +459,6 @@ class ExtensionGalleriesHost
 #if defined(SUPPORT_MTP_DEVICE_FILESYSTEM)
     media_device_map_references_.clear();
 #endif
-
-    registrar_.RemoveAll();
 
     no_references_callback_.Run();
   }
@@ -449,10 +481,7 @@ class ExtensionGalleriesHost
 
   // The set of render processes and web contents that may have references to
   // the file system ids this instance manages.
-  RenderProcessHostRefCount rph_refs_;
-
-  // A registrar for listening notifications.
-  content::NotificationRegistrar registrar_;
+  RPHReferenceManager rph_refs_;
 
   DISALLOW_COPY_AND_ASSIGN(ExtensionGalleriesHost);
 };
@@ -487,8 +516,7 @@ void MediaFileSystemRegistry::GetMediaFileSystemsForExtension(
     pref_registrar->Init(profile->GetPrefs());
     pref_registrar->Add(
         prefs::kMediaGalleriesRememberedGalleries,
-        base::Bind(&MediaFileSystemRegistry::
-                   OnMediaGalleriesRememberedGalleriesChanged,
+        base::Bind(&MediaFileSystemRegistry::OnRememberedGalleriesChanged,
                    base::Unretained(this),
                    pref_registrar->prefs()));
     pref_change_registrar_map_[profile] = pref_registrar;
@@ -527,7 +555,7 @@ MediaGalleriesPreferences* MediaFileSystemRegistry::GetPreferences(
     if (!MediaStorageUtil::IsMediaDevice(existing_devices[i].device_id))
       continue;
     preferences->AddGallery(existing_devices[i].device_id,
-                            existing_devices[i].name, FilePath(),
+                            existing_devices[i].name, base::FilePath(),
                             false /*not user added*/);
   }
   return preferences;
@@ -545,7 +573,7 @@ void MediaFileSystemRegistry::OnRemovableStorageAttached(
        profile_it != extension_hosts_map_.end();
        ++profile_it) {
     MediaGalleriesPreferences* preferences = GetPreferences(profile_it->first);
-    preferences->AddGallery(info.device_id, info.name, FilePath(),
+    preferences->AddGallery(info.device_id, info.name, base::FilePath(),
                             false /*not user added*/);
   }
 }
@@ -621,7 +649,7 @@ class MediaFileSystemRegistry::MediaFileSystemContextImpl
   // Registers and returns the file system id for the mass storage device
   // specified by |device_id| and |path|.
   virtual std::string RegisterFileSystemForMassStorage(
-      const std::string& device_id, const FilePath& path) OVERRIDE {
+      const std::string& device_id, const base::FilePath& path) OVERRIDE {
     DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
     DCHECK(MediaStorageUtil::IsMassStorageDevice(device_id));
 
@@ -638,7 +666,7 @@ class MediaFileSystemRegistry::MediaFileSystemContextImpl
 
 #if defined(SUPPORT_MTP_DEVICE_FILESYSTEM)
   virtual std::string RegisterFileSystemForMTPDevice(
-      const std::string& device_id, const FilePath& path,
+      const std::string& device_id, const base::FilePath& path,
       scoped_refptr<ScopedMTPDeviceMapEntry>* entry) OVERRIDE {
     DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
     DCHECK(!MediaStorageUtil::IsMassStorageDevice(device_id));
@@ -690,7 +718,7 @@ MediaFileSystemRegistry::~MediaFileSystemRegistry() {
 #endif
 }
 
-void MediaFileSystemRegistry::OnMediaGalleriesRememberedGalleriesChanged(
+void MediaFileSystemRegistry::OnRememberedGalleriesChanged(
     PrefServiceBase* prefs) {
   // Find the Profile that contains the source PrefService.
   PrefChangeRegistrarMap::iterator pref_change_it =
@@ -715,21 +743,31 @@ void MediaFileSystemRegistry::OnMediaGalleriesRememberedGalleriesChanged(
 
   // Go through ExtensionsHosts, get the updated galleries list and use it to
   // revoke the old galleries.
-  for (ExtensionHostMap::const_iterator gallery_host_it =
-           extension_host_map.begin();
-       gallery_host_it != extension_host_map.end();
-       ++gallery_host_it) {
-    const extensions::Extension* extension =
-        extensions_set->GetByID(gallery_host_it->first);
+  // RevokeOldGalleries() may end up deleting from |extension_host_map| and
+  // even delete |extension_host_map| altogether. So do this in two loops to
+  // avoid using an invalidated iterator or deleted map.
+  std::vector<const extensions::Extension*> extensions;
+  for (ExtensionHostMap::const_iterator it = extension_host_map.begin();
+       it != extension_host_map.end();
+       ++it) {
+    extensions.push_back(extensions_set->GetByID(it->first));
+  }
+  for (size_t i = 0; i < extensions.size(); ++i) {
+    if (!ContainsKey(extension_hosts_map_, profile))
+      break;
+    ExtensionHostMap::const_iterator gallery_host_it =
+        extension_host_map.find(extensions[i]->id());
+    if (gallery_host_it == extension_host_map.end())
+      continue;
     gallery_host_it->second->RevokeOldGalleries(
-        preferences->GalleriesForExtension(*extension));
+        preferences->GalleriesForExtension(*extensions[i]));
   }
 }
 
 #if defined(SUPPORT_MTP_DEVICE_FILESYSTEM)
 scoped_refptr<ScopedMTPDeviceMapEntry>
 MediaFileSystemRegistry::GetOrCreateScopedMTPDeviceMapEntry(
-    const FilePath::StringType& device_location) {
+    const base::FilePath::StringType& device_location) {
   MTPDeviceDelegateMap::iterator delegate_it =
       mtp_device_delegate_map_.find(device_location);
   if (delegate_it != mtp_device_delegate_map_.end())
@@ -746,7 +784,7 @@ MediaFileSystemRegistry::GetOrCreateScopedMTPDeviceMapEntry(
 }
 
 void MediaFileSystemRegistry::RemoveScopedMTPDeviceMapEntry(
-    const FilePath::StringType& device_location) {
+    const base::FilePath::StringType& device_location) {
   MTPDeviceDelegateMap::iterator delegate_it =
       mtp_device_delegate_map_.find(device_location);
   DCHECK(delegate_it != mtp_device_delegate_map_.end());

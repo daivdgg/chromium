@@ -31,18 +31,22 @@ class MediaStreamDevicesController {
   bool DismissInfoBarAndTakeActionOnSettings();
 
   // Public methods to be called by MediaStreamInfoBarDelegate;
-  bool has_audio() const { return has_audio_; }
-  bool has_video() const { return has_video_; }
+  bool has_audio() const { return microphone_requested_; }
+  bool has_video() const { return webcam_requested_; }
   const std::string& GetSecurityOriginSpec() const;
   void Accept(bool update_content_setting);
   void Deny(bool update_content_setting);
 
  private:
-  // Returns true if audio capture is disabled by policy.
-  bool IsAudioDeviceBlockedByPolicy() const;
+  enum DevicePolicy {
+    POLICY_NOT_SET,
+    ALWAYS_DENY,
+    ALWAYS_ALLOW,
+  };
 
-  // Returns true if video capture is disabled by policy.
-  bool IsVideoDeviceBlockedByPolicy() const;
+  // Called by GetAudioDevicePolicy and GetVideoDevicePolicy to check
+  // the currently set capture device policy.
+  DevicePolicy GetDevicePolicy(const char* policy_name) const;
 
   // Returns true if the origin of the request has been granted the media
   // access before, otherwise returns false.
@@ -87,8 +91,10 @@ class MediaStreamDevicesController {
   // audio/video devices was granted or not.
   content::MediaResponseCallback callback_;
 
-  bool has_audio_;
-  bool has_video_;
+  bool microphone_requested_;
+  bool webcam_requested_;
+  bool screen_capture_requested_;
+
   DISALLOW_COPY_AND_ASSIGN(MediaStreamDevicesController);
 };
 

@@ -172,7 +172,7 @@ DictionaryValue* TabNavigationToValue(
   SET_ENUM(page_transition, GetPageTransitionString);
   SET_ENUM(redirect_type, GetPageTransitionRedirectTypeString);
   SET_INT32(unique_id);
-  SET_INT64(timestamp);
+  SET_INT64(timestamp_msec);
   SET_BOOL(navigation_forward_back);
   SET_BOOL(navigation_from_address_bar);
   SET_BOOL(navigation_home_page);
@@ -212,6 +212,8 @@ base::DictionaryValue* GlobalIdDirectiveToValue(
     const sync_pb::GlobalIdDirective& proto) {
   DictionaryValue* value = new DictionaryValue();
   SET_INT64_REP(global_id);
+  SET_INT64(start_time_usec);
+  SET_INT64(end_time_usec);
   return value;
 }
 

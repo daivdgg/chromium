@@ -30,7 +30,6 @@ const char kOnExtensionUninstalled[] = "management.onUninstalled";
 const char kOnExtensionEnabled[] = "management.onEnabled";
 const char kOnExtensionDisabled[] = "management.onDisabled";
 
-const char kOnFileBrowserDiskChanged[] = "fileBrowserPrivate.onDiskChanged";
 const char kOnDirectoryChanged[] = "fileBrowserPrivate.onDirectoryChanged";
 const char kOnFileBrowserMountCompleted[] =
     "fileBrowserPrivate.onMountCompleted";
@@ -40,8 +39,8 @@ const char kOnDocumentFeedFetched[] =
     "fileBrowserPrivate.onDocumentFeedFetched";
 const char kOnFileBrowserPreferencesChanged[] =
     "fileBrowserPrivate.onPreferencesChanged";
-const char kOnFileBrowserNetworkConnectionChanged[] =
-    "fileBrowserPrivate.onNetworkConnectionChanged";
+const char kOnFileBrowserDriveConnectionStatusChanged[] =
+    "fileBrowserPrivate.onDriveConnectionStatusChanged";
 
 const char kOnInputMethodChanged[] = "inputMethodPrivate.onChanged";
 

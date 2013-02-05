@@ -114,6 +114,8 @@
       'test/layer_test_common.h',
       'test/layer_tree_test_common.cc',
       'test/layer_tree_test_common.h',
+      'test/layer_tree_json_parser.cc',
+      'test/layer_tree_json_parser.h',
       'test/mock_quad_culler.cc',
       'test/mock_quad_culler.h',
       'test/occlusion_tracker_test_common.h',
@@ -161,6 +163,15 @@
         ['OS == "android" and gtest_target_type == "shared_library"', {
           'dependencies': [
             '../testing/android/native_test.gyp:native_test_native_code',
+          ],
+        }],
+        [ 'os_posix == 1 and OS != "mac" and OS != "android" and OS != "ios"', {
+          'conditions': [
+            [ 'linux_use_tcmalloc==1', {
+              'dependencies': [
+                '../base/allocator/allocator.gyp:allocator',
+              ],
+            }],
           ],
         }],
       ],

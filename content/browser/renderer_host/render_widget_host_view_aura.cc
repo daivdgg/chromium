@@ -689,15 +689,13 @@ void RenderWidgetHostViewAura::SelectionChanged(const string16& text,
 }
 
 void RenderWidgetHostViewAura::SelectionBoundsChanged(
-    const gfx::Rect& start_rect,
-    WebKit::WebTextDirection start_direction,
-    const gfx::Rect& end_rect,
-    WebKit::WebTextDirection end_direction) {
-  if (selection_start_rect_ == start_rect && selection_end_rect_ == end_rect)
+    const ViewHostMsg_SelectionBounds_Params& params) {
+  if (selection_anchor_rect_ == params.anchor_rect &&
+      selection_focus_rect_ == params.focus_rect)
     return;
 
-  selection_start_rect_ = start_rect;
-  selection_end_rect_ = end_rect;
+  selection_anchor_rect_ = params.anchor_rect;
+  selection_focus_rect_ = params.focus_rect;
 
   if (GetInputMethod())
     GetInputMethod()->OnCaretBoundsChanged(this);
@@ -1032,6 +1030,16 @@ void RenderWidgetHostViewAura::SetBackground(const SkBitmap& background) {
   window_->layer()->SetFillsBoundsOpaquely(background.isOpaque());
 }
 
+void RenderWidgetHostViewAura::ScrollOffsetChanged() {
+  aura::RootWindow* root = window_->GetRootWindow();
+  if (!root)
+    return;
+  aura::client::CursorClient* cursor_client =
+      aura::client::GetCursorClient(root);
+  if (cursor_client && !cursor_client->IsCursorVisible())
+    cursor_client->DisableMouseEvents();
+}
+
 void RenderWidgetHostViewAura::GetScreenInfo(WebScreenInfo* results) {
   GetScreenInfoForWindow(results, window_->GetRootWindow() ? window_ : NULL);
 }
@@ -1091,7 +1099,7 @@ bool RenderWidgetHostViewAura::LockMouse() {
   aura::client::CursorClient* cursor_client =
       aura::client::GetCursorClient(root_window);
   if (cursor_client)
-    cursor_client->DisableMouseEvents();
+    cursor_client->HideCursor();
   synthetic_move_sent_ = true;
   window_->MoveCursorTo(gfx::Rect(window_->bounds().size()).CenterPoint());
   if (aura::client::GetTooltipClient(root_window))
@@ -1111,7 +1119,7 @@ void RenderWidgetHostViewAura::UnlockMouse() {
   aura::client::CursorClient* cursor_client =
       aura::client::GetCursorClient(root_window);
   if (cursor_client)
-    cursor_client->EnableMouseEvents();
+    cursor_client->ShowCursor();
   if (aura::client::GetTooltipClient(root_window))
     aura::client::GetTooltipClient(root_window)->SetTooltipsEnabled(true);
 
@@ -1212,7 +1220,7 @@ gfx::Rect RenderWidgetHostViewAura::ConvertRectToScreen(const gfx::Rect& rect) {
 
 gfx::Rect RenderWidgetHostViewAura::GetCaretBounds() {
   const gfx::Rect rect =
-      gfx::UnionRects(selection_start_rect_, selection_end_rect_);
+      gfx::UnionRects(selection_anchor_rect_, selection_focus_rect_);
   return ConvertRectToScreen(rect);
 }
 

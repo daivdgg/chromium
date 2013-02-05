@@ -94,7 +94,7 @@
 #include "ui/views/focus/focus_manager_factory.h"
 #include "ui/views/widget/native_widget_aura.h"
 #include "ui/views/widget/widget.h"
-#include "ui/views/window/dialog_frame_view.h"
+#include "ui/views/window/dialog_delegate.h"
 
 #if !defined(OS_MACOSX)
 #include "ash/accelerators/accelerator_controller.h"
@@ -582,12 +582,14 @@ void Shell::Init() {
   user_wallpaper_delegate_->InitializeWallpaper();
 
   if (initially_hide_cursor_)
-    cursor_manager_.DisableMouseEvents();
+    cursor_manager_.HideCursor();
   cursor_manager_.SetCursor(ui::kCursorPointer);
 
-  // Cursor might have been hidden by somethign other than chrome.
-  // Let the first mouse event show the cursor.
-  env_filter_->set_cursor_hidden_by_filter(true);
+  if (!cursor_manager_.IsCursorVisible()) {
+    // Cursor might have been hidden by something other than chrome.
+    // Let the first mouse event show the cursor.
+    env_filter_->set_cursor_hidden_by_filter(true);
+  }
 }
 
 void Shell::ShowContextMenu(const gfx::Point& location_in_screen) {
@@ -657,10 +659,8 @@ bool Shell::IsSystemModalWindowOpen() const {
 
 views::NonClientFrameView* Shell::CreateDefaultNonClientFrameView(
     views::Widget* widget) {
-  if (CommandLine::ForCurrentProcess()->HasSwitch(
-          ::switches::kEnableNewDialogStyle)) {
-    return new views::DialogFrameView(string16());
-  }
+  if (views::DialogDelegate::UseNewStyle())
+    return views::DialogDelegate::CreateNewStyleFrameView(widget);
   // Use translucent-style window frames for dialogs.
   CustomFrameViewAsh* frame_view = new CustomFrameViewAsh;
   frame_view->Init(widget);

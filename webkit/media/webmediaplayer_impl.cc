@@ -187,24 +187,25 @@ WebMediaPlayerImpl::WebMediaPlayerImpl(
   }
 
   // Create default video renderer.
-  scoped_refptr<media::VideoRendererBase> video_renderer =
+  scoped_ptr<media::VideoRenderer> video_renderer(
       new media::VideoRendererBase(
           media_thread_.message_loop_proxy(),
           set_decryptor_ready_cb,
-          base::Bind(&WebMediaPlayerProxy::Repaint, proxy_),
+          base::Bind(&WebMediaPlayerProxy::FrameReady, proxy_),
           BIND_TO_RENDER_LOOP(&WebMediaPlayerImpl::SetOpaque),
-          true);
-  filter_collection_->AddVideoRenderer(video_renderer);
-  proxy_->set_frame_provider(video_renderer);
+          true));
+  filter_collection_->SetVideoRenderer(video_renderer.Pass());
 
   // Create default audio renderer using the null sink if no sink was provided.
   audio_source_provider_ = new WebAudioSourceProviderImpl(
       params.audio_renderer_sink() ? params.audio_renderer_sink() :
       new media::NullAudioSink());
-  filter_collection_->AddAudioRenderer(new media::AudioRendererImpl(
-      media_thread_.message_loop_proxy(),
-      audio_source_provider_,
-      set_decryptor_ready_cb));
+  scoped_ptr<media::AudioRenderer> audio_renderer(
+      new media::AudioRendererImpl(
+        media_thread_.message_loop_proxy(),
+        audio_source_provider_,
+        set_decryptor_ready_cb));
+  filter_collection_->SetAudioRenderer(audio_renderer.Pass());
 }
 
 WebMediaPlayerImpl::~WebMediaPlayerImpl() {
@@ -537,6 +538,11 @@ const WebKit::WebTimeRanges& WebMediaPlayerImpl::buffered() {
 float WebMediaPlayerImpl::maxTimeSeekable() const {
   DCHECK_EQ(main_loop_, MessageLoop::current());
 
+  // If we haven't even gotten to ReadyStateHaveMetadata yet then just
+  // return 0 so that the seekable range is empty.
+  if (ready_state_ < WebMediaPlayer::ReadyStateHaveMetadata)
+    return 0.0f;
+
   // We don't support seeking in streaming media.
   if (proxy_ && proxy_->data_source() && proxy_->data_source()->IsStreaming())
     return 0.0f;
@@ -645,13 +651,7 @@ void WebMediaPlayerImpl::putCurrentFrame(
     DCHECK(frame_->view()->isAcceleratedCompositingActive());
     UMA_HISTOGRAM_BOOLEAN("Media.AcceleratedCompositingActive", true);
   }
-  if (web_video_frame) {
-    WebVideoFrameImpl* impl = static_cast<WebVideoFrameImpl*>(web_video_frame);
-    proxy_->PutCurrentFrame(impl->video_frame);
-    delete web_video_frame;
-  } else {
-    proxy_->PutCurrentFrame(NULL);
-  }
+  delete web_video_frame;
 }
 
 #define COMPILE_ASSERT_MATCHING_STATUS_ENUM(webkit_name, chromium_name) \

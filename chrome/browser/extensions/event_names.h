@@ -37,13 +37,12 @@ extern const char kOnExtensionEnabled[];
 extern const char kOnExtensionDisabled[];
 
 // FileBrowser.
-extern const char kOnFileBrowserDiskChanged[];
 extern const char kOnDirectoryChanged[];
 extern const char kOnFileBrowserMountCompleted[];
 extern const char kOnFileTransfersUpdated[];
 extern const char kOnDocumentFeedFetched[];
 extern const char kOnFileBrowserPreferencesChanged[];
-extern const char kOnFileBrowserNetworkConnectionChanged[];
+extern const char kOnFileBrowserDriveConnectionStatusChanged[];
 
 // InputMethod.
 extern const char kOnInputMethodChanged[];

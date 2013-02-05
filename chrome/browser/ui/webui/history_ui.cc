@@ -121,6 +121,7 @@ content::WebUIDataSource* CreateHistoryUIHTMLSource() {
   source->AddLocalizedString("searchbutton", IDS_HISTORY_SEARCH_BUTTON);
   source->AddLocalizedString("nosearchresults", IDS_HISTORY_NO_SEARCH_RESULTS);
   source->AddLocalizedString("noresults", IDS_HISTORY_NO_RESULTS);
+  source->AddLocalizedString("historyinterval", IDS_HISTORY_INTERVAL);
   source->AddLocalizedString("noitems", IDS_HISTORY_NO_ITEMS);
   source->AddLocalizedString("edithistory", IDS_HISTORY_START_EDITING_HISTORY);
   source->AddLocalizedString("doneediting", IDS_HISTORY_STOP_EDITING_HISTORY);
@@ -137,6 +138,11 @@ content::WebUIDataSource* CreateHistoryUIHTMLSource() {
   source->AddLocalizedString("removeFromHistory", IDS_HISTORY_REMOVE_PAGE);
   source->AddLocalizedString("moreFromSite", IDS_HISTORY_MORE_FROM_SITE);
   source->AddLocalizedString("displayfiltersites", IDS_GROUP_BY_DOMAIN_LABEL);
+  source->AddLocalizedString("rangelabel", IDS_HISTORY_RANGE_LABEL);
+  source->AddLocalizedString("rangealltime", IDS_HISTORY_RANGE_ALL_TIME);
+  source->AddLocalizedString("rangeweek", IDS_HISTORY_RANGE_WEEK);
+  source->AddLocalizedString("rangemonth", IDS_HISTORY_RANGE_MONTH);
+  source->AddLocalizedString("rangetoday", IDS_HISTORY_RANGE_TODAY);
   source->AddLocalizedString("numbervisits", IDS_HISTORY_NUMBER_VISITS);
   source->AddBoolean("groupByDomain",
       CommandLine::ForCurrentProcess()->HasSwitch(
@@ -148,6 +154,31 @@ content::WebUIDataSource* CreateHistoryUIHTMLSource() {
   source->DisableDenyXFrameOptions();
 
   return source;
+}
+
+// Returns a localized version of |visit_time| including a relative
+// indicator (e.g. today, yesterday).
+string16 getRelativeDateLocalized(const base::Time& visit_time) {
+  base::Time midnight = base::Time::Now().LocalMidnight();
+  string16 date_str = TimeFormat::RelativeDate(visit_time, &midnight);
+  if (date_str.empty()) {
+    date_str = base::TimeFormatFriendlyDate(visit_time);
+  } else {
+    date_str = l10n_util::GetStringFUTF16(
+        IDS_HISTORY_DATE_WITH_RELATIVE_TIME,
+        date_str,
+        base::TimeFormatFriendlyDate(visit_time));
+  }
+  return date_str;
+}
+
+// Sets the correct year when substracting months from a date.
+void normalizeMonths(base::Time::Exploded* exploded) {
+  // Decrease a year at a time until we have a proper date.
+  while (exploded->month < 1) {
+    exploded->month += 12;
+    exploded->year--;
+  }
 }
 
 }  // namespace
@@ -243,27 +274,46 @@ void BrowsingHistoryHandler::QueryHistory(
 void BrowsingHistoryHandler::HandleQueryHistory(const ListValue* args) {
   history::QueryOptions options;
 
-  // Parse the arguments from JavaScript. There are three required arguments:
+  // Parse the arguments from JavaScript. There are five required arguments:
   // - the text to search for (may be empty)
+  // - the offset from which the search should start (in multiples of week or
+  //   month, set by the next argument).
+  // - the range (BrowsingHistoryHandler::Range) Enum value that sets the range
+  //   of the query.
   // - the search cursor, an opaque value from a previous query result, which
   //   allows this query to pick up where the previous one left off. May be
   //   null or undefined.
   // - the maximum number of results to return (may be 0, meaning that there
-  //   is no maximum)
+  //   is no maximum).
   string16 search_text = ExtractStringValue(args);
+  int offset;
+  if (!args->GetInteger(1, &offset)) {
+    NOTREACHED() << "Failed to convert argument 1. ";
+    return;
+  }
+  int range;
+  if (!args->GetInteger(2, &range)) {
+    NOTREACHED() << "Failed to convert argument 2. ";
+    return;
+  }
+
+  if (range == BrowsingHistoryHandler::MONTH)
+    SetQueryTimeInMonths(offset, &options);
+  else if (range == BrowsingHistoryHandler::WEEK)
+    SetQueryTimeInWeeks(offset, &options);
 
   const Value* cursor_value;
 
   // Get the cursor. It must be either null, or a list.
-  if (!args->Get(1, &cursor_value) ||
+  if (!args->Get(3, &cursor_value) ||
       (!cursor_value->IsType(Value::TYPE_NULL) &&
       !history::QueryCursor::FromValue(cursor_value, &options.cursor))) {
-    NOTREACHED() << "Failed to convert argument 1. ";
+    NOTREACHED() << "Failed to convert argument 3. ";
     return;
   }
 
-  if (!ExtractIntegerValueAtIndex(args, 2, &options.max_count)) {
-    NOTREACHED() << "Failed to convert argument 2.";
+  if (!ExtractIntegerValueAtIndex(args, 4, &options.max_count)) {
+    NOTREACHED() << "Failed to convert argument 4.";
     return;
   }
 
@@ -355,14 +405,17 @@ DictionaryValue* BrowsingHistoryHandler::CreateQueryResultValue(
   // pass the dates in as strings. This could use some
   // optimization.
 
+  // Always pass the short date since it is needed both in the search and in
+  // the monthly view.
+  result->SetString("dateShort",
+      base::TimeFormatShortDate(visit_time));
   // Only pass in the strings we need (search results need a shortdate
   // and snippet, browse results need day and time information).
   if (is_search_result) {
-    result->SetString("dateShort", base::TimeFormatShortDate(visit_time));
     result->SetString("snippet", snippet);
   } else {
-    base::Time midnight_today = base::Time::Now().LocalMidnight();
-    string16 date_str = TimeFormat::RelativeDate(visit_time, &midnight_today);
+    base::Time midnight = base::Time::Now().LocalMidnight();
+    string16 date_str = TimeFormat::RelativeDate(visit_time, &midnight);
     if (date_str.empty()) {
       date_str = base::TimeFormatFriendlyDate(visit_time);
     } else {
@@ -406,6 +459,18 @@ void BrowsingHistoryHandler::QueryComplete(
   results_info_value_.SetString("term", search_text);
   results_info_value_.SetBoolean("finished", results->reached_beginning());
   results_info_value_.Set("cursor", results->cursor().ToValue());
+  // Add the specific dates that were searched to display them.
+  // TODO(sergiu): Put today if the start is in the future.
+  results_info_value_.SetString("queryStartTime",
+                                getRelativeDateLocalized(options.begin_time));
+  if (!options.end_time.is_null()) {
+    results_info_value_.SetString("queryEndTime",
+        getRelativeDateLocalized(options.end_time -
+                                 base::TimeDelta::FromDays(1)));
+  } else {
+    results_info_value_.SetString("queryEndTime",
+        getRelativeDateLocalized(base::Time::Now()));
+  }
 
   // The results are sorted if and only if they were empty before.
   results_info_value_.SetBoolean("sorted", old_results_count == 0);
@@ -489,6 +554,50 @@ void BrowsingHistoryHandler::RemoveWebHistoryComplete(
   // Notify the page that the deletion request is complete.
   base::FundamentalValue success_value(success);
   web_ui()->CallJavascriptFunction("webHistoryDeleteComplete", success_value);
+}
+
+void BrowsingHistoryHandler::SetQueryTimeInWeeks(
+    int offset, history::QueryOptions* options) {
+  // LocalMidnight returns the beginning of the current day so get the
+  // beginning of the next one.
+  base::Time midnight = base::Time::Now().LocalMidnight() +
+                              base::TimeDelta::FromDays(1);
+  options->end_time = midnight -
+      base::TimeDelta::FromDays(7 * offset);
+  options->begin_time = midnight -
+      base::TimeDelta::FromDays(7 * (offset + 1));
+}
+
+void BrowsingHistoryHandler::SetQueryTimeInMonths(
+    int offset, history::QueryOptions* options) {
+  // Configure the begin point of the search to the start of the
+  // current month.
+  base::Time::Exploded exploded;
+  base::Time::Now().LocalMidnight().LocalExplode(&exploded);
+  exploded.day_of_month = 1;
+
+  if (offset == 0) {
+    options->begin_time = base::Time::FromLocalExploded(exploded);
+
+    // Set the end time of this first search to null (which will
+    // show results from the future, should the user's clock have
+    // been set incorrectly).
+    options->end_time = base::Time();
+  } else {
+    // Go back |offset| months in the past. The end time is not inclusive, so
+    // use the first day of the |offset| - 1 and |offset| months (e.g. for
+    // the last month, |offset| = 1, use the first days of the last month and
+    // the current month.
+    exploded.month -= offset - 1;
+    // Set the correct year.
+    normalizeMonths(&exploded);
+    options->end_time = base::Time::FromLocalExploded(exploded);
+
+    exploded.month -= 1;
+    // Set the correct year
+    normalizeMonths(&exploded);
+    options->begin_time = base::Time::FromLocalExploded(exploded);
+  }
 }
 
 // Helper function for Observe that determines if there are any differences

@@ -109,6 +109,23 @@ const char kFileError[] = "File error %d";
 const char kInvalidFileUrl[] = "Invalid file URL";
 const char kVolumeDevicePathNotFound[] = "Device path not found";
 
+/**
+ * List of connection types of drive.
+ *
+ * Keep this in sync with the DriveConnectionType in file_manager.js.
+ */
+const char kDriveConnectionTypeOffline[] = "offline";
+const char kDriveConnectionTypeMetered[] = "metered";
+const char kDriveConnectionTypeOnline[] = "online";
+
+/**
+ * List of reasons of kDriveConnectionType*.
+ *
+ * Keep this in sync with the DriveConnectionReason in file_manager.js.
+ */
+const char kDriveConnectionReasonNotReady[] = "not_ready";
+const char kDriveConnectionReasonNoNetwork[] = "no_network";
+
 // Unescape rules used for parsing query parameters.
 const net::UnescapeRule::Type kUnescapeRuleForQueryParameters =
     net::UnescapeRule::SPACES |
@@ -264,6 +281,7 @@ GURL FindPreferredIcon(const InstalledApp::IconList& icons,
   return result;
 }
 
+#if defined(ENABLE_WEB_INTENTS)
 // Finds the title of the given Web Intents |action|, if the passed extension
 // supports this action for all specified |mime_types|. Returns true and
 // provides the |title| as output on success.
@@ -303,6 +321,7 @@ bool FindTitleForActionWithTypes(
   *title = found_title;
   return true;
 }
+#endif  // defined(ENABLE_WEB_INTENTS)
 
 // Retrieves total and remaining available size on |mount_path|.
 void GetSizeStatsOnFileThread(const std::string& mount_path,
@@ -587,7 +606,7 @@ FileBrowserPrivateAPI::FileBrowserPrivateAPI(Profile* profile)
     : event_router_(make_scoped_refptr(new FileBrowserEventRouter(profile))) {
   extensions::ManifestHandler::Register(
       extension_manifest_keys::kFileBrowserHandlers,
-      new FileBrowserHandlerParser);
+      make_linked_ptr(new FileBrowserHandlerParser));
 
   ExtensionFunctionRegistry* registry =
       ExtensionFunctionRegistry::GetInstance();
@@ -622,7 +641,7 @@ FileBrowserPrivateAPI::FileBrowserPrivateAPI(Profile* profile)
   registry->RegisterFunction<SearchDriveFunction>();
   registry->RegisterFunction<ClearDriveCacheFunction>();
   registry->RegisterFunction<ReloadDriveFunction>();
-  registry->RegisterFunction<GetNetworkConnectionStateFunction>();
+  registry->RegisterFunction<GetDriveConnectionStateFunction>();
   registry->RegisterFunction<RequestDirectoryRefreshFunction>();
   registry->RegisterFunction<SetLastModifiedFunction>();
   registry->RegisterFunction<ZipSelectionFunction>();
@@ -978,6 +997,7 @@ bool GetFileTasksFileBrowserFunction::FindAppTasks(
   return true;
 }
 
+#if defined(ENABLE_WEB_INTENTS)
 // Find Web Intent platform apps that support the View task, and add them to
 // the |result_list|. These will be marked as kTaskWebIntent.
 bool GetFileTasksFileBrowserFunction::FindWebIntentTasks(
@@ -1029,6 +1049,7 @@ bool GetFileTasksFileBrowserFunction::FindWebIntentTasks(
 
   return true;
 }
+#endif  // defined(ENABLE_WEB_INTENTS)
 
 bool GetFileTasksFileBrowserFunction::RunImpl() {
   // First argument is the list of files to get tasks for.
@@ -1145,10 +1166,12 @@ bool GetFileTasksFileBrowserFunction::RunImpl() {
   if (!FindAppTasks(file_paths, result_list))
     return false;
 
+#if defined(ENABLE_WEB_INTENTS)
   // TODO(benwells): remove the web intents tasks once we no longer support
   // them.
   if (!FindWebIntentTasks(file_paths, result_list))
     return false;
+#endif
 
   if (VLOG_IS_ON(1)) {
     std::string result_json;
@@ -3033,7 +3056,7 @@ bool ReloadDriveFunction::RunImpl() {
   return true;
 }
 
-bool GetNetworkConnectionStateFunction::RunImpl() {
+bool GetDriveConnectionStateFunction::RunImpl() {
   chromeos::NetworkLibrary* network_library =
       chromeos::CrosLibrary::Get()->GetNetworkLibrary();
   if (!network_library)
@@ -3042,17 +3065,28 @@ bool GetNetworkConnectionStateFunction::RunImpl() {
   const chromeos::Network* active_network = network_library->active_network();
 
   scoped_ptr<DictionaryValue> value(new DictionaryValue());
-  value->SetBoolean("online", active_network && active_network->online());
+  scoped_ptr<ListValue> reasons(new ListValue());
 
   std::string type_string;
-  if (!active_network)
-    type_string = "none";
-  else if (active_network->type() == chromeos::TYPE_CELLULAR)
-    type_string = "cellular";
-  else
-    type_string = "ethernet";  // Currently we do not care about other types.
+  drive::DriveSystemService* system_service =
+      drive::DriveSystemServiceFactory::GetForProfile(profile_);
+
+  bool ready = system_service->drive_service()->CanStartOperation();
+  if (!active_network || !ready) {
+    type_string = kDriveConnectionTypeOnline;
+    if (!active_network)
+      reasons->AppendString(kDriveConnectionReasonNoNetwork);
+    if (!ready)
+      reasons->AppendString(kDriveConnectionReasonNotReady);
+  } else if (active_network->type() == chromeos::TYPE_CELLULAR &&
+      profile_->GetPrefs()->GetBoolean(prefs::kDisableDriveOverCellular)) {
+    type_string = kDriveConnectionTypeMetered;
+  } else {
+    type_string = kDriveConnectionTypeOffline;
+  }
 
   value->SetString("type", type_string);
+  value->Set("reasons", reasons.release());
   SetResult(value.release());
 
   return true;

@@ -36,6 +36,7 @@ struct MediaPlayerAction;
 struct ViewHostMsg_CreateWindow_Params;
 struct ViewHostMsg_DidFailProvisionalLoadWithError_Params;
 struct ViewHostMsg_OpenURL_Params;
+struct ViewHostMsg_SelectionBounds_Params;
 struct ViewHostMsg_ShowPopup_Params;
 struct ViewMsg_Navigate_Params;
 struct ViewMsg_PostMessage_Params;
@@ -495,6 +496,7 @@ class CONTENT_EXPORT RenderViewHostImpl
   void OnToggleFullscreen(bool enter_fullscreen);
   void OnOpenURL(const ViewHostMsg_OpenURL_Params& params);
   void OnDidContentsPreferredSizeChange(const gfx::Size& new_size);
+  void OnDidChangeScrollOffset();
   void OnDidChangeScrollbarsForMainFrame(bool has_horizontal_scrollbar,
                                          bool has_vertical_scrollbar);
   void OnDidChangeScrollOffsetPinningForMainFrame(bool is_pinned_to_left,
@@ -503,10 +505,8 @@ class CONTENT_EXPORT RenderViewHostImpl
   void OnSelectionChanged(const string16& text,
                           size_t offset,
                           const ui::Range& range);
-  void OnSelectionBoundsChanged(const gfx::Rect& start_rect,
-                                WebKit::WebTextDirection start_direction,
-                                const gfx::Rect& end_rect,
-                                WebKit::WebTextDirection end_direction);
+  void OnSelectionBoundsChanged(
+      const ViewHostMsg_SelectionBounds_Params& params);
   void OnPasteFromSelectionClipboard();
   void OnRouteCloseEvent();
   void OnRouteMessageEvent(const ViewMsg_PostMessage_Params& params);

@@ -211,7 +211,7 @@ PipelineIntegrationTestBase::CreateFilterCollection(
   collection->GetVideoDecoders()->push_back(vpx_decoder);
 
   // Disable frame dropping if hashing is enabled.
-  renderer_ = new VideoRendererBase(
+  scoped_ptr<VideoRenderer> renderer(new VideoRendererBase(
       message_loop_.message_loop_proxy(),
       base::Bind(&PipelineIntegrationTestBase::SetDecryptor,
                  base::Unretained(this), decryptor),
@@ -219,20 +219,23 @@ PipelineIntegrationTestBase::CreateFilterCollection(
                  base::Unretained(this)),
       base::Bind(&PipelineIntegrationTestBase::OnSetOpaque,
                  base::Unretained(this)),
-      !hashing_enabled_);
-  collection->AddVideoRenderer(renderer_);
+      !hashing_enabled_));
+  collection->SetVideoRenderer(renderer.Pass());
+
   audio_sink_ = new NullAudioSink();
-  if (hashing_enabled_)
-    audio_sink_->StartAudioHashForTesting();
-  scoped_refptr<AudioRendererImpl> audio_renderer(new AudioRendererImpl(
+  AudioRendererImpl* audio_renderer_impl = new AudioRendererImpl(
       message_loop_.message_loop_proxy(),
       audio_sink_,
       base::Bind(&PipelineIntegrationTestBase::SetDecryptor,
-                 base::Unretained(this), decryptor)));
+                 base::Unretained(this), decryptor));
   // Disable underflow if hashing is enabled.
-  if (hashing_enabled_)
-    audio_renderer->DisableUnderflowForTesting();
-  collection->AddAudioRenderer(audio_renderer);
+  if (hashing_enabled_) {
+    audio_sink_->StartAudioHashForTesting();
+    audio_renderer_impl->DisableUnderflowForTesting();
+  }
+  scoped_ptr<AudioRenderer> audio_renderer(audio_renderer_impl);
+  collection->SetAudioRenderer(audio_renderer.Pass());
+
   return collection.Pass();
 }
 
@@ -242,14 +245,11 @@ void PipelineIntegrationTestBase::SetDecryptor(
   decryptor_ready_cb.Run(decryptor);
 }
 
-void PipelineIntegrationTestBase::OnVideoRendererPaint() {
+void PipelineIntegrationTestBase::OnVideoRendererPaint(
+    const scoped_refptr<VideoFrame>& frame) {
   if (!hashing_enabled_)
     return;
-  scoped_refptr<VideoFrame> frame;
-  renderer_->GetCurrentFrame(&frame);
-  if (frame)
-    frame->HashFrameForTesting(&md5_context_);
-  renderer_->PutCurrentFrame(frame);
+  frame->HashFrameForTesting(&md5_context_);
 }
 
 std::string PipelineIntegrationTestBase::GetVideoHash() {

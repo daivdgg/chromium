@@ -186,7 +186,10 @@ void PluginServiceImpl::StartWatchingPlugins() {
                        KEY_NOTIFY) == ERROR_SUCCESS) {
     if (hkcu_key_.StartWatching() == ERROR_SUCCESS) {
       hkcu_event_.reset(new base::WaitableEvent(hkcu_key_.watch_event()));
-      hkcu_watcher_.StartWatching(hkcu_event_.get(), this);
+      base::WaitableEventWatcher::EventCallback callback =
+            base::Bind(&PluginServiceImpl::OnWaitableEventSignaled,
+                       base::Unretained(this));
+      hkcu_watcher_.StartWatching(hkcu_event_.get(), callback);
     }
   }
   if (hklm_key_.Create(HKEY_LOCAL_MACHINE,
@@ -194,7 +197,10 @@ void PluginServiceImpl::StartWatchingPlugins() {
                        KEY_NOTIFY) == ERROR_SUCCESS) {
     if (hklm_key_.StartWatching() == ERROR_SUCCESS) {
       hklm_event_.reset(new base::WaitableEvent(hklm_key_.watch_event()));
-      hklm_watcher_.StartWatching(hklm_event_.get(), this);
+      base::WaitableEventWatcher::EventCallback callback =
+            base::Bind(&PluginServiceImpl::OnWaitableEventSignaled,
+                       base::Unretained(this));
+      hklm_watcher_.StartWatching(hklm_event_.get(), callback);
     }
   }
 #endif
@@ -483,12 +489,12 @@ bool PluginServiceImpl::GetPluginInfo(int render_process_id,
     *is_stale = stale;
 
   for (size_t i = 0; i < plugins.size(); ++i) {
-    if (!filter_ || filter_->IsPluginEnabled(render_process_id,
-                                             render_view_id,
-                                             context,
-                                             url,
-                                             page_url,
-                                             &plugins[i])) {
+    if (!filter_ || filter_->IsPluginAvailable(render_process_id,
+                                               render_view_id,
+                                               context,
+                                               url,
+                                               page_url,
+                                               &plugins[i])) {
       *info = plugins[i];
       if (actual_mime_type)
         *actual_mime_type = mime_types[i];

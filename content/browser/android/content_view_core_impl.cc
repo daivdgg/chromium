@@ -122,6 +122,18 @@ class ContentViewCoreImpl::ContentViewUserData
 struct ContentViewCoreImpl::JavaObject {
   ScopedJavaGlobalRef<jclass> rect_clazz;
   jmethodID rect_constructor;
+  ScopedJavaLocalRef<jobject> CreateJavaRect(
+      JNIEnv* env,
+      const gfx::Rect& rect,
+      float scale) {
+    return ScopedJavaLocalRef<jobject>(
+        env, env->NewObject(rect_clazz.obj(),
+                            rect_constructor,
+                            static_cast<int>(rect.x() * scale),
+                            static_cast<int>(rect.y() * scale),
+                            static_cast<int>(rect.right() * scale),
+                            static_cast<int>(rect.bottom() * scale)));
+  }
 };
 
 // static
@@ -508,31 +520,20 @@ void ContentViewCoreImpl::OnSelectionChanged(const std::string& text) {
 }
 
 void ContentViewCoreImpl::OnSelectionBoundsChanged(
-    const gfx::Rect& start_rect, base::i18n::TextDirection start_dir,
-    const gfx::Rect& end_rect, base::i18n::TextDirection end_dir) {
+    const ViewHostMsg_SelectionBounds_Params& params) {
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jobject> obj = java_ref_.get(env);
   if (obj.is_null())
     return;
-  ScopedJavaLocalRef<jobject> start_rect_object(env,
-      env->NewObject(java_object_->rect_clazz.obj(),
-                     java_object_->rect_constructor,
-                     static_cast<int>(start_rect.x() * DpiScale()),
-                     static_cast<int>(start_rect.y() * DpiScale()),
-                     static_cast<int>(start_rect.right() * DpiScale()),
-                     static_cast<int>(start_rect.bottom() * DpiScale())));
-  ScopedJavaLocalRef<jobject> end_rect_object(env,
-      env->NewObject(java_object_->rect_clazz.obj(),
-                     java_object_->rect_constructor,
-                     static_cast<int>(end_rect.x() * DpiScale()),
-                     static_cast<int>(end_rect.y() * DpiScale()),
-                     static_cast<int>(end_rect.right() * DpiScale()),
-                     static_cast<int>(end_rect.bottom() * DpiScale())));
+  ScopedJavaLocalRef<jobject> anchor_rect(
+      java_object_->CreateJavaRect(env, params.anchor_rect, DpiScale()));
+  ScopedJavaLocalRef<jobject> focus_rect(
+      java_object_->CreateJavaRect(env, params.focus_rect, DpiScale()));
   Java_ContentViewCore_onSelectionBoundsChanged(env, obj.obj(),
-                                                start_rect_object.obj(),
-                                                start_dir,
-                                                end_rect_object.obj(),
-                                                end_dir);
+                                                anchor_rect.obj(),
+                                                params.anchor_dir,
+                                                focus_rect.obj(),
+                                                params.focus_dir);
 }
 
 void ContentViewCoreImpl::ShowPastePopup(int x, int y) {
@@ -1257,17 +1258,15 @@ void ContentViewCoreImpl::UndoScrollFocusedEditableNodeIntoView(
 }
 
 namespace {
-void JavaScriptResultCallback(ScopedJavaGlobalRef<jobject>* callback,
+void JavaScriptResultCallback(const ScopedJavaGlobalRef<jobject>& callback,
                               const base::Value* result) {
-  // |callback| is passed as base::Owned, so it will automatically be deleted
-  // when this base::Callback goes out of scope.
   JNIEnv* env = base::android::AttachCurrentThread();
   std::string json;
   base::JSONWriter::Write(result, &json);
   ScopedJavaLocalRef<jstring> j_json = ConvertUTF8ToJavaString(env, json);
   Java_ContentViewCore_onEvaluateJavaScriptResult(env,
                                                   j_json.obj(),
-                                                  callback->obj());
+                                                  callback.obj());
 }
 }  // namespace
 
@@ -1287,10 +1286,10 @@ void ContentViewCoreImpl::EvaluateJavaScript(JNIEnv* env,
 
   // Secure the Java callback in a scoped object and give ownership of it to the
   // base::Callback.
-  ScopedJavaGlobalRef<jobject>* j_callback = new ScopedJavaGlobalRef<jobject>();
-  j_callback->Reset(env, callback);
+  ScopedJavaGlobalRef<jobject> j_callback;
+  j_callback.Reset(env, callback);
   content::RenderViewHost::JavascriptResultCallback c_callback =
-      base::Bind(&JavaScriptResultCallback, base::Owned(j_callback));
+      base::Bind(&JavaScriptResultCallback, j_callback);
 
   host->ExecuteJavascriptInWebFrameCallbackResult(
       string16(),  // frame_xpath

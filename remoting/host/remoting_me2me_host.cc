@@ -4,6 +4,8 @@
 //
 // This file implements a standalone host process for Me2Me.
 
+#include "remoting/host/remoting_me2me_host.h"
+
 #include <string>
 
 #include "base/at_exit.h"
@@ -12,6 +14,7 @@
 #include "base/command_line.h"
 #include "base/file_path.h"
 #include "base/file_util.h"
+#include "base/logging.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/message_loop.h"
 #include "base/scoped_native_library.h"
@@ -60,6 +63,7 @@
 #include "remoting/host/network_settings.h"
 #include "remoting/host/policy_hack/policy_watcher.h"
 #include "remoting/host/resizing_host_observer.h"
+#include "remoting/host/service_urls.h"
 #include "remoting/host/session_manager_factory.h"
 #include "remoting/host/signaling_connector.h"
 #include "remoting/host/ui_strings.h"
@@ -272,6 +276,10 @@ class HostProcess
   // Accessed on the UI thread.
   scoped_ptr<IPC::ChannelProxy> daemon_channel_;
 
+  // XMPP server/remoting bot configuration (initialized from the command line).
+  XmppSignalStrategy::XmppServerConfig xmpp_server_config_;
+  std::string directory_bot_jid_;
+
   // Created on the UI thread but used from the network thread.
   base::FilePath host_config_path_;
   scoped_ptr<DesktopEnvironmentFactory> desktop_environment_factory_;
@@ -409,6 +417,17 @@ bool HostProcess::InitWithCommandLine(const CommandLine* cmd_line) {
   }
 #endif  // !defined(REMOTING_MULTI_PROCESS)
 
+  ServiceUrls* service_urls = ServiceUrls::GetInstance();
+  bool xmpp_server_valid = net::ParseHostAndPort(
+      service_urls->xmpp_server_address(),
+      &xmpp_server_config_.host, &xmpp_server_config_.port);
+  if (!xmpp_server_valid) {
+    LOG(ERROR) << "Invalid XMPP server: " <<
+        service_urls->xmpp_server_address();
+    return false;
+  }
+  xmpp_server_config_.use_tls = service_urls->xmpp_server_use_tls();
+  directory_bot_jid_ = service_urls->directory_bot_jid();
   return true;
 }
 
@@ -864,7 +883,7 @@ void HostProcess::StartHost() {
   signal_strategy_.reset(
       new XmppSignalStrategy(context_->url_request_context_getter(),
                              xmpp_login_, xmpp_auth_token_,
-                             xmpp_auth_service_));
+                             xmpp_auth_service_, xmpp_server_config_));
 
   scoped_ptr<DnsBlackholeChecker> dns_blackhole_checker(
       new DnsBlackholeChecker(context_->url_request_context_getter(),
@@ -910,13 +929,14 @@ void HostProcess::StartHost() {
 #endif
 
   heartbeat_sender_.reset(new HeartbeatSender(
-      this, host_id_, signal_strategy_.get(), &key_pair_));
+      this, host_id_, signal_strategy_.get(), &key_pair_, directory_bot_jid_));
 
   host_change_notification_listener_.reset(new HostChangeNotificationListener(
-      this, host_id_, signal_strategy_.get()));
+      this, host_id_, signal_strategy_.get(), directory_bot_jid_));
 
   log_to_server_.reset(
-      new LogToServer(host_, ServerLogEntry::ME2ME, signal_strategy_.get()));
+      new LogToServer(host_, ServerLogEntry::ME2ME, signal_strategy_.get(),
+                      directory_bot_jid_));
   host_event_logger_ = HostEventLogger::Create(host_, kApplicationName);
 
   resizing_host_observer_.reset(
@@ -1047,9 +1067,7 @@ void HostProcess::OnCrash(const std::string& function_name,
   CHECK(false);
 }
 
-}  // namespace remoting
-
-int main(int argc, char** argv) {
+int HostProcessMain(int argc, char** argv) {
 #if defined(OS_MACOSX)
   // Needed so we don't leak objects when threads are created.
   base::mac::ScopedNSAutoreleasePool pool;
@@ -1057,15 +1075,14 @@ int main(int argc, char** argv) {
 
   CommandLine::Init(argc, argv);
 
-  // Initialize Breakpad as early as possible. On Windows, this happens in
-  // WinMain(), so it shouldn't also be done here. The command-line needs to be
-  // initialized first, so that the preference for crash-reporting can be looked
-  // up in the config file.
-#if defined(MAC_BREAKPAD)
-  if (remoting::IsUsageStatsAllowed()) {
-    remoting::InitializeCrashReporting();
+  // Initialize Breakpad as early as possible. On Mac the command-line needs to
+  // be initialized first, so that the preference for crash-reporting can be
+  // looked up in the config file.
+#if defined(OFFICIAL_BUILD) && (defined(MAC_BREAKPAD) || defined(OS_WIN))
+  if (IsUsageStatsAllowed()) {
+    InitializeCrashReporting();
   }
-#endif  // MAC_BREAKPAD
+#endif  // defined(OFFICIAL_BUILD) && (defined(MAC_BREAKPAD) || defined(OS_WIN))
 
   // This object instance is required by Chrome code (for example,
   // LazyInstance, MessageLoop).
@@ -1076,7 +1093,29 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  remoting::InitHostLogging();
+  InitHostLogging();
+
+#if defined(OS_WIN)
+  // Register and initialize common controls.
+  INITCOMMONCONTROLSEX info;
+  info.dwSize = sizeof(info);
+  info.dwICC = ICC_STANDARD_CLASSES;
+  InitCommonControlsEx(&info);
+
+  // Mark the process as DPI-aware, so Windows won't scale coordinates in APIs.
+  // N.B. This API exists on Vista and above.
+  if (base::win::GetVersion() >= base::win::VERSION_VISTA) {
+    FilePath path(base::GetNativeLibraryName(UTF8ToUTF16("user32")));
+    base::ScopedNativeLibrary user32(path);
+    CHECK(user32.is_valid());
+
+    typedef BOOL (WINAPI * SetProcessDPIAwareFn)();
+    SetProcessDPIAwareFn set_process_dpi_aware =
+        static_cast<SetProcessDPIAwareFn>(
+            user32.GetFunctionPointer("SetProcessDPIAware"));
+    set_process_dpi_aware();
+  }
+#endif  // defined(OS_WIN)
 
 #if defined(TOOLKIT_GTK)
   // Required for any calls into GTK functions, such as the Disconnect and
@@ -1092,18 +1131,18 @@ int main(int argc, char** argv) {
 
   // Create the main message loop and start helper threads.
   MessageLoop message_loop(MessageLoop::TYPE_UI);
-  scoped_ptr<remoting::ChromotingHostContext> context =
-      remoting::ChromotingHostContext::Create(
-          new remoting::AutoThreadTaskRunner(message_loop.message_loop_proxy(),
-                                             MessageLoop::QuitClosure()));
+  scoped_ptr<ChromotingHostContext> context =
+      ChromotingHostContext::Create(
+          new AutoThreadTaskRunner(message_loop.message_loop_proxy(),
+                                   MessageLoop::QuitClosure()));
   if (!context)
-    return remoting::kInitializationFailed;
+    return kInitializationFailed;
 
   // Create & start the HostProcess using these threads.
   // TODO(wez): The HostProcess holds a reference to itself until Shutdown().
   // Remove this hack as part of the multi-process refactoring.
-  int exit_code = remoting::kSuccessExitCode;
-  new remoting::HostProcess(context.Pass(), &exit_code);
+  int exit_code = kSuccessExitCode;
+  new HostProcess(context.Pass(), &exit_code);
 
   // Run the main (also UI) message loop until the host no longer needs it.
   message_loop.Run();
@@ -1111,44 +1150,10 @@ int main(int argc, char** argv) {
   return exit_code;
 }
 
-#if defined(OS_WIN)
-HMODULE g_hModule = NULL;
+}  // namespace remoting
 
-int CALLBACK WinMain(HINSTANCE instance,
-                     HINSTANCE previous_instance,
-                     LPSTR command_line,
-                     int show_command) {
-#if defined(OFFICIAL_BUILD)
-  if (remoting::IsUsageStatsAllowed()) {
-    remoting::InitializeCrashReporting();
-  }
-#endif  // OFFICIAL_BUILD
-
-  g_hModule = instance;
-
-  // Register and initialize common controls.
-  INITCOMMONCONTROLSEX info;
-  info.dwSize = sizeof(info);
-  info.dwICC = ICC_STANDARD_CLASSES;
-  InitCommonControlsEx(&info);
-
-  // Mark the process as DPI-aware, so Windows won't scale coordinates in APIs.
-  // N.B. This API exists on Vista and above.
-  if (base::win::GetVersion() >= base::win::VERSION_VISTA) {
-    base::FilePath path(base::GetNativeLibraryName(UTF8ToUTF16("user32")));
-    base::ScopedNativeLibrary user32(path);
-    CHECK(user32.is_valid());
-
-    typedef BOOL (WINAPI * SetProcessDPIAwareFn)();
-    SetProcessDPIAwareFn set_process_dpi_aware =
-        static_cast<SetProcessDPIAwareFn>(
-            user32.GetFunctionPointer("SetProcessDPIAware"));
-    set_process_dpi_aware();
-  }
-
-  // CommandLine::Init() ignores the passed |argc| and |argv| on Windows getting
-  // the command line from GetCommandLineW(), so we can safely pass NULL here.
-  return main(0, NULL);
+#if !defined(OS_WIN)
+int main(int argc, char** argv) {
+  return remoting::HostProcessMain(argc, argv);
 }
-
-#endif  // defined(OS_WIN)
+#endif  // !defined(OS_WIN)

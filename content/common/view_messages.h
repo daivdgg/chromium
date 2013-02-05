@@ -358,6 +358,14 @@ IPC_STRUCT_BEGIN(ViewHostMsg_TextInputState_Params)
   IPC_STRUCT_MEMBER(bool, show_ime_if_needed)
 IPC_STRUCT_END()
 
+IPC_STRUCT_BEGIN(ViewHostMsg_SelectionBounds_Params)
+  IPC_STRUCT_MEMBER(gfx::Rect, anchor_rect)
+  IPC_STRUCT_MEMBER(WebKit::WebTextDirection, anchor_dir)
+  IPC_STRUCT_MEMBER(gfx::Rect, focus_rect)
+  IPC_STRUCT_MEMBER(WebKit::WebTextDirection, focus_dir)
+  IPC_STRUCT_MEMBER(bool, is_anchor_first)
+IPC_STRUCT_END()
+
 IPC_STRUCT_BEGIN(ViewHostMsg_CreateWorker_Params)
   // URL for the worker script.
   IPC_STRUCT_MEMBER(GURL, url)
@@ -733,6 +741,11 @@ IPC_SYNC_MESSAGE_CONTROL0_1(ViewHostMsg_GetCPUUsage,
 // Asks the browser for the user's monitor profile.
 IPC_SYNC_MESSAGE_CONTROL0_1(ViewHostMsg_GetMonitorColorProfile,
                             std::vector<char> /* profile */)
+
+// Asks the browser for the renderer process memory size stats.
+IPC_SYNC_MESSAGE_CONTROL0_2(ViewHostMsg_GetProcessMemorySizes,
+                            size_t /* private_bytes */,
+                            size_t /* shared_bytes */)
 
 // Tells the renderer to create a new view.
 // This message is slightly different, the view it takes (via
@@ -1820,6 +1833,12 @@ IPC_MESSAGE_ROUTED1(ViewHostMsg_OpenURL, ViewHostMsg_OpenURL_Params)
 IPC_MESSAGE_ROUTED1(ViewHostMsg_DidContentsPreferredSizeChange,
                     gfx::Size /* pref_size */)
 
+// Notifies that the scroll offset changed.
+// This is different from ViewHostMsg_UpdateRect in that ViewHostMsg_UpdateRect
+// is not sent at all when threaded compositing is enabled while
+// ViewHostMsg_DidChangeScrollOffset works properly in this case.
+IPC_MESSAGE_ROUTED0(ViewHostMsg_DidChangeScrollOffset)
+
 // Notifies that the scrollbars-visible state of the content changed.
 IPC_MESSAGE_ROUTED2(ViewHostMsg_DidChangeScrollOffsetPinningForMainFrame,
                     bool /* has_horizontal_scrollbar */,
@@ -1943,11 +1962,8 @@ IPC_MESSAGE_ROUTED3(ViewHostMsg_SelectionChanged,
                     ui::Range /* selection range in the document */)
 
 // Notification that the selection bounds have changed.
-IPC_MESSAGE_ROUTED4(ViewHostMsg_SelectionBoundsChanged,
-                    gfx::Rect /* start rect */,
-                    WebKit::WebTextDirection /* start text dir */,
-                    gfx::Rect /* end rect */,
-                    WebKit::WebTextDirection /* end text dir */)
+IPC_MESSAGE_ROUTED1(ViewHostMsg_SelectionBoundsChanged,
+                    ViewHostMsg_SelectionBounds_Params)
 
 // Asks the browser to open the color chooser.
 IPC_MESSAGE_ROUTED2(ViewHostMsg_OpenColorChooser,

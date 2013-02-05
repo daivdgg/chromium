@@ -1279,6 +1279,7 @@
         'browser/ui/startup/session_crashed_prompt.h',
         'browser/ui/startup/startup_browser_creator.cc',
         'browser/ui/startup/startup_browser_creator.h',
+        'browser/ui/startup/startup_browser_creator_chromeos.cc',
         'browser/ui/startup/startup_browser_creator_impl.cc',
         'browser/ui/startup/startup_browser_creator_impl.h',
         'browser/ui/startup/startup_browser_creator_win.cc',
@@ -1756,6 +1757,9 @@
         'browser/ui/views/theme_background.h',
         'browser/ui/views/theme_helpers.cc',
         'browser/ui/views/theme_helpers.h',
+        'browser/ui/views/theme_image_mapper.cc',
+        'browser/ui/views/theme_image_mapper.h',
+        'browser/ui/views/theme_image_mapper_aura_win.cc',
         'browser/ui/views/toolbar_view.cc',
         'browser/ui/views/toolbar_view.h',
         'browser/ui/views/top_level_widget_views.cc',
@@ -1808,6 +1812,8 @@
         'browser/ui/webui/chrome_web_ui_controller_factory.h',
         'browser/ui/webui/chromeos/about_network.cc',
         'browser/ui/webui/chromeos/about_network.h',
+        'browser/ui/webui/chromeos/app_launch_ui.cc',
+        'browser/ui/webui/chromeos/app_launch_ui.h',
        	'browser/ui/webui/chromeos/bluetooth_pairing_ui.cc',
       	'browser/ui/webui/chromeos/bluetooth_pairing_ui.h',
         'browser/ui/webui/chromeos/choose_mobile_network_ui.cc',
@@ -2422,6 +2428,7 @@
           'conditions': [
             ['OS=="win"', {
               'sources/': [
+                ['exclude', '^browser/ui/views/theme_image_mapper.cc'],
                 ['exclude', '^browser/ui/webui/certificate_viewer_webui.cc'],
                 ['exclude', '^browser/ui/webui/certificate_viewer_webui.h'],
                 ['exclude', '^browser/ui/webui/certificate_viewer_ui.cc'],
@@ -2444,6 +2451,7 @@
             ['exclude', '^browser/ui/views/frame/browser_desktop_root_window_host_linux.h'],
             ['exclude', '^browser/ui/views/frame/browser_desktop_root_window_host_win.cc'],
             ['exclude', '^browser/ui/views/frame/browser_desktop_root_window_host_win.h'],
+            ['exclude', '^browser/ui/views/theme_image_mapper_aura_win.cc'],
             ['exclude', '^browser/ui/webui/gesture_config_ui.cc'],
             ['exclude', '^browser/ui/webui/gesture_config_ui.h'],
             ['exclude', '^browser/ui/webui/task_manager/'],
