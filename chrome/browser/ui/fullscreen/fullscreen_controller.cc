@@ -1,4 +1,3 @@
-#define DP fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
 // Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -58,7 +57,6 @@ bool FullscreenController::IsFullscreenForBrowser() const {
 }
 
 void FullscreenController::ToggleFullscreenMode() {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   extension_caused_fullscreen_ = GURL();
   ToggleFullscreenModeInternal(BROWSER);
 }
@@ -96,13 +94,6 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
 #endif
 
   bool in_browser_or_tab_fullscreen_mode = window_->IsFullscreen();
-#if defined(OS_MACOSX)
-fprintf(stderr, "%s %s %s %s\n",
-        enter_fullscreen ? "enter" : "exit ",
-        window_->IsFullscreenWithChrome() ? "FSWithChrome" : "            ",
-        window_->IsFullscreenWithoutChrome() ? "FSWithoutChrome" : "               ",
-        toggled_into_fullscreen_ ? "toggled_into_fullscreen_" : "                        ");
-#endif
 
   if (enter_fullscreen) {
     SetFullscreenedTab(web_contents);
@@ -131,18 +122,13 @@ fprintf(stderr, "%s %s %s %s\n",
       PostFullscreenChangeNotification(true);
     }
   } else {
-DP
     if (in_browser_or_tab_fullscreen_mode) {
-DP
       if (IsFullscreenCausedByTab()) {
-DP
         ToggleFullscreenModeInternal(TAB);
       } else {
-DP
 #if defined(OS_MACOSX)
         if (tab_previous_fullscreen_state_ ==
             STATE_BROWSER_FULLSCREEN_WITH_CHROME) {
-DP
           window_->EnterFullscreen();
         }
 #endif
