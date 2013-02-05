@@ -1,3 +1,4 @@
+#define DP fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
 // Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -98,8 +99,8 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
 #if defined(OS_MACOSX)
 fprintf(stderr, "%s %s %s %s\n",
         enter_fullscreen ? "enter" : "exit ",
-        window_->InPresentationMode() ? "presentation" : "            ",
-        window_->IsFullscreen() ? "fullscreen" : "          ",
+        window_->IsFullscreenWithChrome() ? "FSWithChrome" : "            ",
+        window_->IsFullscreenWithoutChrome() ? "FSWithoutChrome" : "               ",
         toggled_into_fullscreen_ ? "toggled_into_fullscreen_" : "                        ");
 #endif
 
@@ -108,9 +109,11 @@ fprintf(stderr, "%s %s %s %s\n",
     if (!in_browser_or_tab_fullscreen_mode) {
       tab_previous_fullscreen_state_ = STATE_NORMAL;
       ToggleFullscreenModeInternal(TAB);
-    } else if (window_->IsFullscreen() && !window_->InPresentationMode()) {
+#if defined(OS_MACOSX)
+    } else if (window_->IsFullscreenWithChrome()) {
       tab_previous_fullscreen_state_ = STATE_BROWSER_FULLSCREEN_WITH_CHROME;
       ToggleFullscreenModeInternal(TAB);
+#endif
     } else {
       tab_previous_fullscreen_state_ = STATE_BROWSER_FULLSCREEN_NO_CHROME;
 
@@ -128,19 +131,19 @@ fprintf(stderr, "%s %s %s %s\n",
       PostFullscreenChangeNotification(true);
     }
   } else {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
+DP
     if (in_browser_or_tab_fullscreen_mode) {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
+DP
       if (IsFullscreenCausedByTab()) {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
+DP
         ToggleFullscreenModeInternal(TAB);
       } else {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
+DP
 #if defined(OS_MACOSX)
         if (tab_previous_fullscreen_state_ ==
             STATE_BROWSER_FULLSCREEN_WITH_CHROME) {
-fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
-          window_->ExitPresentationMode();
+DP
+          window_->EnterFullscreen();
         }
 #endif
         // If currently there is a tab in "tab fullscreen" mode and fullscreen
@@ -582,7 +585,6 @@ void FullscreenController::EnterFullscreenModeInternal(
 
 void FullscreenController::ExitFullscreenModeInternal() {
   toggled_into_fullscreen_ = false;
-tab_caused_fullscreen_ should be nowhere, check whole file.
 #if defined(OS_MACOSX)
   // Mac windows report a state change instantly, and so we must also clear
   // tab_previous_fullscreen_state_ to match them else other logic using
