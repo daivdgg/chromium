@@ -70,6 +70,7 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
  private:
   WindowState state_;
   bool mac_with_chrome_mode_;
+  bool mac_was_with_chrome_mode_;
   Browser* browser_;
 
   // Causes reentrant calls to be made by calling
@@ -81,6 +82,7 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
 FullscreenControllerTestWindow::FullscreenControllerTestWindow()
     : state_(NORMAL),
       mac_with_chrome_mode_(false),
+      mac_was_with_chrome_mode_(false),
       browser_(NULL),
       reentrant_(false) {
 }

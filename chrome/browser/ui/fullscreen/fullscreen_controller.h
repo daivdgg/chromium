@@ -53,6 +53,9 @@ class FullscreenController : public content::NotificationObserver {
   bool IsFullscreenForTabOrPending() const;
   bool IsFullscreenForTabOrPending(
       const content::WebContents* web_contents) const;
+  // True if fullscreen was entered because of tab fullscreen (was not
+  // previously in browser fullscreen).
+  bool IsFullscreenCausedByTab() const;
 
   void ToggleFullscreenModeForTab(content::WebContents* web_contents,
                                   bool enter_fullscreen);
@@ -176,8 +179,16 @@ class FullscreenController : public content::NotificationObserver {
   // The URL of the extension which trigerred "browser fullscreen" mode.
   GURL extension_caused_fullscreen_;
 
-  // True if the current tab entered fullscreen mode via webkitRequestFullScreen
-  bool tab_caused_fullscreen_;
+  enum FullscreenState {
+    STATE_INVALID,
+    STATE_NORMAL,
+    STATE_BROWSER_FULLSCREEN_NO_CHROME,
+#if defined(OS_MACOSX)
+    STATE_BROWSER_FULLSCREEN_WITH_CHROME,
+#endif
+  };
+  // The state before entering tab fullscreen mode via webkitRequestFullScreen.
+  FullscreenState tab_previous_fullscreen_state_;
   // True if tab fullscreen has been allowed, either by settings or by user
   // clicking the allow button on the fullscreen infobar.
   bool tab_fullscreen_accepted_;
