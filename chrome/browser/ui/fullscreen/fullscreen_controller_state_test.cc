@@ -20,6 +20,18 @@
 #include "base/mac/mac_util.h"
 #endif
 
+namespace {
+
+bool IsMacOSLionOrLater() {
+#if defined(OS_MACOSX)
+  return base::mac::IsOSLionOrLater();
+#else
+  return false;
+#endif
+}
+
+}  // namespace
+
 FullscreenControllerStateTest::FullscreenControllerStateTest()
     : state_(STATE_NORMAL),
       reentrant_(false) {
@@ -675,16 +687,13 @@ bool FullscreenControllerStateTest::ShouldSkipStateAndEventPair(State state,
 #endif
 
   // Skip Mac Lion Fullscreen state and events when not on OSX 10.7+.
-  if (state == STATE_BROWSER_FULLSCREEN_WITH_CHROME ||
-      state == STATE_TAB_BROWSER_FULLSCREEN_CHROME ||
-      state == STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME ||
-      event == TOGGLE_FULLSCREEN_CHROME) {
-#if defined(OS_MACOSX)
-    if (!base::mac::IsOSLionOrLater())
+  if (!IsMacOSLionOrLater()) {
+    if (state == STATE_BROWSER_FULLSCREEN_WITH_CHROME ||
+        state == STATE_TAB_BROWSER_FULLSCREEN_CHROME ||
+        state == STATE_TO_BROWSER_FULLSCREEN_WITH_CHROME ||
+        event == TOGGLE_FULLSCREEN_CHROME) {
       return true;
-#else
-    return true;
-#endif
+    }
   }
 
   return false;
@@ -718,14 +727,12 @@ bool FullscreenControllerStateTest::ShouldSkipTest(State state,
 #endif
 
   // Quietly skip Mac Lion Fullscreen tests when not on OSX 10.7+.
-  if ((state == STATE_BROWSER_FULLSCREEN_WITH_CHROME ||
-      event == TOGGLE_FULLSCREEN_CHROME)
-#if defined(OS_MACOSX)
-      && !base::mac::IsOSLionOrLater()
-#endif
-      ) {
-    debugging_log_ << "\nSkipping Lion Fullscreen test on non-OSX 10.7+.\n";
-    return true;
+  if (!IsMacOSLionOrLater()) {
+    if (state == STATE_BROWSER_FULLSCREEN_WITH_CHROME ||
+        event == TOGGLE_FULLSCREEN_CHROME) {
+      debugging_log_ << "\nSkipping Lion Fullscreen test on non-OSX 10.7+.\n";
+      return true;
+    }
   }
 
   // When testing reentrancy there are states the fullscreen controller
