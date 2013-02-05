@@ -782,7 +782,7 @@ FullscreenController* FullscreenControllerStateTest::GetFullscreenController() {
     return GetBrowser()->fullscreen_controller();
 }
 
-std::string FullscreenControllerStateTest::GetTransitionTableAsString() {
+std::string FullscreenControllerStateTest::GetTransitionTableAsString() const {
   std::ostringstream output;
   output << "transition_table_[NUM_STATES = " << NUM_STATES
       << "][NUM_EVENTS = " << NUM_EVENTS
@@ -804,7 +804,7 @@ std::string FullscreenControllerStateTest::GetTransitionTableAsString() {
   return output.str();
 }
 
-std::string FullscreenControllerStateTest::GetStateTransitionsAsString() {
+std::string FullscreenControllerStateTest::GetStateTransitionsAsString() const {
   std::ostringstream output;
   output << "state_transitions_[NUM_STATES = " << NUM_STATES
       << "][NUM_STATES = " << NUM_STATES << "] =\n";
@@ -813,7 +813,7 @@ std::string FullscreenControllerStateTest::GetStateTransitionsAsString() {
     output << "{ // " << GetStateString(state1) << ":\n";
     for (int state2_int = 0; state2_int < NUM_STATES; state2_int++) {
       State state2 = static_cast<State>(state2_int);
-      StateTransitionInfo &info = state_transitions_[state1][state2];
+      const StateTransitionInfo &info = state_transitions_[state1][state2];
       output << "  { "
         << std::left << std::setw(MAX_EVENT_NAME_LENGTH+1)
         << std::string(GetEventString(info.event)) + ","
