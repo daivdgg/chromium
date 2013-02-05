@@ -534,7 +534,7 @@ TEST_F(FullscreenControllerStateUnitTest, DISABLED_ToggleTabWhenPendingTab) {
 #endif
 }
 
-// Display the transition tables...
+// Debugging utility: Display the transition tables. Intentionally disabled
 TEST_F(FullscreenControllerStateUnitTest, DISABLED_DebugLogStateTables) {
   std::ostringstream output;
   output << "\n\nTransition Table:";
