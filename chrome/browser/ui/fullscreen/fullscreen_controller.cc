@@ -617,7 +617,9 @@ void FullscreenController::ExitTabFullscreenOrMouseLockIfNecessary() {
   } else if (tab_previous_fullscreen_state_ ==
              STATE_BROWSER_FULLSCREEN_WITH_CHROME) {
 fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
-          EnterFullscreenModeInternal(BROWSER_WITH_CHROME);
+//          EnterFullscreenModeInternal(BROWSER_WITH_CHROME);
+    ToggleFullscreenModeInternal(TAB);
+// ... clean this up
 #endif
   } else {
     fprintf(stderr, "%s:%s:%d !FullscreenCausedByTab\n", __FILE__, __FUNCTION__, __LINE__);
