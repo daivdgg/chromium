@@ -528,6 +528,7 @@ void FullscreenController::ToggleFullscreenModeInternal(
       enter_fullscreen |= window_->IsFullscreenWithoutChrome();
     else
       enter_fullscreen |= window_->IsFullscreenWithChrome();
+    fprintf(stderr, "%s:%s:%d %d\n", __FILE__, __FUNCTION__, __LINE__, enter_fullscreen);
   }
 #endif
 
@@ -547,10 +548,12 @@ void FullscreenController::EnterFullscreenModeInternal(
   toggled_into_fullscreen_ = true;
   GURL url;
   if (option == TAB) {
+    fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     url = browser_->tab_strip_model()->GetActiveWebContents()->GetURL();
     tab_fullscreen_accepted_ =
         GetFullscreenSetting(url) == CONTENT_SETTING_ALLOW;
   } else {
+    fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     if (!extension_caused_fullscreen_.is_empty())
       url = extension_caused_fullscreen_;
     content::RecordAction(UserMetricsAction("ToggleFullscreen"));
@@ -558,12 +561,14 @@ void FullscreenController::EnterFullscreenModeInternal(
 
 #if defined(OS_MACOSX)
   if (option == BROWSER_WITH_CHROME) {
+    fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     CHECK(base::mac::IsOSLionOrLater());
     window_->EnterFullscreenWithChrome();
   } else {
 #else
   {
 #endif
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     window_->EnterFullscreen(url, GetFullscreenExitBubbleType());
   }
 
