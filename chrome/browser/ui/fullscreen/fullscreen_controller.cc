@@ -129,7 +129,7 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
 #if defined(OS_MACOSX)
         if (tab_previous_fullscreen_state_ ==
             STATE_BROWSER_FULLSCREEN_WITH_CHROME) {
-          window_->EnterFullscreen();
+          EnterFullscreenModeInternal(BROWSER);
         }
 #endif
         // If currently there is a tab in "tab fullscreen" mode and fullscreen
