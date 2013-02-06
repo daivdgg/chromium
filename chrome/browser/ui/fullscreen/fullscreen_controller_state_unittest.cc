@@ -57,7 +57,11 @@ class FullscreenControllerTestWindow : public TestBrowserWindow {
 #endif
 
   static const char* GetWindowStateString(WindowState state);
-  WindowState state() const { return state_; }
+  WindowState state() const { return state_;
+  fprintf(stderr, "%s:%s:%d %s %s\n", __FILE__, __FUNCTION__, __LINE__,
+        GetWindowStateString(state_),
+          mac_with_chrome_mode_ ? "with chrome":"");
+}
   void set_browser(Browser* browser) { browser_ = browser; }
   void set_reentrant(bool value) { reentrant_ = value; }
   bool reentrant() const { return reentrant_; }
