@@ -98,14 +98,17 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
   if (enter_fullscreen) {
     SetFullscreenedTab(web_contents);
     if (!in_browser_or_tab_fullscreen_mode) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__;
       tab_previous_fullscreen_state_ = STATE_NORMAL;
       ToggleFullscreenModeInternal(TAB);
 #if defined(OS_MACOSX)
     } else if (window_->IsFullscreenWithChrome()) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__;
       tab_previous_fullscreen_state_ = STATE_BROWSER_FULLSCREEN_WITH_CHROME;
       ToggleFullscreenModeInternal(TAB);
 #endif
     } else {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__;
       tab_previous_fullscreen_state_ = STATE_BROWSER_FULLSCREEN_NO_CHROME;
 
       // We need to update the fullscreen exit bubble, e.g., going from browser
@@ -124,11 +127,14 @@ void FullscreenController::ToggleFullscreenModeForTab(WebContents* web_contents,
   } else {
     if (in_browser_or_tab_fullscreen_mode) {
       if (IsFullscreenCausedByTab()) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__;
         ToggleFullscreenModeInternal(TAB);
       } else {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__;
 #if defined(OS_MACOSX)
         if (tab_previous_fullscreen_state_ ==
             STATE_BROWSER_FULLSCREEN_WITH_CHROME) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__;
           EnterFullscreenModeInternal(BROWSER);
         }
 #endif
