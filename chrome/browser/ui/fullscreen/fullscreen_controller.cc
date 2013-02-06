@@ -105,7 +105,7 @@ fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     } else if (window_->IsFullscreenWithChrome()) {
 fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
       tab_previous_fullscreen_state_ = STATE_BROWSER_FULLSCREEN_WITH_CHROME;
-      ToggleFullscreenModeInternal(TAB);
+      EnterFullscreenModeInternal(TAB);
 #endif
     } else {
 fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
