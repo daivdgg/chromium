@@ -12,15 +12,6 @@ namespace {
 
 const char kContentTypeApplicationJson[] = "application/json";
 const char kDirectoryMimeType[] = "application/vnd.google-apps.folder";
-
-// This is an annotation to use PATCH request documented here:
-// https://developers.google.com/drive/performance#patch
-// Now, UrlFetcher doesn't support PATCH comment, and this is a workaround
-// in such a case.
-// TODO(hidehiko): Use PATCH command directly, when it is supported.
-//   crbug.com/173315
-const char kHttpMethodOverridePatchHeader[] = "X-HTTP-Method-Override: PATCH";
-
 // etag matching header.
 const char kIfMatchAllHeader[] = "If-Match: *";
 
@@ -198,14 +189,12 @@ RenameResourceOperation::RenameResourceOperation(
 RenameResourceOperation::~RenameResourceOperation() {}
 
 net::URLFetcher::RequestType RenameResourceOperation::GetRequestType() const {
-  // TODO(hidehiko): Use PATCH operation, when it is supported.
-  return net::URLFetcher::POST;
+  return net::URLFetcher::PATCH;
 }
 
 std::vector<std::string>
 RenameResourceOperation::GetExtraRequestHeaders() const {
   std::vector<std::string> headers;
-  headers.push_back(kHttpMethodOverridePatchHeader);
   headers.push_back(kIfMatchAllHeader);
   return headers;
 }
@@ -225,6 +214,30 @@ bool RenameResourceOperation::GetContentData(std::string* upload_content_type,
   DVLOG(1) << "RenameResource data: " << *upload_content_type << ", ["
            << *upload_content << "]";
   return true;
+}
+
+//=========================== TrashResourceOperation ===========================
+
+TrashResourceOperation::TrashResourceOperation(
+    OperationRegistry* registry,
+    net::URLRequestContextGetter* url_request_context_getter,
+    const DriveApiUrlGenerator& url_generator,
+    const std::string& resource_id,
+    const EntryActionCallback& callback)
+    : EntryActionOperation(registry, url_request_context_getter, callback),
+      url_generator_(url_generator),
+      resource_id_(resource_id) {
+  DCHECK(!callback.is_null());
+}
+
+TrashResourceOperation::~TrashResourceOperation() {}
+
+GURL TrashResourceOperation::GetURL() const {
+  return url_generator_.GetFileTrashUrl(resource_id_);
+}
+
+net::URLFetcher::RequestType TrashResourceOperation::GetRequestType() const {
+  return net::URLFetcher::POST_WITHOUT_BODY;
 }
 
 //========================== InsertResourceOperation ===========================

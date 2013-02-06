@@ -23,7 +23,6 @@
 #include "base/time.h"
 #include "chrome/browser/api/sync/profile_sync_service_observer.h"
 #include "chrome/browser/autofill/autocheckout_manager.h"
-#include "chrome/browser/autofill/autocheckout_page_meta_data.h"
 #include "chrome/browser/autofill/autocomplete_history_manager.h"
 #include "chrome/browser/autofill/autofill_download.h"
 #include "chrome/browser/autofill/autofill_manager_delegate.h"
@@ -65,6 +64,7 @@ struct PasswordForm;
 
 namespace gfx {
 class Rect;
+class RectF;
 }
 
 namespace IPC {
@@ -187,6 +187,11 @@ class AutofillManager : public content::WebContentsObserver,
     return external_delegate_;
   }
 
+  // Exposed for testing.
+  AutocheckoutManager* autocheckout_manager() {
+    return &autocheckout_manager_;
+  }
+
   // Processes the submitted |form|, saving any new Autofill data and uploading
   // the possible field types for the submitted fields to the crowdsouring
   // server.  Returns false if this form is not relevant for Autofill.
@@ -238,7 +243,7 @@ class AutofillManager : public content::WebContentsObserver,
   void OnQueryFormFieldAutofill(int query_id,
                                 const FormData& form,
                                 const FormFieldData& field,
-                                const gfx::Rect& bounding_box,
+                                const gfx::RectF& bounding_box,
                                 bool display_warning);
   void OnDidEndTextFieldEditing();
   void OnHideAutofillPopup();
@@ -246,7 +251,7 @@ class AutofillManager : public content::WebContentsObserver,
       const FormFieldData& form,
       const PasswordFormFillData& fill_data);
   void OnShowPasswordSuggestions(const FormFieldData& field,
-                                 const gfx::Rect& bounds,
+                                 const gfx::RectF& bounds,
                                  const std::vector<string16>& suggestions);
   void OnSetDataList(const std::vector<string16>& values,
                      const std::vector<string16>& labels,
@@ -392,10 +397,6 @@ class AutofillManager : public content::WebContentsObserver,
 
   // Our copy of the form data.
   ScopedVector<FormStructure> form_structures_;
-
-  // To be passed to FormStructure::ParseQueryResponse to gather the page meta
-  // data.
-  autofill::AutocheckoutPageMetaData page_meta_data_;
 
   // GUID to ID mapping.  We keep two maps to convert back and forth.
   mutable std::map<PersonalDataManager::GUIDPair, int> guid_id_map_;

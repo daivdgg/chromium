@@ -124,6 +124,16 @@ const Experiment::Choice kFixedPositionCreatesStackingContextChoices[] = {
     switches::kDisableFixedPositionCreatesStackingContext, ""}
 };
 
+const Experiment::Choice kEnableCompositingForFixedPositionChoices[] = {
+  { IDS_GENERIC_EXPERIMENT_CHOICE_DEFAULT, "", "" },
+  { IDS_GENERIC_EXPERIMENT_CHOICE_ENABLED,
+    switches::kEnableCompositingForFixedPosition, ""},
+  { IDS_GENERIC_EXPERIMENT_CHOICE_DISABLED,
+    switches::kDisableCompositingForFixedPosition, ""},
+  { IDS_FLAGS_COMPOSITING_FOR_FIXED_POSITION_HIGH_DPI,
+    switches::kEnableHighDpiCompositingForFixedPosition, ""}
+};
+
 const Experiment::Choice kForceCompositingModeChoices[] = {
   { IDS_GENERIC_EXPERIMENT_CHOICE_DEFAULT, "", "" },
   { IDS_GENERIC_EXPERIMENT_CHOICE_ENABLED,
@@ -138,6 +148,14 @@ const Experiment::Choice kThreadedCompositingModeChoices[] = {
     switches::kDisableThreadedCompositing, ""},
   { IDS_GENERIC_EXPERIMENT_CHOICE_ENABLED,
     switches::kEnableThreadedCompositing, ""}
+};
+
+const Experiment::Choice kForceAcceleratedOverflowScrollModeChoices[] = {
+  { IDS_GENERIC_EXPERIMENT_CHOICE_DEFAULT, "", "" },
+  { IDS_GENERIC_EXPERIMENT_CHOICE_DISABLED,
+    switches::kDisableAcceleratedOverflowScroll, ""},
+  { IDS_GENERIC_EXPERIMENT_CHOICE_ENABLED,
+    switches::kEnableAcceleratedOverflowScroll, ""}
 };
 
 const Experiment::Choice kGDIPresentChoices[] = {
@@ -227,14 +245,6 @@ const Experiment::Choice kChromeCaptivePortalDetectionChoices[] = {
     switches::kEnableChromeCaptivePortalDetector, ""},
   { IDS_FLAGS_SHILL_CAPTIVE_PORTAL_DETECTOR,
     switches::kDisableChromeCaptivePortalDetector, ""}
-};
-#endif
-
-#if defined(USE_ASH)
-const Experiment::Choice kAshImmersiveModeChoices[] = {
-  { IDS_GENERIC_EXPERIMENT_CHOICE_DEFAULT, "", ""},
-  { IDS_FLAGS_ASH_IMMERSIVE_HIDE_TAB_INDICATORS,
-    ash::switches::kAshImmersiveHideTabIndicators, ""}
 };
 #endif
 
@@ -346,6 +356,13 @@ const Experiment kExperiments[] = {
     MULTI_VALUE_TYPE(kThreadedCompositingModeChoices)
   },
   {
+    "force-accelerated-composited-scrolling",
+     IDS_FLAGS_FORCE_ACCELERATED_OVERFLOW_SCROLL_MODE_NAME,
+     IDS_FLAGS_FORCE_ACCELERATED_OVERFLOW_SCROLL_MODE_DESCRIPTION,
+     kOsAll,
+     MULTI_VALUE_TYPE(kForceAcceleratedOverflowScrollModeChoices)
+  },
+  {
     "present-with-GDI",
     IDS_FLAGS_PRESENT_WITH_GDI_NAME,
     IDS_FLAGS_PRESENT_WITH_GDI_DESCRIPTION,
@@ -440,6 +457,13 @@ const Experiment kExperiments[] = {
     IDS_FLAGS_FIXED_POSITION_CREATES_STACKING_CONTEXT_DESCRIPTION,
     kOsAll,
     MULTI_VALUE_TYPE(kFixedPositionCreatesStackingContextChoices)
+  },
+  {
+    "enable-compositing-for-fixed-position",
+    IDS_FLAGS_COMPOSITING_FOR_FIXED_POSITION_NAME,
+    IDS_FLAGS_COMPOSITING_FOR_FIXED_POSITION_DESCRIPTION,
+    kOsAll,
+    MULTI_VALUE_TYPE(kEnableCompositingForFixedPositionChoices)
   },
   // TODO(bbudge): When NaCl is on by default, remove this flag entry.
   {
@@ -1112,7 +1136,7 @@ const Experiment kExperiments[] = {
     IDS_FLAGS_ASH_IMMERSIVE_MODE_NAME,
     IDS_FLAGS_ASH_IMMERSIVE_MODE_DESCRIPTION,
     kOsCrOS,
-    MULTI_VALUE_TYPE(kAshImmersiveModeChoices),
+    SINGLE_VALUE_TYPE(ash::switches::kAshImmersiveMode),
   },
 #if defined(OS_LINUX)
   { "ash-enable-memory-monitor",

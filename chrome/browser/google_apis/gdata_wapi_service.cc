@@ -293,7 +293,7 @@ void GDataWapiService::GetAppList(const GetAppListCallback& callback) {
 void GDataWapiService::DownloadFile(
     const FilePath& virtual_path,
     const FilePath& local_cache_path,
-    const GURL& content_url,
+    const GURL& download_url,
     const DownloadActionCallback& download_action_callback,
     const GetContentCallback& get_content_callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
@@ -305,7 +305,7 @@ void GDataWapiService::DownloadFile(
                                 url_request_context_getter_,
                                 download_action_callback,
                                 get_content_callback,
-                                content_url,
+                                download_url,
                                 virtual_path,
                                 local_cache_path));
 }
@@ -485,6 +485,9 @@ void GDataWapiService::OnOAuth2RefreshTokenChanged() {
   if (CanStartOperation()) {
     FOR_EACH_OBSERVER(
         DriveServiceObserver, observers_, OnReadyToPerformOperations());
+  } else if (!HasRefreshToken()) {
+    FOR_EACH_OBSERVER(
+        DriveServiceObserver, observers_, OnRefreshTokenInvalid());
   }
 }
 
@@ -493,12 +496,6 @@ void GDataWapiService::OnProgressUpdate(
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   FOR_EACH_OBSERVER(
       DriveServiceObserver, observers_, OnProgressUpdate(list));
-}
-
-void GDataWapiService::OnAuthenticationFailed(GDataErrorCode error) {
-  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
-  FOR_EACH_OBSERVER(
-      DriveServiceObserver, observers_, OnAuthenticationFailed(error));
 }
 
 }  // namespace google_apis

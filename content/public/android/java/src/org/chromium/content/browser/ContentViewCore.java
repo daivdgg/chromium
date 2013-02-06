@@ -256,9 +256,6 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     // Delegate that will handle GET downloads, and be notified of completion of POST downloads.
     private ContentViewDownloadDelegate mDownloadDelegate;
 
-    // Whether a physical keyboard is connected.
-    private boolean mKeyboardConnected;
-
     // The AccessibilityInjector that handles loading Accessibility scripts into the web page.
     private AccessibilityInjector mAccessibilityInjector;
 
@@ -582,8 +579,6 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
         mNativePageScaleFactor = 1.0f;
         initPopupZoomer(mContext);
         mImeAdapter = createImeAdapter(mContext);
-        mKeyboardConnected = mContainerView.getResources().getConfiguration().keyboard
-                != Configuration.KEYBOARD_NOKEYS;
         TraceEvent.end();
     }
 
@@ -666,7 +661,6 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
      * been called.
      */
     public void destroy() {
-        hidePopupDialog();
         if (mNativeContentViewCore != 0) {
             nativeOnJavaContentViewCoreDestroyed(mNativeContentViewCore);
         }
@@ -1238,6 +1232,7 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
             }
         }
         setAccessibilityState(false);
+        hidePopupDialog();
     }
 
     /**
@@ -1289,9 +1284,7 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     public void onConfigurationChanged(Configuration newConfig) {
         TraceEvent.begin();
 
-        mKeyboardConnected = newConfig.keyboard != Configuration.KEYBOARD_NOKEYS;
-
-        if (mKeyboardConnected) {
+        if (newConfig.keyboard != Configuration.KEYBOARD_NOKEYS) {
             mImeAdapter.attach(nativeGetNativeImeAdapter(mNativeContentViewCore),
                     ImeAdapter.sTextInputTypeNone);
             InputMethodManager manager = (InputMethodManager)
@@ -1440,7 +1433,7 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
             return mContainerViewInternals.super_dispatchKeyEvent(event);
         }
 
-        if (mKeyboardConnected && mImeAdapter.dispatchKeyEvent(event)) return true;
+        if (mImeAdapter.dispatchKeyEvent(event)) return true;
 
         return mContainerViewInternals.super_dispatchKeyEvent(event);
     }
@@ -1999,7 +1992,8 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
         int x2 = endRect.left;
         int y2 = endRect.bottom;
 
-        if (x1 != x2 || y1 != y2) {
+        if (x1 != x2 || y1 != y2 ||
+                (mSelectionHandleController != null && mSelectionHandleController.isDragging())) {
             if (mInsertionHandleController != null) {
                 mInsertionHandleController.hide();
             }
@@ -2011,10 +2005,7 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
             mHasSelection = true;
         } else {
             hideSelectActionBar();
-            if (x1 != 0 && y1 != 0
-                    && (mSelectionHandleController == null
-                            || !mSelectionHandleController.isDragging())
-                    && mSelectionEditable) {
+            if (x1 != 0 && y1 != 0 && mSelectionEditable) {
                 // Selection is a caret, and a text field is focused.
                 if (mSelectionHandleController != null) {
                     mSelectionHandleController.hide();
@@ -2032,8 +2023,7 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
                 }
             } else {
                 // Deselection
-                if (mSelectionHandleController != null
-                        && !mSelectionHandleController.isDragging()) {
+                if (mSelectionHandleController != null) {
                     mSelectionHandleController.hideAndDisallowAutomaticShowing();
                 }
                 if (mInsertionHandleController != null) {
@@ -2373,6 +2363,13 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     }
 
     /**
+     * Inform WebKit that Fullscreen mode has been exited by the user.
+     */
+    public void exitFullscreen() {
+        nativeExitFullscreen(mNativeContentViewCore);
+    }
+
+    /**
      * @See android.webkit.WebView#pageDown(boolean)
      */
     public boolean pageDown(boolean bottom) {
@@ -2599,4 +2596,6 @@ public class ContentViewCore implements MotionEventDelegate, NavigationClient {
     private native void nativeSetSize(int nativeContentViewCoreImpl, int width, int height);
 
     private native boolean nativeIsRenderWidgetHostViewReady(int nativeContentViewCoreImpl);
+
+    private native void nativeExitFullscreen(int nativeContentViewCoreImpl);
 }

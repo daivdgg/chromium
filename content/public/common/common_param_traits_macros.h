@@ -17,6 +17,7 @@
 #include "third_party/WebKit/Source/Platform/chromium/public/WebPoint.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebRect.h"
 #include "third_party/WebKit/Source/Platform/chromium/public/WebReferrerPolicy.h"
+#include "third_party/WebKit/Source/Platform/chromium/public/WebURLRequest.h"
 #include "ui/base/window_open_disposition.h"
 #include "webkit/glue/webpreferences.h"
 #include "webkit/plugins/webplugininfo.h"
@@ -31,6 +32,7 @@ IPC_ENUM_TRAITS(WebKit::WebReferrerPolicy)
 IPC_ENUM_TRAITS(WindowOpenDisposition)
 IPC_ENUM_TRAITS(webkit_glue::WebPreferences::EditingBehavior)
 IPC_ENUM_TRAITS(content::PasswordForm::Type)
+IPC_ENUM_TRAITS(WebKit::WebURLRequest::Priority)
 
 IPC_STRUCT_TRAITS_BEGIN(WebKit::WebPoint)
   IPC_STRUCT_TRAITS_MEMBER(x)
@@ -159,7 +161,6 @@ IPC_STRUCT_TRAITS_BEGIN(webkit_glue::WebPreferences)
   IPC_STRUCT_TRAITS_MEMBER(unified_textchecker_enabled)
   IPC_STRUCT_TRAITS_MEMBER(accelerated_compositing_enabled)
   IPC_STRUCT_TRAITS_MEMBER(force_compositing_mode)
-  IPC_STRUCT_TRAITS_MEMBER(fixed_position_compositing_enabled)
   IPC_STRUCT_TRAITS_MEMBER(accelerated_2d_canvas_enabled)
   IPC_STRUCT_TRAITS_MEMBER(deferred_2d_canvas_enabled)
   IPC_STRUCT_TRAITS_MEMBER(antialiased_2d_canvas_disabled)

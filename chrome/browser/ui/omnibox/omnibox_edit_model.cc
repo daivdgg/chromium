@@ -329,7 +329,7 @@ bool OmniboxEditModel::UseVerbatimInstant() {
   // interfere with #2). So, we don't need to care about the value of
   // input.prevent_inline_autocomplete() here.
   return view_->DeleteAtEndPressed() || popup_->selected_line() != 0 ||
-         just_deleted_text_;
+      just_deleted_text_;
 }
 
 string16 OmniboxEditModel::GetDesiredTLD() const {
@@ -466,6 +466,12 @@ void OmniboxEditModel::StartAutocomplete(
     // Cursor position is equivalent to the current selection's end.
     size_t start;
     view_->GetSelectionBounds(&start, &cursor_position);
+    // Adjust cursor position taking into account possible keyword in the user
+    // text.  We rely on DisplayTextFromUserText() method which is consistent
+    // with keyword extraction done in KeywordProvider/SearchProvider.
+    const size_t cursor_offset =
+        user_text_.length() - DisplayTextFromUserText(user_text_).length();
+    cursor_position += cursor_offset;
   } else {
     // There are some cases where StartAutocomplete() may be called
     // with non-empty |inline_autocomplete_text_|.  In such cases, we cannot
@@ -855,16 +861,6 @@ void OmniboxEditModel::OnControlKeyChanged(bool pressed) {
 }
 
 void OmniboxEditModel::OnUpOrDownKeyPressed(int count) {
-  // If Instant handles the key press, it's showing a list of suggestions that
-  // it's stepping through. In that case, our popup model is irrelevant, so
-  // don't process the key press ourselves. However, do stop the autocomplete
-  // system from changing the results.
-  InstantController* instant = controller_->GetInstant();
-  if (instant && instant->OnUpOrDownKeyPressed(count)) {
-    autocomplete_controller_->Stop(false);
-    return;
-  }
-
   // NOTE: This purposefully doesn't trigger any code that resets paste_state_.
   if (!popup_->IsOpen()) {
     if (!query_in_progress()) {
@@ -884,9 +880,18 @@ void OmniboxEditModel::OnUpOrDownKeyPressed(int count) {
       // should force it to open immediately.
     }
   } else {
-    // The popup is open, so the user should be able to interact with it
-    // normally.
-    popup_->Move(count);
+    InstantController* instant = controller_->GetInstant();
+    if (instant && instant->OnUpOrDownKeyPressed(count)) {
+      // If Instant handles the key press, it's showing a list of suggestions
+      // that it's stepping through. In that case, our popup model is
+      // irrelevant, so don't process the key press ourselves. However, do stop
+      // the autocomplete system from changing the results.
+      autocomplete_controller_->Stop(false);
+    } else {
+      // The popup is open, so the user should be able to interact with it
+      // normally.
+      popup_->Move(count);
+    }
   }
 }
 

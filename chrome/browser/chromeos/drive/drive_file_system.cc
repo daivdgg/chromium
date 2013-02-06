@@ -764,56 +764,49 @@ void DriveFileSystem::OnGetEntryInfoForCreateFile(
                                         callback);
 }
 
-void DriveFileSystem::GetFileByPath(
-    const FilePath& file_path,
-    const GetFileCallback& get_file_callback,
-    const google_apis::GetContentCallback& get_content_callback) {
+void DriveFileSystem::GetFileByPath(const FilePath& file_path,
+                                    const GetFileCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI) ||
          BrowserThread::CurrentlyOn(BrowserThread::IO));
-  DCHECK(!get_file_callback.is_null());
+  DCHECK(!callback.is_null());
 
   google_apis::RunTaskOnUIThread(
       base::Bind(&DriveFileSystem::GetFileByPathOnUIThread,
                  ui_weak_ptr_,
                  file_path,
-                 google_apis::CreateRelayCallback(get_file_callback),
-                 google_apis::CreateRelayCallback(get_content_callback)));
+                 google_apis::CreateRelayCallback(callback)));
 }
 
-void DriveFileSystem::GetFileByPathOnUIThread(
-    const FilePath& file_path,
-    const GetFileCallback& get_file_callback,
-    const google_apis::GetContentCallback& get_content_callback) {
+void DriveFileSystem::GetFileByPathOnUIThread(const FilePath& file_path,
+                                              const GetFileCallback& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
-  DCHECK(!get_file_callback.is_null());
+  DCHECK(!callback.is_null());
 
   resource_metadata_->GetEntryInfoByPath(
       file_path,
       base::Bind(&DriveFileSystem::OnGetEntryInfoCompleteForGetFileByPath,
                  ui_weak_ptr_,
                  file_path,
-                 google_apis::CreateRelayCallback(get_file_callback),
-                 google_apis::CreateRelayCallback(get_content_callback)));
+                 callback));
 }
 
 void DriveFileSystem::OnGetEntryInfoCompleteForGetFileByPath(
     const FilePath& file_path,
-    const GetFileCallback& get_file_callback,
-    const google_apis::GetContentCallback& get_content_callback,
+    const GetFileCallback& callback,
     DriveFileError error,
     scoped_ptr<DriveEntryProto> entry_proto) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
-  DCHECK(!get_file_callback.is_null());
+  DCHECK(!callback.is_null());
 
   if (error != DRIVE_FILE_OK) {
-    get_file_callback.Run(error, FilePath(), std::string(), REGULAR_FILE);
+    callback.Run(error, FilePath(), std::string(), REGULAR_FILE);
     return;
   }
   DCHECK(entry_proto.get());
 
   GetResolvedFileByPath(file_path,
-                        get_file_callback,
-                        get_content_callback,
+                        callback,
+                        google_apis::GetContentCallback(),
                         entry_proto.Pass());
 }
 
@@ -984,12 +977,16 @@ void DriveFileSystem::OnGetResourceEntry(
     return;
   }
 
-  GURL content_url = entry->content_url();
+  // The download URL is:
+  // 1) src attribute of content element, on GData WAPI.
+  // 2) the value of the key 'downloadUrl', on Drive API v2.
+  // In both cases, we can use ResourceEntry::content_url().
+  GURL download_url = entry->content_url();
   int64 file_size = entry->file_size();
 
   // The content URL can be empty for non-downloadable files (such as files
   // shared from others with "prevent downloading by viewers" flag set.)
-  if (content_url.is_empty()) {
+  if (download_url.is_empty()) {
     params.get_file_callback.Run(DRIVE_FILE_ERROR_ACCESS_DENIED,
                                  params.cache_file_path,
                                  params.mime_type,
@@ -1004,13 +1001,13 @@ void DriveFileSystem::OnGetResourceEntry(
                  ui_weak_ptr_,
                  params,
                  file_size,
-                 content_url));
+                 download_url));
 }
 
 void DriveFileSystem::CheckForSpaceBeforeDownload(
     const GetFileFromCacheParams& params,
     int64 file_size,
-    const GURL& content_url,
+    const GURL& download_url,
     DriveFileError error,
     const FilePath& /* drive_file_path */,
     scoped_ptr<DriveEntryProto> /* entry_proto */) {
@@ -1030,13 +1027,13 @@ void DriveFileSystem::CheckForSpaceBeforeDownload(
       base::Bind(&DriveFileSystem::StartDownloadFileIfEnoughSpace,
                  ui_weak_ptr_,
                  params,
-                 content_url,
+                 download_url,
                  params.cache_file_path));
 }
 
 void DriveFileSystem::StartDownloadFileIfEnoughSpace(
     const GetFileFromCacheParams& params,
-    const GURL& content_url,
+    const GURL& download_url,
     const FilePath& cache_file_path,
     bool has_enough_space) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
@@ -1055,7 +1052,7 @@ void DriveFileSystem::StartDownloadFileIfEnoughSpace(
   scheduler_->DownloadFile(
       params.virtual_file_path,
       params.local_tmp_path,
-      content_url,
+      download_url,
       base::Bind(&DriveFileSystem::OnFileDownloaded,
                  ui_weak_ptr_,
                  params),

@@ -43,6 +43,7 @@
 #include "ui/base/layout.h"
 #include "webkit/base/file_path_string_conversions.h"
 #include "webkit/compositor_bindings/web_compositor_support_impl.h"
+#include "webkit/glue/fling_curve_configuration.h"
 #include "webkit/glue/touch_fling_gesture_curve.h"
 #include "webkit/glue/web_discardable_memory_impl.h"
 #include "webkit/glue/webkit_glue.h"
@@ -359,12 +360,20 @@ WebKitPlatformSupportImpl::WebKitPlatformSupportImpl()
     : main_loop_(MessageLoop::current()),
       shared_timer_func_(NULL),
       shared_timer_fire_time_(0.0),
+      shared_timer_fire_time_was_set_while_suspended_(false),
       shared_timer_suspended_(0),
       current_thread_slot_(&DestroyCurrentThread),
-      compositor_support_(new webkit::WebCompositorSupportImpl) {
+      compositor_support_(new webkit::WebCompositorSupportImpl),
+      fling_curve_configuration_(new FlingCurveConfiguration) {
 }
 
 WebKitPlatformSupportImpl::~WebKitPlatformSupportImpl() {
+}
+
+void WebKitPlatformSupportImpl::SetFlingCurveParameters(
+    const std::vector<float>& new_touchpad,
+    const std::vector<float>& new_touchscreen) {
+  fling_curve_configuration_->SetCurveParameters(new_touchpad, new_touchscreen);
 }
 
 WebThemeEngine* WebKitPlatformSupportImpl::themeEngine() {
@@ -725,8 +734,10 @@ void WebKitPlatformSupportImpl::setSharedTimerFiredFunction(void (*func)()) {
 void WebKitPlatformSupportImpl::setSharedTimerFireInterval(
     double interval_seconds) {
   shared_timer_fire_time_ = interval_seconds + monotonicallyIncreasingTime();
-  if (shared_timer_suspended_)
+  if (shared_timer_suspended_) {
+    shared_timer_fire_time_was_set_while_suspended_ = true;
     return;
+  }
 
   // By converting between double and int64 representation, we run the risk
   // of losing precision due to rounding errors. Performing computations in
@@ -816,6 +827,20 @@ WebKit::WebString WebKitPlatformSupportImpl::signedPublicKeyAndChallengeString(
   return WebKit::WebString("");
 }
 
+static scoped_ptr<base::ProcessMetrics> CurrentProcessMetrics() {
+  using base::ProcessMetrics;
+#if defined(OS_MACOSX)
+  return scoped_ptr<ProcessMetrics>(
+      // The default port provider is sufficient to get data for the current
+      // process.
+      ProcessMetrics::CreateProcessMetrics(base::GetCurrentProcessHandle(),
+                                           NULL));
+#else
+  return scoped_ptr<ProcessMetrics>(
+      ProcessMetrics::CreateProcessMetrics(base::GetCurrentProcessHandle()));
+#endif
+}
+
 static size_t getMemoryUsageMB(bool bypass_cache) {
   size_t current_mem_usage = 0;
   MemoryUsageCache* mem_usage_cache_singleton = MemoryUsageCache::GetInstance();
@@ -859,6 +884,12 @@ size_t WebKitPlatformSupportImpl::highUsageDeltaMB() {
 }
 #endif
 
+bool WebKitPlatformSupportImpl::processMemorySizesInBytes(
+    size_t* private_bytes,
+    size_t* shared_bytes) {
+  return CurrentProcessMetrics()->GetMemoryBytes(private_bytes, shared_bytes);
+}
+
 bool WebKitPlatformSupportImpl::memoryAllocatorWasteInBytes(size_t* size) {
   return base::allocator::GetAllocatorWasteSize(size);
 }
@@ -869,7 +900,10 @@ void WebKitPlatformSupportImpl::SuspendSharedTimer() {
 
 void WebKitPlatformSupportImpl::ResumeSharedTimer() {
   // The shared timer may have fired or been adjusted while we were suspended.
-  if (--shared_timer_suspended_ == 0 && !shared_timer_.IsRunning()) {
+  if (--shared_timer_suspended_ == 0 &&
+      (!shared_timer_.IsRunning() ||
+       shared_timer_fire_time_was_set_while_suspended_)) {
+    shared_timer_fire_time_was_set_while_suspended_ = false;
     setSharedTimerFireInterval(
         shared_timer_fire_time_ - monotonicallyIncreasingTime());
   }
@@ -905,10 +939,11 @@ WebKit::WebGestureCurve* WebKitPlatformSupportImpl::createFlingAnimationCurve(
 #endif
 
   if (device_source == WebKit::WebGestureEvent::Touchscreen)
-    return TouchFlingGestureCurve::CreateForTouchScreen(velocity,
-                                                        cumulative_scroll);
+    return fling_curve_configuration_->CreateForTouchScreen(velocity,
+                                                            cumulative_scroll);
 
-  return TouchFlingGestureCurve::CreateForTouchPad(velocity, cumulative_scroll);
+  return fling_curve_configuration_->CreateForTouchPad(velocity,
+                                                       cumulative_scroll);
 }
 
 WebKit::WebDiscardableMemory*
@@ -921,5 +956,6 @@ WebKit::WebDiscardableMemory*
     return discardable.release();
   return NULL;
 }
+
 
 }  // namespace webkit_glue

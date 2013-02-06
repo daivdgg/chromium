@@ -262,9 +262,28 @@ const char kEnableBrowserPluginCompositing[] =
 const char kEnableBrowserPluginForAllViewTypes[] =
     "enable-browser-plugin-for-all-view-types";
 
-// Enables the creation of compositing layers for fixed position elements.
+// Enables using experimental 'guest' view classes for browser plugin.
+// Browser plugin would use WebContentsViewGuest and RenderWidgetHostViewGuest,
+// which wraps the actual *View implementations.
+const char kEnableBrowserPluginGuestViews[] =
+    "enable-browser-plugin-guest-views";
+
+// Enable/Disable the creation of compositing layers for fixed position
+// elements. Three options are needed to support four possible scenarios:
+//  1. Default (disabled)
+//  2. Enabled always (to allow dogfooding)
+//  3. Disabled always (to give safety fallback for users)
+//  4. Enabled only if we detect a highDPI display
+//
+// Option #4 may soon be the default, because the feature is needed soon for
+// high DPI, but cannot be used (yet) for low DPI. Options #2 and #3 will
+// override Option #4.
 const char kEnableCompositingForFixedPosition[] =
      "enable-fixed-position-compositing";
+const char kDisableCompositingForFixedPosition[] =
+     "disable-fixed-position-compositing";
+const char kEnableHighDpiCompositingForFixedPosition[] =
+     "enable-high-dpi-fixed-position-compositing";
 
 // Enables CSS3 custom filters
 const char kEnableCssShaders[]              = "enable-css-shaders";
@@ -592,6 +611,10 @@ const char kShowFPSCounter[]                = "show-fps-counter";
 // overflow:scroll elements to layers to enable accelerated scrolling for them.
 const char kEnableAcceleratedOverflowScroll[] =
     "enable-accelerated-overflow-scroll";
+
+// Disables accelerated compositing for overflow scroll.
+extern const char kDisableAcceleratedOverflowScroll[] =
+    "disable-accelerated-overflow-scroll";
 
 // Enables accelerated compositing for scrollable frames for accelerated
 // scrolling for them. Requires kForceCompositingMode.

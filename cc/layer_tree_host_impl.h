@@ -50,7 +50,6 @@ public:
     virtual void onCanDrawStateChanged(bool canDraw) = 0;
     virtual void onHasPendingTreeStateChanged(bool hasPendingTree) = 0;
     virtual void setNeedsRedrawOnImplThread() = 0;
-    virtual void didSwapUseIncompleteTileOnImplThread() = 0;
     virtual void didUploadVisibleHighResolutionTileOnImplThread() = 0;
     virtual void setNeedsCommitOnImplThread() = 0;
     virtual void setNeedsManageTilesOnImplThread() = 0;
@@ -60,9 +59,6 @@ public:
     virtual void sendManagedMemoryStats() = 0;
     virtual bool isInsideDraw() = 0;
     virtual void renewTreePriority() = 0;
-
-protected:
-    virtual ~LayerTreeHostImplClient() { }
 };
 
 // LayerTreeHostImpl owns the LayerImpl tree as well as associated rendering state
@@ -96,7 +92,7 @@ public:
 
     struct CC_EXPORT FrameData : public RenderPassSink {
         FrameData();
-        virtual ~FrameData();
+        ~FrameData();
 
         std::vector<gfx::Rect> occludingScreenSpaceRects;
         std::vector<gfx::Rect> nonOccludingScreenSpaceRects;
@@ -104,6 +100,7 @@ public:
         RenderPassIdHashMap renderPassesById;
         const LayerList* renderSurfaceLayerList;
         LayerList willDrawLayers;
+        bool containsIncompleteTile;
 
         // RenderPassSink implementation.
         virtual void appendRenderPass(scoped_ptr<RenderPass>) OVERRIDE;
@@ -327,7 +324,7 @@ private:
 
     bool m_didLockScrollingLayer;
     bool m_shouldBubbleScrolls;
-    bool m_scrollDeltaIsInViewportSpace;
+    bool m_wheelScrolling;
     LayerTreeSettings m_settings;
     LayerTreeDebugState m_debugState;
     gfx::Size m_layoutViewportSize;

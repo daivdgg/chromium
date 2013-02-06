@@ -78,7 +78,7 @@
 #include "net/url_request/url_request_context_getter.h"
 #include "third_party/WebKit/Source/WebKit/chromium/public/WebView.h"
 #include "ui/base/layout.h"
-#include "ui/base/touch/touch_device_win.h"
+#include "ui/base/touch/touch_device.h"
 #include "ui/base/ui_base_switches.h"
 #include "ui/gfx/display.h"
 #include "ui/gfx/screen.h"
@@ -95,11 +95,6 @@
 #include "base/mac/foundation_util.h"
 #include "ui/surface/io_surface_support_mac.h"
 #endif
-
-#if defined(USE_AURA) && defined(USE_X11)
-#include "ui/aura/window.h"
-#include "ui/base/touch/touch_factory.h"
-#endif // defined (USE_AURA) && defined(USE_X11)
 
 #if defined(ENABLE_JAVA_BRIDGE)
 #include "content/browser/renderer_host/java/java_bridge_dispatcher_host_manager.h"
@@ -309,7 +304,8 @@ WebContentsImpl::WebContentsImpl(
       upload_size_(0),
       upload_position_(0),
       displayed_insecure_content_(false),
-      capturing_contents_(false),
+      capturer_count_(0),
+      should_normally_be_visible_(true),
       is_being_destroyed_(false),
       notify_disconnection_(false),
       dialog_manager_(NULL),
@@ -484,8 +480,13 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
       command_line.HasSwitch(switches::kShowCompositedLayerTree);
   prefs.show_fps_counter =
       command_line.HasSwitch(switches::kShowFPSCounter);
-  prefs.accelerated_compositing_for_overflow_scroll_enabled =
-      command_line.HasSwitch(switches::kEnableAcceleratedOverflowScroll);
+
+  prefs.accelerated_compositing_for_overflow_scroll_enabled = false;
+  if (command_line.HasSwitch(switches::kEnableAcceleratedOverflowScroll))
+    prefs.accelerated_compositing_for_overflow_scroll_enabled = true;
+  if (command_line.HasSwitch(switches::kDisableAcceleratedOverflowScroll))
+    prefs.accelerated_compositing_for_overflow_scroll_enabled = false;
+
   prefs.accelerated_compositing_for_scrollable_frames_enabled =
       command_line.HasSwitch(switches::kEnableAcceleratedScrollableFrames);
   prefs.composited_scrolling_for_frames_enabled =
@@ -504,8 +505,6 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
       content::IsForceCompositingModeEnabled() &&
       !command_line.HasSwitch(switches::kDisableForceCompositingMode);
 #endif
-  prefs.fixed_position_compositing_enabled =
-      command_line.HasSwitch(switches::kEnableCompositingForFixedPosition);
   prefs.accelerated_2d_canvas_enabled =
       GpuProcessHost::gpu_enabled() &&
       !command_line.HasSwitch(switches::kDisableAccelerated2dCanvas);
@@ -540,16 +539,7 @@ WebPreferences WebContentsImpl::GetWebkitPrefs(RenderViewHost* rvh,
       command_line.HasSwitch(switches::kEnableGpuBenchmarking);
 
   bool touch_device_present = false;
-#if defined(USE_AURA) && defined(USE_X11)
-  touch_device_present =
-      ui::TouchFactory::GetInstance()->IsTouchDevicePresent();
-#endif
-#if defined(OS_WIN)
   touch_device_present = ui::IsTouchDevicePresent();
-#endif
-#if defined(OS_ANDROID)
-  touch_device_present = true;
-#endif
   const std::string touch_enabled_switch =
       command_line.HasSwitch(switches::kTouchEvents) ?
       command_line.GetSwitchValueASCII(switches::kTouchEvents) :
@@ -852,6 +842,14 @@ RenderWidgetHostView* WebContentsImpl::GetRenderWidgetHostView() const {
   return render_manager_.GetRenderWidgetHostView();
 }
 
+RenderWidgetHostViewPort* WebContentsImpl::GetRenderWidgetHostViewPort() const {
+  BrowserPluginGuest* guest = GetBrowserPluginGuest();
+  if (guest && guest->embedder_web_contents()) {
+    return guest->embedder_web_contents()->GetRenderWidgetHostViewPort();
+  }
+  return RenderWidgetHostViewPort::FromRWHV(GetRenderWidgetHostView());
+}
+
 WebContentsView* WebContentsImpl::GetView() const {
   return view_.get();
 }
@@ -1010,8 +1008,24 @@ bool WebContentsImpl::DisplayedInsecureContent() const {
   return displayed_insecure_content_;
 }
 
-void WebContentsImpl::SetCapturingContents(bool cap) {
-  capturing_contents_ = cap;
+void WebContentsImpl::IncrementCapturerCount() {
+  ++capturer_count_;
+  DVLOG(1) << "There are now " << capturer_count_
+           << " capturing(s) of WebContentsImpl@" << this;
+}
+
+void WebContentsImpl::DecrementCapturerCount() {
+  --capturer_count_;
+  DVLOG(1) << "There are now " << capturer_count_
+           << " capturing(s) of WebContentsImpl@" << this;
+  DCHECK_LE(0, capturer_count_);
+
+  // While capturer_count_ was greater than zero, the WasHidden() calls to RWHV
+  // were being prevented.  If there are no more capturers, make the call now.
+  if (capturer_count_ == 0 && !should_normally_be_visible_) {
+    DVLOG(1) << "Executing delayed WasHidden().";
+    WasHidden();
+  }
 }
 
 bool WebContentsImpl::IsCrashed() const {
@@ -1070,17 +1084,19 @@ void WebContentsImpl::WasShown() {
     rvh->ResizeRectChanged(GetRootWindowResizerRect());
   }
 
-  bool is_visible = true;
+  should_normally_be_visible_ = true;
   NotificationService::current()->Notify(
       NOTIFICATION_WEB_CONTENTS_VISIBILITY_CHANGED,
       Source<WebContents>(this),
-      Details<bool>(&is_visible));
+      Details<const bool>(&should_normally_be_visible_));
 }
 
 void WebContentsImpl::WasHidden() {
-  if (!capturing_contents_) {
+  // If there are entities capturing screenshots or video (e.g., mirroring),
+  // don't activate the "disable rendering" optimization.
+  if (capturer_count_ == 0) {
     // |GetRenderViewHost()| can be NULL if the user middle clicks a link to
-    // open a tab in then background, then closes the tab before selecting it.
+    // open a tab in the background, then closes the tab before selecting it.
     // This is because closing the tab calls WebContentsImpl::Destroy(), which
     // removes the |GetRenderViewHost()|; then when we actually destroy the
     // window, OnWindowPosChanged() notices and calls WasHidden() (which
@@ -1091,11 +1107,11 @@ void WebContentsImpl::WasHidden() {
       rwhv->WasHidden();
   }
 
-  bool is_visible = false;
+  should_normally_be_visible_ = false;
   NotificationService::current()->Notify(
       NOTIFICATION_WEB_CONTENTS_VISIBILITY_CHANGED,
       Source<WebContents>(this),
-      Details<bool>(&is_visible));
+      Details<const bool>(&should_normally_be_visible_));
 }
 
 bool WebContentsImpl::NeedToFireBeforeUnload() {
@@ -1173,17 +1189,33 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
   if (view_.get()) {
     CHECK(render_view_host_delegate_view_);
   } else {
-    if (browser_plugin_guest_.get() &&
-        CommandLine::ForCurrentProcess()->HasSwitch(
-            switches::kEnableBrowserPluginCompositing)) {
+    WebContentsViewDelegate* delegate =
+        GetContentClient()->browser()->GetWebContentsViewDelegate(this);
+
+    bool enable_browser_plugin_compositing = false;
+    bool enable_browser_plugin_guest_views = false;
+    if (browser_plugin_guest_.get()) {
+      enable_browser_plugin_compositing =
+          CommandLine::ForCurrentProcess()->HasSwitch(
+              switches::kEnableBrowserPluginCompositing);
+      enable_browser_plugin_guest_views = enable_browser_plugin_compositing ||
+          CommandLine::ForCurrentProcess()->HasSwitch(
+              switches::kEnableBrowserPluginGuestViews);
+    }
+
+    if (enable_browser_plugin_guest_views) {
+      WebContentsView* platform_view = CreateWebContentsView(
+          this, delegate, &render_view_host_delegate_view_);
+
       WebContentsViewGuest* rv = new WebContentsViewGuest(
           this,
-          browser_plugin_guest_.get());
+          browser_plugin_guest_.get(),
+          enable_browser_plugin_compositing,
+          platform_view);
       render_view_host_delegate_view_ = rv;
       view_.reset(rv);
     } else {
-      WebContentsViewDelegate* delegate =
-          GetContentClient()->browser()->GetWebContentsViewDelegate(this);
+      // Regular WebContentsView.
       view_.reset(CreateWebContentsView(
           this, delegate, &render_view_host_delegate_view_));
     }
@@ -1491,11 +1523,10 @@ void WebContentsImpl::ShowCreatedWidget(int route_id,
       RenderWidgetHostViewPort::FromRWHV(GetCreatedWidget(route_id));
   if (!widget_host_view)
     return;
-  if (is_fullscreen) {
-    widget_host_view->InitAsFullscreen(GetRenderWidgetHostView());
-  } else {
-    widget_host_view->InitAsPopup(GetRenderWidgetHostView(), initial_pos);
-  }
+  if (is_fullscreen)
+    widget_host_view->InitAsFullscreen(GetRenderWidgetHostViewPort());
+  else
+    widget_host_view->InitAsPopup(GetRenderWidgetHostViewPort(), initial_pos);
 
   RenderWidgetHostImpl* render_widget_host_impl =
       RenderWidgetHostImpl::From(widget_host_view->GetRenderWidgetHost());
@@ -3450,11 +3481,11 @@ RenderViewHostImpl* WebContentsImpl::GetRenderViewHostImpl() {
   return static_cast<RenderViewHostImpl*>(GetRenderViewHost());
 }
 
-BrowserPluginGuest* WebContentsImpl::GetBrowserPluginGuest() {
+BrowserPluginGuest* WebContentsImpl::GetBrowserPluginGuest() const {
   return browser_plugin_guest_.get();
 }
 
-BrowserPluginEmbedder* WebContentsImpl::GetBrowserPluginEmbedder() {
+BrowserPluginEmbedder* WebContentsImpl::GetBrowserPluginEmbedder() const {
   return browser_plugin_embedder_.get();
 }
 

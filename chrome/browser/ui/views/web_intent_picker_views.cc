@@ -564,7 +564,7 @@ class IntentRowView : public views::View,
                              const ui::Event& event) OVERRIDE;
 
   // LinkListener implementation.
-  void LinkClicked(views::Link* source, int event_flags) OVERRIDE;
+  virtual void LinkClicked(views::Link* source, int event_flags) OVERRIDE;
 
   // Start an animating throbber for this row, and hide the star rating and the
   // install button.
@@ -1090,7 +1090,7 @@ WebIntentPickerViews::WebIntentPickerViews(WebContents* web_contents,
       chrome_style::GetBackgroundColor()));
 
   // Show the dialog.
-  window_ = new ConstrainedWindowViews(web_contents, this);
+  window_ = ConstrainedWindowViews::Create(web_contents, this);
   if (model_->IsInlineDisposition())
     OnInlineDisposition(string16(), model_->inline_disposition_url());
   else

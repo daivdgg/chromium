@@ -1506,6 +1506,14 @@
    fun:GeolocationInfoBarQueueControllerTests_OneObservationPerInfoBarCancelled_Test::TestBody
 }
 {
+   bug_155530_b
+   Heapcheck:Leak
+   ...
+   fun:::CreateLocaleDefaultValue
+   ...
+   fun:GeolocationInfoBarQueueControllerTests::SetUp
+}
+{
    bug_157885
    Heapcheck:Leak
    ...
@@ -1661,12 +1669,6 @@
    fun:v8::internal::Execution::New
 }
 {
-  bug_169434
-  Heapcheck:Leak
-  ...
-  fun:::BookmarkUIUtilsTest_HasBookmarkURLs_Test::TestBody
-}
-{
    bug_169678
    Heapcheck:Leak
    fun:v8::internal::SlotsBufferAllocator::AllocateBuffer
@@ -1708,13 +1710,6 @@
    fun:EventUnittest_AddingFilterWithUrlFieldNotAListThrowsException_Test
 }
 {
-   bug_171547_a
-   Heapcheck:Leak
-   ...
-   fun:ManagedUserService::ManagedUserService
-   fun:ManagedUserServiceTest_ExtensionManagementPolicyProvider_Test::TestBody
-}
-{
    bug_171547_b
    Heapcheck:Leak
    ...
@@ -1727,12 +1722,6 @@
    ...
    fun:FilterBuilder::Build
    fun:::LoadWhitelistsOnBlockingPoolThread
-}
-{
-   bug_171547_d
-   Heapcheck:Leak
-   fun:MessageLoop::MessageLoop
-   fun:ManagedUserServiceTest_ExtensionManagementPolicyProvider_Test::TestBody
 }
 {
    bug_172077
@@ -1773,4 +1762,9 @@
    fun:FcConfigEvaluate
    fun:gfx::RenderTextLinux::EnsureLayout
    fun:gfx::RenderTextTest_PangoAttributes_Test::TestBody
+}
+{
+   bug_174177
+   Heapcheck:Leak
+   fun:drive::SearchMetadataTest::SetUp
 }

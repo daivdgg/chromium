@@ -75,8 +75,8 @@ void VirtualPath::GetComponents(
 
 FilePath::StringType VirtualPath::GetNormalizedFilePath(const FilePath& path) {
   FilePath::StringType normalized_path = path.value();
-  const size_t num_separators = ARRAYSIZE_UNSAFE(
-      static_cast<const FilePath::CharType*>(FilePath::kSeparators));
+  const size_t num_separators = FilePath::StringType(
+      FilePath::kSeparators).length();
   for (size_t i = 1; i < num_separators; ++i) {
     std::replace(normalized_path.begin(), normalized_path.end(),
                  FilePath::kSeparators[i], kSeparator);
@@ -254,6 +254,30 @@ WebKit::WebFileError PlatformFileErrorToWebFileError(
     default:
       return WebKit::WebFileErrorInvalidModification;
   }
+}
+
+bool GetFileSystemPublicType(
+    const std::string type_string,
+    WebKit::WebFileSystem::Type* type) {
+  DCHECK(type);
+  if (type_string == "Temporary") {
+    *type = WebKit::WebFileSystem::TypeTemporary;
+    return true;
+  }
+  if (type_string == "Persistent") {
+    *type = WebKit::WebFileSystem::TypePersistent;
+    return true;
+  }
+  if (type_string == "Isolated") {
+    *type = WebKit::WebFileSystem::TypeIsolated;
+    return true;
+  }
+  if (type_string == "External") {
+    *type = WebKit::WebFileSystem::TypeExternal;
+    return true;
+  }
+  NOTREACHED();
+  return false;
 }
 
 std::string GetIsolatedFileSystemName(const GURL& origin_url,

@@ -57,6 +57,7 @@ class ContentViewCoreImpl : public ContentViewCore,
   virtual unsigned int GetScaledContentTexture(
       float scale,
       gfx::Size* out_size) OVERRIDE;
+  virtual float GetDpiScale() const OVERRIDE;
 
   // --------------------------------------------------------------------------
   // Methods called from Java via JNI
@@ -205,6 +206,7 @@ class ContentViewCoreImpl : public ContentViewCore,
                                         jobject jbitmap);
   void SetSize(JNIEnv* env, jobject obj, jint width, jint height);
   jboolean IsRenderWidgetHostViewReady(JNIEnv* env, jobject obj);
+  void ExitFullscreen(JNIEnv* env, jobject obj);
 
   void ShowInterstitialPage(JNIEnv* env,
                             jobject obj,
@@ -289,7 +291,6 @@ class ContentViewCoreImpl : public ContentViewCore,
 
   int GetTouchPadding();
 
-  float DpiScale() const;
   WebKit::WebGestureEvent MakeGestureEvent(WebKit::WebInputEvent::Type type,
                                            long time_ms, int x, int y) const;
   void UpdateVSyncFlagOnInputEvent(WebKit::WebInputEvent* event) const;

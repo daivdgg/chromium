@@ -244,7 +244,7 @@ class LoginUtilsImpl
   virtual std::string GetOffTheRecordCommandLine(
       const GURL& start_url,
       const CommandLine& base_command_line,
-      CommandLine *command_line);
+      CommandLine *command_line) OVERRIDE;
 
  private:
   // Restarts OAuth session authentication check.
@@ -544,13 +544,17 @@ void LoginUtilsImpl::CompleteProfileCreate(Profile* user_profile) {
 
 void LoginUtilsImpl::RestoreAuthSession(Profile* user_profile,
                                         bool restore_from_auth_cookies) {
-  DCHECK(authenticator_ || !restore_from_auth_cookies);
+  CHECK((authenticator_ && authenticator_->authentication_profile()) ||
+        !restore_from_auth_cookies);
+  if (!login_manager_.get())
+    return;
+
   // Remove legacy OAuth1 token if we have one. If it's valid, we should already
   // have OAuth2 refresh token in TokenService that could be used to retrieve
   // all other tokens and credentials.
   login_manager_->RestoreSession(
       user_profile,
-      authenticator_ ?
+      authenticator_ && authenticator_->authentication_profile() ?
           authenticator_->authentication_profile()->GetRequestContext() :
           NULL,
       restore_from_auth_cookies);
@@ -724,6 +728,7 @@ std::string LoginUtilsImpl::GetOffTheRecordCommandLine(
       ::switches::kAllowWebUICompositing,
       ::switches::kDeviceManagementUrl,
       ::switches::kDisableAccelerated2dCanvas,
+      ::switches::kDisableAcceleratedOverflowScroll,
       ::switches::kDisableAcceleratedPlugins,
       ::switches::kDisableAcceleratedVideoDecode,
       ::switches::kDisableEncryptedMedia,
@@ -901,7 +906,7 @@ class WarmingObserver : public NetworkLibrary::NetworkManagerObserver,
   virtual ~WarmingObserver() {}
 
   // If we're now connected, prewarm the auth url.
-  virtual void OnNetworkManagerChanged(NetworkLibrary* netlib) {
+  virtual void OnNetworkManagerChanged(NetworkLibrary* netlib) OVERRIDE {
     if (netlib->Connected()) {
       const int kConnectionsNeeded = 1;
       chrome_browser_net::PreconnectOnUIThread(
@@ -917,7 +922,7 @@ class WarmingObserver : public NetworkLibrary::NetworkManagerObserver,
   // content::NotificationObserver overrides.
   virtual void Observe(int type,
                        const content::NotificationSource& source,
-                       const content::NotificationDetails& details) {
+                       const content::NotificationDetails& details) OVERRIDE {
   switch (type) {
     case chrome::NOTIFICATION_PROFILE_URL_REQUEST_CONTEXT_GETTER_INITIALIZED: {
       Profile* profile = content::Source<Profile>(source).ptr();

@@ -257,11 +257,6 @@ class ChromeTests:
     return self.SimpleTest("chromeos", "chromeos_unittests")
 
   def TestComponents(self):
-    # Skip on TSan/Win bots as it fails on a TCMalloc assertion!
-    # See http://crbug.com/99036
-    if common.IsWindows() and (self._options.valgrind_tool == "tsan"):
-      logging.warning("components_unittests are disabled for TSan on Windows.")
-      return 0;
     return self.SimpleTest("components", "components_unittests")
 
   def TestCompositor(self):
@@ -350,14 +345,16 @@ class ChromeTests:
   UI_VALGRIND_ARGS = ["--timeout=14400", "--trace_children", "--indirect"]
   # UI test timeouts are in milliseconds.
   UI_TEST_ARGS = ["--ui-test-action-timeout=60000",
-                  "--ui-test-action-max-timeout=150000"]
+                  "--ui-test-action-max-timeout=150000",
+                  "--no-sandbox"]
 
   # TODO(thestig) fine-tune these values.
   # Valgrind timeouts are in seconds.
   BROWSER_VALGRIND_ARGS = ["--timeout=50000", "--trace_children", "--indirect"]
   # Browser test timeouts are in milliseconds.
   BROWSER_TEST_ARGS = ["--ui-test-action-timeout=200000",
-                       "--ui-test-action-max-timeout=400000"]
+                       "--ui-test-action-max-timeout=400000",
+                       "--no-sandbox"]
 
   def TestAutomatedUI(self):
     return self.SimpleTest("chrome", "automated_ui_tests",

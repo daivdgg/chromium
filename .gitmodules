@@ -164,7 +164,7 @@
 	os = android
 [submodule "third_party/angle"]
 	path = third_party/angle
-	url = https://chromium.googlesource.com/external/angleproject/dx11proto.git
+	url = https://chromium.googlesource.com/external/angleproject.git
 	os = all
 [submodule "third_party/aosp"]
 	path = third_party/aosp

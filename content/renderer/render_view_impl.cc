@@ -79,6 +79,7 @@
 #include "content/renderer/gpu/compositor_thread.h"
 #include "content/renderer/gpu/compositor_output_surface.h"
 #include "content/renderer/gpu/compositor_software_output_device_gl_adapter.h"
+#include "content/renderer/gpu/render_widget_compositor.h"
 #include "content/renderer/idle_user_detector.h"
 #include "content/renderer/input_tag_speech_dispatcher.h"
 #include "content/renderer/java/java_bridge_dispatcher.h"
@@ -533,6 +534,26 @@ static WindowOpenDisposition NavigationPolicyToDisposition(
   }
 }
 
+static bool ShouldUseFixedPositionCompositing(float device_scale_factor) {
+  // Compositing for fixed-position elements is dependent on
+  // device_scale_factor if high-DPI flag is set, with no other
+  // overriding switch. http://crbug.com/172738
+  const CommandLine& command_line = *CommandLine::ForCurrentProcess();
+
+  if (command_line.HasSwitch(switches::kDisableCompositingForFixedPosition))
+    return false;
+
+  if (command_line.HasSwitch(switches::kEnableCompositingForFixedPosition))
+    return true;
+
+  if (device_scale_factor > 1.0f &&
+      command_line.HasSwitch(
+          switches::kEnableHighDpiCompositingForFixedPosition))
+    return true;
+
+  return false;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 struct RenderViewImpl::PendingFileChooser {
@@ -706,6 +727,9 @@ RenderViewImpl::RenderViewImpl(RenderViewImplParams* params)
   g_view_map.Get().insert(std::make_pair(webview(), this));
   g_routing_id_view_map.Get().insert(std::make_pair(routing_id_, this));
   webview()->setDeviceScaleFactor(device_scale_factor_);
+  webview()->settings()->setAcceleratedCompositingForFixedPositionEnabled(
+      ShouldUseFixedPositionCompositing(device_scale_factor_));
+
   webkit_preferences_.Apply(webview());
   webview()->initializeMainFrame(this);
 
@@ -1948,7 +1972,7 @@ WebStorageNamespace* RenderViewImpl::createSessionStorageNamespace(
   return new WebStorageNamespaceImpl(session_storage_namespace_id_);
 }
 
-WebKit::WebCompositorOutputSurface* RenderViewImpl::createOutputSurface() {
+scoped_ptr<cc::OutputSurface> RenderViewImpl::CreateOutputSurface() {
   // Explicitly disable antialiasing for the compositor. As of the time of
   // this writing, the only platform that supported antialiasing for the
   // compositor was Mac OS X, because the on-screen OpenGL context creation
@@ -1965,18 +1989,25 @@ WebKit::WebCompositorOutputSurface* RenderViewImpl::createOutputSurface() {
   attributes.noAutomaticFlushes = true;
   WebGraphicsContext3D* context = CreateGraphicsContext3D(attributes);
   if (!context)
-    return NULL;
+    return scoped_ptr<cc::OutputSurface>();
 
   const CommandLine& command_line = *CommandLine::ForCurrentProcess();
   if (command_line.HasSwitch(switches::kEnableSoftwareCompositingGLAdapter)) {
       // In the absence of a software-based delegating renderer, use this
       // stopgap adapter class to present the software renderer output using a
       // 3d context.
-      return new CompositorOutputSurface(routing_id(), NULL,
-          new CompositorSoftwareOutputDeviceGLAdapter(context));
+      return scoped_ptr<cc::OutputSurface>(
+          new CompositorOutputSurface(routing_id(), NULL,
+              new CompositorSoftwareOutputDeviceGLAdapter(context)));
   } else {
-      return new CompositorOutputSurface(routing_id(), context, NULL);
+      return scoped_ptr<cc::OutputSurface>(
+          new CompositorOutputSurface(routing_id(), context, NULL));
   }
+}
+
+WebKit::WebCompositorOutputSurface* RenderViewImpl::createOutputSurface() {
+  NOTREACHED();
+  return NULL;
 }
 
 void RenderViewImpl::didAddMessageToConsole(
@@ -5443,6 +5474,11 @@ void RenderViewImpl::OnSetRendererPrefs(
   }
 #endif  // defined(USE_DEFAULT_RENDER_THEME) || defined(TOOLKIT_GTK)
 
+  if (RenderThreadImpl::current())  // Will be NULL during unit tests.
+    RenderThreadImpl::current()->SetFlingCurveParameters(
+        renderer_prefs.touchpad_fling_profile,
+        renderer_prefs.touchscreen_fling_profile);
+
   // If the zoom level for this page matches the old zoom default, and this
   // is not a plugin, update the zoom level to match the new default.
   if (webview() && !webview()->mainFrame()->document().isPluginDocument() &&
@@ -5770,8 +5806,8 @@ void RenderViewImpl::OnClearFocusedNode() {
 void RenderViewImpl::OnSetBackground(const SkBitmap& background) {
   if (webview())
     webview()->setIsTransparent(!background.empty());
-  if (web_layer_tree_view_)
-    web_layer_tree_view_->setHasTransparentBackground(!background.empty());
+  if (compositor_)
+    compositor_->setHasTransparentBackground(!background.empty());
 
   SetBackground(background);
 }
@@ -5961,7 +5997,7 @@ void RenderViewImpl::OnWasShown(bool needs_repainting) {
 
 bool RenderViewImpl::SupportsAsynchronousSwapBuffers() {
   // Contexts using the command buffer support asynchronous swapbuffers.
-  // See RenderViewImpl::createOutputSurface().
+  // See RenderViewImpl::CreateOutputSurface().
   if (RenderThreadImpl::current()->compositor_thread() ||
       CommandLine::ForCurrentProcess()->HasSwitch(switches::kInProcessWebGL))
     return false;
@@ -6130,8 +6166,11 @@ void RenderViewImpl::OnImeConfirmComposition(
 
 void RenderViewImpl::SetDeviceScaleFactor(float device_scale_factor) {
   RenderWidget::SetDeviceScaleFactor(device_scale_factor);
-  if (webview())
+  if (webview()) {
     webview()->setDeviceScaleFactor(device_scale_factor);
+    webview()->settings()->setAcceleratedCompositingForFixedPositionEnabled(
+        ShouldUseFixedPositionCompositing(device_scale_factor_));
+  }
 }
 
 ui::TextInputType RenderViewImpl::GetTextInputType() {

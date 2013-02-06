@@ -51,6 +51,7 @@ class RenderViewHost;
 class RenderViewHostDelegateView;
 class RenderViewHostImpl;
 class RenderWidgetHostImpl;
+class RenderWidgetHostViewPort;
 class SavePackage;
 class SessionStorageNamespaceImpl;
 class SiteInstance;
@@ -170,10 +171,10 @@ class CONTENT_EXPORT WebContentsImpl
 
   // Returns guest browser plugin object, or NULL if this WebContents is not a
   // guest.
-  BrowserPluginGuest* GetBrowserPluginGuest();
+  BrowserPluginGuest* GetBrowserPluginGuest() const;
   // Returns embedder browser plugin object, or NULL if this WebContents is not
   // an embedder.
-  BrowserPluginEmbedder* GetBrowserPluginEmbedder();
+  BrowserPluginEmbedder* GetBrowserPluginEmbedder() const;
 
   // Gets the current fullscreen render widget's routing ID. Returns
   // MSG_ROUTING_NONE when there is no fullscreen render widget.
@@ -215,7 +216,8 @@ class CONTENT_EXPORT WebContentsImpl
   virtual uint64 GetUploadPosition() const OVERRIDE;
   virtual const std::string& GetEncoding() const OVERRIDE;
   virtual bool DisplayedInsecureContent() const OVERRIDE;
-  virtual void SetCapturingContents(bool cap) OVERRIDE;
+  virtual void IncrementCapturerCount() OVERRIDE;
+  virtual void DecrementCapturerCount() OVERRIDE;
   virtual bool IsCrashed() const OVERRIDE;
   virtual void SetIsCrashed(base::TerminationStatus status,
                             int error_code) OVERRIDE;
@@ -667,6 +669,13 @@ class CONTENT_EXPORT WebContentsImpl
   // called once as this call also removes it from the internal map.
   WebContentsImpl* GetCreatedWindow(int route_id);
 
+  // Returns the RenderWidgetHostView that is associated with a native window
+  // and can be used in showing created widgets.
+  // If this WebContents belongs to a browser plugin guest, there is no native
+  // window 'view' associated with this WebContents. This method returns the
+  // 'view' of the embedder instead.
+  RenderWidgetHostViewPort* GetRenderWidgetHostViewPort() const;
+
   // Misc non-view stuff -------------------------------------------------------
 
   // Helper functions for sending notifications.
@@ -784,8 +793,13 @@ class CONTENT_EXPORT WebContentsImpl
 
   // Data for misc internal state ----------------------------------------------
 
-  // Whether the WebContents is currently being screenshotted.
-  bool capturing_contents_;
+  // When > 0, the WebContents is currently being captured (e.g., for
+  // screenshots or mirroring); and the underlying RenderWidgetHost should not
+  // be told it is hidden.
+  int capturer_count_;
+
+  // Tracks whether RWHV should be visible once capturer_count_ becomes zero.
+  bool should_normally_be_visible_;
 
   // See getter above.
   bool is_being_destroyed_;

@@ -56,7 +56,7 @@ SOURCES=hello_world.cc matrix.cc
 # and the set we do not. This  example does not have any additional library
 # dependencies.
 #
-DEPS=ppapi_main nacl_mounts ppapi_cpp ppapi_gles2
+DEPS=ppapi_main nacl_io ppapi_cpp ppapi_gles2
 LIBS=$(DEPS) ppapi pthread
 
 

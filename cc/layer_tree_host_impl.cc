@@ -120,6 +120,7 @@ private:
 };
 
 LayerTreeHostImpl::FrameData::FrameData()
+    : containsIncompleteTile(false)
 {
 }
 
@@ -137,7 +138,7 @@ LayerTreeHostImpl::LayerTreeHostImpl(const LayerTreeSettings& settings, LayerTre
     , m_proxy(proxy)
     , m_didLockScrollingLayer(false)
     , m_shouldBubbleScrolls(false)
-    , m_scrollDeltaIsInViewportSpace(false)
+    , m_wheelScrolling(false)
     , m_settings(settings)
     , m_debugState(settings.initialDebugState)
     , m_deviceScaleFactor(1)
@@ -509,6 +510,9 @@ bool LayerTreeHostImpl::calculateRenderPasses(FrameData& frame)
                 drawFrame = false;
         }
 
+        if (appendQuadsData.hadIncompleteTile) 
+            frame.containsIncompleteTile = true;
+
         occlusionTracker.leaveLayer(it);
     }
 
@@ -843,15 +847,7 @@ const RendererCapabilities& LayerTreeHostImpl::rendererCapabilities() const
 
 bool LayerTreeHostImpl::swapBuffers()
 {
-    DCHECK(m_renderer);
-    bool result = m_renderer->swapBuffers();
-
-    if (m_settings.implSidePainting &&
-        !activeTree()->AreVisibleResourcesReady()) {
-        m_client->didSwapUseIncompleteTileOnImplThread();
-    }
-
-    return result;
+    return m_renderer->swapBuffers();
 }
 
 const gfx::Size& LayerTreeHostImpl::deviceViewportSize() const
@@ -1064,7 +1060,7 @@ bool LayerTreeHostImpl::initializeRenderer(scoped_ptr<OutputSurface> outputSurfa
         return false;
 
     if (m_settings.implSidePainting)
-      m_tileManager.reset(new TileManager(this, resourceProvider.get(), m_settings.numRasterThreads, m_settings.recordRenderingStats));
+      m_tileManager.reset(new TileManager(this, resourceProvider.get(), m_settings.numRasterThreads, m_settings.recordRenderingStats, m_settings.useCheapnessEstimator));
 
     if (outputSurface->Capabilities().has_parent_compositor)
         m_renderer = DelegatingRenderer::Create(this, outputSurface.get(), resourceProvider.get());
@@ -1203,10 +1199,7 @@ InputHandlerClient::ScrollStatus LayerTreeHostImpl::scrollBegin(gfx::Point viewp
     if (potentiallyScrollingLayerImpl) {
         m_activeTree->set_currently_scrolling_layer(potentiallyScrollingLayerImpl);
         m_shouldBubbleScrolls = (type != NonBubblingGesture);
-        // Gesture events need to be transformed from viewport coordinates to local layer coordinates
-        // so that the scrolling contents exactly follow the user's finger. In contrast, wheel
-        // events are already in local layer coordinates so we can just apply them directly.
-        m_scrollDeltaIsInViewportSpace = (type == Gesture);
+        m_wheelScrolling = (type == Wheel);
         m_numImplThreadScrolls++;
         m_client->renewTreePriority();
         UMA_HISTOGRAM_BOOLEAN("TryScroll.SlowScroll", false);
@@ -1292,7 +1285,10 @@ bool LayerTreeHostImpl::scrollBy(const gfx::Point& viewportPoint,
         if (m_topControlsManager && layerImpl == rootScrollLayer())
             pendingDelta = m_topControlsManager->ScrollBy(pendingDelta);
 
-        if (m_scrollDeltaIsInViewportSpace) {
+        // Gesture events need to be transformed from viewport coordinates to local layer coordinates
+        // so that the scrolling contents exactly follow the user's finger. In contrast, wheel
+        // events represent a fixed amount of scrolling so we can just apply them directly.
+        if (!m_wheelScrolling) {
             float scaleFromViewportToScreenSpace = m_deviceScaleFactor;
             appliedDelta = scrollLayerWithViewportSpaceDelta(layerImpl, scaleFromViewportToScreenSpace, viewportPoint, pendingDelta);
         } else

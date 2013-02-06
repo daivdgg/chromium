@@ -61,7 +61,7 @@ void PicturePileImpl::Raster(
     SkCanvas* canvas,
     gfx::Rect content_rect,
     float contents_scale,
-    RenderingStats* stats) {
+    int64* total_pixels_rasterized) {
 
   DCHECK(contents_scale >= min_contents_scale_);
 
@@ -110,9 +110,8 @@ void PicturePileImpl::Raster(
           SkRegion::kDifference_Op);
       unclipped.Subtract(content_clip);
 
-      if (stats)
-        stats->totalPixelsRasterized +=
-            content_clip.width() * content_clip.height();
+      total_pixels_rasterized +=
+          content_clip.width() * content_clip.height();
     }
   }
   canvas->restore();
@@ -161,11 +160,35 @@ skia::RefPtr<SkPicture> PicturePileImpl::GetFlattenedPicture() {
       layer_rect.height(),
       SkPicture::kUsePathBoundsForClip_RecordingFlag);
 
-  RenderingStats stats;
-  Raster(canvas, layer_rect, 1.0, &stats);
+  int64 total_pixels_rasterized = 0;
+  Raster(canvas, layer_rect, 1.0, &total_pixels_rasterized);
   picture->endRecording();
 
   return picture;
+}
+
+bool PicturePileImpl::IsCheapInRect(
+    gfx::Rect content_rect, float contents_scale) const {
+  gfx::Rect layer_rect = gfx::ToEnclosingRect(
+      gfx::ScaleRect(content_rect, 1.f / contents_scale));
+
+  for (TilingData::Iterator tile_iter(&tiling_, layer_rect);
+       tile_iter; ++tile_iter) {
+    PictureListMap::const_iterator map_iter =
+        picture_list_map_.find(tile_iter.index());
+    if (map_iter == picture_list_map_.end())
+      continue;
+
+    const PictureList& pic_list = map_iter->second;
+    for (PictureList::const_iterator i = pic_list.begin();
+         i != pic_list.end(); ++i) {
+      if (!(*i)->LayerRect().Intersects(layer_rect) || !(*i)->HasRecording())
+        continue;
+      if (!(*i)->IsCheapInRect(layer_rect))
+        return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace cc

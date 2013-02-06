@@ -9,6 +9,7 @@
 #include "base/port.h"
 #include "base/prefs/public/pref_service_base.h"
 #include "chrome/browser/autofill/risk/proto/fingerprint.pb.h"
+#include "chrome/browser/prefs/pref_registry_simple.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/testing_pref_service.h"
@@ -30,6 +31,9 @@ class AutofillRiskFingerprintTest : public InProcessBrowserTest {
         message_loop_(MessageLoop::TYPE_UI) {}
 
   void GetFingerprintTestCallback(scoped_ptr<Fingerprint> fingerprint) {
+    // TODO(isherman): Investigating http://crbug.com/174296
+    LOG(WARNING) << "Callback called.";
+
     // Verify that all fields Chrome can fill have been filled.
     ASSERT_TRUE(fingerprint->has_machine_characteristics());
     const Fingerprint_MachineCharacteristics& machine =
@@ -85,6 +89,8 @@ class AutofillRiskFingerprintTest : public InProcessBrowserTest {
               transient_state.outer_window_size().height());
     EXPECT_EQ(kGaiaId, fingerprint->metadata().gaia_id());
 
+    // TODO(isherman): Investigating http://crbug.com/174296
+    LOG(WARNING) << "Stopping the message loop.";
     message_loop_.Quit();
   }
 
@@ -97,15 +103,20 @@ class AutofillRiskFingerprintTest : public InProcessBrowserTest {
 // Test that getting a fingerprint works on some basic level.
 IN_PROC_BROWSER_TEST_F(AutofillRiskFingerprintTest, GetFingerprint) {
   TestingPrefServiceSimple prefs;
-  prefs.RegisterStringPref(prefs::kDefaultCharset, kCharset);
-  prefs.RegisterStringPref(prefs::kAcceptLanguages, kAcceptLanguages);
+  prefs.registry()->RegisterStringPref(prefs::kDefaultCharset, kCharset);
+  prefs.registry()->RegisterStringPref(prefs::kAcceptLanguages,
+                                       kAcceptLanguages);
 
+  // TODO(isherman): Investigating http://crbug.com/174296
+  LOG(WARNING) << "Loading fingerprint.";
   GetFingerprint(
       kGaiaId, kWindowBounds, kContentBounds, prefs,
       base::Bind(&AutofillRiskFingerprintTest::GetFingerprintTestCallback,
                  base::Unretained(this)));
 
   // Wait for the callback to be called.
+  // TODO(isherman): Investigating http://crbug.com/174296
+  LOG(WARNING) << "Waiting for the callback to be called.";
   message_loop_.Run();
 }
 

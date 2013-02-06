@@ -241,7 +241,9 @@ void BrowserOptionsHandler::GetLocalizedValues(DictionaryValue* values) {
 #if defined(ENABLE_SETTINGS_APP)
     { "profilesAppListSwitch", IDS_SETTINGS_APP_PROFILES_SWITCH_BUTTON_LABEL },
 #endif
-    { "proxiesLabel", IDS_OPTIONS_PROXIES_LABEL },
+    { "proxiesLabelExtension", IDS_OPTIONS_EXTENSION_PROXIES_LABEL },
+    { "proxiesLabelSystem", IDS_OPTIONS_SYSTEM_PROXIES_LABEL,
+      IDS_PRODUCT_NAME },
     { "safeBrowsingEnableProtection",
       IDS_OPTIONS_SAFEBROWSING_ENABLEPROTECTION },
     { "sectionTitleAppearance", IDS_APPEARANCE_GROUP_NAME },
@@ -371,6 +373,8 @@ void BrowserOptionsHandler::GetLocalizedValues(DictionaryValue* values) {
     { "profilesSingleUser", IDS_PROFILES_SINGLE_USER_MESSAGE,
       IDS_SETTINGS_APP_LAUNCHER_PRODUCT_NAME },
     { "languageSectionLabel", IDS_OPTIONS_ADVANCED_LANGUAGE_LABEL,
+      IDS_SETTINGS_APP_LAUNCHER_PRODUCT_NAME },
+    { "proxiesLabelSystem", IDS_OPTIONS_SYSTEM_PROXIES_LABEL,
       IDS_SETTINGS_APP_LAUNCHER_PRODUCT_NAME },
   };
   DictionaryValue* app_values = NULL;
@@ -608,7 +612,10 @@ void BrowserOptionsHandler::InitializeHandler() {
   registrar_.Add(this, chrome::NOTIFICATION_BROWSER_THEME_CHANGED,
                  content::Source<ThemeService>(
                      ThemeServiceFactory::GetForProfile(profile)));
-
+  registrar_.Add(this, chrome::NOTIFICATION_GOOGLE_SIGNIN_SUCCESSFUL,
+                 content::Source<Profile>(profile));
+  registrar_.Add(this, chrome::NOTIFICATION_GOOGLE_SIGNED_OUT,
+                 content::Source<Profile>(profile));
   AddTemplateUrlServiceObserver();
 
 #if defined(OS_WIN)
@@ -893,17 +900,26 @@ void BrowserOptionsHandler::Observe(
   if (!page_initialized_)
     return;
 
-  if (type == chrome::NOTIFICATION_BROWSER_THEME_CHANGED) {
-    ObserveThemeChanged();
+  switch (type) {
+    case chrome::NOTIFICATION_BROWSER_THEME_CHANGED:
+      ObserveThemeChanged();
+      break;
 #if defined(OS_CHROMEOS)
-  } else if (type == chrome::NOTIFICATION_LOGIN_USER_IMAGE_CHANGED) {
-    UpdateAccountPicture();
+    case chrome::NOTIFICATION_LOGIN_USER_IMAGE_CHANGED:
+      UpdateAccountPicture();
+      break;
 #endif
-  } else if (type == chrome::NOTIFICATION_PROFILE_CACHED_INFO_CHANGED) {
-    if (multiprofile_)
-      SendProfilesInfo();
-  } else {
-    NOTREACHED();
+    case chrome::NOTIFICATION_PROFILE_CACHED_INFO_CHANGED:
+      if (multiprofile_)
+        SendProfilesInfo();
+      break;
+    case chrome::NOTIFICATION_GOOGLE_SIGNIN_SUCCESSFUL:
+    case chrome::NOTIFICATION_GOOGLE_SIGNED_OUT:
+      // Update our sync/signin status display.
+      OnStateChanged();
+      break;
+    default:
+      NOTREACHED();
   }
 }
 
@@ -1055,21 +1071,25 @@ void BrowserOptionsHandler::UpdateAccountPicture() {
 
 scoped_ptr<DictionaryValue> BrowserOptionsHandler::GetSyncStateDictionary() {
   scoped_ptr<DictionaryValue> sync_status(new DictionaryValue);
-  ProfileSyncService* service(ProfileSyncServiceFactory::
-      GetInstance()->GetForProfile(Profile::FromWebUI(web_ui())));
-  sync_status->SetBoolean("syncSystemEnabled", !!service);
-  if (!service)
+  Profile* profile = Profile::FromWebUI(web_ui());
+  sync_status->SetBoolean("signinAllowed", !profile->IsGuestSession());
+  if (profile->IsGuestSession()) {
+    // Cannot display signin status when running in guest mode on chromeos
+    // because there is no SigninManager.
     return sync_status.Pass();
-
+  }
+  ProfileSyncService* service(
+      ProfileSyncServiceFactory::GetInstance()->GetForProfile(profile));
+  sync_status->SetBoolean("syncSystemEnabled", !!service);
   sync_status->SetBoolean("setupCompleted",
-                          service->HasSyncSetupCompleted());
-  sync_status->SetBoolean("setupInProgress", service->FirstSetupInProgress());
+                          service && service->HasSyncSetupCompleted());
+  sync_status->SetBoolean("setupInProgress",
+      service && !service->IsManaged() && service->FirstSetupInProgress());
 
   string16 status_label;
   string16 link_label;
-  SigninManager* signin = SigninManagerFactory::GetForProfile(
-      Profile::FromWebUI(web_ui()));
-
+  SigninManager* signin = SigninManagerFactory::GetForProfile(profile);
+  DCHECK(signin);
   bool status_has_error = sync_ui_util::GetStatusLabels(
       service, *signin, sync_ui_util::WITH_HTML, &status_label, &link_label) ==
           sync_ui_util::SYNC_ERROR;
@@ -1077,15 +1097,16 @@ scoped_ptr<DictionaryValue> BrowserOptionsHandler::GetSyncStateDictionary() {
   sync_status->SetString("actionLinkText", link_label);
   sync_status->SetBoolean("hasError", status_has_error);
 
-  sync_status->SetBoolean("managed", service->IsManaged());
+  sync_status->SetBoolean("managed", service && service->IsManaged());
   sync_status->SetBoolean("signedIn",
                           !signin->GetAuthenticatedUsername().empty());
   sync_status->SetBoolean("hasUnrecoverableError",
-                          service->HasUnrecoverableError());
+                          service && service->HasUnrecoverableError());
   sync_status->SetBoolean(
       "autoLoginVisible",
       CommandLine::ForCurrentProcess()->HasSwitch(switches::kEnableAutologin) &&
-      service->IsSyncEnabledAndLoggedIn() && service->IsSyncTokenAvailable());
+      service && service->IsSyncEnabledAndLoggedIn() &&
+      service->IsSyncTokenAvailable());
 
   return sync_status.Pass();
 }
@@ -1404,19 +1425,10 @@ void BrowserOptionsHandler::SetupProxySettingsSection() {
 
   base::FundamentalValue disabled(proxy_prefs_.IsManaged() ||
                                   is_extension_controlled);
+  base::FundamentalValue extension_controlled(is_extension_controlled);
+  web_ui()->CallJavascriptFunction("BrowserOptions.setupProxySettingsSection",
+                                   disabled, extension_controlled);
 
-  // Get the appropriate info string to describe the button.
-  string16 label_str;
-  if (is_extension_controlled) {
-    label_str = l10n_util::GetStringUTF16(IDS_OPTIONS_EXTENSION_PROXIES_LABEL);
-  } else {
-    label_str = l10n_util::GetStringFUTF16(IDS_OPTIONS_SYSTEM_PROXIES_LABEL,
-        l10n_util::GetStringUTF16(IDS_PRODUCT_NAME));
-  }
-  StringValue label(label_str);
-
-  web_ui()->CallJavascriptFunction(
-      "BrowserOptions.setupProxySettingsSection", disabled, label);
 #endif  // !defined(OS_CHROMEOS)
 }
 
