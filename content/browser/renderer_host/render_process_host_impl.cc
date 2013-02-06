@@ -797,6 +797,9 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kEnableSoftwareCompositingGLAdapter,
     switches::kEnableStatsTable,
     switches::kEnableThreadedCompositing,
+    switches::kEnableCompositingForFixedPosition,
+    switches::kEnableHighDpiCompositingForFixedPosition,
+    switches::kDisableCompositingForFixedPosition,
     switches::kEnableTouchDragDrop,
     switches::kDisableThreadedCompositing,
     switches::kDisableTouchAdjustment,
@@ -879,7 +882,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     renderer_cmd->AppendSwitch(switches::kEnableDeferredImageDecoding);
 }
 
-base::ProcessHandle RenderProcessHostImpl::GetHandle() {
+base::ProcessHandle RenderProcessHostImpl::GetHandle() const {
   if (run_renderer_in_process())
     return base::Process::Current().handle();
 

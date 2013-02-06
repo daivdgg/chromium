@@ -6362,6 +6362,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_THREADED_COMPOSITING_MODE_DESCRIPTION" desc="Description of the 'Threaded compositing mode' lab.">
         Uses a secondary thread to perform web page compositing. This allows smooth scrolling, even when the main thread is unresponsive.
       </message>
+      <message name="IDS_FLAGS_FORCE_ACCELERATED_OVERFLOW_SCROLL_MODE_NAME" desc="Name of the 'Accelerated overflow scroll mode' lab.">
+        Accelerated overflow scroll
+      </message>
+      <message name="IDS_FLAGS_FORCE_ACCELERATED_OVERFLOW_SCROLL_MODE_DESCRIPTION" desc="Description of the 'Accelerated overflow scroll mode' lab.">
+        When possible, puts the scrolling contents of an overflow scrolling element onto a composited layer for faster scrolling.
+      </message>
       <message name="IDS_FLAGS_DISABLE_ACCELERATED_2D_CANVAS_NAME" desc="Name of the 'Disable accelerated 2D canvas' lab.">
         Disable accelerated 2D canvas
       </message>
@@ -6671,6 +6677,15 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_FIXED_POSITION_CREATES_STACKING_CONTEXT_DESCRIPTION" desc="Description for the flag to make fixed position elements create stacking contexts.">
         Enabling this option makes all fixed position elements create new CSS stacking contexts.
       </message>
+      <message name="IDS_FLAGS_COMPOSITING_FOR_FIXED_POSITION_NAME" desc="Name of the 'Compositing for fixed position elements' lab.">
+        Compositing for fixed position elements.
+      </message>
+      <message name="IDS_FLAGS_COMPOSITING_FOR_FIXED_POSITION_DESCRIPTION" desc="Description for the flag to make fixed position elements become composited layers.">
+        Enabling this option will make fixed position elements have their own composited layers. Note that fixed position elements must also create stacking contexts for this to work.
+      </message>
+      <message name="IDS_FLAGS_COMPOSITING_FOR_FIXED_POSITION_HIGH_DPI" desc="Description of the 'Compositing for fixed position elements on high DPI' experiment.">
+        Enabled only for high-DPI displays
+      </message>
       <message name="IDS_FLAGS_ENABLE_DEFERRED_IMAGE_DECODING_NAME" desc="Name of the 'Enable deferred image decoding' lab.">
         Enable deferred image decoding.
       </message>
@@ -6775,13 +6790,10 @@ Keep your key file in a safe place. You will need it to create new versions of y
         Enables workspace switching via 3 finger vertical scroll.
       </message>
       <message name="IDS_FLAGS_ASH_IMMERSIVE_MODE_NAME" desc="Title for the flag to set the immersive mode style.">
-        Immersive window style
+        Immersive mode
       </message>
       <message name="IDS_FLAGS_ASH_IMMERSIVE_MODE_DESCRIPTION" desc="Description for the flag to enable immersive mode.">
-        Sets the style of an "immersive mode" for browser windows that gives more space to web content. Activate immersive mode by maximizing a window then clicking on the button in the top right corner.
-      </message>
-      <message name="IDS_FLAGS_ASH_IMMERSIVE_HIDE_TAB_INDICATORS" desc="Description a selection in the immersive mode popup menu.">
-        Hide tab indicators
+        Adds an "immersive mode" for browser windows that gives more space to web content. Activate immersive mode by maximizing a window then clicking on the button in the top right corner.
       </message>
       <message name="IDS_FLAGS_ENABLE_MEMORY_MONITOR_NAME" desc="Title for the flag to enable advanced gestures.">
         Enable memory monitor
@@ -8092,6 +8104,9 @@ The following plug-in is unresponsive: <ph name="PLUGIN_NAME">$1
         The attached file is uploaded to Google servers for debugging.&lt;br&gt;
         Note: You can attach one file per feedback report (3 MB limit)
       </message>
+      <message name="IDS_FEEDBACK_ATTACH_FILE_LABEL" desc="Text for the label for the attached filename">
+        Attach this file:
+      </message>
       <message name="IDS_FEEDBACK_READING_FILE" desc="Text to display if reading a file when the user clicks the send report button">
         Reading file..
       </message>
@@ -8340,6 +8355,9 @@ The following plug-in is unresponsive: <ph name="PLUGIN_NAME">$1
       </message>
       <message name="IDS_MEDIA_VIDEO_EXCEPTION_HEADER" desc="A column header for the action column of the media video exceptions dialog">
         Video
+      </message>
+      <message name="IDS_CONTENT_SETTING_CHANGED_INFOBAR_BUTTON" desc="The string used in the infobar button allowing the user to reload the page directly from the infobar.">
+        Reload
       </message>
 
       <!-- Mac and ChromeOS users do not close their browser. Mac users quit it and ChromeOS users log out. -->
@@ -10497,7 +10515,7 @@ Would you like to start <ph name="CONTROL_PANEL_APPLET_NAME">$1<ex>Add/Remove Pr
         Ethernet Networks:
       </message>
       <message name="IDS_ABOUT_NETWORK_WIFI" desc="The section title for wifi networks in the chrome://network page.">
-        Wifi Networks:
+        Wi-Fi Networks:
       </message>
       <message name="IDS_ABOUT_NETWORK_CELLULAR" desc="The section title for cellular networks in the chrome://network page.">
         Cellular Networks:
@@ -10506,7 +10524,7 @@ Would you like to start <ph name="CONTROL_PANEL_APPLET_NAME">$1<ex>Add/Remove Pr
         Virtual Networks:
       </message>
       <message name="IDS_ABOUT_NETWORK_REMEMBERED_WIFI" desc="The section title for remembered wifi networks in the chrome://network page.">
-        Remembered Wifi Networks:
+        Remembered Wi-Fi Networks:
       </message>
 
       <message name="IDS_OPTIONS_STARTUP_GROUP_NAME" desc="The title of the startup group">
@@ -10975,9 +10993,6 @@ experiment id: "<ph name="EXPERIMENT_ID">$5<ex>ar1</ex></ph>"
         Get themes
       </message>
 
-      <message name="IDS_OPTIONS_PROXIES_LABEL" desc="The info label for the 'Proxy settings' button">
-        Set up a proxy to connect to the network.
-      </message>
       <if expr="pp_ifdef('android') or pp_ifdef('ios')">
         <message name="IDS_OPTIONS_SYSTEM_PROXIES_LABEL" desc="Mobile: The info label for the 'Proxy settings' button when managed by the system.">
           <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> is using your mobile device's system proxy settings to connect to the network.
@@ -11242,7 +11257,6 @@ experiment id: "<ph name="EXPERIMENT_ID">$5<ex>ar1</ex></ph>"
         </message>
       </if>
 
-
       <!-- One click sign in infobar -->
       <message name="IDS_ONE_CLICK_SIGNIN_INFOBAR_OK_BUTTON" desc="The string used in the infobar button that the user presses to accept one click sign in.">
         OK, sync
@@ -11250,7 +11264,7 @@ experiment id: "<ph name="EXPERIMENT_ID">$5<ex>ar1</ex></ph>"
       <message name="IDS_ONE_CLICK_SIGNIN_INFOBAR_CANCEL_BUTTON" desc="The string used in the infobar button that the user presses to never see this infobar again.">
         No thanks
       </message>
-      
+
       <!-- One click sign in bubble and dialog -->
       <message name="IDS_ONE_CLICK_SIGNIN_DIALOG_MESSAGE" desc="The message of the one click sign in dialog.">
         Now you can access your bookmarks, history, and other settings on all of your signed in devices.
@@ -11269,6 +11283,17 @@ experiment id: "<ph name="EXPERIMENT_ID">$5<ex>ar1</ex></ph>"
       </message>
       <message name="IDS_ONE_CLICK_SIGNIN_DIALOG_CHECKBOX" desc="The text of checkbox in the one click sign in dialog indicating that default sync settings will be used.">
         Use default settings
+      </message>
+
+      <!-- Enterprise sign-in profile linking -->
+      <message name="IDS_ENTERPRISE_SIGNIN_PROFILE_LINK_LEARN_MORE" desc="The link to get more information about profile linking after signing into an enterprise account">
+	Learn more
+      </message>
+      <message name="IDS_ENTERPRISE_SIGNIN_CREATE_NEW_PROFILE_YES" desc="Text of the button to create a new profile after enterprise account signin">
+	Create a new user
+      </message>
+      <message name="IDS_ENTERPRISE_SIGNIN_CREATE_NEW_PROFILE_CANCEL" desc="Text of the button to cancel signin">
+	Cancel
       </message>
 
       <!-- Cookies Window -->
@@ -14793,10 +14818,12 @@ Some features may be unavailable.  Please check that the profile exists and you 
     <message name="IDS_GEOLOCATION_BLOCKED_TOOLTIP" desc="Location bar icon tooltip text when a page is blocked from using geolocation.">
       This page has been blocked from tracking your location.
     </message>
-    
+
     <message name="IDS_REGISTER_PROTOCOL_HANDLER_TOOLTIP" desc="Location bar icon tooltip text when a page wants to use registerProtocolHandler.">
       This page wants to install a service handler.
     </message>
+
+    <!-- MediaStream messages -->
     <message name="IDS_MEDIASTREAM_BUBBLE_CLEAR_LINK" desc="Link on the mediastream bubble that resets the media content setting for the current site.">
       Clear these settings for future visits
     </message>
@@ -14815,7 +14842,9 @@ Some features may be unavailable.  Please check that the profile exists and you 
     <message name="IDS_MEDIASTREAM_BLOCKED_TOOLTIP" desc="Location bar icon tooltip text when a page is blocked from using media streams (camera, microphone).">
       This page has been blocked from accessing your camera and microphone.
     </message>
-
+    <message name="IDS_MEDIASTREAM_SETTING_CHANGED_INFOBAR_MESSAGE" desc="Infobar message for reloading when media (camera, michrophone) settings was changed by user.">
+      New camera and microphone settings will take effect after reloading the page.
+    </message>
 
     <!-- ProcessSingleton -->
     <message name="IDS_PROFILE_IN_USE_LINUX" desc="Message shown when the browser cannot start because the profile is in use on a different host.">

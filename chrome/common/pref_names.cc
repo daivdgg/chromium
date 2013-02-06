@@ -30,10 +30,10 @@ const char kHomePage[] = "homepage";
 // Did the user change the home page after install?
 const char kHomePageChanged[] = "homepage_changed";
 
-// List of pages that are manually approved.
-const char kManagedModeWhitelist[] = "profile.managed.whitelist";
-// List of pages that are manually blocked.
-const char kManagedModeBlacklist[] = "profile.managed.blacklist";
+// Maps host names to whether the host is manually allowed or blocked.
+const char kManagedModeManualHosts[] = "profile.managed.manual_hosts";
+// Maps URLs to whether the URL is manually allowed or blocked.
+const char kManagedModeManualURLs[] = "profile.managed.manual_urls";
 
 // Used to determine if the last session exited cleanly. Set to false when
 // first opened, and to true when closing. On startup if the value is false,
@@ -1717,6 +1717,9 @@ const char kSyncMaxInvalidationVersions[] = "sync.max_invalidation_versions";
 // The GUID session sync will use to identify this client, even across sync
 // disable/enable events.
 const char kSyncSessionsGUID[] = "sync.session_sync_guid";
+
+// An ID to uniquely identify this client to the invalidator service.
+const char kInvalidatorClientId[] = "invalidator.client_id";
 
 // Opaque state from the invalidation subsystem that is persisted via prefs.
 // The value is base 64 encoded.

@@ -76,6 +76,7 @@
 #include "chrome/browser/policy/policy_service.h"
 #include "chrome/browser/prefs/chrome_pref_service_factory.h"
 #include "chrome/browser/prefs/command_line_pref_store.h"
+#include "chrome/browser/prefs/pref_registry_simple.h"
 #include "chrome/browser/prefs/pref_service.h"
 #include "chrome/browser/prefs/pref_value_store.h"
 #include "chrome/browser/prefs/scoped_user_pref_update.h"
@@ -136,6 +137,8 @@
 #include "ui/base/layout.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/resource/resource_handle.h"
+#include "ui/base/touch/touch_device.h"
+#include "ui/base/ui_base_switches.h"
 
 #if defined(OS_ANDROID)
 #include "base/android/build_info.h"
@@ -209,6 +212,16 @@ using content::BrowserThread;
 
 namespace {
 
+enum UMATouchEventsState {
+  UMA_TOUCH_EVENTS_ENABLED,
+  UMA_TOUCH_EVENTS_AUTO_ENABLED,
+  UMA_TOUCH_EVENTS_AUTO_DISABLED,
+  UMA_TOUCH_EVENTS_DISABLED,
+  // NOTE: Add states only immediately above this line. Make sure to
+  // update the enum list in tools/histogram/histograms.xml accordingly.
+  UMA_TOUCH_EVENTS_STATE_COUNT
+};
+
 void LogIntelMicroArchitecture() {
   base::CPU cpu;
   base::CPU::IntelMicroArchitecture arch = cpu.GetIntelMicroArchitecture();
@@ -251,26 +264,9 @@ PrefService* InitializeLocalState(
   bool local_state_file_exists = file_util::PathExists(local_state_path);
 
   // Load local state.  This includes the application locale so we know which
-  // locale dll to load.
-  PrefServiceSimple* local_state = g_browser_process->local_state();
+  // locale dll to load.  This also causes local state prefs to be registered.
+  PrefService* local_state = g_browser_process->local_state();
   DCHECK(local_state);
-
-  // TODO(brettw,*): this comment about ResourceBundle was here since
-  // initial commit.  This comment seems unrelated, bit-rotten and
-  // a candidate for removal.
-  // Initialize ResourceBundle which handles files loaded from external
-  // sources. This has to be done before uninstall code path and before prefs
-  // are registered.
-  local_state->RegisterStringPref(prefs::kApplicationLocale, std::string());
-#if defined(OS_CHROMEOS)
-  local_state->RegisterStringPref(prefs::kOwnerLocale, std::string());
-  local_state->RegisterStringPref(prefs::kHardwareKeyboardLayout,
-                                  std::string());
-#endif  // defined(OS_CHROMEOS)
-#if !defined(OS_CHROMEOS)
-  local_state->RegisterBooleanPref(prefs::kMetricsReportingEnabled,
-      GoogleUpdateSettings::GetCollectStatsConsent());
-#endif  // !defined(OS_CHROMEOS)
 
   if (is_first_run) {
 #if defined(OS_WIN)
@@ -296,19 +292,23 @@ PrefService* InitializeLocalState(
   // inherit and reset the user's setting.
   //
   // TODO(mnissler): We should probably just instantiate a
-  // JSONPrefStore here instead of an entire PrefService.
+  // JSONPrefStore here instead of an entire PrefService. Once this is
+  // addressed, the call to browser_prefs::RegisterLocalState can move
+  // to chrome_prefs::CreateLocalState.
   if (!local_state_file_exists &&
       parsed_command_line.HasSwitch(switches::kParentProfile)) {
     FilePath parent_profile =
         parsed_command_line.GetSwitchValuePath(switches::kParentProfile);
-    scoped_ptr<PrefServiceSimple> parent_local_state(
+    scoped_refptr<PrefRegistrySimple> registry = new PrefRegistrySimple();
+    scoped_ptr<PrefService> parent_local_state(
         chrome_prefs::CreateLocalState(
             parent_profile,
             local_state_task_runner,
             g_browser_process->policy_service(),
-            NULL, false));
-    parent_local_state->RegisterStringPref(prefs::kApplicationLocale,
-                                           std::string());
+            NULL,
+            registry,
+            false));
+    registry->RegisterStringPref(prefs::kApplicationLocale, std::string());
     // Right now, we only inherit the locale setting from the parent profile.
     local_state->SetString(
         prefs::kApplicationLocale,
@@ -441,6 +441,31 @@ void RecordDefaultBrowserUMAStat() {
       ShellIntegration::GetDefaultBrowser();
   UMA_HISTOGRAM_ENUMERATION("DefaultBrowser.State", default_state,
                             ShellIntegration::NUM_DEFAULT_STATES);
+}
+
+void RecordTouchEventState(const CommandLine& command_line) {
+  const std::string touch_enabled_switch =
+      command_line.HasSwitch(switches::kTouchEvents) ?
+      command_line.GetSwitchValueASCII(switches::kTouchEvents) :
+      switches::kTouchEventsAuto;
+
+  if (touch_enabled_switch.empty() ||
+      touch_enabled_switch == switches::kTouchEventsEnabled) {
+    UMA_HISTOGRAM_ENUMERATION("Touchscreen.TouchEventsEnabled",
+                              UMA_TOUCH_EVENTS_ENABLED,
+                              UMA_TOUCH_EVENTS_STATE_COUNT);
+  } else if (touch_enabled_switch == switches::kTouchEventsAuto) {
+    bool touch_device_present = ui::IsTouchDevicePresent();
+    UMA_HISTOGRAM_ENUMERATION("Touchscreen.TouchEventsEnabled",
+                              touch_device_present ?
+                                  UMA_TOUCH_EVENTS_AUTO_ENABLED :
+                                  UMA_TOUCH_EVENTS_AUTO_DISABLED,
+                              UMA_TOUCH_EVENTS_STATE_COUNT);
+  } else if (touch_enabled_switch == switches::kTouchEventsDisabled) {
+    UMA_HISTOGRAM_ENUMERATION("Touchscreen.TouchEventsEnabled",
+                              UMA_TOUCH_EVENTS_DISABLED,
+                              UMA_TOUCH_EVENTS_STATE_COUNT);
+  }
 }
 
 void RegisterComponentsForUpdate(const CommandLine& command_line) {
@@ -1558,6 +1583,8 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
   }
   browser_creator_.reset();
 #endif  // !defined(OS_ANDROID)
+
+  RecordTouchEventState(parsed_command_line());
 
   PostBrowserStart();
 

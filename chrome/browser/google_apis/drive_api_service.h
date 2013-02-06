@@ -82,7 +82,7 @@ class DriveAPIService : public DriveServiceInterface,
   virtual void DownloadFile(
       const base::FilePath& virtual_path,
       const base::FilePath& local_cache_path,
-      const GURL& content_url,
+      const GURL& download_url,
       const DownloadActionCallback& download_action_callback,
       const GetContentCallback& get_content_callback) OVERRIDE;
   virtual void CopyHostedDocument(
@@ -144,7 +144,6 @@ class DriveAPIService : public DriveServiceInterface,
   // DriveServiceObserver Overrides
   virtual void OnProgressUpdate(
       const OperationProgressStatusList& list) OVERRIDE;
-  virtual void OnAuthenticationFailed(GDataErrorCode error) OVERRIDE;
 
   net::URLRequestContextGetter* url_request_context_getter_;
   Profile* profile_;

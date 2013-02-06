@@ -8,7 +8,7 @@ vars = {
   "sourceforge_url": "http://%(repo)s.svn.sourceforge.net/svnroot/%(repo)s",
   "webkit_trunk": "http://svn.webkit.org/repository/webkit/trunk",
   "nacl_trunk": "http://src.chromium.org/native_client/trunk",
-  "webkit_revision": "141879",
+  "webkit_revision": "141982",
   "chromium_git": "https://chromium.googlesource.com",
   "chromiumos_git": "https://chromium.googlesource.com/chromiumos",
   "swig_revision": "69281",
@@ -29,17 +29,17 @@ vars = {
   "ffmpeg_hash": "5ef9ec1c09371f72efecddfc4ba0be0a50870040",
 
   "sfntly_revision": "134",
-  "skia_revision": "7572",
+  "skia_revision": "7612",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling Skia
   # and V8 without interference from each other.
-  "v8_revision": "13588",
+  "v8_revision": "13610",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling WebRTC
   # and V8 without interference from each other.
-  "webrtc_revision": "3426",
+  "webrtc_revision": "3468",
   "jsoncpp_revision": "248",
-  "nss_revision": "180499",
+  "nss_revision": "180595",
 }
 
 deps = {
@@ -62,7 +62,7 @@ deps = {
     (Var("googlecode_url") % "googlemock") + "/trunk@410",
 
   "src/third_party/angle":
-    (Var("googlecode_url") % "angleproject") + "/branches/dx11proto@1822",
+    (Var("googlecode_url") % "angleproject") + "/trunk@1810",
 
   "src/third_party/trace-viewer":
     (Var("googlecode_url") % "trace-viewer") + "/trunk@204",
@@ -75,7 +75,7 @@ deps = {
     "/trunk/deps/third_party/WebKit@76115",
 
   "src/third_party/icu":
-    "/trunk/deps/third_party/icu46@177751",
+    "/trunk/deps/third_party/icu46@180531",
 
   "src/third_party/libexif/sources":
     "/trunk/deps/third_party/libexif/sources@146817",
@@ -103,7 +103,7 @@ deps = {
     (Var("googlecode_url") % "grit-i18n") + "/trunk@107",
 
   "src/tools/gyp":
-    (Var("googlecode_url") % "gyp") + "/trunk@1568",
+    (Var("googlecode_url") % "gyp") + "/trunk@1569",
 
   "src/tools/swarm_client":
     "/trunk/tools/swarm_client@180725",
@@ -168,7 +168,7 @@ deps = {
     (Var("googlecode_url") % "bidichecker") + "/trunk/lib@4",
 
   "src/third_party/v8-i18n":
-    (Var("googlecode_url") % "v8-i18n") + "/trunk@163",
+    (Var("googlecode_url") % "v8-i18n") + "/trunk@164",
 
   # When roll to another webgl conformance tests revision, please goto
   # chrome/test/gpu and run generate_webgl_conformance_test_list.py.

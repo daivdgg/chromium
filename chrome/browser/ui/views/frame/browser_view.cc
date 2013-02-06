@@ -141,6 +141,7 @@
 #endif
 
 #if defined(OS_WIN)
+#include "base/win/windows_version.h"
 #include "win8/util/win8_util.h"
 #endif
 
@@ -205,7 +206,7 @@ class BookmarkExtensionBackground : public views::Background {
                               Browser* browser);
 
   // View methods overridden from views:Background.
-  virtual void Paint(gfx::Canvas* canvas, views::View* view) const;
+  virtual void Paint(gfx::Canvas* canvas, views::View* view) const OVERRIDE;
 
  private:
   BrowserView* browser_view_;
@@ -285,7 +286,7 @@ class ResizeCorner : public views::View {
     EnableCanvasFlippingForRTLUI(true);
   }
 
-  virtual void OnPaint(gfx::Canvas* canvas) {
+  virtual void OnPaint(gfx::Canvas* canvas) OVERRIDE {
     views::Widget* widget = GetWidget();
     if (!widget || (widget->IsMaximized() || widget->IsFullscreen()))
       return;
@@ -304,13 +305,13 @@ class ResizeCorner : public views::View {
     return gfx::Size();
   }
 
-  virtual gfx::Size GetPreferredSize() {
+  virtual gfx::Size GetPreferredSize() OVERRIDE {
     views::Widget* widget = GetWidget();
     return (!widget || widget->IsMaximized() || widget->IsFullscreen()) ?
         gfx::Size() : GetSize();
   }
 
-  virtual void Layout() {
+  virtual void Layout() OVERRIDE {
     if (parent()) {
       gfx::Size ps = GetPreferredSize();
       // No need to handle Right to left text direction here,
@@ -2352,6 +2353,15 @@ void BrowserView::LoadAccelerators() {
     focus_manager->RegisterAccelerator(
         accelerator, ui::AcceleratorManager::kNormalPriority, this);
   }
+#endif
+#if defined(OS_WIN) && defined(USE_AURA)
+    if (base::win::GetVersion() < base::win::VERSION_WIN8) {
+      ui::Accelerator accelerator(ui::VKEY_A,
+                                  ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN);
+      accelerator_table_[accelerator] = IDC_TOGGLE_ASH_DESKTOP;
+      focus_manager->RegisterAccelerator(
+          accelerator, ui::AcceleratorManager::kNormalPriority, this);
+    }
 #endif
 }
 

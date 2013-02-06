@@ -19,8 +19,8 @@ extern const char kDefaultAppsInstalled[];
 extern const char kHomePageIsNewTabPage[];
 extern const char kHomePage[];
 extern const char kHomePageChanged[];
-extern const char kManagedModeWhitelist[];
-extern const char kManagedModeBlacklist[];
+extern const char kManagedModeManualHosts[];
+extern const char kManagedModeManualURLs[];
 extern const char kSessionExitedCleanly[];
 extern const char kSessionExitType[];
 extern const char kRestoreOnStartup[];
@@ -615,6 +615,7 @@ extern const char kSyncAcknowledgedSyncTypes[];
 extern const char kSyncMaxInvalidationVersions[];
 extern const char kSyncSessionsGUID[];
 
+extern const char kInvalidatorClientId[];
 extern const char kInvalidatorInvalidationState[];
 extern const char kInvalidatorMaxInvalidationVersions[];
 

@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/ash/chrome_shell_delegate.h"
 
+#include "ash/ash_switches.h"
 #include "ash/host/root_window_host_factory.h"
 #include "ash/launcher/launcher_types.h"
 #include "ash/magnifier/magnifier_constants.h"
@@ -23,7 +24,6 @@
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ui/app_list/app_list_view_delegate.h"
 #include "chrome/browser/ui/ash/app_list/app_list_controller_ash.h"
-#include "chrome/browser/ui/ash/caps_lock_handler.h"
 #include "chrome/browser/ui/ash/launcher/chrome_launcher_controller.h"
 #include "chrome/browser/ui/ash/launcher/launcher_context_menu.h"
 #include "chrome/browser/ui/ash/user_action_handler.h"
@@ -55,8 +55,6 @@
 #include "chrome/browser/chromeos/background/ash_user_wallpaper_delegate.h"
 #include "chrome/browser/chromeos/extensions/media_player_api.h"
 #include "chrome/browser/chromeos/extensions/media_player_event_router.h"
-#include "chrome/browser/chromeos/input_method/input_method_configuration.h"
-#include "chrome/browser/chromeos/input_method/input_method_manager.h"
 #include "chrome/browser/chromeos/login/user_manager.h"
 #include "chrome/browser/chromeos/login/webui_login_display_host.h"
 #include "chrome/browser/chromeos/system/ash_system_tray_delegate.h"
@@ -210,10 +208,13 @@ void ChromeShellDelegate::ToggleMaximized() {
     return;
   }
   ash::wm::ToggleMaximizedWindow(window);
-  // Experiment with automatically entering immersive mode when the user presses
-  // the F4 maximize key.
-  window->SetProperty(ash::internal::kImmersiveModeKey,
-                      ash::wm::IsWindowMaximized(window));
+  if (CommandLine::ForCurrentProcess()->
+        HasSwitch(ash::switches::kAshImmersiveMode)) {
+    // Experiment with automatically entering immersive mode when the user
+    // presses the F4 maximize key.
+    window->SetProperty(ash::internal::kImmersiveModeKey,
+                        ash::wm::IsWindowMaximized(window));
+  }
 }
 
 void ChromeShellDelegate::OpenFileManager() {
@@ -445,16 +446,6 @@ ash::UserWallpaperDelegate* ChromeShellDelegate::CreateUserWallpaperDelegate() {
   return chromeos::CreateUserWallpaperDelegate();
 #else
   return NULL;
-#endif
-}
-
-ash::CapsLockDelegate* ChromeShellDelegate::CreateCapsLockDelegate() {
-#if defined(OS_CHROMEOS)
-  chromeos::input_method::XKeyboard* xkeyboard =
-      chromeos::input_method::GetInputMethodManager()->GetXKeyboard();
-  return new CapsLockHandler(xkeyboard);
-#else
-  return new CapsLockHandler;
 #endif
 }
 

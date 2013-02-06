@@ -34,7 +34,7 @@ class CC_EXPORT PicturePileImpl : public PicturePileBase {
       SkCanvas* canvas,
       gfx::Rect content_rect,
       float contents_scale,
-      RenderingStats* stats);
+      int64* total_pixels_rasterized);
 
   void GatherPixelRefs(
       gfx::Rect content_rect,
@@ -48,6 +48,8 @@ class CC_EXPORT PicturePileImpl : public PicturePileBase {
   void set_slow_down_raster_scale_factor(int factor) {
     slow_down_raster_scale_factor_for_debug_ = factor;
   }
+
+  bool IsCheapInRect(gfx::Rect content_rect, float contents_scale) const;
 
  protected:
   friend class PicturePile;

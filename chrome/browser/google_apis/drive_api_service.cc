@@ -335,15 +335,21 @@ void DriveAPIService::GetAppList(const GetAppListCallback& callback) {
 void DriveAPIService::DownloadFile(
     const FilePath& virtual_path,
     const FilePath& local_cache_path,
-    const GURL& content_url,
+    const GURL& download_url,
     const DownloadActionCallback& download_action_callback,
     const GetContentCallback& get_content_callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!download_action_callback.is_null());
   // get_content_callback may be null.
 
-  // TODO(kochi): Implement this.
-  NOTREACHED();
+  runner_->StartOperationWithRetry(
+      new DownloadFileOperation(operation_registry(),
+                                url_request_context_getter_,
+                                download_action_callback,
+                                get_content_callback,
+                                download_url,
+                                virtual_path,
+                                local_cache_path));
 }
 
 void DriveAPIService::DeleteResource(
@@ -353,8 +359,12 @@ void DriveAPIService::DeleteResource(
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   DCHECK(!callback.is_null());
 
-  // TODO(kochi): Implement this.
-  NOTREACHED();
+  runner_->StartOperationWithRetry(new drive::TrashResourceOperation(
+      operation_registry(),
+      url_request_context_getter_,
+      url_generator_,
+      resource_id,
+      callback));
 }
 
 void DriveAPIService::AddNewDirectory(
@@ -497,8 +507,10 @@ void DriveAPIService::OnOAuth2RefreshTokenChanged() {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   if (CanStartOperation()) {
     FOR_EACH_OBSERVER(
-        DriveServiceObserver, observers_,
-        OnReadyToPerformOperations());
+        DriveServiceObserver, observers_, OnReadyToPerformOperations());
+  } else if (!HasRefreshToken()) {
+    FOR_EACH_OBSERVER(
+        DriveServiceObserver, observers_, OnRefreshTokenInvalid());
   }
 }
 
@@ -507,13 +519,6 @@ void DriveAPIService::OnProgressUpdate(
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   FOR_EACH_OBSERVER(
       DriveServiceObserver, observers_, OnProgressUpdate(list));
-}
-
-void DriveAPIService::OnAuthenticationFailed(GDataErrorCode error) {
-  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
-  FOR_EACH_OBSERVER(
-      DriveServiceObserver, observers_,
-      OnAuthenticationFailed(error));
 }
 
 }  // namespace google_apis

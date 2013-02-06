@@ -154,13 +154,6 @@
           }, {
             'use_default_render_theme%': 0,
           }],
-
-          ['OS!="android" and OS!="ios"', {
-            # Enable Web Intents support in WebKit.
-            'enable_web_intents%': 1,
-          }, {
-            'enable_web_intents%': 0,
-          }],
         ],
       },
 
@@ -181,7 +174,7 @@
       'enable_app_list%': '<(enable_app_list)',
       'enable_message_center%': '<(enable_message_center)',
       'use_default_render_theme%': '<(use_default_render_theme)',
-      'enable_web_intents%': '<(enable_web_intents)',
+      'enable_web_intents%': 0,  # TODO(thakis): Remove, http://crbug.com/173194
       'buildtype%': '<(buildtype)',
 
       # We used to provide a variable for changing how libraries were built.
@@ -487,7 +480,7 @@
           'file_manager_extension%': 0,
         }],
 
-        ['OS=="win" or OS=="mac" or (OS=="linux" and use_aura==0)', {
+        ['OS=="win" or OS=="mac" or (OS=="linux" and chromeos==0)', {
           'enable_one_click_signin%': 1,
         }],
 

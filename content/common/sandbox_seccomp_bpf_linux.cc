@@ -18,6 +18,7 @@
 
 #include <vector>
 
+#include "base/basictypes.h"
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "content/common/sandbox_linux.h"
@@ -96,6 +97,24 @@ intptr_t CrashSIGSYS_Handler(const struct arch_seccomp_data& args, void* aux) {
   // for paranoia.
   syscall &= 0xfffUL;
   addr = reinterpret_cast<volatile char*>(syscall);
+  *addr = '\0';
+  for (;;)
+    _exit(1);
+}
+
+// TODO(jln): rewrite reporting functions.
+intptr_t ReportCloneFailure(const struct arch_seccomp_data& args, void* aux) {
+  // "flags" in the first argument in the kernel's clone().
+  // Mark as volatile to be able to find the value on the stack in a minidump.
+#if !defined(NDEBUG)
+  RAW_LOG(ERROR, __FILE__":**CRASHING**:clone() failure\n");
+#endif
+  volatile uint64_t clone_flags = args.args[0];
+  volatile char* addr =
+      reinterpret_cast<volatile char*>(clone_flags & 0xFFFFFF);
+  *addr = '\0';
+  // Hit the NULL page if this fails to fault.
+  addr = reinterpret_cast<volatile char*>(clone_flags & 0xFFF);
   *addr = '\0';
   for (;;)
     _exit(1);
@@ -537,11 +556,11 @@ bool IsAllowedGetOrModifySocket(int sysno) {
   switch (sysno) {
     case __NR_pipe:
     case __NR_pipe2:
+      return true;
+    default:
 #if defined(__x86_64__) || defined(__arm__)
     case __NR_socketpair:  // We will want to inspect its argument.
 #endif
-      return true;
-    default:
       return false;
   }
 }
@@ -1171,6 +1190,15 @@ bool IsBaselinePolicyWatched(int sysno) {
 }
 
 ErrorCode BaselinePolicy(int sysno) {
+#if defined(__x86_64__) || defined(__arm__)
+  if (sysno == __NR_socketpair) {
+    // Only allow AF_UNIX, PF_UNIX. Crash if anything else is seen.
+    COMPILE_ASSERT(AF_UNIX == PF_UNIX, af_unix_pf_unix_different);
+    return Sandbox::Cond(0, ErrorCode::TP_32BIT, ErrorCode::OP_EQUAL, AF_UNIX,
+                         ErrorCode(ErrorCode::ERR_ALLOWED),
+                         Sandbox::Trap(CrashSIGSYS_Handler, NULL));
+  }
+#endif
   if (IsBaselinePolicyAllowed(sysno)) {
     return ErrorCode(ErrorCode::ERR_ALLOWED);
   }
@@ -1236,8 +1264,24 @@ ErrorCode GpuBrokerProcessPolicy(int sysno, void*) {
   }
 }
 
+// Allow clone for threads, crash if anything else is attempted.
+ErrorCode RestrictCloneToThreads() {
+  // Glibc's pthread.
+  return Sandbox::Cond(0, ErrorCode::TP_32BIT, ErrorCode::OP_EQUAL,
+                       CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND |
+                       CLONE_THREAD | CLONE_SYSVSEM | CLONE_SETTLS |
+                       CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID,
+                       ErrorCode(ErrorCode::ERR_ALLOWED),
+                       Sandbox::Trap(ReportCloneFailure, NULL));
+}
+
 ErrorCode RendererOrWorkerProcessPolicy(int sysno, void *) {
   switch (sysno) {
+    case __NR_clone:
+#if defined(__x86_64__) && defined(OS_LINUX)
+      // TODO(jln): extend to other architectures.
+      return RestrictCloneToThreads();
+#endif
     case __NR_ioctl:  // TODO(jln) investigate legitimate use in the renderer
                       // and see if alternatives can be used.
     case __NR_fdatasync:

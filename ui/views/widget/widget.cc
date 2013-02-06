@@ -107,14 +107,14 @@ class DefaultWidgetDelegate : public WidgetDelegate {
   virtual void DeleteDelegate() OVERRIDE {
     delete this;
   }
-  virtual Widget* GetWidget() {
+  virtual Widget* GetWidget() OVERRIDE {
     return widget_;
   }
-  virtual const Widget* GetWidget() const {
+  virtual const Widget* GetWidget() const OVERRIDE {
     return widget_;
   }
 
-  virtual bool CanActivate() const {
+  virtual bool CanActivate() const OVERRIDE {
     return can_activate_;
   }
 
@@ -200,7 +200,8 @@ Widget::Widget()
       is_mouse_button_pressed_(false),
       is_touch_down_(false),
       last_mouse_event_was_move_(false),
-      root_layers_dirty_(false) {
+      root_layers_dirty_(false),
+      movement_disabled_(false) {
 }
 
 Widget::~Widget() {
@@ -546,12 +547,14 @@ void Widget::Close() {
     if (is_top_level() && focus_manager_.get())
       focus_manager_->SetFocusedView(NULL);
 
+    FOR_EACH_OBSERVER(WidgetObserver, observers_, OnWidgetClosing(this));
     native_widget_->Close();
     widget_closed_ = true;
   }
 }
 
 void Widget::CloseNow() {
+  FOR_EACH_OBSERVER(WidgetObserver, observers_, OnWidgetClosing(this));
   native_widget_->CloseNow();
 }
 
@@ -1023,7 +1026,7 @@ void Widget::OnNativeWidgetDestroying() {
   // in case that the focused view is under this root view.
   if (GetFocusManager())
     GetFocusManager()->ViewRemoved(root_view_.get());
-  FOR_EACH_OBSERVER(WidgetObserver, observers_, OnWidgetClosing(this));
+  FOR_EACH_OBSERVER(WidgetObserver, observers_, OnWidgetDestroying(this));
   if (non_client_view_)
     non_client_view_->WindowClosing();
   widget_delegate_->WindowClosing();
@@ -1122,9 +1125,14 @@ void Widget::OnNativeWidgetPaint(gfx::Canvas* canvas) {
 }
 
 int Widget::GetNonClientComponent(const gfx::Point& point) {
-  return non_client_view_ ?
+  int component = non_client_view_ ?
       non_client_view_->NonClientHitTest(point) :
       HTNOWHERE;
+
+  if (movement_disabled_ && (component == HTCAPTION || component == HTSYSMENU))
+    return HTNOWHERE;
+
+  return component;
 }
 
 void Widget::OnKeyEvent(ui::KeyEvent* event) {

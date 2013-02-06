@@ -7,8 +7,11 @@ function setupListener() {
   chrome.syncFileSystem.requestFileSystem(function() {});
 }
 
-function fileSyncEventReceived(file_entry_path, sync_operation_result) {
-  chrome.test.assertEq("foo", file_entry_path);
+function fileSyncEventReceived(file_entry, sync_operation_result) {
+  chrome.test.assertEq("foo.txt", file_entry.name);
+  chrome.test.assertEq("/foo.txt", file_entry.fullPath);
+  chrome.test.assertTrue(file_entry.isFile);
+  chrome.test.assertFalse(file_entry.isDirectory);
   chrome.test.assertEq("added", sync_operation_result);
   chrome.test.succeed();
 }
