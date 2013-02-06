@@ -135,7 +135,7 @@ fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
         if (tab_previous_fullscreen_state_ ==
             STATE_BROWSER_FULLSCREEN_WITH_CHROME) {
 fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
-          EnterFullscreenModeInternal(BROWSER);
+          EnterFullscreenModeInternal(BROWSER_WITH_CHROME);
         }
 #endif
         // If currently there is a tab in "tab fullscreen" mode and fullscreen
@@ -556,7 +556,10 @@ void FullscreenController::EnterFullscreenModeInternal(
     fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
     if (!extension_caused_fullscreen_.is_empty())
       url = extension_caused_fullscreen_;
-    content::RecordAction(UserMetricsAction("ToggleFullscreen"));
+
+    // Find a new home --- this will be inflated on mac switching out of tab
+    // to with chrome
+    content::RecordAction(UserMetricsAction("ToggleFullscreen")); 
   }
 
 #if defined(OS_MACOSX)
@@ -581,6 +584,7 @@ fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
 }
 
 void FullscreenController::ExitFullscreenModeInternal() {
+  fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
   toggled_into_fullscreen_ = false;
 #if defined(OS_MACOSX)
   // Mac windows report a state change instantly, and so we must also clear
@@ -605,10 +609,20 @@ void FullscreenController::SetMouseLockTab(WebContents* tab) {
 }
 
 void FullscreenController::ExitTabFullscreenOrMouseLockIfNecessary() {
-  if (IsFullscreenCausedByTab())
+  fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
+  if (IsFullscreenCausedByTab()) {
+    fprintf(stderr, "%s:%s:%d FullscreenCausedByTab\n", __FILE__, __FUNCTION__, __LINE__);
     ToggleFullscreenModeInternal(TAB);
-  else
+#if defined(OS_MACOSX)
+  } else if (tab_previous_fullscreen_state_ ==
+             STATE_BROWSER_FULLSCREEN_WITH_CHROME) {
+fprintf(stderr, "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
+          EnterFullscreenModeInternal(BROWSER_WITH_CHROME);
+#endif
+  } else {
+    fprintf(stderr, "%s:%s:%d !FullscreenCausedByTab\n", __FILE__, __FUNCTION__, __LINE__);
     NotifyTabOfExitIfNecessary();
+  }
 }
 
 void FullscreenController::UpdateFullscreenExitBubbleContent() {
